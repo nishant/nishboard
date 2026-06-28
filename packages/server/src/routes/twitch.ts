@@ -32,6 +32,28 @@ export const twitchRoutes: FastifyPluginAsync = async (fastify) => {
   const clientId = process.env.TWITCH_CLIENT_ID || process.env.TWITCH_CLIENT_ID_BUILTIN;
   const clientSecret = process.env.TWITCH_CLIENT_SECRET || process.env.TWITCH_CLIENT_SECRET_BUILTIN;
 
+  // GET /api/twitch/embed?channel=...
+  // Serves a minimal HTML page wrapping the Twitch player. The parent origin
+  // becomes http://localhost:7432, which matches the parent= param Twitch requires.
+  fastify.get<{ Querystring: { channel: string } }>('/embed', async (req, reply) => {
+    const { channel } = req.query;
+    if (!channel || !/^[A-Za-z0-9_]{1,25}$/.test(channel)) {
+      return reply.status(400).send('Invalid channel');
+    }
+    const src = `https://player.twitch.tv/?channel=${channel}&parent=localhost&autoplay=true`;
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>*{margin:0;padding:0;box-sizing:border-box}html,body,iframe{width:100%;height:100%;border:none;background:#000}</style>
+</head>
+<body>
+<iframe src="${src}" allow="autoplay;encrypted-media;fullscreen;picture-in-picture" allowfullscreen></iframe>
+</body>
+</html>`;
+    return reply.header('Content-Type', 'text/html; charset=utf-8').send(html);
+  });
+
   // GET /api/twitch/search?q=...&after=...
   fastify.get<{
     Querystring: { q: string; after?: string };

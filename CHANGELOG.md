@@ -4,6 +4,23 @@ All changes organized by pull request, newest first.
 
 ---
 
+## fix: Twitch video playback + close button
+**Branch:** `fix/twitch-video-close-button` → `master`
+**Date:** 2026-06-28
+
+### Fixed
+- **Twitch live stream shows blank player** — same root cause as the YouTube fix: in the packaged app the renderer loads from `file://`, so `window.location.hostname` is empty. The Twitch player's `parent` param didn't match the actual origin and Twitch silently refused to play. Fix: added `GET /api/twitch/embed?channel=` to Fastify (same proxy pattern as YouTube), so the embed is served from `http://localhost:7432` where `parent=localhost` is accurate.
+
+### Added
+- **Close button** — frameless window had no way to close the app. Added an X button to the right of Settings in the titlebar (with a divider). Hover turns red. Calls `window.electron.close()` which fires the existing `app:close` IPC handler.
+
+### Changed
+- `packages/server/src/routes/twitch.ts` — added `/embed` route; channel name validated against `/^[A-Za-z0-9_]{1,25}$/`.
+- `apps/renderer/src/widgets/twitch/TwitchWidget.tsx` — iframe src now points to `http://localhost:7432/api/twitch/embed?channel=...`; removed `PLAYER_PARENT` constant.
+- `apps/renderer/src/components/Titlebar.tsx` — close button added after Settings.
+
+---
+
 ## feat: bake all API keys into build, hide from Settings UI
 **Branch:** `fix/spotify-client-id` → `master`
 **Date:** 2026-06-28
