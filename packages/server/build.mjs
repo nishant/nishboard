@@ -24,7 +24,8 @@ await esbuild.build({
   outfile: 'dist/index.js',
   define: {
     // Baked in at package time from .env — never appears in source.
-    // Runtime SPOTIFY_CLIENT_ID (from safeStorage via Settings) takes priority.
+    // Runtime values from safeStorage/Settings take priority.
     'process.env.SPOTIFY_CLIENT_ID_BUILTIN': JSON.stringify(envVars.SPOTIFY_CLIENT_ID ?? ''),
+    'process.env.SPOTIFY_REDIRECT_URI_BUILTIN': JSON.stringify(envVars.SPOTIFY_REDIRECT_URI ?? 'http://localhost:7432/api/spotify/callback'),
   },
 });

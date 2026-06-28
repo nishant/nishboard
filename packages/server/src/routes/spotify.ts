@@ -69,7 +69,7 @@ const SCOPES = [
 ].join(' ');
 
 const clientId = () => process.env.SPOTIFY_CLIENT_ID || process.env.SPOTIFY_CLIENT_ID_BUILTIN || '';
-const redirectUri = () => process.env.SPOTIFY_REDIRECT_URI ?? 'http://localhost:7432/api/spotify/callback';
+const redirectUri = () => process.env.SPOTIFY_REDIRECT_URI || process.env.SPOTIFY_REDIRECT_URI_BUILTIN || 'http://localhost:7432/api/spotify/callback';
 
 async function exchangeCode(code: string, verifier: string): Promise<StoredTokens> {
   const res = await fetch(`${SPOTIFY_ACCOUNTS}/api/token`, {
