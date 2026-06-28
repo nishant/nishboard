@@ -10,6 +10,7 @@ All changes organized by pull request, newest first.
 
 ### Fixed
 - **Twitch live stream shows blank player** — same root cause as the YouTube fix: in the packaged app the renderer loads from `file://`, so `window.location.hostname` is empty. The Twitch player's `parent` param didn't match the actual origin and Twitch silently refused to play. Fix: added `GET /api/twitch/embed?channel=` to Fastify (same proxy pattern as YouTube), so the embed is served from `http://localhost:7432` where `parent=localhost` is accurate.
+- **Twitch CSP frame-ancestors block** — the player document returns `Content-Security-Policy: frame-ancestors http://localhost:*`, which validates the *entire* ancestor chain. The top-level renderer (`file://`) violated it even with the localhost proxy in place. `apps/main/src/index.ts` now strips the CSP header from `player.twitch.tv` responses via `webRequest.onHeadersReceived`. Scoped to the player document only — the video CDN (`*.ttvnw.net`) is untouched, so playback and auth are unaffected.
 
 ### Added
 - **Close button** — frameless window had no way to close the app. Added an X button to the right of Settings in the titlebar (with a divider). Hover turns red. Calls `window.electron.close()` which fires the existing `app:close` IPC handler.
