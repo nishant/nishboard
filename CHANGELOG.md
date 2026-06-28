@@ -4,6 +4,19 @@ All changes organized by pull request, newest first.
 
 ---
 
+## fix: Spotify client_id baked in at build time
+**Branch:** `fix/spotify-client-id` → `master`
+**Date:** 2026-06-28
+
+### Changed
+- `packages/server/build.mjs` — new esbuild script (replaces inline CLI) that reads `SPOTIFY_CLIENT_ID` from root `.env` at package time and bakes it into the server bundle via esbuild `--define` as `SPOTIFY_CLIENT_ID_BUILTIN`. The value never appears in source; the variable name is gone from the compiled output.
+- `packages/server/package.json` — build script now calls `node build.mjs`.
+- `packages/server/src/routes/spotify.ts` — `clientId()` checks runtime env first (`SPOTIFY_CLIENT_ID` from Settings/safeStorage), falls back to the baked-in value.
+
+Users who download the app get Spotify working with no setup. Users who enter their own Client ID in Settings override it.
+
+---
+
 ## fix: Spotify "client_id: Not present" on login
 **Branch:** `fix/spotify-client-id` → `master`
 **Date:** 2026-06-28
