@@ -15,6 +15,10 @@ if (fs.existsSync(envFile)) {
   }
 }
 
+// Keys baked in at package time from .env.
+// _BUILTIN vars are replaced with string literals by esbuild — they never
+// appear in source or version control. Runtime env (from safeStorage/Settings)
+// takes priority over these in every route.
 await esbuild.build({
   entryPoints: ['src/index.ts'],
   bundle: true,
@@ -23,9 +27,12 @@ await esbuild.build({
   format: 'cjs',
   outfile: 'dist/index.js',
   define: {
-    // Baked in at package time from .env — never appears in source.
-    // Runtime values from safeStorage/Settings take priority.
-    'process.env.SPOTIFY_CLIENT_ID_BUILTIN': JSON.stringify(envVars.SPOTIFY_CLIENT_ID ?? ''),
+    'process.env.SPOTIFY_CLIENT_ID_BUILTIN':    JSON.stringify(envVars.SPOTIFY_CLIENT_ID    ?? ''),
     'process.env.SPOTIFY_REDIRECT_URI_BUILTIN': JSON.stringify(envVars.SPOTIFY_REDIRECT_URI ?? 'http://localhost:7432/api/spotify/callback'),
+    'process.env.YOUTUBE_API_KEY_BUILTIN':      JSON.stringify(envVars.YOUTUBE_API_KEY      ?? ''),
+    'process.env.ALPACA_API_KEY_BUILTIN':       JSON.stringify(envVars.ALPACA_API_KEY       ?? ''),
+    'process.env.ALPACA_API_SECRET_BUILTIN':    JSON.stringify(envVars.ALPACA_API_SECRET    ?? ''),
+    'process.env.TWITCH_CLIENT_ID_BUILTIN':     JSON.stringify(envVars.TWITCH_CLIENT_ID     ?? ''),
+    'process.env.TWITCH_CLIENT_SECRET_BUILTIN': JSON.stringify(envVars.TWITCH_CLIENT_SECRET ?? ''),
   },
 });

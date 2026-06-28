@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Eye, EyeOff, Check, Loader2 } from 'lucide-react';
+import { X, Eye, EyeOff, Check, Loader2, Lock } from 'lucide-react';
 import { CREDENTIAL_DEFS, CREDENTIAL_KEYS } from '@dash/shared';
 import type { CredentialKey } from '@dash/shared';
 import { cn } from '../lib/utils';
@@ -52,6 +52,18 @@ function CredentialRow({
   );
 }
 
+function BuiltinRow({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="text-th-3 text-[11px] w-28 shrink-0">{label}</span>
+      <div className="flex items-center gap-1.5 text-th-ghost text-[11px]">
+        <Lock size={11} className="shrink-0" />
+        <span>Pre-configured</span>
+      </div>
+    </div>
+  );
+}
+
 // ── Modal ─────────────────────────────────────────────────────────────────────
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
@@ -60,13 +72,19 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   const [values, setValues] = useState<Partial<Record<CredentialKey, string>>>(
     () => Object.fromEntries(CREDENTIAL_KEYS.map((k) => [k, ''])) as Record<CredentialKey, string>,
   );
+  const [builtinKeys, setBuiltinKeys] = useState<string[]>([]);
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [loading, setLoading] = useState(true);
 
-  // Load existing credentials on mount
   useEffect(() => {
-    window.electron.credentials.getAll().then((stored) => {
+    Promise.all([
+      window.electron.credentials.getAll(),
+      fetch('http://localhost:7432/api/credentials/builtin').then((r) => r.json() as Promise<{ keys: string[] }>),
+    ]).then(([stored, builtin]) => {
       setValues((prev) => ({ ...prev, ...stored }));
+      setBuiltinKeys(builtin.keys);
+      setLoading(false);
+    }).catch(() => {
       setLoading(false);
     });
   }, []);
@@ -124,15 +142,19 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                   <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">
                     {service}
                   </span>
-                  {defs.map((def) => (
-                    <CredentialRow
-                      key={def.key}
-                      label={def.label}
-                      hint={def.hint}
-                      value={values[def.key] ?? ''}
-                      onChange={(v) => setValue(def.key, v)}
-                    />
-                  ))}
+                  {defs.map((def) =>
+                    builtinKeys.includes(def.key) ? (
+                      <BuiltinRow key={def.key} label={def.label} />
+                    ) : (
+                      <CredentialRow
+                        key={def.key}
+                        label={def.label}
+                        hint={def.hint}
+                        value={values[def.key] ?? ''}
+                        onChange={(v) => setValue(def.key, v)}
+                      />
+                    )
+                  )}
                 </div>
               );
             })

@@ -9,8 +9,8 @@ function baseUrl(): string {
 
 function authHeaders(): Record<string, string> {
   return {
-    'APCA-API-KEY-ID': process.env['ALPACA_API_KEY'] ?? '',
-    'APCA-API-SECRET-KEY': process.env['ALPACA_API_SECRET'] ?? '',
+    'APCA-API-KEY-ID': process.env['ALPACA_API_KEY'] || process.env['ALPACA_API_KEY_BUILTIN'] || '',
+    'APCA-API-SECRET-KEY': process.env['ALPACA_API_SECRET'] || process.env['ALPACA_API_SECRET_BUILTIN'] || '',
   };
 }
 

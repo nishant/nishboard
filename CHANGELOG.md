@@ -4,6 +4,18 @@ All changes organized by pull request, newest first.
 
 ---
 
+## feat: bake all API keys into build, hide from Settings UI
+**Branch:** `fix/spotify-client-id` → `master`
+**Date:** 2026-06-28
+
+### Changed
+- `packages/server/build.mjs` — bakes all credential keys (`SPOTIFY_CLIENT_ID`, `YOUTUBE_API_KEY`, `ALPACA_API_KEY`, `ALPACA_API_SECRET`, `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`) from root `.env` at package time via esbuild `--define`. Values are in the compiled bundle, not in source or git.
+- `packages/server/src/routes/youtube.ts`, `stocks.ts`, `twitch.ts`, `spotify.ts` — each route checks runtime env (safeStorage/Settings) first, falls back to `_BUILTIN` value.
+- `packages/server/src/index.ts` — added `GET /api/credentials/builtin` endpoint that returns key *names* (never values) of pre-configured keys.
+- `apps/renderer/src/components/SettingsModal.tsx` — fetches `/api/credentials/builtin` on open; shows a "Pre-configured" lock indicator instead of an input field for baked-in keys. Users can still override any key via Settings by adding their own value.
+
+---
+
 ## fix: Spotify client_id baked in at build time
 **Branch:** `fix/spotify-client-id` → `master`
 **Date:** 2026-06-28

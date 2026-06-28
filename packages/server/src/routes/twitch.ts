@@ -29,8 +29,8 @@ async function getAppToken(clientId: string, clientSecret: string): Promise<stri
 }
 
 export const twitchRoutes: FastifyPluginAsync = async (fastify) => {
-  const clientId = process.env.TWITCH_CLIENT_ID;
-  const clientSecret = process.env.TWITCH_CLIENT_SECRET;
+  const clientId = process.env.TWITCH_CLIENT_ID || process.env.TWITCH_CLIENT_ID_BUILTIN;
+  const clientSecret = process.env.TWITCH_CLIENT_SECRET || process.env.TWITCH_CLIENT_SECRET_BUILTIN;
 
   // GET /api/twitch/search?q=...&after=...
   fastify.get<{
