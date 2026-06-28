@@ -4,7 +4,7 @@ import type { YoutubeVideo, YoutubeSearchPage } from '@dash/shared';
 const BASE = 'https://www.googleapis.com/youtube/v3';
 
 export const youtubeRoutes: FastifyPluginAsync = async (fastify) => {
-  const apiKey = process.env.YOUTUBE_API_KEY;
+  const apiKey = process.env.YOUTUBE_API_KEY || process.env.YOUTUBE_API_KEY_BUILTIN;
 
   // GET /api/youtube/embed?videoId=...
   // Serves a minimal HTML page embedding the YouTube player. The parent origin

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Eye, EyeOff, Check, Loader2 } from 'lucide-react';
+import { X, Eye, EyeOff, Check, Loader2, Lock } from 'lucide-react';
 import { CREDENTIAL_DEFS, CREDENTIAL_KEYS } from '@dash/shared';
 import type { CredentialKey } from '@dash/shared';
 import { cn } from '../lib/utils';
@@ -11,35 +11,54 @@ const SERVICES = Array.from(new Set(CREDENTIAL_DEFS.map((d) => d.service)));
 
 function CredentialRow({
   label,
+  hint,
   value,
   onChange,
 }: {
   label: string;
+  hint?: string;
   value: string;
   onChange: (v: string) => void;
 }) {
   const [visible, setVisible] = useState(false);
 
   return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-3">
+        <span className="text-th-3 text-[11px] w-28 shrink-0">{label}</span>
+        <div className="flex-1 flex items-center gap-1.5">
+          <input
+            type={visible ? 'text' : 'password'}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="—"
+            spellCheck={false}
+            className="flex-1 bg-th-elevated border border-th-line rounded-lg px-3 py-1.5 text-th-hi text-[11px] font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-3 transition-colors"
+          />
+          <button
+            onClick={() => setVisible((v) => !v)}
+            className="text-th-ghost hover:text-th-2 transition-colors shrink-0 p-1"
+            tabIndex={-1}
+            title={visible ? 'Hide' : 'Show'}
+          >
+            {visible ? <EyeOff size={13} /> : <Eye size={13} />}
+          </button>
+        </div>
+      </div>
+      {hint && (
+        <p className="text-th-ghost text-[10px] leading-relaxed pl-[calc(7rem+0.75rem)]">{hint}</p>
+      )}
+    </div>
+  );
+}
+
+function BuiltinRow({ label }: { label: string }) {
+  return (
     <div className="flex items-center gap-3">
       <span className="text-th-3 text-[11px] w-28 shrink-0">{label}</span>
-      <div className="flex-1 flex items-center gap-1.5">
-        <input
-          type={visible ? 'text' : 'password'}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="—"
-          spellCheck={false}
-          className="flex-1 bg-th-elevated border border-th-line rounded-lg px-3 py-1.5 text-th-hi text-[11px] font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-3 transition-colors"
-        />
-        <button
-          onClick={() => setVisible((v) => !v)}
-          className="text-th-ghost hover:text-th-2 transition-colors shrink-0 p-1"
-          tabIndex={-1}
-          title={visible ? 'Hide' : 'Show'}
-        >
-          {visible ? <EyeOff size={13} /> : <Eye size={13} />}
-        </button>
+      <div className="flex items-center gap-1.5 text-th-ghost text-[11px]">
+        <Lock size={11} className="shrink-0" />
+        <span>Pre-configured</span>
       </div>
     </div>
   );
@@ -53,13 +72,19 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   const [values, setValues] = useState<Partial<Record<CredentialKey, string>>>(
     () => Object.fromEntries(CREDENTIAL_KEYS.map((k) => [k, ''])) as Record<CredentialKey, string>,
   );
+  const [builtinKeys, setBuiltinKeys] = useState<string[]>([]);
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [loading, setLoading] = useState(true);
 
-  // Load existing credentials on mount
   useEffect(() => {
-    window.electron.credentials.getAll().then((stored) => {
+    Promise.all([
+      window.electron.credentials.getAll(),
+      fetch('http://localhost:7432/api/credentials/builtin').then((r) => r.json() as Promise<{ keys: string[] }>),
+    ]).then(([stored, builtin]) => {
       setValues((prev) => ({ ...prev, ...stored }));
+      setBuiltinKeys(builtin.keys);
+      setLoading(false);
+    }).catch(() => {
       setLoading(false);
     });
   }, []);
@@ -117,14 +142,19 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                   <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">
                     {service}
                   </span>
-                  {defs.map((def) => (
-                    <CredentialRow
-                      key={def.key}
-                      label={def.label}
-                      value={values[def.key] ?? ''}
-                      onChange={(v) => setValue(def.key, v)}
-                    />
-                  ))}
+                  {defs.map((def) =>
+                    builtinKeys.includes(def.key) ? (
+                      <BuiltinRow key={def.key} label={def.label} />
+                    ) : (
+                      <CredentialRow
+                        key={def.key}
+                        label={def.label}
+                        hint={def.hint}
+                        value={values[def.key] ?? ''}
+                        onChange={(v) => setValue(def.key, v)}
+                      />
+                    )
+                  )}
                 </div>
               );
             })

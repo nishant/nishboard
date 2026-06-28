@@ -4,6 +4,46 @@ All changes organized by pull request, newest first.
 
 ---
 
+## feat: bake all API keys into build, hide from Settings UI
+**Branch:** `fix/spotify-client-id` → `master`
+**Date:** 2026-06-28
+
+### Changed
+- `packages/server/build.mjs` — bakes all credential keys (`SPOTIFY_CLIENT_ID`, `YOUTUBE_API_KEY`, `ALPACA_API_KEY`, `ALPACA_API_SECRET`, `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`) from root `.env` at package time via esbuild `--define`. Values are in the compiled bundle, not in source or git.
+- `packages/server/src/routes/youtube.ts`, `stocks.ts`, `twitch.ts`, `spotify.ts` — each route checks runtime env (safeStorage/Settings) first, falls back to `_BUILTIN` value.
+- `packages/server/src/index.ts` — added `GET /api/credentials/builtin` endpoint that returns key *names* (never values) of pre-configured keys.
+- `apps/renderer/src/components/SettingsModal.tsx` — fetches `/api/credentials/builtin` on open; shows a "Pre-configured" lock indicator instead of an input field for baked-in keys. Users can still override any key via Settings by adding their own value.
+
+---
+
+## fix: Spotify client_id baked in at build time
+**Branch:** `fix/spotify-client-id` → `master`
+**Date:** 2026-06-28
+
+### Changed
+- `packages/server/build.mjs` — new esbuild script (replaces inline CLI) that reads `SPOTIFY_CLIENT_ID` from root `.env` at package time and bakes it into the server bundle via esbuild `--define` as `SPOTIFY_CLIENT_ID_BUILTIN`. The value never appears in source; the variable name is gone from the compiled output.
+- `packages/server/package.json` — build script now calls `node build.mjs`.
+- `packages/server/src/routes/spotify.ts` — `clientId()` checks runtime env first (`SPOTIFY_CLIENT_ID` from Settings/safeStorage), falls back to the baked-in value.
+
+Users who download the app get Spotify working with no setup. Users who enter their own Client ID in Settings override it.
+
+---
+
+## fix: Spotify "client_id: Not present" on login
+**Branch:** `fix/spotify-client-id` → `master`
+**Date:** 2026-06-28
+
+### Fixed
+- **Spotify login fails with "client_id: Not present"** — `SPOTIFY_CLIENT_ID` was read from `process.env` but was never part of the credentials system, so there was no way for users to set it. Added it to `CREDENTIAL_KEYS` and `CREDENTIAL_DEFS` so it appears in Settings and gets stored/injected like all other keys.
+- **Redirect URI was empty** — `redirectUri()` fell back to `''` when `SPOTIFY_REDIRECT_URI` wasn't set. Changed default to `'http://localhost:7432/api/spotify/callback'` — the only valid value for this app.
+
+### Changed
+- `packages/shared/src/types/credentials.ts` — added `SPOTIFY_CLIENT_ID` with a hint pointing to developer.spotify.com.
+- `packages/server/src/routes/spotify.ts` — `redirectUri()` defaults to `http://localhost:7432/api/spotify/callback`.
+- `apps/renderer/src/components/SettingsModal.tsx` — `CredentialRow` now accepts and renders an optional `hint` line below the input; `hint` is wired through the `def.hint` field.
+
+---
+
 ## fix: YouTube errors 152–154 via localhost embed proxy
 **Branch:** `fix/server-port-conflict-youtube` → `master`
 **Date:** 2026-06-28

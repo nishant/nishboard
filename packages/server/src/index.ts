@@ -31,6 +31,19 @@ async function start(): Promise<void> {
 
   server.get('/health', async () => ({ status: 'ok' }));
 
+  // Returns which credential keys are baked in at build time.
+  // Only key names are returned — never values.
+  server.get('/api/credentials/builtin', async () => ({
+    keys: [
+      process.env.SPOTIFY_CLIENT_ID_BUILTIN    && 'SPOTIFY_CLIENT_ID',
+      process.env.YOUTUBE_API_KEY_BUILTIN      && 'YOUTUBE_API_KEY',
+      process.env.ALPACA_API_KEY_BUILTIN       && 'ALPACA_API_KEY',
+      process.env.ALPACA_API_SECRET_BUILTIN    && 'ALPACA_API_SECRET',
+      process.env.TWITCH_CLIENT_ID_BUILTIN     && 'TWITCH_CLIENT_ID',
+      process.env.TWITCH_CLIENT_SECRET_BUILTIN && 'TWITCH_CLIENT_SECRET',
+    ].filter(Boolean),
+  }));
+
   await server.listen({ port, host: '127.0.0.1' });
 
   // Warm up slow OS APIs in the background so the first renderer request is fast.
