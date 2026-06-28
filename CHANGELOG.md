@@ -4,6 +4,22 @@ All changes organized by pull request, newest first.
 
 ---
 
+## fix: YouTube errors 152–154 via localhost embed proxy
+**Branch:** `fix/server-port-conflict-youtube` → `master`
+**Date:** 2026-06-28
+
+### Fixed
+- **YouTube errors 152–154 on all videos** — the previous `webRequest.onBeforeSendHeaders` interceptor injected `Referer: https://www.youtube.com/` on `*.googlevideo.com` CDN stream requests where no Referer existed. The CDN rejected those modified requests, causing playback errors on every video.
+- **Root cause addressed properly** — instead of header spoofing, the YouTube widget now loads `http://localhost:7432/api/youtube/embed?videoId=...` (a new Fastify route) which serves a minimal HTML wrapper page containing the `youtube-nocookie.com` iframe. From YouTube's perspective the embed origin is `http://localhost:7432/` (a valid HTTP origin) rather than `file://`. This eliminates the null-origin rejection without touching any CDN traffic.
+- **Removed `webRequest` interceptor** from `apps/main/src/index.ts` — only the UA-stripping fix remains.
+
+### Changed
+- `packages/server/src/routes/youtube.ts` — added `GET /api/youtube/embed?videoId=` route; videoId is validated against `/^[A-Za-z0-9_-]{6,16}$/` before injection to prevent XSS.
+- `apps/renderer/src/widgets/youtube/YoutubeWidget.tsx` — iframe `src` now points to the local embed proxy instead of youtube-nocookie.com directly.
+- `apps/main/src/index.ts` — removed `webRequest.onBeforeSendHeaders` block; kept Electron UA strip.
+
+---
+
 ## fix: server port conflict on relaunch + YouTube Error 153 referrer
 **Branch:** `fix/server-port-conflict-youtube` → `master`
 **Date:** 2026-05-31

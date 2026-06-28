@@ -41,19 +41,6 @@ app.whenReady().then(async () => {
   const ua = session.defaultSession.getUserAgent().replace(/\s*Electron\/[\d.]+/, '');
   session.defaultSession.setUserAgent(ua);
 
-  // Spoof a Referer header on YouTube/youtube-nocookie requests so the embed
-  // player doesn't reject them as coming from an unknown origin (file:// in prod).
-  session.defaultSession.webRequest.onBeforeSendHeaders(
-    { urls: ['*://*.youtube.com/*', '*://*.youtube-nocookie.com/*', '*://*.googlevideo.com/*'] },
-    (details, callback) => {
-      const headers = { ...details.requestHeaders };
-      if (!headers['Referer'] && !headers['referer']) {
-        headers['Referer'] = 'https://www.youtube.com/';
-      }
-      callback({ requestHeaders: headers });
-    },
-  );
-
   await spawnServer();
   registerIpcHandlers(ipcMain);
   createWindow();
