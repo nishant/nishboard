@@ -4,6 +4,19 @@ All changes organized by pull request, newest first.
 
 ---
 
+## docs: rename to Nishboard + dual-machine memory paths
+**Branch:** `feat/nishboard-rename` → `master`
+**Date:** 2026-06-28
+
+### Changed
+- **CLAUDE.md retitled** "Dashboard Project" → "Nishboard". Added a note that the GitHub repo is `nishboard` while the local checkout folders may still be `desktop-dashboard` (and `@dash/*` workspace names are unchanged).
+- **Memory Protocol** now documents the local auto-memory path for **both** machines (Windows + macOS) since Nish develops on both, and explains the dir is derived from the checkout path.
+- **Widget table refreshed** — added Calendar (local/system clock), Twitch (Helix, 60s), and YouTube (Data API v3, 5min); noted the Twitch/YouTube Fastify embed proxy.
+- **Added a "Build & Run" section** to CLAUDE.md covering `pnpm dev/build/package` and how `packages/server/build.mjs` bakes `.env` keys into the packaged build.
+- **README** + root **package.json `name`** updated to `nishboard`.
+
+---
+
 ## fix: Twitch video playback + close button
 **Branch:** `fix/twitch-video-close-button` → `master`
 **Date:** 2026-06-28

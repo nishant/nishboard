@@ -1,2 +1,2 @@
-# desktop-dashboard
-a dashboard for your desktop
+# nishboard
+a personal ambient desktop dashboard
