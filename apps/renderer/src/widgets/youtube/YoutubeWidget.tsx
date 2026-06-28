@@ -178,7 +178,7 @@ export function YoutubeWidget() {
         <div className="shrink-0 overflow-hidden" style={{ height: showSearch ? 0 : iframeH }}>
           <iframe
             key={selectedVideo.videoId}
-            src={`https://www.youtube-nocookie.com/embed/${selectedVideo.videoId}?autoplay=1&rel=0&modestbranding=1`}
+            src={`http://localhost:7432/api/youtube/embed?videoId=${selectedVideo.videoId}`}
             className="w-full h-full"
             allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
             allowFullScreen

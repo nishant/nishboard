@@ -1,4 +1,4 @@
-import { ChildProcess, spawn } from 'child_process';
+import { ChildProcess, spawn, execSync } from 'child_process';
 import { app } from 'electron';
 import path from 'path';
 import { readCredentials } from '../credentials';
@@ -7,6 +7,22 @@ let serverProcess: ChildProcess | null = null;
 
 const isDev = process.env.NODE_ENV === 'development';
 const port = Number(process.env.SERVER_PORT ?? 7432);
+
+/** Kill any leftover process holding our port from a previous (possibly crashed) run. */
+function killStaleOnPort(p: number): void {
+  try {
+    if (process.platform === 'win32') {
+      const out = execSync(`netstat -ano | findstr :${p} | findstr LISTENING`, { encoding: 'utf8' });
+      const match = out.match(/\s+(\d+)\s*$/m);
+      if (match) execSync(`taskkill /PID ${match[1]} /F`, { stdio: 'ignore' });
+    } else {
+      const pids = execSync(`lsof -ti tcp:${p}`, { encoding: 'utf8' }).trim();
+      if (pids) execSync(`kill -9 ${pids}`, { stdio: 'ignore' });
+    }
+  } catch {
+    // Nothing on the port, or command unavailable — safe to continue
+  }
+}
 
 async function waitForServer(timeoutMs = 15000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
@@ -23,6 +39,8 @@ async function waitForServer(timeoutMs = 15000): Promise<void> {
 }
 
 export async function spawnServer(): Promise<void> {
+  killStaleOnPort(port);
+
   if (!isDev) {
     // In production the server lives at {appPath}/server/index.js
     // (electron-builder maps packages/server/dist → server/ with asar: false)

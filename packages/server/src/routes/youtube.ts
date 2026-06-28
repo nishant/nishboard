@@ -6,6 +6,29 @@ const BASE = 'https://www.googleapis.com/youtube/v3';
 export const youtubeRoutes: FastifyPluginAsync = async (fastify) => {
   const apiKey = process.env.YOUTUBE_API_KEY;
 
+  // GET /api/youtube/embed?videoId=...
+  // Serves a minimal HTML page embedding the YouTube player. The parent origin
+  // becomes http://localhost:7432 instead of file://, which YouTube accepts.
+  fastify.get<{ Querystring: { videoId: string } }>('/embed', async (req, reply) => {
+    const { videoId } = req.query;
+    if (!videoId || !/^[A-Za-z0-9_-]{6,16}$/.test(videoId)) {
+      return reply.status(400).send('Invalid videoId');
+    }
+    const embedSrc = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1`;
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="referrer" content="origin">
+<style>*{margin:0;padding:0;box-sizing:border-box}html,body,iframe{width:100%;height:100%;border:none;background:#000}</style>
+</head>
+<body>
+<iframe src="${embedSrc}" allow="autoplay;encrypted-media;fullscreen;picture-in-picture" allowfullscreen></iframe>
+</body>
+</html>`;
+    return reply.header('Content-Type', 'text/html; charset=utf-8').send(html);
+  });
+
   // GET /api/youtube/search?q=...&pageToken=...
   fastify.get<{
     Querystring: { q: string; pageToken?: string };
