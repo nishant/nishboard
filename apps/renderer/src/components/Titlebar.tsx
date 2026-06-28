@@ -929,7 +929,7 @@ export function Titlebar() {
         <ThemeMenu />
         <WidgetsMenu />
         <LayoutsMenu />
-        <div style={noDragStyle}>
+        <div style={noDragStyle} className="flex items-center gap-1">
           <button
             onClick={() => setSettingsOpen(true)}
             className={menuBtn(false)}
@@ -937,6 +937,14 @@ export function Titlebar() {
           >
             <Settings size={11} />
             Settings
+          </button>
+          <div className="w-px h-3 bg-th-line mx-1" />
+          <button
+            onClick={() => window.electron.close()}
+            className="flex items-center justify-center w-6 h-6 rounded text-th-ghost hover:text-red-400 hover:bg-th-elevated/60 transition-colors"
+            title="Close"
+          >
+            <X size={13} />
           </button>
         </div>
       </div>

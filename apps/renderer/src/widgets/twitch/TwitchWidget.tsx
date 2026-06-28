@@ -7,11 +7,6 @@ type View = 'home' | 'search';
 
 const CONTROL_BAR_H = 44;
 
-// Twitch's embedded player requires a `parent` param matching the host page's
-// domain. In dev the renderer is served from localhost; for a packaged file://
-// build there is no valid host, so playback won't load there yet (see README/notes).
-const PLAYER_PARENT = window.location.hostname || 'localhost';
-
 // ── Twitch icon (monochrome, simple-icons glyph) ───────────────────────────────
 
 function TwitchIcon({ size }: { size: number }) {
@@ -218,7 +213,7 @@ export function TwitchWidget() {
         <div className="shrink-0 overflow-hidden" style={{ height: showSearch ? 0 : iframeH }}>
           <iframe
             key={selectedChannel.login}
-            src={`https://player.twitch.tv/?channel=${selectedChannel.login}&parent=${PLAYER_PARENT}&autoplay=true`}
+            src={`http://localhost:7432/api/twitch/embed?channel=${selectedChannel.login}`}
             className="w-full h-full"
             allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
             allowFullScreen

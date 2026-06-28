@@ -41,6 +41,24 @@ app.whenReady().then(async () => {
   const ua = session.defaultSession.getUserAgent().replace(/\s*Electron\/[\d.]+/, '');
   session.defaultSession.setUserAgent(ua);
 
+  // The Twitch player document sends `frame-ancestors http://localhost:*` in its
+  // CSP. frame-ancestors validates the ENTIRE ancestor chain, so the top-level
+  // renderer (file:// in prod) violates it even though the embed proxy is on
+  // localhost. Strip CSP only from the player document responses — the video CDN
+  // (*.ttvnw.net) is untouched, so playback/auth are unaffected.
+  session.defaultSession.webRequest.onHeadersReceived(
+    { urls: ['*://player.twitch.tv/*'] },
+    (details, callback) => {
+      const responseHeaders = { ...details.responseHeaders };
+      for (const key of Object.keys(responseHeaders)) {
+        if (key.toLowerCase().startsWith('content-security-policy')) {
+          delete responseHeaders[key];
+        }
+      }
+      callback({ responseHeaders });
+    },
+  );
+
   await spawnServer();
   registerIpcHandlers(ipcMain);
   createWindow();
