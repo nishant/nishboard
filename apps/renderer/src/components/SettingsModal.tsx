@@ -11,36 +11,43 @@ const SERVICES = Array.from(new Set(CREDENTIAL_DEFS.map((d) => d.service)));
 
 function CredentialRow({
   label,
+  hint,
   value,
   onChange,
 }: {
   label: string;
+  hint?: string;
   value: string;
   onChange: (v: string) => void;
 }) {
   const [visible, setVisible] = useState(false);
 
   return (
-    <div className="flex items-center gap-3">
-      <span className="text-th-3 text-[11px] w-28 shrink-0">{label}</span>
-      <div className="flex-1 flex items-center gap-1.5">
-        <input
-          type={visible ? 'text' : 'password'}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="—"
-          spellCheck={false}
-          className="flex-1 bg-th-elevated border border-th-line rounded-lg px-3 py-1.5 text-th-hi text-[11px] font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-3 transition-colors"
-        />
-        <button
-          onClick={() => setVisible((v) => !v)}
-          className="text-th-ghost hover:text-th-2 transition-colors shrink-0 p-1"
-          tabIndex={-1}
-          title={visible ? 'Hide' : 'Show'}
-        >
-          {visible ? <EyeOff size={13} /> : <Eye size={13} />}
-        </button>
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-3">
+        <span className="text-th-3 text-[11px] w-28 shrink-0">{label}</span>
+        <div className="flex-1 flex items-center gap-1.5">
+          <input
+            type={visible ? 'text' : 'password'}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="—"
+            spellCheck={false}
+            className="flex-1 bg-th-elevated border border-th-line rounded-lg px-3 py-1.5 text-th-hi text-[11px] font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-3 transition-colors"
+          />
+          <button
+            onClick={() => setVisible((v) => !v)}
+            className="text-th-ghost hover:text-th-2 transition-colors shrink-0 p-1"
+            tabIndex={-1}
+            title={visible ? 'Hide' : 'Show'}
+          >
+            {visible ? <EyeOff size={13} /> : <Eye size={13} />}
+          </button>
+        </div>
       </div>
+      {hint && (
+        <p className="text-th-ghost text-[10px] leading-relaxed pl-[calc(7rem+0.75rem)]">{hint}</p>
+      )}
     </div>
   );
 }
@@ -121,6 +128,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                     <CredentialRow
                       key={def.key}
                       label={def.label}
+                      hint={def.hint}
                       value={values[def.key] ?? ''}
                       onChange={(v) => setValue(def.key, v)}
                     />
