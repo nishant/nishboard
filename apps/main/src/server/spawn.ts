@@ -39,9 +39,13 @@ async function waitForServer(timeoutMs = 15000): Promise<void> {
 }
 
 export async function spawnServer(): Promise<void> {
-  killStaleOnPort(port);
-
   if (!isDev) {
+    // Production only: clear any leftover process on our port before spawning ours.
+    // In dev the server is managed externally by `concurrently` (tsx watch); killing
+    // the port here would take down the live dev server on every Electron restart
+    // (Electron restarts whenever a main/shared file recompiles), so we skip it.
+    killStaleOnPort(port);
+
     // In production the server lives at {appPath}/server/index.js
     // (electron-builder maps packages/server/dist → server/ with asar: false)
     const serverEntry = path.join(app.getAppPath(), 'server', 'index.js');

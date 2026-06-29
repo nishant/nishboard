@@ -4,6 +4,18 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #49] fix: dev server no longer killed on Electron restart
+**Branch:** `fix/dev-server-kill-race` → `master`
+**Date:** 2026-06-29
+
+### Context
+In `pnpm dev`, the Electron main process restarts whenever a main/shared file recompiles (and during a launch race). `spawnServer()` ran `killStaleOnPort(7432)` **unconditionally** — including in dev — which killed the externally-managed `tsx watch` dev server, leaving the whole API dead (`Server on :7432 did not start within 15000ms`, widgets stuck on "Failed to load").
+
+### Fixed
+- `apps/main/src/server/spawn.ts` — `killStaleOnPort(port)` now runs **only in production**, right before spawning our own server child. In dev the server is owned by `concurrently`/`tsx watch`, so Electron just waits for it. Verified: the dev server (same PID) survives repeated Electron restarts, and the packaged-app port cleanup from #42 is unchanged.
+
+---
+
 ## [PR #48] feat: weather location override, settings tabs, clock temperature
 **Branch:** `fix/weather-location` → `master`
 **Date:** 2026-06-29
