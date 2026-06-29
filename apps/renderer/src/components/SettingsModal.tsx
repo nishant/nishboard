@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, Eye, EyeOff, Check, Loader2, Lock } from 'lucide-react';
 import { CREDENTIAL_DEFS, CREDENTIAL_KEYS } from '@dash/shared';
 import type { CredentialKey } from '@dash/shared';
+import { useAppSettingsStore } from '../store/settingsStore';
 import { cn } from '../lib/utils';
 
 // Group defs by service
@@ -64,11 +65,95 @@ function BuiltinRow({ label }: { label: string }) {
   );
 }
 
+// ── Toggle switch row ─────────────────────────────────────────────────────────
+
+function ToggleRow({
+  label,
+  description,
+  checked,
+  onChange,
+}: {
+  label: string;
+  description?: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      <button
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className={cn(
+          'relative w-9 h-5 rounded-full transition-colors shrink-0 mt-0.5',
+          checked ? 'bg-th-accent' : 'bg-th-overlay',
+        )}
+      >
+        <span
+          className={cn(
+            'absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform',
+            checked && 'translate-x-4',
+          )}
+        />
+      </button>
+      <div className="flex flex-col">
+        <span className="text-th-hi text-[11px]">{label}</span>
+        {description && (
+          <span className="text-th-ghost text-[10px] leading-relaxed">{description}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── App settings tab ──────────────────────────────────────────────────────────
+
+function AppSettingsPanel() {
+  const { weatherZip, showTempInClock, setWeatherZip, setShowTempInClock } = useAppSettingsStore();
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3">
+        <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">Weather</span>
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-3">
+            <span className="text-th-3 text-[11px] w-28 shrink-0">Location (ZIP)</span>
+            <input
+              value={weatherZip}
+              onChange={(e) => setWeatherZip(e.target.value.replace(/[^0-9]/g, '').slice(0, 5))}
+              placeholder="Auto (by IP)"
+              inputMode="numeric"
+              maxLength={5}
+              spellCheck={false}
+              className="flex-1 bg-th-elevated border border-th-line rounded-lg px-3 py-1.5 text-th-hi text-[11px] font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-3 transition-colors"
+            />
+          </div>
+          <p className="text-th-ghost text-[10px] leading-relaxed pl-[calc(7rem+0.75rem)]">
+            5-digit US ZIP to override your location. Leave blank to detect automatically.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">Top bar</span>
+        <ToggleRow
+          label="Show temperature"
+          description="Display the current temperature next to the clock."
+          checked={showTempInClock}
+          onChange={setShowTempInClock}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ── Modal ─────────────────────────────────────────────────────────────────────
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
+type Tab = 'app' | 'dev';
 
 export function SettingsModal({ onClose }: { onClose: () => void }) {
+  const [tab, setTab] = useState<Tab>('app');
   const [values, setValues] = useState<Partial<Record<CredentialKey, string>>>(
     () => Object.fromEntries(CREDENTIAL_KEYS.map((k) => [k, ''])) as Record<CredentialKey, string>,
   );
@@ -113,6 +198,20 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     if (saveState !== 'idle') setSaveState('idle');
   }
 
+  const tabBtn = (t: Tab, text: string) => (
+    <button
+      onClick={() => setTab(t)}
+      className={cn(
+        'px-3 py-1.5 text-[11px] font-medium border-b-2 -mb-px transition-colors',
+        tab === t
+          ? 'border-th-accent text-th-hi'
+          : 'border-transparent text-th-ghost hover:text-th-2',
+      )}
+    >
+      {text}
+    </button>
+  );
+
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60">
       <div className="bg-th-surface border border-th-line rounded-2xl shadow-2xl w-[480px] max-h-[80vh] flex flex-col overflow-hidden">
@@ -128,70 +227,82 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
+        {/* Tabs */}
+        <div className="flex items-center gap-1 px-5 border-b border-th-line shrink-0">
+          {tabBtn('app', 'App')}
+          {tabBtn('dev', 'Developer')}
+        </div>
+
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-6">
-          {loading ? (
+          {tab === 'app' ? (
+            <AppSettingsPanel />
+          ) : loading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 size={18} className="text-th-ghost animate-spin" />
             </div>
           ) : (
-            SERVICES.map((service) => {
-              const defs = CREDENTIAL_DEFS.filter((d) => d.service === service);
-              return (
-                <div key={service} className="flex flex-col gap-3">
-                  <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">
-                    {service}
-                  </span>
-                  {defs.map((def) =>
-                    builtinKeys.includes(def.key) ? (
-                      <BuiltinRow key={def.key} label={def.label} />
-                    ) : (
-                      <CredentialRow
-                        key={def.key}
-                        label={def.label}
-                        hint={def.hint}
-                        value={values[def.key] ?? ''}
-                        onChange={(v) => setValue(def.key, v)}
-                      />
-                    )
-                  )}
-                </div>
-              );
-            })
-          )}
+            <>
+              {SERVICES.map((service) => {
+                const defs = CREDENTIAL_DEFS.filter((d) => d.service === service);
+                return (
+                  <div key={service} className="flex flex-col gap-3">
+                    <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">
+                      {service}
+                    </span>
+                    {defs.map((def) =>
+                      builtinKeys.includes(def.key) ? (
+                        <BuiltinRow key={def.key} label={def.label} />
+                      ) : (
+                        <CredentialRow
+                          key={def.key}
+                          label={def.label}
+                          hint={def.hint}
+                          value={values[def.key] ?? ''}
+                          onChange={(v) => setValue(def.key, v)}
+                        />
+                      )
+                    )}
+                  </div>
+                );
+              })}
 
-          {/* Info note */}
-          <p className="text-th-ghost text-[10px] leading-relaxed border-t border-th-line pt-4">
-            Spotify uses sign-in — no key needed. Weather, Hardware, and Sound require no API keys.
-            <br />
-            Keys are encrypted with your OS keychain and never leave this device.
-          </p>
+              {/* Info note */}
+              <p className="text-th-ghost text-[10px] leading-relaxed border-t border-th-line pt-4">
+                Spotify uses sign-in — no key needed. Weather, Hardware, and Sound require no API keys.
+                <br />
+                Keys are encrypted with your OS keychain and never leave this device.
+              </p>
+            </>
+          )}
         </div>
 
-        {/* Footer */}
-        <div className="px-5 py-3 border-t border-th-line shrink-0 flex items-center justify-between">
-          {saveState === 'error' && (
-            <span className="text-red-400 text-[11px]">Failed to save — check console</span>
-          )}
-          {saveState !== 'error' && <span />}
-
-          <button
-            onClick={handleSave}
-            disabled={saveState === 'saving' || loading}
-            className={cn(
-              'flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-medium transition-colors',
-              saveState === 'saved'
-                ? 'bg-emerald-500/20 text-emerald-400 cursor-default'
-                : 'bg-th-overlay hover:bg-th-overlay/70 text-th-hi disabled:opacity-40 disabled:cursor-not-allowed',
+        {/* Footer — only the Developer tab has a Save button (App settings auto-persist) */}
+        {tab === 'dev' && (
+          <div className="px-5 py-3 border-t border-th-line shrink-0 flex items-center justify-between">
+            {saveState === 'error' && (
+              <span className="text-red-400 text-[11px]">Failed to save — check console</span>
             )}
-          >
-            {saveState === 'saving' && <Loader2 size={12} className="animate-spin" />}
-            {saveState === 'saved'  && <Check size={12} />}
-            {saveState === 'saving' ? 'Saving…'
-              : saveState === 'saved' ? 'Saved'
-              : 'Save'}
-          </button>
-        </div>
+            {saveState !== 'error' && <span />}
+
+            <button
+              onClick={handleSave}
+              disabled={saveState === 'saving' || loading}
+              className={cn(
+                'flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-medium transition-colors',
+                saveState === 'saved'
+                  ? 'bg-emerald-500/20 text-emerald-400 cursor-default'
+                  : 'bg-th-overlay hover:bg-th-overlay/70 text-th-hi disabled:opacity-40 disabled:cursor-not-allowed',
+              )}
+            >
+              {saveState === 'saving' && <Loader2 size={12} className="animate-spin" />}
+              {saveState === 'saved'  && <Check size={12} />}
+              {saveState === 'saving' ? 'Saving…'
+                : saveState === 'saved' ? 'Saved'
+                : 'Save'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

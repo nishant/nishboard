@@ -87,11 +87,11 @@ export function WeatherWidget() {
     );
   }
 
-  const { current, hourly, daily } = data;
+  const { current, hourly, daily, location } = data;
   const meta = getWeatherMeta(current.weatherCode);
 
   return (
-    <div className="h-full flex flex-col gap-3 p-3 overflow-hidden">
+    <div className="h-full flex flex-col gap-3 p-3 overflow-y-auto">
 
       {/* Current conditions */}
       <div className="flex items-start justify-between shrink-0">
@@ -101,7 +101,9 @@ export function WeatherWidget() {
             <span className="text-th-2 text-base mb-1">F</span>
           </div>
           <p className="text-th-2 text-sm mt-1">{meta.label}</p>
-          <p className="text-th-ghost text-xs mt-0.5">Austin, TX</p>
+          <p className="text-th-ghost text-xs mt-0.5">
+            {location.name}{location.region ? `, ${location.region}` : ''}
+          </p>
         </div>
         <WeatherIcon icon={meta.icon} className="w-14 h-14 text-th-hi shrink-0" />
       </div>
@@ -146,7 +148,7 @@ export function WeatherWidget() {
       </div>
 
       {/* Daily strip */}
-      <div className="flex-1 min-h-0">
+      <div className="shrink-0">
         <p className="text-th-ghost text-xs uppercase tracking-widest mb-2">5-Day</p>
         <div className="flex flex-col gap-1.5">
           {daily.map((d) => {

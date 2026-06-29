@@ -23,9 +23,15 @@ export interface WeatherDaily {
   weatherCode: number;
 }
 
+export interface WeatherLocation {
+  name: string;
+  region?: string;
+}
+
 export interface WeatherData {
   current: WeatherCurrent;
   hourly: WeatherHourly[];
   daily: WeatherDaily[];
+  location: WeatherLocation;
   fetchedAt: string;
 }

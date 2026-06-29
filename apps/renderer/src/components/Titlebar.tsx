@@ -6,6 +6,8 @@ import { useLayoutStore } from '../store/layoutStore';
 import type { SavedCustomLayout } from '../store/layoutStore';
 import { useThemeStore } from '../store/themeStore';
 import type { CustomColors, SavedCustomTheme } from '../store/themeStore';
+import { useAppSettingsStore } from '../store/settingsStore';
+import { useWeather } from '../widgets/weather/useWeather';
 import { THEMES } from '../themes';
 import { parseHex } from '../lib/colorUtils';
 import { cn } from '../lib/utils';
@@ -889,6 +891,9 @@ function ThemeMenu() {
 export function Titlebar() {
   const { activePreset, applyPreset, pinnedPresets } = useLayoutStore();
   const clock = useClock();
+  const showTempInClock = useAppSettingsStore((s) => s.showTempInClock);
+  const weather = useWeather(showTempInClock);
+  const temp = weather.data?.current.temp;
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
@@ -921,7 +926,9 @@ export function Titlebar() {
 
       {/* Center: clock — absolute so it's always perfectly centred */}
       <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none">
-        <span className="text-th-3 text-[11px] tabular-nums">{clock}</span>
+        <span className="text-th-3 text-[11px] tabular-nums">
+          {clock}{showTempInClock && temp != null ? ` · ${temp}°` : ''}
+        </span>
       </div>
 
       {/* Right: theme + widget + layout menus + settings */}

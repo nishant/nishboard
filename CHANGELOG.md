@@ -4,6 +4,29 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #48] feat: weather location override, settings tabs, clock temperature
+**Branch:** `fix/weather-location` → `master`
+**Date:** 2026-06-29
+
+### Context
+The weather widget hardcoded the "Austin, TX" label and offered no way to change location, and there was no home for non-secret app preferences. This makes location real and overridable, splits Settings into App/Developer tabs, adds an optional clock temperature, and lets the widget scroll.
+
+### Added
+- **App settings store** — `apps/renderer/src/store/settingsStore.ts`: Zustand + persist (`dashboard-app-settings`) holding `weatherZip` and `showTempInClock`. First non-secret, renderer-only preference store (distinct from layout/theme stores and from credentials).
+- **Settings tabs** — `SettingsModal.tsx` now has **App** and **Developer** tabs. App: weather ZIP override + "Show temperature next to clock" toggle (auto-persist, no Save button). Developer: the existing credentials UI (pre-configured rows in packaged builds, editable inputs in local dev) + Save button.
+- **Clock temperature** — `Titlebar.tsx`: optional current temperature next to the centered clock, gated on the toggle; shares the ZIP-scoped weather query.
+- **ZIP geocoding** — `packages/server/src/routes/weather.ts`: optional `?zip=` resolved via zippopotam.us (free, no key), cached per-ZIP; Open-Meteo infers the timezone for ZIP lookups.
+
+### Changed
+- **`WeatherData`** (`packages/shared`) — added `location: { name; region? }`, populated from ip-api (auto) or zippopotam (ZIP) and surfaced in the response; the per-location weather cache is now keyed by ZIP/`auto`.
+- **`WeatherWidget.tsx`** — shows the real resolved city instead of the hardcoded "Austin, TX"; root is now `overflow-y-auto` (5-day list `shrink-0`) so the widget scrolls vertically when short.
+- **`useWeather(enabled)`** — reads `weatherZip` (in the query key, so changing it refetches) and accepts an `enabled` gate so the titlebar only fetches when the temperature is shown.
+
+### Fixed
+- Weather location is no longer hardcoded — it follows IP geolocation by default and a ZIP override otherwise, with the real city/region shown.
+
+---
+
 ## [PR #47] docs: audit CLAUDE.md + rewrite CHANGELOG & README
 **Branch:** `chore/docs-audit` → `master`
 **Date:** 2026-06-29
