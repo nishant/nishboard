@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { ElectronAPI, IpcChannels, CredentialKey } from '@dash/shared';
 
 const electronAPI: ElectronAPI = {
+  platform: process.platform,
   minimize: () => ipcRenderer.send('app:minimize' satisfies IpcChannels),
   close: () => ipcRenderer.send('app:close' satisfies IpcChannels),
   openSpotifyAuth: (url: string) => ipcRenderer.send('spotify:open-auth' satisfies IpcChannels, url),

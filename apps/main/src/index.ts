@@ -8,12 +8,19 @@ const isDev = process.env.NODE_ENV === 'development';
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow(): void {
+  // Windows: a transparent frameless window lets the renderer round its own corners
+  // (CSS) and have the desktop show through, matching macOS's native rounded window.
+  // macOS rounds frameless windows natively, so it stays opaque (no transparency artifacts).
+  const isWin = process.platform === 'win32';
+
   mainWindow = new BrowserWindow({
     width: 1920,
     height: 1080,
     frame: false,
     resizable: true,
-    backgroundColor: '#09090b',
+    ...(isWin
+      ? { transparent: true, backgroundColor: '#00000000' }
+      : { backgroundColor: '#09090b' }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

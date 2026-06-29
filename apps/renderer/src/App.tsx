@@ -18,6 +18,12 @@ export function App() {
   const theme = useThemeStore((s) => s.theme);
   const customColors = useThemeStore((s) => s.customColors);
 
+  // Tag <html> with the host OS so platform-specific CSS (Windows scrollbars +
+  // rounded corners) can target it. Falls back to 'web' outside Electron.
+  useLayoutEffect(() => {
+    document.documentElement.dataset.platform = window.electron?.platform ?? 'web';
+  }, []);
+
   // Apply / remove custom CSS vars on <html> so they cascade to all widgets.
   // Named themes are handled by [data-theme="x"] CSS selectors on the root div;
   // the custom theme has no CSS block — JS injects the vars instead.
@@ -40,7 +46,7 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <div
         data-theme={theme}
-        className="h-screen w-screen bg-th-bg overflow-hidden flex flex-col"
+        className="app-shell h-screen w-screen bg-th-bg overflow-hidden flex flex-col"
       >
         <Titlebar />
         <div className="flex-1 min-h-0">
