@@ -1,29 +1,55 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { WeatherData } from '@dash/shared';
-import { SimpleCache } from '../cache/SimpleCache';
 
 const TTL_MS = 15 * 60 * 1000;
+const GEO_TTL_MS = 60 * 60 * 1000;
 
-// ── IP geolocation ────────────────────────────────────────────────────────────
+// ── Geolocation ───────────────────────────────────────────────────────────────
 
-interface IpGeo { lat: number; lon: number; timezone: string; city: string; regionName: string; }
+interface Geo { lat: number; lon: number; timezone: string; name: string; region: string; }
 
-const geoCache = new SimpleCache<IpGeo>();
+// IP geolocation — single shared slot (everyone on auto resolves to the same place)
+let ipGeo: { data: Geo; at: number } | null = null;
 
-async function getGeoFromIp(): Promise<IpGeo> {
-  const cached = geoCache.get();
-  if (cached) return cached;
-  // ip-api.com: free, no key, 45 req/min — more than enough (we cache for 15 min)
+async function getGeoFromIp(): Promise<Geo> {
+  if (ipGeo && Date.now() - ipGeo.at < GEO_TTL_MS) return ipGeo.data;
+  // ip-api.com: free, no key, 45 req/min — more than enough (we cache for an hour)
   const res = await fetch('http://ip-api.com/json/?fields=lat,lon,timezone,city,regionName');
   if (!res.ok) throw new Error(`ip-api error ${res.status}`);
-  const geo = await res.json() as IpGeo;
-  geoCache.set(geo, 60 * 60 * 1000); // cache IP geo for 1 hour
-  return geo;
+  const j = await res.json() as { lat: number; lon: number; timezone: string; city: string; regionName: string };
+  const data: Geo = { lat: j.lat, lon: j.lon, timezone: j.timezone, name: j.city, region: j.regionName };
+  ipGeo = { data, at: Date.now() };
+  return data;
+}
+
+// ZIP → lat/lon via zippopotam.us (free, no key). Cached per-ZIP.
+const zipGeoCache = new Map<string, { data: Geo; at: number }>();
+
+async function getGeoFromZip(zip: string): Promise<Geo> {
+  const cached = zipGeoCache.get(zip);
+  if (cached && Date.now() - cached.at < GEO_TTL_MS) return cached.data;
+  const res = await fetch(`https://api.zippopotam.us/us/${zip}`);
+  if (!res.ok) throw new Error(`Unknown ZIP code "${zip}"`);
+  const j = await res.json() as {
+    places?: { 'place name': string; 'state abbreviation': string; latitude: string; longitude: string }[];
+  };
+  const p = j.places?.[0];
+  if (!p) throw new Error(`Unknown ZIP code "${zip}"`);
+  const data: Geo = {
+    lat: Number(p.latitude),
+    lon: Number(p.longitude),
+    // No timezone from zippopotam — let Open-Meteo infer it from the coordinates.
+    timezone: 'auto',
+    name: p['place name'],
+    region: p['state abbreviation'],
+  };
+  zipGeoCache.set(zip, { data, at: Date.now() });
+  return data;
 }
 
 // ── Weather fetch ─────────────────────────────────────────────────────────────
 
-const weatherCache = new SimpleCache<WeatherData>();
+const weatherCache = new Map<string, { data: WeatherData; at: number }>();
 
 function buildUrl(lat: number, lon: number, timezone: string): string {
   const url = new URL('https://api.open-meteo.com/v1/forecast');
@@ -46,8 +72,8 @@ function buildUrl(lat: number, lon: number, timezone: string): string {
   return url.toString();
 }
 
-async function fetchWeather(lat: number, lon: number, timezone: string): Promise<WeatherData> {
-  const res = await fetch(buildUrl(lat, lon, timezone));
+async function fetchWeather(geo: Geo): Promise<WeatherData> {
+  const res = await fetch(buildUrl(geo.lat, geo.lon, geo.timezone));
   if (!res.ok) throw new Error(`Open-Meteo error ${res.status}`);
 
   const raw = await res.json() as {
@@ -103,6 +129,7 @@ async function fetchWeather(lat: number, lon: number, timezone: string): Promise
       precipChance: raw.daily.precipitation_probability_max[i],
       weatherCode: raw.daily.weathercode[i],
     })),
+    location: { name: geo.name, region: geo.region || undefined },
     fetchedAt: new Date().toISOString(),
   };
 }
@@ -110,13 +137,24 @@ async function fetchWeather(lat: number, lon: number, timezone: string): Promise
 // ── Route ─────────────────────────────────────────────────────────────────────
 
 export const weatherRoutes: FastifyPluginAsync = async (fastify) => {
-  fastify.get<{ Reply: WeatherData }>('/', async (_req, reply) => {
-    const cached = weatherCache.get();
-    if (cached) return reply.send(cached);
+  fastify.get<{ Querystring: { zip?: string }; Reply: WeatherData | { error: string } }>(
+    '/',
+    async (req, reply) => {
+      const rawZip = (req.query.zip ?? '').trim();
+      const zip = /^\d{5}$/.test(rawZip) ? rawZip : '';
+      const key = zip || 'auto';
 
-    const geo = await getGeoFromIp();
-    const data = await fetchWeather(geo.lat, geo.lon, geo.timezone);
-    weatherCache.set(data, TTL_MS);
-    return reply.send(data);
-  });
+      const cached = weatherCache.get(key);
+      if (cached && Date.now() - cached.at < TTL_MS) return reply.send(cached.data);
+
+      try {
+        const geo = zip ? await getGeoFromZip(zip) : await getGeoFromIp();
+        const data = await fetchWeather(geo);
+        weatherCache.set(key, { data, at: Date.now() });
+        return reply.send(data);
+      } catch (err) {
+        return reply.code(502).send({ error: err instanceof Error ? err.message : 'Weather lookup failed' });
+      }
+    },
+  );
 };
