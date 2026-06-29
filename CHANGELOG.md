@@ -4,6 +4,23 @@ All changes organized by pull request, newest first.
 
 ---
 
+## fix: Spotify playback — auto-activate device + surface real errors
+**Branch:** `fix/spotify-device-activation` → `master`
+**Date:** 2026-06-28
+
+### Context
+The app is a remote control for an external Spotify device (no Web Playback SDK — stock Electron lacks Widevine, so it can't play DRM audio itself). After sign-in with no active device, `PUT /me/player/play` returned 404 and the UI showed nothing. A separate continuous 502 on `now-playing` (Windows) was actually an upstream Spotify error (401/403/429) hidden behind a generic 502.
+
+### Fixed
+- **404 on play-track / play-context with no active device** — `packages/server/src/routes/spotify.ts`: new `startPlayback()` helper retries once against the first *available* device (via `firstAvailableDeviceId()`) when Spotify reports no active device. So having Spotify merely open in the background (even idle) is now enough — no need to manually press play elsewhere first. Only when zero devices exist does it return 404 with a clearer message.
+- **now-playing 502 hid the real cause** — `fetchNowPlaying()` now throws a typed `SpotifyApiError` carrying the upstream status. The route passes 401/403/429 straight through so the client console shows the actual cause (401 token, 403 dev-mode allowlist, 429 rate limit) instead of a blanket 502. **If you see 403, the signed-in account isn't added under your Spotify app's Dashboard → User Management (Development Mode caps at 25 allowlisted users).**
+
+### Changed
+- `apps/renderer/src/lib/apiClient.ts` — `get`/`post` now extract the server's `{ error }` message so the UI can show the real reason, not a bare status code.
+- `apps/renderer/src/widgets/spotify/SpotifyWidget.tsx` — `PlaylistPanel` surfaces a playback error inline (e.g. "No Spotify device found — open Spotify on your phone or desktop, then try again.") and only navigates back on success.
+
+---
+
 ## fix: Twitch video playback + close button
 **Branch:** `fix/twitch-video-close-button` → `master`
 **Date:** 2026-06-28
