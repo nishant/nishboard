@@ -17,9 +17,12 @@ The app is a remote control for an external Spotify device (no Web Playback SDK 
 
 - **Stale token → endless 502 loop** — the cached token at `~/.dash/spotify_tokens.json` lives in the home dir and survives reinstalls. A refresh token is bound to the client_id that minted it, so once the client_id was baked into the build, tokens issued under the old setup failed every refresh → continuous 502. `getValidToken()` now clears the token on a failed refresh, so `/auth-status` flips to false and the widget shows "Connect" again instead of looping. **Existing users hitting this: click Disconnect → Connect once (or delete `~/.dash/spotify_tokens.json`).**
 
+- **502 spam on the login screen** — before connecting, `now-playing` threw "Not authenticated" → 502 every 3s. Now the route returns a clean 401 for the not-logged-in state, and `useNowPlaying()` is gated on `auth-status` so it doesn't poll at all until authenticated. No more error stream before login.
+
 ### Changed
 - `apps/renderer/src/lib/apiClient.ts` — `get`/`post` now extract the server's `{ error }` message so the UI can show the real reason, not a bare status code.
 - `apps/renderer/src/widgets/spotify/SpotifyWidget.tsx` — `PlaylistPanel` surfaces a playback error inline (e.g. "No Spotify device found — open Spotify on your phone or desktop, then try again.") and only navigates back on success.
+- `apps/renderer/src/widgets/spotify/useSpotify.ts` — `useNowPlaying(enabled)` accepts a gate; the widget passes `status.data?.authenticated === true`.
 
 ---
 

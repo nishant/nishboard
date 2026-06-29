@@ -342,6 +342,9 @@ export const spotifyRoutes: FastifyPluginAsync = async (fastify) => {
 
   // GET /api/spotify/now-playing
   fastify.get<{ Reply: TrackData | { error: string } }>('/now-playing', async (_req, reply) => {
+    // Not logged in yet is an expected state, not a server error — return 401 so
+    // the client doesn't log a 502 on every poll before the user connects.
+    if (!tokens) return reply.code(401).send({ error: 'Not authenticated' });
     const cached = nowPlayingCache.get();
     if (cached) return reply.send(cached);
     try {

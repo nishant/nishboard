@@ -886,7 +886,9 @@ function ConnectView({ onConnect }: { onConnect: () => void }) {
 
 export function SpotifyWidget() {
   const status = useSpotifyStatus();
-  const nowPlaying = useNowPlaying();
+  // Only poll now-playing once authenticated — avoids a 401/502 every 3s on the
+  // login screen before the user has connected.
+  const nowPlaying = useNowPlaying(status.data?.authenticated === true);
   const authUrlQuery = useSpotifyAuthUrl();
   const [showPlaylists, setShowPlaylists] = useState(false);
   const [showSearch, setShowSearch] = useState(false);

@@ -25,10 +25,11 @@ export function useSpotifyStatus() {
   });
 }
 
-export function useNowPlaying() {
+export function useNowPlaying(enabled = true) {
   return useQuery<TrackData>({
     queryKey: ['spotify-now-playing'],
     queryFn: () => apiClient.get<TrackData>('/api/spotify/now-playing'),
+    enabled,
     refetchInterval: 3000,
     staleTime: 2500,
   });
