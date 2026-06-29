@@ -4,6 +4,28 @@ All changes organized by pull request, newest first.
 
 ---
 
+## fix: Spotify playback — auto-activate device + surface real errors
+**Branch:** `fix/spotify-device-activation` → `master`
+**Date:** 2026-06-28
+
+### Context
+The app is a remote control for an external Spotify device (no Web Playback SDK — stock Electron lacks Widevine, so it can't play DRM audio itself). After sign-in with no active device, `PUT /me/player/play` returned 404 and the UI showed nothing. A separate continuous 502 on `now-playing` (Windows) was actually an upstream Spotify error (401/403/429) hidden behind a generic 502.
+
+### Fixed
+- **404 on play-track / play-context with no active device** — `packages/server/src/routes/spotify.ts`: new `startPlayback()` helper retries once against the first *available* device (via `firstAvailableDeviceId()`) when Spotify reports no active device. So having Spotify merely open in the background (even idle) is now enough — no need to manually press play elsewhere first. Only when zero devices exist does it return 404 with a clearer message.
+- **now-playing 502 hid the real cause** — `fetchNowPlaying()` now throws a typed `SpotifyApiError` carrying the upstream status. The route passes 401/403/429 straight through so the client console shows the actual cause (401 token, 403 dev-mode allowlist, 429 rate limit) instead of a blanket 502. **If you see 403, the signed-in account isn't added under your Spotify app's Dashboard → User Management (Development Mode caps at 25 allowlisted users).**
+
+- **Stale token → endless 502 loop** — the cached token at `~/.dash/spotify_tokens.json` lives in the home dir and survives reinstalls. A refresh token is bound to the client_id that minted it, so once the client_id was baked into the build, tokens issued under the old setup failed every refresh → continuous 502. `getValidToken()` now clears the token on a failed refresh, so `/auth-status` flips to false and the widget shows "Connect" again instead of looping. **Existing users hitting this: click Disconnect → Connect once (or delete `~/.dash/spotify_tokens.json`).**
+
+- **502 spam on the login screen** — before connecting, `now-playing` threw "Not authenticated" → 502 every 3s. Now the route returns a clean 401 for the not-logged-in state, and `useNowPlaying()` is gated on `auth-status` so it doesn't poll at all until authenticated. No more error stream before login.
+
+### Changed
+- `apps/renderer/src/lib/apiClient.ts` — `get`/`post` now extract the server's `{ error }` message so the UI can show the real reason, not a bare status code.
+- `apps/renderer/src/widgets/spotify/SpotifyWidget.tsx` — `PlaylistPanel` surfaces a playback error inline (e.g. "No Spotify device found — open Spotify on your phone or desktop, then try again.") and only navigates back on success.
+- `apps/renderer/src/widgets/spotify/useSpotify.ts` — `useNowPlaying(enabled)` accepts a gate; the widget passes `status.data?.authenticated === true`.
+
+---
+
 ## fix: Twitch video playback + close button
 **Branch:** `fix/twitch-video-close-button` → `master`
 **Date:** 2026-06-28

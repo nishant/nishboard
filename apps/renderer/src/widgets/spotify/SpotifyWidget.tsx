@@ -383,6 +383,7 @@ function PlaylistPanel({
 }) {
   const [selectedPlaylist, setSelectedPlaylist] = useState<SpotifyPlaylist | null>(null);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | undefined>(undefined);
+  const [playError, setPlayError] = useState<string | null>(null);
 
   const playlists = usePlaylistsInfinite(true);
   const tracks = usePlaylistTracksInfinite(selectedPlaylist?.id ?? null);
@@ -412,18 +413,23 @@ function PlaylistPanel({
   const allPlaylists = playlists.data?.pages.flatMap((p) => p.items) ?? [];
   const allTracks = tracks.data?.pages.flatMap((p) => p.items) ?? [];
 
+  const onPlayError = (e: unknown) =>
+    setPlayError(e instanceof Error ? e.message : 'Playback failed');
+
   const handlePlayContext = (pl: SpotifyPlaylist, shuffle = false) => {
-    playContext.mutate({ contextUri: pl.uri, deviceId: selectedDeviceId, shuffle });
-    onBack();
+    setPlayError(null);
+    playContext.mutate(
+      { contextUri: pl.uri, deviceId: selectedDeviceId, shuffle },
+      { onSuccess: onBack, onError: onPlayError },
+    );
   };
 
   const handlePlayTrack = (track: SpotifyTrackItem) => {
-    playTrack.mutate({
-      trackUri: track.uri,
-      contextUri: selectedPlaylist?.uri,
-      deviceId: selectedDeviceId,
-    });
-    onBack();
+    setPlayError(null);
+    playTrack.mutate(
+      { trackUri: track.uri, contextUri: selectedPlaylist?.uri, deviceId: selectedDeviceId },
+      { onSuccess: onBack, onError: onPlayError },
+    );
   };
 
   const showingTracks = selectedPlaylist !== null;
@@ -468,6 +474,11 @@ function PlaylistPanel({
           selectedId={selectedDeviceId}
           onSelect={setSelectedDeviceId}
         />
+      )}
+
+      {/* Playback error (e.g. no active device) */}
+      {playError && (
+        <p className="text-amber-500/80 text-[10px] px-3 pb-1.5">{playError}</p>
       )}
 
       {/* Scrollable content */}
@@ -875,7 +886,9 @@ function ConnectView({ onConnect }: { onConnect: () => void }) {
 
 export function SpotifyWidget() {
   const status = useSpotifyStatus();
-  const nowPlaying = useNowPlaying();
+  // Only poll now-playing once authenticated — avoids a 401/502 every 3s on the
+  // login screen before the user has connected.
+  const nowPlaying = useNowPlaying(status.data?.authenticated === true);
   const authUrlQuery = useSpotifyAuthUrl();
   const [showPlaylists, setShowPlaylists] = useState(false);
   const [showSearch, setShowSearch] = useState(false);

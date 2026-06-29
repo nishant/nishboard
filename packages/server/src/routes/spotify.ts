@@ -110,8 +110,18 @@ async function refreshAccessToken(refreshToken: string): Promise<StoredTokens> {
 async function getValidToken(): Promise<string> {
   if (!tokens) throw new Error('Not authenticated');
   if (Date.now() > tokens.expires_at - 60_000) {
-    tokens = await refreshAccessToken(tokens.refresh_token);
-    saveTokens(tokens);
+    try {
+      tokens = await refreshAccessToken(tokens.refresh_token);
+      saveTokens(tokens);
+    } catch (err) {
+      // Refresh failed — most often because the cached token was minted under a
+      // different client_id (e.g. before the client_id was baked in) and is no
+      // longer valid for this app. Clear it so /auth-status flips to false and
+      // the widget shows "Connect" again, instead of looping 502s forever.
+      tokens = null;
+      try { fs.unlinkSync(TOKENS_FILE); } catch { /* already gone */ }
+      throw err;
+    }
   }
   return tokens.access_token;
 }
@@ -130,6 +140,41 @@ async function spotifyRequest(
     },
     body: body ? JSON.stringify(body) : undefined,
   });
+}
+
+/** Carries the upstream Spotify HTTP status so routes can surface it to the client. */
+class SpotifyApiError extends Error {
+  constructor(public readonly status: number) {
+    super(`Spotify API ${status}`);
+    this.name = 'SpotifyApiError';
+  }
+}
+
+/** Returns the id of the active device, or the first available one, or null.
+ *  An "available but inactive" device (Spotify open in the background) can be
+ *  woken up by targeting playback at its id. */
+async function firstAvailableDeviceId(): Promise<string | null> {
+  const res = await spotifyRequest('GET', '/me/player/devices');
+  if (!res.ok) return null;
+  const d = await res.json() as { devices?: { id: string; is_active: boolean }[] };
+  const list = d.devices ?? [];
+  if (!list.length) return null;
+  return (list.find((x) => x.is_active) ?? list[0]).id;
+}
+
+/** PUT /me/player/play. If Spotify reports no active device (404), wake up any
+ *  available device and retry once. Returns the final Response. */
+async function startPlayback(body: Record<string, unknown>, deviceId?: string): Promise<Response> {
+  const qs = deviceId ? `?device_id=${encodeURIComponent(deviceId)}` : '';
+  let res = await spotifyRequest('PUT', `/me/player/play${qs}`, body);
+  if (res.status === 404) {
+    devicesCache.clear();
+    const fallback = await firstAvailableDeviceId();
+    if (fallback) {
+      res = await spotifyRequest('PUT', `/me/player/play?device_id=${encodeURIComponent(fallback)}`, body);
+    }
+  }
+  return res;
 }
 
 // ── Caches ────────────────────────────────────────────────────────────────────
@@ -181,7 +226,7 @@ const NOT_PLAYING: TrackData = {
 async function fetchNowPlaying(): Promise<TrackData> {
   const res = await spotifyRequest('GET', '/me/player?additional_types=track,episode');
   if (res.status === 204) return NOT_PLAYING;
-  if (!res.ok) throw new Error(`Spotify player API ${res.status}`);
+  if (!res.ok) throw new SpotifyApiError(res.status);
 
   const d = await res.json() as {
     is_playing: boolean;
@@ -297,6 +342,9 @@ export const spotifyRoutes: FastifyPluginAsync = async (fastify) => {
 
   // GET /api/spotify/now-playing
   fastify.get<{ Reply: TrackData | { error: string } }>('/now-playing', async (_req, reply) => {
+    // Not logged in yet is an expected state, not a server error — return 401 so
+    // the client doesn't log a 502 on every poll before the user connects.
+    if (!tokens) return reply.code(401).send({ error: 'Not authenticated' });
     const cached = nowPlayingCache.get();
     if (cached) return reply.send(cached);
     try {
@@ -306,6 +354,12 @@ export const spotifyRoutes: FastifyPluginAsync = async (fastify) => {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       fastify.log.error(`[spotify] now-playing: ${msg}`);
+      // Surface auth/permission/rate-limit status straight through so the client
+      // console shows the real cause (401 token, 403 dev-mode allowlist, 429 limit)
+      // instead of a generic 502.
+      if (err instanceof SpotifyApiError && [401, 403, 429].includes(err.status)) {
+        return reply.code(err.status).send({ error: msg });
+      }
       return reply.code(502).send({ error: msg });
     }
   });
@@ -598,15 +652,12 @@ export const spotifyRoutes: FastifyPluginAsync = async (fastify) => {
         if (shuffle !== undefined) {
           await spotifyRequest('PUT', `/me/player/shuffle?state=${shuffle}`).catch(() => null);
         }
-        const qs = deviceId ? `?device_id=${encodeURIComponent(deviceId)}` : '';
-        const res = await spotifyRequest('PUT', `/me/player/play${qs}`, {
-          context_uri: contextUri,
-          offset: { position: 0 },
-          position_ms: 0,
-        });
+        const res = await startPlayback(
+          { context_uri: contextUri, offset: { position: 0 }, position_ms: 0 },
+          deviceId,
+        );
         if (res.status === 404) {
-          devicesCache.clear();
-          return reply.code(404).send({ error: 'No active device — open Spotify on a device first' });
+          return reply.code(404).send({ error: 'No Spotify device found — open Spotify on your phone or desktop, then try again.' });
         }
         if (!res.ok && res.status !== 202) {
           return reply.code(502).send({ error: `Spotify ${res.status}: ${await res.text()}` });
@@ -623,20 +674,19 @@ export const spotifyRoutes: FastifyPluginAsync = async (fastify) => {
     '/play-track', async (req, reply) => {
       try {
         const { trackUri, contextUri, deviceId } = req.body;
-        const qs = deviceId ? `?device_id=${encodeURIComponent(deviceId)}` : '';
         const playBody: Record<string, unknown> = contextUri
           ? { context_uri: contextUri, offset: { uri: trackUri }, position_ms: 0 }
           : { uris: [trackUri], position_ms: 0 };
 
-        const res = await spotifyRequest('PUT', `/me/player/play${qs}`, playBody);
+        const res = await startPlayback(playBody, deviceId);
         if (res.status === 404) {
-          devicesCache.clear();
-          return reply.code(404).send({ error: 'No active device — open Spotify on a device first' });
+          return reply.code(404).send({ error: 'No Spotify device found — open Spotify on your phone or desktop, then try again.' });
         }
         if (!res.ok && res.status !== 202 && res.status !== 204) {
           return reply.code(502).send({ error: `Spotify ${res.status}: ${await res.text()}` });
         }
         nowPlayingCache.clear();
+        devicesCache.clear();
         return reply.code(204).send();
       } catch (err) { return reply.code(502).send({ error: String(err) }); }
     },
