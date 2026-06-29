@@ -1,10 +1,24 @@
 # Changelog
 
-All changes organized by pull request, newest first.
+All changes organized by pull request, newest first. Format is documented under **Changelog Format** in [CLAUDE.md](./CLAUDE.md).
 
 ---
 
-## fix: Spotify playback — auto-activate device + surface real errors
+## [PR #47] docs: audit CLAUDE.md + rewrite CHANGELOG & README
+**Branch:** `chore/docs-audit` → `master`
+**Date:** 2026-06-29
+
+### Context
+The project docs had drifted from the code and accumulated rot: CLAUDE.md's widget/secret descriptions were stale, the CHANGELOG had duplicated blocks and PR numbers that didn't match GitHub, and README was a two-line stub. This PR brings all three back in sync and codifies the changelog/PR conventions.
+
+### Changed
+- **`CLAUDE.md`** — corrected the Widgets & APIs table (added YouTube/Twitch/Calendar; fixed Stocks to IEX REST; fixed the Spotify-token storage description); added **Secrets & Credentials** and **Embedding & Platform Gotchas** sections; documented build-time key baking; added the **Changelog Format** spec and `chore`/`docs` branch naming.
+- **`CHANGELOG.md`** — removed duplicated entry blocks and a stray duplicate `[PR #4]`; re-derived every section's number from the real merged-PR history (joined by branch) and added the `[PR #N]` prefix everywhere; consolidated multi-entry PRs (#20, #42, #43) into one section each; standardized every entry to the canonical structure.
+- **`README.md`** — rewrote from a stub into a full guide: badge hero, table of contents, features, tech stack, monorepo layout, architecture + data-flow diagram, getting started, configuration table, scripts, macOS + Windows build instructions, conventions, gotchas, and an annotated project tree.
+
+---
+
+## [PR #46] fix: Spotify playback — auto-activate device + surface real errors
 **Branch:** `fix/spotify-device-activation` → `master`
 **Date:** 2026-06-28
 
@@ -12,509 +26,332 @@ All changes organized by pull request, newest first.
 The app is a remote control for an external Spotify device (no Web Playback SDK — stock Electron lacks Widevine, so it can't play DRM audio itself). After sign-in with no active device, `PUT /me/player/play` returned 404 and the UI showed nothing. A separate continuous 502 on `now-playing` (Windows) was actually an upstream Spotify error (401/403/429) hidden behind a generic 502.
 
 ### Fixed
-- **404 on play-track / play-context with no active device** — `packages/server/src/routes/spotify.ts`: new `startPlayback()` helper retries once against the first *available* device (via `firstAvailableDeviceId()`) when Spotify reports no active device. So having Spotify merely open in the background (even idle) is now enough — no need to manually press play elsewhere first. Only when zero devices exist does it return 404 with a clearer message.
-- **now-playing 502 hid the real cause** — `fetchNowPlaying()` now throws a typed `SpotifyApiError` carrying the upstream status. The route passes 401/403/429 straight through so the client console shows the actual cause (401 token, 403 dev-mode allowlist, 429 rate limit) instead of a blanket 502. **If you see 403, the signed-in account isn't added under your Spotify app's Dashboard → User Management (Development Mode caps at 25 allowlisted users).**
-
-- **Stale token → endless 502 loop** — the cached token at `~/.dash/spotify_tokens.json` lives in the home dir and survives reinstalls. A refresh token is bound to the client_id that minted it, so once the client_id was baked into the build, tokens issued under the old setup failed every refresh → continuous 502. `getValidToken()` now clears the token on a failed refresh, so `/auth-status` flips to false and the widget shows "Connect" again instead of looping. **Existing users hitting this: click Disconnect → Connect once (or delete `~/.dash/spotify_tokens.json`).**
-
-- **502 spam on the login screen** — before connecting, `now-playing` threw "Not authenticated" → 502 every 3s. Now the route returns a clean 401 for the not-logged-in state, and `useNowPlaying()` is gated on `auth-status` so it doesn't poll at all until authenticated. No more error stream before login.
+- **404 on play-track / play-context with no active device** — `packages/server/src/routes/spotify.ts`: new `startPlayback()` retries once against the first *available* device (via `firstAvailableDeviceId()`) when Spotify reports no active device. Having Spotify merely open in the background is now enough. Only when zero devices exist does it return 404 with a clearer message.
+- **now-playing 502 hid the real cause** — `fetchNowPlaying()` now throws a typed `SpotifyApiError` carrying the upstream status. The route passes 401/403/429 straight through so the client shows the actual cause instead of a blanket 502. (403 = the account isn't on the Spotify app's Development-Mode allowlist, which caps at 25 users.)
+- **Stale token → endless 502 loop** — the cached token at `~/.dash/spotify_tokens.json` survives reinstalls; a refresh token is bound to the client_id that minted it, so once the client_id was baked in, old tokens failed every refresh. `getValidToken()` now clears the token on a failed refresh, so `/auth-status` flips to false and the widget shows "Connect" again. (Existing users: Disconnect → Connect once.)
+- **502 spam on the login screen** — before connecting, `now-playing` threw "Not authenticated" → 502 every 3s. The route now returns a clean 401, and `useNowPlaying()` is gated on `auth-status` so it doesn't poll until authenticated.
 
 ### Changed
-- `apps/renderer/src/lib/apiClient.ts` — `get`/`post` now extract the server's `{ error }` message so the UI can show the real reason, not a bare status code.
-- `apps/renderer/src/widgets/spotify/SpotifyWidget.tsx` — `PlaylistPanel` surfaces a playback error inline (e.g. "No Spotify device found — open Spotify on your phone or desktop, then try again.") and only navigates back on success.
+- `apps/renderer/src/lib/apiClient.ts` — `get`/`post` extract the server's `{ error }` message so the UI shows the real reason.
+- `apps/renderer/src/widgets/spotify/SpotifyWidget.tsx` — `PlaylistPanel` surfaces a playback error inline and only navigates back on success.
 - `apps/renderer/src/widgets/spotify/useSpotify.ts` — `useNowPlaying(enabled)` accepts a gate; the widget passes `status.data?.authenticated === true`.
 
 ---
 
-## fix: Twitch video playback + close button
+## [PR #44] fix: Twitch video playback + close button
 **Branch:** `fix/twitch-video-close-button` → `master`
 **Date:** 2026-06-28
 
 ### Fixed
-- **Twitch live stream shows blank player** — same root cause as the YouTube fix: in the packaged app the renderer loads from `file://`, so `window.location.hostname` is empty. The Twitch player's `parent` param didn't match the actual origin and Twitch silently refused to play. Fix: added `GET /api/twitch/embed?channel=` to Fastify (same proxy pattern as YouTube), so the embed is served from `http://localhost:7432` where `parent=localhost` is accurate.
-- **Twitch CSP frame-ancestors block** — the player document returns `Content-Security-Policy: frame-ancestors http://localhost:*`, which validates the *entire* ancestor chain. The top-level renderer (`file://`) violated it even with the localhost proxy in place. `apps/main/src/index.ts` now strips the CSP header from `player.twitch.tv` responses via `webRequest.onHeadersReceived`. Scoped to the player document only — the video CDN (`*.ttvnw.net`) is untouched, so playback and auth are unaffected.
+- **Twitch live stream shows blank player** — same root cause as the YouTube fix: in the packaged app the renderer loads from `file://`, so `window.location.hostname` is empty and the Twitch player's `parent` param didn't match the origin. Fix: added `GET /api/twitch/embed?channel=` to Fastify (same proxy pattern as YouTube), so the embed is served from `http://localhost:7432` where `parent=localhost` is accurate.
+- **Twitch CSP frame-ancestors block** — the player document returns `Content-Security-Policy: frame-ancestors http://localhost:*`, which validates the *entire* ancestor chain; the top-level `file://` violated it even with the localhost proxy. `apps/main/src/index.ts` now strips the CSP header from `player.twitch.tv` responses via `webRequest.onHeadersReceived`, scoped to the player document only (the video CDN is untouched).
 
 ### Added
-- **Close button** — frameless window had no way to close the app. Added an X button to the right of Settings in the titlebar (with a divider). Hover turns red. Calls `window.electron.close()` which fires the existing `app:close` IPC handler.
+- **Close button** — the frameless window had no way to close. Added an X button to the right of Settings in the titlebar (with a divider); hover turns red; calls `window.electron.close()` (existing `app:close` IPC).
 
 ### Changed
-- `packages/server/src/routes/twitch.ts` — added `/embed` route; channel name validated against `/^[A-Za-z0-9_]{1,25}$/`.
-- `apps/renderer/src/widgets/twitch/TwitchWidget.tsx` — iframe src now points to `http://localhost:7432/api/twitch/embed?channel=...`; removed `PLAYER_PARENT` constant.
-- `apps/renderer/src/components/Titlebar.tsx` — close button added after Settings.
+- `packages/server/src/routes/twitch.ts` — added `/embed` route; channel validated against `/^[A-Za-z0-9_]{1,25}$/`.
+- `apps/renderer/src/widgets/twitch/TwitchWidget.tsx` — iframe src → `http://localhost:7432/api/twitch/embed?channel=…`; removed `PLAYER_PARENT`.
+- `apps/renderer/src/components/Titlebar.tsx` — close button after Settings.
 
 ---
 
-## feat: bake all API keys into build, hide from Settings UI
+## [PR #43] fix: Spotify login + bake all API keys at build time
 **Branch:** `fix/spotify-client-id` → `master`
 **Date:** 2026-06-28
 
-### Changed
-- `packages/server/build.mjs` — bakes all credential keys (`SPOTIFY_CLIENT_ID`, `YOUTUBE_API_KEY`, `ALPACA_API_KEY`, `ALPACA_API_SECRET`, `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`) from root `.env` at package time via esbuild `--define`. Values are in the compiled bundle, not in source or git.
-- `packages/server/src/routes/youtube.ts`, `stocks.ts`, `twitch.ts`, `spotify.ts` — each route checks runtime env (safeStorage/Settings) first, falls back to `_BUILTIN` value.
-- `packages/server/src/index.ts` — added `GET /api/credentials/builtin` endpoint that returns key *names* (never values) of pre-configured keys.
-- `apps/renderer/src/components/SettingsModal.tsx` — fetches `/api/credentials/builtin` on open; shows a "Pre-configured" lock indicator instead of an input field for baked-in keys. Users can still override any key via Settings by adding their own value.
-
----
-
-## fix: Spotify client_id baked in at build time
-**Branch:** `fix/spotify-client-id` → `master`
-**Date:** 2026-06-28
-
-### Changed
-- `packages/server/build.mjs` — new esbuild script (replaces inline CLI) that reads `SPOTIFY_CLIENT_ID` from root `.env` at package time and bakes it into the server bundle via esbuild `--define` as `SPOTIFY_CLIENT_ID_BUILTIN`. The value never appears in source; the variable name is gone from the compiled output.
-- `packages/server/package.json` — build script now calls `node build.mjs`.
-- `packages/server/src/routes/spotify.ts` — `clientId()` checks runtime env first (`SPOTIFY_CLIENT_ID` from Settings/safeStorage), falls back to the baked-in value.
-
-Users who download the app get Spotify working with no setup. Users who enter their own Client ID in Settings override it.
-
----
-
-## fix: Spotify "client_id: Not present" on login
-**Branch:** `fix/spotify-client-id` → `master`
-**Date:** 2026-06-28
+### Context
+Spotify login failed with "client_id: Not present", and a distributed build had no way for users to supply keys. This PR added the missing credential, fixed the redirect URI, then baked all API keys into the build so a shipped DMG/EXE works with no setup.
 
 ### Fixed
-- **Spotify login fails with "client_id: Not present"** — `SPOTIFY_CLIENT_ID` was read from `process.env` but was never part of the credentials system, so there was no way for users to set it. Added it to `CREDENTIAL_KEYS` and `CREDENTIAL_DEFS` so it appears in Settings and gets stored/injected like all other keys.
-- **Redirect URI was empty** — `redirectUri()` fell back to `''` when `SPOTIFY_REDIRECT_URI` wasn't set. Changed default to `'http://localhost:7432/api/spotify/callback'` — the only valid value for this app.
+- **"client_id: Not present"** — `SPOTIFY_CLIENT_ID` was read from `process.env` but was never part of the credentials system. Added to `CREDENTIAL_KEYS`/`CREDENTIAL_DEFS` so it appears in Settings and is stored/injected like the other keys.
+- **Empty redirect URI** — `redirectUri()` fell back to `''`; default is now `http://localhost:7432/api/spotify/callback`.
 
 ### Changed
+- `packages/server/build.mjs` — new esbuild script (replaces the inline CLI) bakes all credential keys (`SPOTIFY_CLIENT_ID`, `YOUTUBE_API_KEY`, `ALPACA_API_KEY`, `ALPACA_API_SECRET`, `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`) from the root `.env` at package time via esbuild `--define` as `*_BUILTIN`. Values land in the compiled bundle only — never in source or git.
+- `packages/server/package.json` — build script now runs `node build.mjs`.
+- `packages/server/src/routes/{spotify,youtube,stocks,twitch}.ts` — each route checks runtime env (safeStorage/Settings) first, falls back to the baked `_BUILTIN` value.
+- `packages/server/src/index.ts` — added `GET /api/credentials/builtin` returning baked key *names* only (never values).
+- `apps/renderer/src/components/SettingsModal.tsx` — shows a "Pre-configured" lock indicator instead of an input for baked-in keys; `CredentialRow` renders an optional `hint` line.
 - `packages/shared/src/types/credentials.ts` — added `SPOTIFY_CLIENT_ID` with a hint pointing to developer.spotify.com.
-- `packages/server/src/routes/spotify.ts` — `redirectUri()` defaults to `http://localhost:7432/api/spotify/callback`.
-- `apps/renderer/src/components/SettingsModal.tsx` — `CredentialRow` now accepts and renders an optional `hint` line below the input; `hint` is wired through the `def.hint` field.
+
+### Notes
+Users who download the app get Spotify working with no setup; entering their own key in Settings overrides the baked-in value.
 
 ---
 
-## fix: YouTube errors 152–154 via localhost embed proxy
+## [PR #42] fix: server port conflict on relaunch + YouTube embed proxy
 **Branch:** `fix/server-port-conflict-youtube` → `master`
 **Date:** 2026-06-28
 
+### Context
+Two issues on one branch: APIs were dead on every other launch (a stale server still bound to :7432), and YouTube playback errored under the packaged `file://` origin.
+
 ### Fixed
-- **YouTube errors 152–154 on all videos** — the previous `webRequest.onBeforeSendHeaders` interceptor injected `Referer: https://www.youtube.com/` on `*.googlevideo.com` CDN stream requests where no Referer existed. The CDN rejected those modified requests, causing playback errors on every video.
-- **Root cause addressed properly** — instead of header spoofing, the YouTube widget now loads `http://localhost:7432/api/youtube/embed?videoId=...` (a new Fastify route) which serves a minimal HTML wrapper page containing the `youtube-nocookie.com` iframe. From YouTube's perspective the embed origin is `http://localhost:7432/` (a valid HTTP origin) rather than `file://`. This eliminates the null-origin rejection without touching any CDN traffic.
-- **Removed `webRequest` interceptor** from `apps/main/src/index.ts` — only the UA-stripping fix remains.
+- **Every other launch unresponsive** — `apps/main/src/server/spawn.ts`: `killStaleOnPort()` now runs before spawning the server, clearing a crashed previous instance off :7432 (`lsof`/`kill` on mac/linux, `netstat`/`taskkill` on Windows) so the new server always binds.
+- **YouTube errors 152–154** — the original `webRequest` interceptor injected `Referer` on `*.googlevideo.com` CDN requests, which the CDN rejected, breaking every video. Replaced header-spoofing with a **localhost embed proxy**: the widget loads `http://localhost:7432/api/youtube/embed?videoId=…` (Fastify serves a minimal HTML wrapper around the `youtube-nocookie` iframe), so YouTube sees a valid `http://localhost` origin instead of `file://`. The `onBeforeSendHeaders` interceptor was removed; only the Electron UA strip remains.
 
 ### Changed
-- `packages/server/src/routes/youtube.ts` — added `GET /api/youtube/embed?videoId=` route; videoId is validated against `/^[A-Za-z0-9_-]{6,16}$/` before injection to prevent XSS.
-- `apps/renderer/src/widgets/youtube/YoutubeWidget.tsx` — iframe `src` now points to the local embed proxy instead of youtube-nocookie.com directly.
-- `apps/main/src/index.ts` — removed `webRequest.onBeforeSendHeaders` block; kept Electron UA strip.
+- `packages/server/src/routes/youtube.ts` — added `GET /api/youtube/embed?videoId=` (videoId validated `/^[A-Za-z0-9_-]{6,16}$/`).
+- `apps/renderer/src/widgets/youtube/YoutubeWidget.tsx` — iframe `src` → local embed proxy.
+- `apps/main/src/index.ts` — removed the Referer interceptor; kept the Electron UA strip.
 
 ---
 
-## fix: server port conflict on relaunch + YouTube Error 153 referrer
-**Branch:** `fix/server-port-conflict-youtube` → `master`
-**Date:** 2026-05-31
-
-### Fixed
-- **Every other launch APIs unresponsive** — `apps/main/src/server/spawn.ts`: on launch, `killStaleOnPort()` now runs before spawning the server. If a previous Electron instance crashed or exited before its server child fully died, the new launch clears the port first (`lsof -ti tcp:7432 | kill -9` on mac/linux, `netstat + taskkill` on Windows) so the new server always binds successfully.
-- **YouTube Error 153** (second root cause) — `apps/main/src/index.ts`: added a `webRequest.onBeforeSendHeaders` interceptor that injects `Referer: https://www.youtube.com/` on all requests to `*.youtube.com`, `*.youtube-nocookie.com`, and `*.googlevideo.com`. In production the app loads from `file://` which sends a null referer; YouTube's embed player treats that as an unauthorized origin and returns Error 153. Note: if a specific video has embedding explicitly disabled by its uploader, Error 153 will still appear — that's a per-video restriction, not an app issue.
-
----
-
-## fix: YouTube Error 153 (video player configuration error)
+## [PR #41] fix: YouTube Error 153 (video player configuration error)
 **Branch:** `fix/youtube-error-153` → `master`
 **Date:** 2026-05-31
 
 ### Fixed
-- **`apps/main/src/index.ts`** — strips `Electron/x.x.x` from the default session user-agent before any windows open. YouTube detects the Electron UA string and returns Error 153 "Video player configuration error" for most videos. Removing it makes the browser appear as plain Chrome and playback works normally.
+- **`apps/main/src/index.ts`** — strips `Electron/x.x.x` from the default session user-agent before any windows open. YouTube detects the Electron UA and returns Error 153 for most videos; removing it makes the renderer appear as plain Chrome and playback works.
 
 ---
 
-## fix: `pnpm package` works on non-admin Windows
-**Branch:** `fix/windows-build-cache` → `master`
+## [PR #39] feat: edit saved custom themes
+**Branch:** `feat/edit-custom-themes` → `master`
+**Date:** 2026-05-31
+
+### Added
+- **`themeStore.ts`** — `updateCustomTheme(id)`: snapshots current `customColors` into the named saved entry, keeping the same `id`/`name`.
+- **`Titlebar.tsx` `CustomEditor`** — accepts optional `editTarget?: SavedCustomTheme` + `onUpdate?`. In edit mode renders an `Edit "<name>"` header and a single "Save changes" button.
+- **`Titlebar.tsx` `ThemeMenu`** — clicking a saved custom theme applies it and opens the editor in edit mode; color tweaks update `customColors` live; "Save changes" snapshots them back.
+
+---
+
+## [PR #38] feat: edit saved custom layouts
+**Branch:** `feat/edit-custom-layouts` → `master`
 **Date:** 2026-05-30
 
+### Added
+- **`layoutStore.ts`** — `updateCustomLayout(id)`: snapshots current `layout` + `visibleWidgets` into the named saved entry, keeping the same `id`/`name`.
+- **`Titlebar.tsx` `CustomLayoutEditor`** — accepts optional `editTarget?: SavedCustomLayout` + `onUpdate?`. In edit mode renders an `Edit "<name>"` header and a single "Save changes" button.
+- **`Titlebar.tsx` `LayoutsMenu`** — clicking a saved layout applies it immediately (so you can drag/resize) and opens the editor in edit mode; "Save changes" snapshots the current layout + visible widgets back.
+
+---
+
+## [PR #37] feat: Spotify disconnect button
+**Branch:** `feat/spotify-logout` → `master`
+**Date:** 2026-05-31
+
+### Added
+- **`packages/server/src/routes/spotify.ts`** — `POST /api/spotify/logout`: clears the in-memory token, deletes `~/.dash/spotify_tokens.json`, and clears the now-playing cache. Immediately unauthenticated without a restart.
+- **`useSpotify.ts`** — `useSpotifyLogout` mutation: calls logout and flips `spotify-status` to `{ authenticated: false }` optimistically.
+- **`SpotifyWidget.tsx`** — a small `LogOut` icon appears top-right on hover; clicking disconnects and returns the widget to the Connect screen.
+
+---
+
+## [PR #36] fix: presets restore visible widgets on apply
+**Branch:** `fix/preset-visible-widgets` → `master`
+**Date:** 2026-05-31
+
+### Changed
+- **`layouts.ts`** — `NamedLayout` gains optional `visibleWidgets?: WidgetId[]`. `Default` sets all 8 widgets; `Home` sets all except `twitch`. Other presets leave it unchanged.
+- **`layoutStore.ts`** — `applyPreset` now sets `visibleWidgets` to `preset.visibleWidgets` when defined, then regenerates the layout from that set.
+
+---
+
+## [PR #35] feat: update Home preset to match actual nish layout
+**Branch:** `feat/home-preset-v2` → `master`
+**Date:** 2026-05-31
+
+### Changed
+- **`layouts.ts`** — Home preset updated: YouTube (h=12) spans the full right width at top; Spotify (w=6, h=10) and Weather (w=6, h=10) sit side-by-side below it. Weather is woven into the BSP tree. Twitch remains absent (falls to bottom-row overflow if toggled on).
+
+---
+
+## [PR #34] feat: add Home preset layout
+**Branch:** `feat/home-preset` → `master`
+**Date:** 2026-05-31
+
+### Added
+- **`layouts.ts`** — new `Home` built-in preset: Hardware + Sound stacked left (cols 0–5), Stocks + Calendar stacked middle (cols 6–11), YouTube + Spotify stacked right (cols 12–23). Twitch and Weather absent from the BSP tree; if toggled on they fall to a bottom-row overflow via the existing `generateLayout` fallback.
+
+---
+
+## [PR #33] feat: saveable custom layouts with per-layout pinned tiles
+**Branch:** `feat/custom-layouts` → `master`
+**Date:** 2026-05-31
+
+### Added
+- **Custom layouts** — arrange the dashboard (drag/resize, pin/unpin which tiles show) and save it under a name. Saved layouts appear under **Layouts → Custom**, mirroring **Themes → Custom**. Applying a saved layout restores both the tile geometry and that layout's pinned-tile set.
+- **`apps/renderer/src/store/layoutStore.ts`** — new `SavedCustomLayout` (`{ id, name, layout, visibleWidgets }`) + `savedCustomLayouts`, `activeCustomLayoutId` state and `saveCustomLayout` / `deleteCustomLayout` / `applyCustomLayout` actions (deep-copied snapshots). `onRehydrateStorage` back-fills the new fields.
+- **`apps/renderer/src/components/Titlebar.tsx`** — `LayoutsMenu` reworked into a three-panel flow (`list` → `custom-list` → `editor`) like `ThemeMenu`. New `CustomLayoutEditor` (in-menu pin/unpin + Save-as name) and `LayoutDeleteModal`. The editor renders no backdrop so the grid stays draggable while editing.
+
+### Changed
+- **`layoutStore.ts`** — `setLayout`, `applyPreset`, `resetToDefault`, `showWidget`, `hideWidget` now clear `activeCustomLayoutId` so the active-custom highlight only persists while unmodified.
+
+### Notes
+- `pinnedPresets` (titlebar-pinned layouts) is unchanged and applies to built-in presets only. "Pinned tiles" in the editor = visible widgets, a separate concept.
+
+---
+
+## [PR #32] fix: `pnpm package` works on non-admin Windows
+**Branch:** `fix/windows-build-cache` → `master`
+**Date:** 2026-05-31
+
 ### Fixed
-- `electron-builder` downloads `winCodeSign-2.6.0.7z` and extracts it with `7za`. The archive contains macOS dylib symlinks; on Windows, creating symlinks requires admin or Developer Mode, so `7za` exits with code 2 and the whole `electron-builder` run aborts before any Windows artifacts are produced. The Windows installer was unbuildable from a normal user account.
-- Added **`scripts/prepare-wincodesign.cjs`** — a no-op on macOS/Linux. On Windows, it downloads the archive (if not already cached) and extracts it with `-xr!darwin` so `7za` never touches the symlink entries, then places the result at the cache path electron-builder expects (`%LOCALAPPDATA%/electron-builder/Cache/winCodeSign/winCodeSign-2.6.0`). The darwin dylibs are unused for Windows builds.
-- **`package.json`** — `package` script now runs the prep script before `electron-builder` and passes `CSC_IDENTITY_AUTO_DISCOVERY=false` (we don't have a Windows code signing cert).
-- **`package.json`** — added `packageManager: "pnpm@11.3.0"` so Turbo 2.9 can resolve the workspace.
+- `electron-builder` downloads `winCodeSign-2.6.0.7z` and extracts it with `7za`. The archive contains macOS dylib symlinks; on Windows, creating symlinks needs admin/Developer Mode, so `7za` exits with code 2 and the whole run aborts — the Windows installer was unbuildable from a normal account.
+- Added **`scripts/prepare-wincodesign.cjs`** — a no-op on macOS/Linux. On Windows it downloads the archive (if not cached) and extracts it with `-xr!darwin` so `7za` never touches the symlink entries, then places it at the cache path electron-builder expects.
+- **`package.json`** — `package` runs the prep script before `electron-builder` and passes `CSC_IDENTITY_AUTO_DISCOVERY=false` (no Windows signing cert). Added `packageManager: "pnpm@11.3.0"` so Turbo can resolve the workspace.
 
 ### Output
-- `release/Nishboard Setup 0.1.0.exe` (79MB, NSIS installer, unsigned). Distributable as-is; end users see Windows SmartScreen "Windows protected your PC" → **More info → Run anyway**.
+- `release/Nishboard Setup 0.1.0.exe` (NSIS installer, unsigned). End users see SmartScreen → **More info → Run anyway**.
 
 ---
 
-## feat: edit saved custom themes
-**Branch:** `feat/edit-custom-themes` → `master`
-**Date:** 2026-05-31
-
-### Added
-- **`themeStore.ts`** — `updateCustomTheme(id)` action: snapshots current `customColors` into the named saved entry, keeping the same `id` and `name`. Interface updated accordingly.
-- **`Titlebar.tsx` `CustomEditor`** — accepts optional `editTarget?: SavedCustomTheme` and `onUpdate?: () => void`. In edit mode renders `Edit "<name>"` header and a single "Save changes" button instead of the name input + Save pair.
-- **`Titlebar.tsx` `ThemeMenu`** — clicking a saved custom theme row now applies it (loads its colors) and opens the editor in edit mode. Tweaking colors via the pickers updates `customColors` live (same as before). "Save changes" snapshots current colors back into that entry. Back arrow returns without saving. Delete (X) unchanged.
-
----
-
-## feat: edit saved custom layouts
-**Branch:** `feat/edit-custom-layouts` → `master`
-**Date:** 2026-05-30
-
-### Added
-- **`layoutStore.ts`** — `updateCustomLayout(id)` action: snapshots current `layout` and `visibleWidgets` into the named saved entry, keeping the same `id` and `name`. Interface updated accordingly.
-- **`Titlebar.tsx` `CustomLayoutEditor`** — accepts optional `editTarget?: SavedCustomLayout` and `onUpdate?: () => void`. In edit mode renders `Edit "<name>"` header and a single "Save changes" button instead of the name input + Save pair.
-- **`Titlebar.tsx` `LayoutsMenu`** — clicking a saved layout row now applies it immediately to the dashboard (so you can drag/resize) and opens the editor in edit mode. "Save changes" snapshots the current layout + visible widgets back into that entry. Back arrow returns to the custom list without saving. Delete (X) still works as before.
-
----
-
-## feat: Spotify disconnect button
-**Branch:** `feat/spotify-logout` → `master`
-**Date:** 2026-05-31
-
-### Added
-- **`packages/server/src/routes/spotify.ts`** — `POST /api/spotify/logout`: clears the in-memory token, deletes `~/.dash/spotify_tokens.json`, and clears the now-playing cache. Server is immediately unauthenticated without restart.
-- **`useSpotify.ts`** — `useSpotifyLogout` mutation: calls the logout endpoint and flips `spotify-status` query data to `{ authenticated: false }` optimistically.
-- **`SpotifyWidget.tsx`** — small `LogOut` icon appears in the top-right corner of the widget on hover (opacity transition). Clicking it disconnects Spotify and returns the widget to the Connect screen.
-
----
-
-## fix: presets restore visible widgets on apply (Default=all, Home=no twitch)
-**Branch:** `fix/preset-visible-widgets` → `master`
+## [PR #31] feat: rename to Nishboard; remove YouTube named layout preset
+**Branch:** `feat/nishboard-no-youtube` → `master`
 **Date:** 2026-05-31
 
 ### Changed
-- **`layouts.ts`** — `NamedLayout` gains optional `visibleWidgets?: WidgetId[]`. `Default` sets all 8 widgets; `Home` sets all except `twitch`. Other presets leave `visibleWidgets` unchanged (existing behaviour).
-- **`layoutStore.ts`** — `applyPreset` now sets `visibleWidgets` to `preset.visibleWidgets` when the preset defines it, then regenerates the layout from that set.
+- **`electron-builder.yml`** — `productName: Dashboard` → `Nishboard`; `appId` → `com.nish.nishboard`. The packaged app now appears as **Nishboard**.
+- **`apps/renderer/src/lib/layouts.ts`** — the named **YouTube** preset removed from `PRESETS`/`PRESET_TREES`. The YouTube widget itself is unchanged — it still appears in all other presets and is togglable from the Widgets menu.
 
 ---
 
-## feat: update Home preset to match actual nish layout
-**Branch:** `feat/home-preset-v2` → `master`
-**Date:** 2026-05-31
-
-### Changed
-- **`layouts.ts`** — Home preset updated: YouTube (h=12) spans the full right width at top; Spotify (w=6, h=10) and Weather (w=6, h=10) sit side-by-side below it. Weather is now woven into the BSP tree. Twitch remains absent (falls to bottom-row overflow if toggled on).
-
-## feat: add Home preset layout
-**Branch:** `feat/home-preset` → `master`
-**Date:** 2026-05-31
-
-### Added
-- **`layouts.ts`** — new `Home` built-in preset: Hardware + Sound stacked left (cols 0–5), Stocks + Calendar stacked middle (cols 6–11), YouTube + Spotify stacked right (cols 12–23). Twitch and Weather are absent from the BSP tree; if toggled on they fall to a bottom-row overflow via the existing `generateLayout` fallback.
-
----
-
-## feat: saveable custom layouts with per-layout pinned tiles
-**Branch:** `claude/code-session-connectivity-4ddFC` → `master`
-**Date:** 2026-05-31
-
-### Added
-- **Custom layouts** — you can now arrange the dashboard (drag/resize tiles, pin/unpin which tiles show) and save it under a name. Saved layouts appear under **Layouts → Custom**, mirroring the existing **Themes → Custom** flow. Applying a saved layout restores both the tile geometry **and** that layout's pinned-tile set, so different layouts can show different widgets.
-- **`apps/renderer/src/store/layoutStore.ts`** — new `SavedCustomLayout` type (`{ id, name, layout, visibleWidgets }`) plus `savedCustomLayouts`, `activeCustomLayoutId` state and `saveCustomLayout` / `deleteCustomLayout` / `applyCustomLayout` actions. `saveCustomLayout` snapshots the current `layout` + `visibleWidgets` (deep-copied so later edits don't mutate the saved entry). `applyCustomLayout` restores both. `onRehydrateStorage` back-fills the new fields for older persisted state.
-- **`apps/renderer/src/components/Titlebar.tsx`** — `LayoutsMenu` reworked into a three-panel flow (`list` → `custom-list` → `editor`) like `ThemeMenu`. New `CustomLayoutEditor` (in-menu pin/unpin toggles that update `visibleWidgets` live + a *Save as* name field) and `LayoutDeleteModal` (delete confirmation). The editor panel intentionally renders **no backdrop** so the grid behind it stays draggable/resizable while you edit.
-
-### Changed
-- **`apps/renderer/src/store/layoutStore.ts`** — `setLayout`, `applyPreset`, `resetToDefault`, `showWidget`, and `hideWidget` now clear `activeCustomLayoutId` so the active-custom highlight only persists while the saved arrangement is unmodified (matching the theme store's `activeCustomId` semantics).
-
-### Notes / gotchas
-- `pinnedPresets` (pin a layout to the titlebar bar) is unchanged and still applies to built-in presets only — custom layouts are not bar-pinnable. "Pinned **tiles**" in the editor refers to visible widgets, a separate concept from bar-pinned presets.
-- `visibleWidgets` remains global state; applying a custom layout overwrites it with that layout's stored set.
-## feat: edit saved custom themes
-**Branch:** `feat/edit-custom-themes` → `master`
-**Date:** 2026-05-31
-
-### Added
-- **`themeStore.ts`** — `updateCustomTheme(id)` action: snapshots current `customColors` into the named saved entry, keeping the same `id` and `name`. Interface updated accordingly.
-- **`Titlebar.tsx` `CustomEditor`** — accepts optional `editTarget?: SavedCustomTheme` and `onUpdate?: () => void`. In edit mode renders `Edit "<name>"` header and a single "Save changes" button instead of the name input + Save pair.
-- **`Titlebar.tsx` `ThemeMenu`** — clicking a saved custom theme row now applies it (loads its colors) and opens the editor in edit mode. Tweaking colors via the pickers updates `customColors` live (same as before). "Save changes" snapshots current colors back into that entry. Back arrow returns without saving. Delete (X) unchanged.
-
----
-
-## feat: edit saved custom layouts
-**Branch:** `feat/edit-custom-layouts` → `master`
-**Date:** 2026-05-30
-
-### Added
-- **`layoutStore.ts`** — `updateCustomLayout(id)` action: snapshots current `layout` and `visibleWidgets` into the named saved entry, keeping the same `id` and `name`. Interface updated accordingly.
-- **`Titlebar.tsx` `CustomLayoutEditor`** — accepts optional `editTarget?: SavedCustomLayout` and `onUpdate?: () => void`. In edit mode renders `Edit "<name>"` header and a single "Save changes" button instead of the name input + Save pair.
-- **`Titlebar.tsx` `LayoutsMenu`** — clicking a saved layout row now applies it immediately to the dashboard (so you can drag/resize) and opens the editor in edit mode. "Save changes" snapshots the current layout + visible widgets back into that entry. Back arrow returns to the custom list without saving. Delete (X) still works as before.
-
----
-
-## feat: Spotify disconnect button
-**Branch:** `feat/spotify-logout` → `master`
-**Date:** 2026-05-31
-
-### Added
-- **`packages/server/src/routes/spotify.ts`** — `POST /api/spotify/logout`: clears the in-memory token, deletes `~/.dash/spotify_tokens.json`, and clears the now-playing cache. Server is immediately unauthenticated without restart.
-- **`useSpotify.ts`** — `useSpotifyLogout` mutation: calls the logout endpoint and flips `spotify-status` query data to `{ authenticated: false }` optimistically.
-- **`SpotifyWidget.tsx`** — small `LogOut` icon appears in the top-right corner of the widget on hover (opacity transition). Clicking it disconnects Spotify and returns the widget to the Connect screen.
-
----
-
-## fix: presets restore visible widgets on apply (Default=all, Home=no twitch)
-**Branch:** `fix/preset-visible-widgets` → `master`
-**Date:** 2026-05-31
-
-### Changed
-- **`layouts.ts`** — `NamedLayout` gains optional `visibleWidgets?: WidgetId[]`. `Default` sets all 8 widgets; `Home` sets all except `twitch`. Other presets leave `visibleWidgets` unchanged (existing behaviour).
-- **`layoutStore.ts`** — `applyPreset` now sets `visibleWidgets` to `preset.visibleWidgets` when the preset defines it, then regenerates the layout from that set.
-
----
-
-## feat: update Home preset to match actual nish layout
-**Branch:** `feat/home-preset-v2` → `master`
-**Date:** 2026-05-31
-
-### Changed
-- **`layouts.ts`** — Home preset updated: YouTube (h=12) spans the full right width at top; Spotify (w=6, h=10) and Weather (w=6, h=10) sit side-by-side below it. Weather is now woven into the BSP tree. Twitch remains absent (falls to bottom-row overflow if toggled on).
-
-## feat: add Home preset layout
-**Branch:** `feat/home-preset` → `master`
-**Date:** 2026-05-31
-
-### Added
-- **`layouts.ts`** — new `Home` built-in preset: Hardware + Sound stacked left (cols 0–5), Stocks + Calendar stacked middle (cols 6–11), YouTube + Spotify stacked right (cols 12–23). Twitch and Weather are absent from the BSP tree; if toggled on they fall to a bottom-row overflow via the existing `generateLayout` fallback.
-
----
-
-## feat: saveable custom layouts with per-layout pinned tiles
-**Branch:** `claude/code-session-connectivity-4ddFC` → `master`
-**Date:** 2026-05-31
-
-### Added
-- **Custom layouts** — you can now arrange the dashboard (drag/resize tiles, pin/unpin which tiles show) and save it under a name. Saved layouts appear under **Layouts → Custom**, mirroring the existing **Themes → Custom** flow. Applying a saved layout restores both the tile geometry **and** that layout's pinned-tile set, so different layouts can show different widgets.
-- **`apps/renderer/src/store/layoutStore.ts`** — new `SavedCustomLayout` type (`{ id, name, layout, visibleWidgets }`) plus `savedCustomLayouts`, `activeCustomLayoutId` state and `saveCustomLayout` / `deleteCustomLayout` / `applyCustomLayout` actions. `saveCustomLayout` snapshots the current `layout` + `visibleWidgets` (deep-copied so later edits don't mutate the saved entry). `applyCustomLayout` restores both. `onRehydrateStorage` back-fills the new fields for older persisted state.
-- **`apps/renderer/src/components/Titlebar.tsx`** — `LayoutsMenu` reworked into a three-panel flow (`list` → `custom-list` → `editor`) like `ThemeMenu`. New `CustomLayoutEditor` (in-menu pin/unpin toggles that update `visibleWidgets` live + a *Save as* name field) and `LayoutDeleteModal` (delete confirmation). The editor panel intentionally renders **no backdrop** so the grid behind it stays draggable/resizable while you edit.
-
-### Changed
-- **`apps/renderer/src/store/layoutStore.ts`** — `setLayout`, `applyPreset`, `resetToDefault`, `showWidget`, and `hideWidget` now clear `activeCustomLayoutId` so the active-custom highlight only persists while the saved arrangement is unmodified (matching the theme store's `activeCustomId` semantics).
-
-### Notes / gotchas
-- `pinnedPresets` (pin a layout to the titlebar bar) is unchanged and still applies to built-in presets only — custom layouts are not bar-pinnable. "Pinned **tiles**" in the editor refers to visible widgets, a separate concept from bar-pinned presets.
-- `visibleWidgets` remains global state; applying a custom layout overwrites it with that layout's stored set.
-
----
-
-## fix: Windows master volume slider snaps to 0 + app mixer empty
+## [PR #30] fix: Windows master volume slider snaps to 0 + app mixer empty
 **Branch:** `fix/sound-windows-v2` → `master`
-**Date:** 2026-05-30
+**Date:** 2026-05-31
 
 ### Fixed
-- **Master volume slider snapped to 0 after every commit.** `winGetDeviceData()` parsed `Get-AudioDevice -PlaybackVolume` as a plain number, but the AudioDeviceCmdlets module returns a string with a trailing `%` (e.g. `"42%"`). `Number("42%")` → `NaN`, which JSON-serialized as `null`, which the renderer coerced to `0` via `?? 0`. Now strips the `%`, trims, and throws on non-finite parse so the WASAPI fallback kicks in if the format ever changes.
-- **App mixer always empty** despite Discord/Steam/etc. playing audio. Three compounding bugs:
-  1. `psRun` used `-EncodedCommand` which base64-encodes the WASAPI script to ~18k chars — well past Windows' 8191-char `CreateProcess` command-line limit. Every session enumeration failed with "The command line is too long" and the `.catch(() => [])` swallowed it. Switched to writing a UTF-16 LE temp `.ps1` and invoking via `-File` (with `-ExecutionPolicy Bypass` since `-File` doesn't auto-bypass like `-EncodedCommand` does).
-  2. The WASAPI walk was done in PowerShell with `$obj -as [IFoo]` casts on COM objects. PowerShell's `-as` operator does **not** trigger `QueryInterface` on dynamically-Add-Typed COM interfaces (it returns `$null`), nor does the explicit `[IFoo]$x` cast, nor does dispatch on `System.__ComObject` (no `IDispatch` on WASAPI interfaces). Moved **all** session walking into a single C# `[W]::GetSessions()` static method where C# casts emit QI at compile time. PowerShell only receives the final `string[]` of `pid|name|vol|muted` lines. The C# source is base64-encoded to survive the trip through Node `writeFile` → PowerShell `-File` without here-string quoting fragility.
-  3. Every COM interface method declaration needed an explicit `[PreserveSig]` attribute. Without it, .NET auto-translates HRESULT returns: `IsSystemSoundsSession()` silently returned 0 for **every** session, so every app showed as "System Sounds" with the wrong name and `pid=0` lookup. With `[PreserveSig]`, real apps return `S_FALSE (1)` and the actual process name is resolved (Discord, Steam, etc.).
+- **Master slider snapped to 0** — `winGetDeviceData()` parsed `Get-AudioDevice -PlaybackVolume` as a number, but the module returns a string with a trailing `%` (e.g. `"42%"`). `Number("42%")` → `NaN` → serialized `null` → coerced to `0`. Now strips `%`, trims, and throws on non-finite so the WASAPI fallback kicks in.
+- **App mixer always empty** — three compounding bugs:
+  1. `psRun` used `-EncodedCommand` which base64-encoded the WASAPI script past Windows' 8191-char command-line limit. Switched to a UTF-16 LE temp `.ps1` invoked via `-File` (`-ExecutionPolicy Bypass`).
+  2. PowerShell's `-as`/cast operators don't trigger `QueryInterface` on dynamically Add-Typed COM interfaces. Moved all session walking into a single C# `[W]::GetSessions()` where C# casts emit QI at compile time; PowerShell only receives the final `string[]`.
+  3. Every COM method needed `[PreserveSig]`; without it `IsSystemSoundsSession()` returned 0 for every session (all apps showed as "System Sounds"). With it, real apps resolve correctly.
 
 ---
 
-## feat: rename to Nishboard; remove YouTube named layout preset
-**Branch:** `feat/nishboard-no-youtube` → `master`
-**Date:** 2026-05-30
-
-### Changed
-- **`electron-builder.yml`** — `productName: Dashboard` → `productName: Nishboard`; `appId` updated to `com.nish.nishboard`. The packaged app will now appear as **Nishboard** in the macOS menu bar, dock, and DMG.
-- **`apps/renderer/src/lib/layouts.ts`** — The named **YouTube** preset removed from `PRESETS` and `PRESET_TREES`. The YouTube widget itself is unchanged — it still appears in all other presets (Default, Markets, Media, System, Focus, Chill, Wide) and remains togglable from the Widgets menu.
-
----
-
-## fix: electron-builder config for monorepo packaging
+## [PR #29] fix: electron-builder config for monorepo packaging
 **Branch:** `fix/electron-builder-packaging` → `master`
 **Date:** 2026-05-30
 
 ### Fixed
-- **`electronVersion: "33.4.11"`** added to `electron-builder.yml` — builder was unable to detect Electron version because it lives in `apps/main/node_modules` (workspace), not the root `node_modules`.
-- **`apps/main/package.json`** included in the bundled app root via `files` entry — electron-builder requires `app/package.json` to exist inside `Dashboard.app/Contents/Resources/app/`; tsc doesn't emit it.
-- **`package.json`** (root) — added `description` and `author` fields to silence builder warnings.
-- Produces `release/Dashboard-0.1.0-arm64.dmg` successfully on macOS arm64.
+- **`electronVersion: "33.4.11"`** added to `electron-builder.yml` — builder couldn't detect Electron (it lives in `apps/main/node_modules`, not root).
+- **`apps/main/package.json`** included in the bundled app root via `files` — builder requires `app/package.json` inside the app bundle; tsc doesn't emit it.
+- **`package.json`** (root) — added `description`/`author` to silence warnings.
+- Produces `release/Dashboard-0.1.0-arm64.dmg` on macOS arm64.
 
 ---
 
-## feat: Twitch widget — channel search + in-tile playback
-**Branch:** `feat/twitch-widget` → `master`
-**Date:** 2026-05-30
-
-### Added
-- **New `twitch` widget** mirroring the YouTube widget: search Twitch channels, select one to play the live stream embedded in the tile, with a search overlay that keeps playback mounted in the background.
-- **`packages/shared/src/types/twitch.ts`** — `TwitchChannel` + `TwitchSearchPage` types (exported from `shared/src/index.ts`).
-- **`packages/server/src/routes/twitch.ts`** — `GET /api/twitch/search?q=` proxy. Auth uses a cached **client-credentials app access token** (no user OAuth needed for search/playback); token refreshes a minute before expiry and on any 401. Registered under `/api/twitch` in `server/src/index.ts`.
-- **`apps/renderer/src/widgets/twitch/`** — `TwitchWidget.tsx` + `useTwitch.ts` hook.
-- Registered `twitch` in `lib/layouts.ts` (`WidgetId`, `ALL_WIDGET_IDS`, `WIDGET_TITLES`, `WIDGET_CONSTRAINTS`) and `DashboardGrid.tsx` (`WIDGET_COMPONENTS`).
-- **`generateLayout()`** now appends any visible widget missing from a preset's BSP tree as a bottom full-width row, so `twitch` appears across all presets without rewriting the gap-free trees. (Twitch can be woven into the preset trees later for tighter layouts.)
-- **`.env.example`** — `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`, and `TWITCH_REDIRECT_URI` (set to the `http://localhost:...` form — Twitch only permits non-https for the literal `localhost` host, not `127.0.0.1`).
-- **Media layout** — YouTube + Twitch stacked left (pure video column), Spotify top-right, Stocks/Hardware side-by-side bottom-right, Weather/Calendar/Sound stacked far-right.
-- **Settings UI** (`SettingsModal.tsx`) — grouped credential inputs for Alpaca (Stocks) and Twitch. Password fields with show/hide toggle, loading state, idle/saving/saved/error states, Escape to close. Credentials encrypted with OS keychain (`safeStorage`) via IPC; server restarts with new env vars on save.
-- **App icon** — 1024×1024 dashboard motif icon (`build/icon.icns` + `build/icon.ico`) with 2×2 widget grid: emerald line chart, hardware progress bars, music waveform, and weather sun. All iconset sizes generated.
-- **Packaging fixes** — `electron-builder.yml`: `asar: false` so server can be spawned from disk. Server spawn path corrected to `app.getAppPath()/server/index.js`. `restartServer()` kills + respawns child process with fresh env after credential save.
-- **Credential IPC** — `credentials:get-all` / `credentials:save-all` handlers in main process; `safeStorage` read/write in `apps/main/src/credentials.ts`; preload exposes `window.electron.credentials`.
-- **Settings button** in Titlebar right-side menu (rightmost position).
-
-### Notes / TODO
-- **Playback `parent` param:** the Twitch player iframe requires `parent=<hostname>`. Works in dev (renderer served from `localhost`); a packaged `file://` build has no valid host, so embedded playback won't load there until the renderer is served over a localhost URL.
-- `TWITCH_REDIRECT_URI` is currently unused (search/playback are app-token only) — kept for future user-context OAuth (followed channels, etc.).
-
----
-
-## feat/named-custom-themes — Save and name custom themes
+## [PR #28] feat: save and name custom themes
 **Branch:** `feat/named-custom-themes` → `master`
 **Date:** 2026-05-30
 
 ### Added
-- **Named custom themes** — users can save any custom color set under a name. Saved themes persist across sessions (Zustand persist).
-- **Custom themes submenu** — "Custom" in the main theme list now opens a second panel:
-  - "Create new" is always the first item; opens the color editor.
-  - Saved themes listed below a divider, each with a color swatch (primary color) and a hover-reveal ✕ delete button.
-  - Back arrow returns to the main theme list.
-- **Delete confirmation modal** — clicking ✕ on a saved theme shows a fixed modal asking for confirmation before removal. Cancel / Delete buttons.
-- **Save as section** in the color editor — name input + Save button at the bottom of the editor. Saving adds the theme to the list and navigates back to the custom submenu.
-- `SavedCustomTheme` interface (`{ id, name, colors }`) exported from `themeStore.ts`.
-- `saveCustomTheme(name)`, `deleteCustomTheme(id)`, `applyCustomTheme(id)` actions in `themeStore`.
-- `activeCustomId` tracked in store — highlights the active saved theme in the submenu.
+- **Named custom themes** — save any custom color set under a name (Zustand persist).
+- **Custom themes submenu** — "Create new" first; saved themes below a divider, each with a color swatch + hover-reveal ✕ delete.
+- **Delete confirmation modal** — fixed modal with Cancel / Delete.
+- **Save-as section** in the color editor — name input + Save button.
+- `SavedCustomTheme` (`{ id, name, colors }`) + `saveCustomTheme` / `deleteCustomTheme` / `applyCustomTheme` actions; `activeCustomId` highlights the active saved theme.
 
 ### Changed
-- `setCustomColors` now clears `activeCustomId` (colors are "unsaved" once edited).
-- Opening Themes while a custom theme is active goes directly to the custom submenu instead of the main list.
-- Applying a saved custom theme sets its colors as `customColors` and marks it active; switching away clears `activeCustomId`.
+- `setCustomColors` clears `activeCustomId` (colors become "unsaved" once edited).
+- Opening Themes while a custom theme is active goes straight to the custom submenu.
 
 ---
 
-## feat/theming-updates — ThemeMenu label, distinct swatches, custom theme
+## [PR #27] feat: Twitch widget — channel search + in-tile playback
+**Branch:** `feat/twitch-widget` → `master`
+**Date:** 2026-05-30
+
+### Added
+- **New `twitch` widget** mirroring YouTube: search channels, select one to play the live stream embedded in the tile, with a search overlay that keeps playback mounted in the background.
+- **`packages/shared/src/types/twitch.ts`** — `TwitchChannel` + `TwitchSearchPage`.
+- **`packages/server/src/routes/twitch.ts`** — `GET /api/twitch/search?q=` proxy. Auth uses a cached **client-credentials app access token** (no user OAuth); refreshes before expiry and on 401.
+- **`apps/renderer/src/widgets/twitch/`** — `TwitchWidget.tsx` + `useTwitch.ts`. Registered in `lib/layouts.ts` and `DashboardGrid.tsx`.
+- **`generateLayout()`** now appends any visible widget missing from a preset's BSP tree as a bottom full-width row, so `twitch` appears across all presets.
+- **`.env.example`** — `TWITCH_CLIENT_ID`/`TWITCH_CLIENT_SECRET`/`TWITCH_REDIRECT_URI` (the `localhost` form — Twitch permits non-https only for the literal `localhost` host).
+- **Settings UI** (`SettingsModal.tsx`) — grouped credential inputs (Alpaca, Twitch) with show/hide toggles; encrypted via `safeStorage` IPC; server restarts with new env on save.
+- **App icon**, **packaging fixes** (`asar: false`; server spawn path; `restartServer()`), **credential IPC** (`credentials:get-all`/`save-all`).
+
+### Notes / TODO
+- **Playback `parent` param** — works in dev (renderer on `localhost`); a packaged `file://` build needs the localhost embed proxy (added later in #44).
+- `TWITCH_REDIRECT_URI` is unused (search/playback are app-token only) — kept for future user OAuth.
+
+---
+
+## [PR #25] feat: custom theme, distinct swatches, Themes label
 **Branch:** `feat/theming-updates` → `master`
 **Date:** 2026-05-30
 
 ### Added
-- **Custom theme** — four user-configurable color pickers (Background, Cards, Borders, Text) with live preview. Supports hex (`#rrggbb`, `#rgb`) and `rgb(r,g,b)` input; native color-picker swatch for point-and-click picking. All 13 semantic tokens derived automatically via linear mixing in `src/lib/colorUtils.ts`. Semantic/purposeful colors (green/red stocks, hardware read/write, muted indicators) are untouched.
-- **`src/lib/colorUtils.ts`** — `parseHex`, `hexToArr`, `buildCustomVars`, `CUSTOM_VAR_KEYS`. `buildCustomVars` maps 4 user hex colors → all 13 `--t-*` CSS var triples with blended surface/text levels.
-- **`CustomColors`** exported from `themeStore.ts` — `{ primary, secondary, tertiary, text }` with defaults matching Midnight; persisted to localStorage.
+- **Custom theme** — four color pickers (Background, Cards, Borders, Text) with live preview; hex + `rgb()` input + native swatch. All 13 semantic tokens derived via linear mixing in `src/lib/colorUtils.ts`. Semantic data colors (stock green/red, hardware read/write) untouched.
+- **`src/lib/colorUtils.ts`** — `parseHex`, `hexToArr`, `buildCustomVars`, `CUSTOM_VAR_KEYS`.
+- **`CustomColors`** exported from `themeStore.ts` — persisted to localStorage.
 
 ### Changed
-- **ThemeMenu button** now shows `Themes` text alongside the palette icon + active-color bubble.
-- **ThemeMenu panel** is now two-panel: theme list → custom editor (with back arrow). Opening while `custom` is active goes straight to the editor. Named theme selection closes the panel; Custom navigates in.
-- **Distinct swatches** for previously similar grey themes:
-  - Contrast → `#facc15` (yellow accent) instead of `#111111`
-  - Dracula → `#bd93f9` (purple accent) instead of `#282a36`
-  - Nord → `#88c0d0` (frost cyan) instead of `#3b4252`
-- **Nord CSS vars** pushed bluer (`--t-bg: 24 30 46`, `--t-surface: 36 46 66`) — was too grey to distinguish from Midnight.
-- **Dracula CSS vars** pushed more purple (`--t-bg: 21 18 36`, `--t-surface: 32 28 52`) — was too grey to distinguish from Midnight.
-- **`App.tsx`** applies custom vars via `useLayoutEffect` on `document.documentElement` when `theme === 'custom'`; removes them when switching away. No `[data-theme="custom"]` CSS block needed.
+- **ThemeMenu** now shows a `Themes` label + active-color bubble; two-panel (list → custom editor).
+- **Distinct swatches** for similar greys (Contrast → yellow, Dracula → purple, Nord → frost cyan); Nord/Dracula CSS vars pushed bluer/more-purple.
+- **`App.tsx`** applies custom vars via `useLayoutEffect` on `documentElement` when `theme === 'custom'`.
 
 ---
 
-## feat: theme menu expansion — 10 additional themes
-**Branch:** `claude/theme-menu-expansion-WklmG` → `master`
-**Date:** 2026-05-29
+## [PR #24] feat: theme menu expansion — 10 additional themes
+**Branch:** `claude/theme-menu-expansion` → `master`
+**Date:** 2026-05-30
 
 ### Added
-- **10 new themes** in `src/themes.ts` (`ThemeId` union + `THEMES` array) and `src/index.css` (`[data-theme="..."]` custom-property blocks), bringing the total to 15. The `ThemeMenu` already renders from `THEMES`, so no component changes were needed.
-  - **Forest** — deep green dark, lime-400 accent
-  - **Sunset** — warm orange/amber dark, orange-400 accent
-  - **Dracula** — classic purple/pink dark (`#282a36`), pink accent
-  - **Nord** — arctic blue-gray dark, frost accent
-  - **Solarized** — light tan (`#fdf6e3`) base, blue accent
-  - **Crimson** — deep red dark, red-400 accent
-  - **Mocha** — warm coffee/caramel dark, caramel accent
-  - **Neon** — cyberpunk dark, fuchsia-400 accent on cyan text
-  - **Sandstorm** — warm sepia light, burnt-amber accent
-  - **Arctic** — cool blue light, blue-600 accent
-- Each theme defines all 13 semantic tokens (`--t-bg` … `--t-invert-text`), so existing widgets pick them up with no further changes.
+- **10 new themes** in `src/themes.ts` + `src/index.css` (`[data-theme]` blocks), total 15: Forest, Sunset, Dracula, Nord, Solarized, Crimson, Mocha, Neon, Sandstorm, Arctic. Each defines all 13 semantic tokens, so widgets pick them up with no changes. `ThemeMenu` already renders from `THEMES`.
 
 ---
 
-## [PR #24] feat: theming system — 5 themes, ThemeMenu
+## [PR #23] feat: theming system — 5 themes, ThemeMenu
 **Branch:** `feat/theming` → `master`
 **Date:** 2026-05-27
 
 ### Added
-- **`tailwind.config.ts`** — 13 semantic color tokens backed by CSS custom properties: `th-bg`, `th-surface`, `th-elevated`, `th-overlay`, `th-line`, `th-hi`, `th-2`, `th-3`, `th-ghost`, `th-accent`, `th-bar`, `th-invert-bg`, `th-invert-text`. All support Tailwind opacity modifiers (`bg-th-surface/50`, etc.) via the `rgb(var(--t-*) / <alpha-value>)` pattern.
-- **`src/themes.ts`** — `ThemeId` union + `THEMES` array with name, id, and swatch hex for 5 themes.
-- **`src/store/themeStore.ts`** — Zustand persist store; default `'midnight'`.
-- **`src/index.css`** — CSS custom property blocks for all 5 themes via `[data-theme="..."]` selectors. Also updated `react-resizable-handle` and `react-grid-placeholder` styles to use theme tokens.
-- **5 themes:**
-  - **Midnight** — deep zinc dark (default, matches the original look)
-  - **Slate** — clean light mode on slate-100/white surfaces, violet accent
-  - **Ocean** — deep navy blue, sky-50 text, sky-400 accent
-  - **Contrast** — pure black, maximum contrast, yellow-400 accent (WCAG-oriented)
-  - **Rose** — warm rose/fuchsia dark, fuchsia-300 accent
+- **`tailwind.config.ts`** — 13 semantic tokens backed by CSS custom properties (`th-bg`, `th-surface`, `th-elevated`, `th-overlay`, `th-line`, `th-hi`, `th-2`, `th-3`, `th-ghost`, `th-accent`, `th-bar`, `th-invert-bg`, `th-invert-text`), all supporting opacity modifiers via `rgb(var(--t-*) / <alpha-value>)`.
+- **`src/themes.ts`** — `ThemeId` union + `THEMES` array (5 themes).
+- **`src/store/themeStore.ts`** — Zustand persist; default `midnight`.
+- **`src/index.css`** — `[data-theme]` blocks for all 5; resize-handle + grid-placeholder styles use tokens.
+- **5 themes:** Midnight (default), Slate, Ocean, Contrast, Rose.
 
 ### Changed
-- **`src/App.tsx`** — applies `data-theme={theme}` to root div; root bg is now `bg-th-bg`.
-- **`src/components/Titlebar.tsx`** — added `ThemeMenu` (palette icon + color swatch + dropdown), positioned left of Widgets menu. All colors updated to `th-*` tokens.
-- **`src/components/WidgetShell.tsx`** — all `zinc-*` classes replaced with `th-*` tokens.
-- **All 8 widget files** — wholistic `zinc-*` → `th-*` token replacement across backgrounds, borders, text, accents, sliders, and interactive states. Semantic data colors (emerald/red/amber for charts and stock movement) intentionally untouched.
+- **`App.tsx`** applies `data-theme`; root is `bg-th-bg`.
+- **`Titlebar.tsx`** — added `ThemeMenu`.
+- **`WidgetShell.tsx`** + **all 8 widgets** — `zinc-*` → `th-*` tokens (semantic data colors intentionally untouched).
 
 ---
 
-## [PR #23] feat: dynamic BSP layouts + general UI polish
+## [PR #22] feat: dynamic BSP layouts + general UI polish
 **Branch:** `feature/general-fixes` → `master`
 **Date:** 2026-05-26
 
 ### Added
 - **`layouts.ts`** — Binary Space Partition (BSP) layout engine.
-  - `SplitNode` discriminated union (`leaf | v-split | h-split`) with helper constructors `l / v / h`.
-  - `PRESET_TREES` — each of the 8 named presets encoded as a BSP tree, verified column-by-column against the static layouts.
-  - `pruneTree(node, visible)` — removes hidden widget leaves; surviving sibling automatically expands to fill the full parent region (gap-free at any widget count).
-  - `renderTree(node, x, y, w, h)` — walks pruned tree, computing exact `Layout[]` coords using proportional splits rounded to integer grid units.
-  - `generateLayout(presetName, visibleIds)` — public API: returns a gap-free `Layout[]` for any subset of widgets, or `null` if preset unknown / all hidden.
+  - `SplitNode` discriminated union (`leaf | v-split | h-split`) with constructors `l / v / h`.
+  - `PRESET_TREES` — each preset encoded as a BSP tree, verified column-by-column.
+  - `pruneTree(node, visible)` — removes hidden leaves; surviving siblings expand to fill (gap-free at any count).
+  - `renderTree(...)` — walks the pruned tree into integer-grid `Layout[]`.
+  - `generateLayout(presetName, visibleIds)` — gap-free `Layout[]` for any subset, or `null`.
 
 ### Changed
-- **`layoutStore.ts`** — layout regeneration wired to all visibility-changing actions.
-  - `applyPreset` — calls `generateLayout(name, visibleWidgets)` so clicking a preset immediately produces a correct layout for however many widgets are currently visible. Falls back to static `autoFillLayout` if BSP returns null.
-  - `hideWidget` — if a preset is active, rerenders the remaining widgets gap-free via `generateLayout`.
-  - `showWidget` — if a preset is active, rerenders all visible widgets (including newly added) via `generateLayout`. In custom-layout mode (no active preset), ensures the re-shown widget has a grid slot via `autoFillLayout` fallback (prevents widgets silently disappearing after a hide → drag → show sequence).
-  - `resetToDefault` — uses `generateLayout` instead of static layout.
+- **`layoutStore.ts`** — `applyPreset` / `hideWidget` / `showWidget` / `resetToDefault` regenerate gap-free via `generateLayout` (with `autoFillLayout` fallback).
 
 ### Notes
-- Static `PRESETS[]` array is retained as a fallback and source of truth for BSP tree ratios.
-- Titlebar: Layouts / Widgets dropdown menus, pinned preset quick-access buttons, centered clock (ET).
-- Stocks widget: market session status dot (green open / amber after-hours+pre-market / red closed), time-based ET detection updated every 60s.
-- Hardware widget: defaults to sparks view; polling spinner replaces "updating…" text.
+- Static `PRESETS[]` retained as fallback + source of truth for ratios.
+- Titlebar: Layouts/Widgets menus, pinned-preset quick buttons, centered clock (ET).
+- Stocks: market-session status dot. Hardware: defaults to sparks view.
 
 ---
 
-## [PR #22] feat: youtube widget UX polish
-**Branch:** `feat/youtube-widget` → `master`
-**Date:** 2026-05-26
-
-### Changed
-- **`YoutubeWidget.tsx`** — full state machine redesign (home / search / playing).
-  - **Home screen**: greyscale YouTube icon SVG + "YouTube" wordmark, both scaling dynamically with widget height (14% of height, clamped 20–52px). Below 120px collapses to compact horizontal layout. "Search videos" pill opens search.
-  - **Search view**: back arrow (← returns to player if a video is loaded, otherwise home) + search input with `autoFocus` + results list.
-  - **Playing view**: iframe fills `height − 44px`. Fixed 44px control bar shows title + channel + search icon (opens search without stopping playback) + X (closes video → home). Scrubber always fully visible.
-  - **Resume on back**: clicking search while a video plays keeps the iframe mounted at `height: 0; overflow: hidden` — YouTube preserves the playback position. Clicking back restores the iframe to full height, resuming exactly where playback was. Selecting a new result while something is playing replaces the video correctly.
-
----
-
-## [PR #21] feat: youtube in all layouts + autoFillLayout
-**Branch:** `feat/youtube-widget` → `master`
-**Date:** 2026-05-26
-
-### Changed
-- **`layouts.ts`** — All 7 non-YouTube presets redesigned to include `youtube` widget. Every preset now covers 7 widgets across 24×22 gap-free cells.
-  - Default: 4 small top row (h=8), youtube+sound mid band (h=9), hardware full-width bottom (h=5)
-  - Markets: stocks+youtube equal top halves (h=12), info grid below
-  - Media: spotify tall left, youtube wide top-right, small widgets bottom-right
-  - System: hardware+youtube top halves, 5 widgets below
-  - Focus: spotify full-height left, youtube center-top, stocks right, info bottom-right
-  - Chill: info stack + stocks left, youtube and spotify as full-height columns right
-  - Wide: stocks+youtube equal top row, 5 widgets below
-- **`layouts.ts`** — Added `ALL_WIDGET_IDS` constant and `autoFillLayout(layout)` utility. Any widget IDs missing from a stored or custom layout are appended to the bottom row automatically. Future widgets only need to be added to `ALL_WIDGET_IDS` — no manual preset redesign needed.
-- **`layoutStore.ts`** — `applyPreset`, initial state, `resetToDefault`, and `onRehydrateStorage` all run `autoFillLayout` so persisted layouts from older versions auto-gain new widgets on next load.
-
----
-
-## [PR #20] feat: YouTube widget
+## [PR #20] feat: YouTube widget — search, player, all layouts
 **Branch:** `feat/youtube-widget` → `master`
 **Date:** 2026-05-26
 
 ### Added
-- **`YoutubeWidget.tsx`** — search + embedded player widget.
-  - Search bar triggers on Enter or arrow button; results are cached 5 min (TanStack Query). No auto-search on keystroke — preserves API quota.
-  - Clicking a result plays it in a `youtube-nocookie.com/embed/` iframe with `autoplay=1`. Works natively in Electron's Chromium renderer without any extra configuration.
-  - Adaptive layout: if the tile height ≤ 280px, shows player full-tile with a close button. Above that, player + search bar + results list stack vertically.
-  - Error state shown when `YOUTUBE_API_KEY` is missing or the API returns an error.
-- **`packages/server/src/routes/youtube.ts`** — `GET /api/youtube/search?q=&pageToken=`. Calls YouTube Data API v3, decodes HTML entities in titles, returns `YoutubeSearchPage`. Returns 503 if `YOUTUBE_API_KEY` is not set.
-- **`packages/shared/src/types/youtube.ts`** — `YoutubeVideo`, `YoutubeSearchPage` types.
-- **`useYoutube.ts`** — `useYoutubeSearch(query)` hook; query is only enabled when non-empty.
-- **YouTube preset** in `layouts.ts` — all 7 widgets (including youtube). Existing 7 presets remain unchanged (they cover the full grid with 6 widgets; youtube only appears in this preset).
-- **`.env`** — `YOUTUBE_API_KEY=` placeholder added.
+- **`YoutubeWidget.tsx`** — search + embedded player. Search triggers on Enter/arrow (no per-keystroke search — preserves quota); results cached 5 min. Clicking a result plays it in a `youtube-nocookie.com/embed/` iframe (`autoplay=1`).
+- **`packages/server/src/routes/youtube.ts`** — `GET /api/youtube/search?q=&pageToken=`; YouTube Data API v3; decodes title entities; returns 503 if `YOUTUBE_API_KEY` unset.
+- **`packages/shared/src/types/youtube.ts`** — `YoutubeVideo`, `YoutubeSearchPage`. **`useYoutube.ts`** — `useYoutubeSearch(query)`.
+- **`.env`** — `YOUTUBE_API_KEY=` placeholder.
 
 ### Changed
-- `WidgetId` extended to include `'youtube'`.
-- `DashboardGrid` — youtube added to `WIDGET_TITLES` and `WIDGET_COMPONENTS`.
-- `packages/server/src/index.ts` — youtube route registered at `/api/youtube`.
+- **State-machine UX** (home / search / playing): scaling YouTube wordmark home; search view with back arrow + autofocus; playing view with iframe + 44px control bar (title, channel, search-without-stopping, close). Resume-on-back keeps the iframe mounted at `height:0` to preserve playback position.
+- **All presets include YouTube** — every preset reworked to cover 24×22 gap-free; added `ALL_WIDGET_IDS` + `autoFillLayout()` so any widget missing from a stored/custom layout is appended to the bottom row. `applyPreset`/`resetToDefault`/`onRehydrateStorage` run `autoFillLayout`.
 
 ### API key required
-YouTube Data API v3 key from Google Cloud Console. Free tier: 10,000 units/day; search costs 100 units (~100 searches/day free). See PR description for setup steps.
+YouTube Data API v3 key (Google Cloud Console). Free tier 10,000 units/day; search = 100 units (~100 searches/day).
 
 ---
 
@@ -523,10 +360,10 @@ YouTube Data API v3 key from Google Cloud Console. Free tier: 10,000 units/day; 
 **Date:** 2026-05-26
 
 ### Fixed
-- **Root cause** — both `WeatherWidget` and `HardwareWidget` used `useRef` + `useEffect(fn, [])`. The effect fires after the first render, but both components have `isLoading`/`isError` early returns that render before the scrollable element exists. `ref.current` is always null on that first run and the effect never re-runs, so scroll/drag handlers are never attached.
-- **Fix** — replaced `useRef` with a `useState` callback ref (`ref={setEl}`). React calls the setter the moment the element mounts, which triggers `useEffect([el])` with the real element.
-- **`WeatherWidget`** — hourly strip wheel and drag now work. Also normalises `deltaMode === 1` (Windows line-mode scroll) by multiplying `deltaY × 40` so one wheel notch scrolls a reasonable distance.
-- **`HardwareWidget`** — vertical drag-to-scroll now wires up correctly after data loads.
+- **Root cause** — both widgets used `useRef` + `useEffect(fn, [])`; the effect fired before the scrollable element existed (loading/error early returns render first), so `ref.current` was null and the effect never re-ran.
+- **Fix** — replaced `useRef` with a `useState` callback ref (`ref={setEl}`) so React calls the setter on mount, triggering `useEffect([el])` with the real element.
+- **`WeatherWidget`** — hourly wheel + drag now work; normalises `deltaMode === 1` (Windows line-mode scroll) by ×40.
+- **`HardwareWidget`** — vertical drag-to-scroll wires up after data loads.
 
 ---
 
@@ -535,13 +372,9 @@ YouTube Data API v3 key from Google Cloud Console. Free tier: 10,000 units/day; 
 **Date:** 2026-05-26
 
 ### Added
-- **`CalendarWidget.tsx`** — pure JS date rendering, no API. Shows one or more months depending on available space. Uses `ResizeObserver` with the callback-ref + retry-RAF pattern (same approach as `SpotifyWidget`) so it measures correctly on first render and after layout changes.
-  - Each month renders: name+year header, Su–Sa day-of-week row, 6-row × 7-col date grid (always 6 rows to prevent layout shift)
-  - Today gets a white filled circle (`bg-zinc-100 text-zinc-900`)
-  - Minimum per month: 155px wide × 195px tall. At that size or larger the widget shows additional months tiled in a CSS grid
-  - With 3+ months, the sequence anchors so the current month is second (previous month visible on the left)
-- **`calendar`** added to `WidgetId`, `WIDGET_TITLES`, `WIDGET_COMPONENTS`
-- All 7 presets in `layouts.ts` updated to include the calendar widget (each preset must cover the full grid — every preset had to be reworked to accommodate the 6th widget)
+- **`CalendarWidget.tsx`** — pure-JS date rendering, no API. Shows one or more months depending on space, using the callback-ref + retry-RAF pattern so it measures on first render.
+  - Each month: name+year header, Su–Sa row, 6×7 date grid (always 6 rows). Today gets a filled circle. Minimum 155×195px per month; tiles additional months in a CSS grid at larger sizes; with 3+ months the current month anchors second.
+- **`calendar`** added to `WidgetId`, `WIDGET_TITLES`, `WIDGET_COMPONENTS`; all presets reworked to include it.
 
 ---
 
@@ -550,27 +383,23 @@ YouTube Data API v3 key from Google Cloud Console. Free tier: 10,000 units/day; 
 **Date:** 2026-05-25
 
 ### Added
-- **`Titlebar.tsx`** — 32px bar pinned above the grid. Left side shows "nishboard" label. Entire bar carries `-webkit-app-region: drag` (Electron frameless window drag). Right side hosts the layout preset buttons with `-webkit-app-region: no-drag` so clicks register. Replaces the old floating `LayoutToolbar`.
-- **Layout presets** — renamed "Stocks Focus" → "Markets"; 3 new presets added to `layouts.ts`:
-  - **Focus** — Spotify takes up a tall left column (18 rows), Stocks fills top-right (14 rows), Weather + Sound split the bottom-right, Hardware is a thin strip below Spotify.
-  - **Chill** — Weather, Hardware, Sound stacked in a narrow left column; Stocks and Spotify each take a full-height column (all 22 rows) to the right.
-  - **Wide** — Two big horizontal rows: Stocks + Spotify split the top 12 rows; Hardware + Weather + Sound split the bottom 10 rows.
+- **`Titlebar.tsx`** — 32px bar above the grid. "nishboard" label left; whole bar carries `-webkit-app-region: drag`; right side hosts preset buttons with `no-drag`. Replaces the old floating `LayoutToolbar`.
+- **Layout presets** — renamed "Stocks Focus" → "Markets"; added **Focus**, **Chill**, **Wide**.
 
 ### Changed
-- **`App.tsx`** — switched to `flex-col` layout; Titlebar sits above a `flex-1` grid container.
-- **`DashboardGrid.tsx`** — `useRowHeight` now subtracts `TITLEBAR_H` (32px) from `window.innerHeight` so the grid fills the space below the titlebar exactly.
-- **`LayoutToolbar.tsx`** — deleted (replaced by Titlebar).
+- **`App.tsx`** — `flex-col`; Titlebar above a `flex-1` grid.
+- **`DashboardGrid.tsx`** — `useRowHeight` subtracts `TITLEBAR_H` (32px).
+- **`LayoutToolbar.tsx`** — deleted.
 
 ---
 
-## [PR #16] fix: Spotify widget resize broken on macOS fresh start
+## [PR #16] fix: Spotify widget resize broken on macOS on fresh `pnpm dev`
 **Branch:** `fix/spotify-resize-mac` → `master`
 **Date:** 2026-05-25
 
 ### Fixed
-- **Root cause identified**: `SpotifyWidget` has conditional early returns for loading and auth states. Those views don't render the `ref={containerRef}` div, so `containerRef.current` is `null` when `useLayoutEffect([], [])` fires on first mount. With an empty dep array, the effect never re-runs once the real element appears — the ResizeObserver is never set up and the widget stays at the initial `'sm'` size forever.
-- **Fix**: Replaced `useRef` + `useLayoutEffect([])` with a `useState` callback ref (`setContainerEl`) + `useEffect([containerEl])`. React calls the callback ref when the element actually mounts (after loading/auth resolves), which updates the state and re-triggers the effect with the real element.
-- **Retained retry RAF loop**: Single RAF wasn't enough on macOS — Chromium can return `0` from `getBoundingClientRect` for multiple frames while the flex grid row is compositing. The retry loop keeps requesting frames until it gets a non-zero height, then hands off to the ResizeObserver for all subsequent updates.
+- **Root cause** — `SpotifyWidget`'s conditional early returns don't render the `ref` div, so `containerRef.current` is null when `useLayoutEffect([])` fires; with an empty dep array the ResizeObserver is never set up and the widget stays `sm` forever.
+- **Fix** — `useState` callback ref + `useEffect([containerEl])`. Retained a retry-RAF loop because Chromium can return `0` from `getBoundingClientRect` for several frames while the flex row composites.
 
 ---
 
@@ -579,12 +408,11 @@ YouTube Data API v3 key from Google Cloud Console. Free tier: 10,000 units/day; 
 **Date:** 2026-05-25
 
 ### Fixed
-- **Scrollbar hidden cross-platform** (`index.css`) — added explicit `.scrollbar-none` CSS rules (`::-webkit-scrollbar { display: none }`, `scrollbar-width: none`, `-ms-overflow-style: none`). Previously only the Tailwind class name existed with no backing CSS rule, so macOS overlay scrollbars hid themselves naturally but Windows always showed the native bar.
-- **Wheel-to-horizontal-scroll** (`WeatherWidget.tsx`) — `wheel` events on the hourly strip now map vertical delta to `scrollLeft`. Native horizontal scroll (trackpad two-finger swipe) still passes through unchanged.
-- **Click-and-drag to pan** (`WeatherWidget.tsx`) — `mousedown`/`mousemove`/`mouseup` handlers on the hourly strip enable click-and-drag scrolling. Cursor changes to `grabbing` while dragging. Listeners on `window` so drag works even if the mouse leaves the strip.
+- **Scrollbar hidden cross-platform** (`index.css`) — added explicit `.scrollbar-none` rules (`::-webkit-scrollbar { display:none }`, `scrollbar-width: none`, `-ms-overflow-style: none`). The class name existed before with no backing CSS, so Windows always showed the native bar.
+- **Wheel → horizontal scroll** + **click-and-drag pan** (`WeatherWidget.tsx`) on the hourly strip; cursor → `grabbing`; listeners on `window` so drag continues off-strip.
 
 ### Changed
-- **`CLAUDE.md`** — updated Git Workflow rule 3 to explicitly say "Do NOT auto-merge — wait for Nish to explicitly say 'merge'".
+- **`CLAUDE.md`** — Git Workflow updated to "Do NOT auto-merge — wait for Nish to explicitly say 'merge'".
 
 ---
 
@@ -593,9 +421,7 @@ YouTube Data API v3 key from Google Cloud Console. Free tier: 10,000 units/day; 
 **Date:** 2026-05-25
 
 ### Changed
-- **`CLAUDE.md`** — added two new sections:
-  - **Git Workflow**: branch-first rule, CHANGELOG-before-PR rule, branch naming convention (`feat/` / `fix/`)
-  - **Memory Protocol**: new preferences go into both `CLAUDE.md` (committed, travels with repo) and `~/.claude/projects/…/memory/` (local machine memory)
+- **`CLAUDE.md`** — added **Git Workflow** (branch-first, CHANGELOG-before-PR, branch naming) and **Memory Protocol** (preferences go into both committed CLAUDE.md and local machine memory).
 
 ---
 
@@ -604,37 +430,30 @@ YouTube Data API v3 key from Google Cloud Console. Free tier: 10,000 units/day; 
 **Date:** 2026-05-25
 
 ### Fixed
-- **Conditional scroll** (`ScrollingText`) — text now only animates when it actually overflows its container. Added a `ResizeObserver` inside `ScrollingText` so it re-measures on every container width change (catches `SizeVariant` transitions in both directions). 1px sub-pixel rounding tolerance added to prevent spurious animation on near-exact fits.
-- **macOS `SizeVariant` init** — `getBoundingClientRect().height` can return `0` inside `useLayoutEffect` on macOS/Chromium before the flex grid row height has been composited. Added a `requestAnimationFrame` re-seed so the correct height is read after the browser's first paint, preventing the widget from staying stuck at `xs`.
+- **Conditional scroll** (`ScrollingText`) — text only animates when it actually overflows; a `ResizeObserver` re-measures on width change (1px tolerance to avoid spurious animation).
+- **macOS sizing init** — `getBoundingClientRect().height` can return `0` inside `useLayoutEffect` before the flex row composites; a `requestAnimationFrame` re-seed reads the correct height after first paint.
 
 ---
 
-## [PR #12] feat: Spotify scrolling text marquee + ResizeObserver timing fix
+## [PR #12] feat: Spotify scrolling-text marquee + ResizeObserver timing fix
 **Branch:** `fix/spotify-bugfixes` → `master`
-**Date:** 2026-05-25
+**Date:** 2026-05-26
 
 ### Added
-- **Scrolling text** (`SpotifyWidget.tsx`) — track name, artist, and album name now scroll horizontally instead of truncating with `…`. Pattern: 2s pause → smooth scroll at 40px/s → 2s pause → instant reset → repeat. Uses the Web Animations API (`element.animate()`). Short text that fits the container is left static (no animation started).
+- **Scrolling text** (`SpotifyWidget.tsx`) — track/artist/album scroll horizontally instead of truncating: 2s pause → 40px/s scroll → 2s pause → instant reset → repeat (Web Animations API). Short text stays static.
 
 ### Fixed
-- **ResizeObserver timing** — replaced `useEffect` with `useLayoutEffect` for the `ResizeObserver` that drives size variants. Also seeds the initial `SizeVariant` immediately from `getBoundingClientRect()` before the first observer callback, preventing a stuck `sm` layout on fresh page load.
-- **`xs` empty-space gap** — `justify-between` on the compact layout was leaving a large dead zone when the tile is very short. `xs` now uses `justify-center gap-3` to pack content together; `sm` keeps `justify-between`.
+- **ResizeObserver timing** — `useLayoutEffect` instead of `useEffect`; seeds the initial `SizeVariant` from `getBoundingClientRect()` to avoid a stuck `sm` layout.
+- **`xs` dead-zone** — compact layout switched to `justify-center gap-3`.
 
 ---
 
 ## [PR #11] feat: Spotify widget — 5-tier responsive layout
-**Branch:** `fix/spotify-bugfixes` → `master`
-**Date:** 2026-05-25
+**Branch:** `feat/spotify-responsive-5tier` → `master`
+**Date:** 2026-05-26
 
 ### Changed
-- **5-tier `SizeVariant`** (`SpotifyWidget.tsx`) — replaced binary `compact / expanded` with `xs | sm | md | lg | xl` driven by a `ResizeObserver` on the widget root:
-  - `xs` < 200px — compact horizontal, 40px art
-  - `sm` 200–299px — compact horizontal, 56px art, `justify-between` fills height
-  - `md` 300–399px — expanded vertical, album art capped at 110px
-  - `lg` 400–479px — expanded vertical, album art capped at 165px
-  - `xl` ≥ 480px — expanded vertical, album art capped at 220px
-- **Per-tier icon scaling** — play button, skip, seek, and shuffle/repeat icons all scale with the tile height so controls feel proportional rather than tiny on large tiles.
-- **`VolumeSlider` updated** — `iconSize` and slider width scale with `lg`/`xl` tiers (was still comparing against old `'expanded'` string).
+- **5-tier `SizeVariant`** (`SpotifyWidget.tsx`) driven by a `ResizeObserver`: `xs` <200, `sm` 200–299, `md` 300–399, `lg` 400–479, `xl` ≥480px — album art and control icons scale per tier. `VolumeSlider` icon/width scale at `lg`/`xl`.
 
 ---
 
@@ -643,27 +462,22 @@ YouTube Data API v3 key from Google Cloud Console. Free tier: 10,000 units/day; 
 **Date:** 2026-05-25
 
 ### Fixed
-- **Expanded layout not filling height** (`SpotifyWidget.tsx`) — `h-full` on the `NowPlayingView` expanded root could resolve to 0 in Chromium when the parent is a `flex-1 min-h-0` item without an explicit `height` declaration. Fixed by:
-  1. Making the intermediate wrapper `flex-1 min-h-0 flex flex-col` (flex pass-through)
-  2. Changing the expanded layout root from `h-full flex flex-col` → `flex-1 flex flex-col` so it inherits flex sizing instead of relying on percentage-height resolution
+- **Expanded layout not filling height** (`SpotifyWidget.tsx`) — `h-full` could resolve to 0 in Chromium when the parent is `flex-1 min-h-0` without explicit height. Fixed by making the wrapper `flex-1 min-h-0 flex flex-col` and the expanded root `flex-1 flex flex-col` (inherit flex sizing, not percentage height).
 
 ---
 
-## [PR #9] fix: Spotify widget bugfixes — liked songs, volume slider, responsive layout, icon polish
+## [PR #9] fix: Spotify widget bugfixes — liked songs, volume slider, responsive, icon polish
 **Branch:** `fix/spotify-bugfixes` → `master`
 **Date:** 2026-05-25
 
 ### Fixed
-- **Liked Songs 400 error** (`packages/server/src/routes/spotify.ts`) — Spotify's `/v1/me/tracks` endpoint caps at 50; server was sending 100. Now clamps liked-songs branch to `Math.min(50, ...)` while regular playlists keep 100.
-- **Volume slider jumping back** (`apps/renderer/src/widgets/spotify/useSpotify.ts`) — `useSpotifyVolume.onSettled` was immediately invalidating `['spotify-now-playing']`, triggering a refetch that returned Spotify's stale volume and overwrote the optimistic update. Removed `onSettled`; 3s polling handles eventual sync.
-- **Playlist icon color** (`SpotifyWidget.tsx`) — `ListMusic` button was `text-zinc-600` (darker than peers); corrected to `text-zinc-500`.
-- **Responsive layout not filling space** (`SpotifyWidget.tsx`) — Expanded mode (≥ 280px height, detected via `ResizeObserver`) now uses a true `h-full flex flex-col` layout: track title + artist pinned top, album art in a `flex-1` grow zone (`max-h-[240px]`, `aspect-square`), progress + controls + volume pinned bottom. Previously only bumped fixed pixel sizes with no vertical fill.
+- **Liked Songs 400** — `/v1/me/tracks` caps at 50; server was sending 100. Now clamps that branch to `Math.min(50, …)`.
+- **Volume slider jumping back** — `useSpotifyVolume.onSettled` immediately invalidated `now-playing`, refetching Spotify's stale volume over the optimistic update. Removed `onSettled`; 3s polling syncs.
+- **Playlist icon color** — `text-zinc-600` → `text-zinc-500`.
+- **Responsive expanded layout** — true `h-full flex flex-col` (title top, art in `flex-1` grow zone, controls bottom).
 
 ### Changed
-- **Header removed** — Green dot and "SPOTIFY" label stripped; reclaims ~32px. Search (🔍) and playlist (🎵) icons moved inline next to track info. Both buttons also present in the "nothing playing" view.
-
-### Notes
-- Bug #4 (search 404): no code change — route exists, just requires `pnpm dev` restart to pick up after the PR #8 merge.
+- **Header removed** — green dot + "SPOTIFY" stripped (~32px); search/playlist icons moved inline.
 
 ---
 
@@ -672,294 +486,130 @@ YouTube Data API v3 key from Google Cloud Console. Free tier: 10,000 units/day; 
 **Date:** 2026-05-25
 
 ### Added
-- **Search dialog** (`apps/renderer/src/widgets/spotify/SpotifySearchDialog.tsx`) — portal'd overlay, opens via 🔍 in widget header. 250ms debounced input, Esc/backdrop closes.
-- **Result rows** — thumbnail, track name, artist, duration; **▶ Play** and **+ Queue** action buttons per row with inline ✓/✗ feedback.
-- `GET /api/spotify/search?q&limit` (`packages/server/src/routes/spotify.ts`) — proxies Spotify search API (`type=track,episode`); 30s server-side cache keyed by lowercased query, LRU-evicts at 100 entries.
-- `POST /api/spotify/queue { uri, deviceId? }` — proxies `POST /v1/me/player/queue`.
-- `SpotifySearchResults` type (`packages/shared/src/types/spotify.ts`).
-- `useDebouncedValue<T>`, `useSpotifySearch`, `useQueueTrack` hooks (`useSpotify.ts`).
-- **Fixed** `.env.example` redirect URI: `http://127.0.0.1:7432/spotify/callback` → `/api/spotify/callback`.
+- **Search dialog** (`SpotifySearchDialog.tsx`) — portal'd overlay, 250ms debounced, Esc/backdrop closes. Result rows with **▶ Play** / **+ Queue** + inline feedback.
+- `GET /api/spotify/search?q&limit` — proxies Spotify search (`type=track,episode`); 30s cache, LRU at 100.
+- `POST /api/spotify/queue { uri, deviceId? }`.
+- `SpotifySearchResults` type; `useDebouncedValue`, `useSpotifySearch`, `useQueueTrack` hooks.
 
 ### Notes
-- `market=from_token` omitted — requires `user-read-private` scope not present in token. Spotify returns global results without it.
-- Queue requires an active playback context; 404 from Spotify if nothing is playing on a device.
+- `market=from_token` omitted (scope not present). Queue requires an active playback context.
 
 ---
 
 ## [PR #7] feat: Spotify widget — now playing, playlists, track list, podcasts, OAuth
-**Branch:** `feature/spotify-widget` → `master`  
+**Branch:** `feature/spotify-widget` → `master`
 **Date:** 2026-05-25
 
 ### Added
 - `packages/server/src/routes/spotify.ts` — full implementation:
-  - **PKCE OAuth:** `GET /api/spotify/auth-url` generates PKCE params, returns auth URL; `GET /api/spotify/callback` exchanges code for tokens
-  - Tokens persisted to `~/.dash/spotify_tokens.json`; auto-refresh when < 60s from expiry
-  - `GET /api/spotify/auth-status`, `GET /api/spotify/now-playing` (2.5s TTL cache)
-  - **Podcast support:** `additional_types=track,episode`; episode maps show name → artist field, show artwork
-  - `POST /api/spotify/play`, `/pause`, `/next`, `/previous`, `/seek`, `/volume`, `/shuffle`, `/repeat`
-  - `GET /api/spotify/playlists?offset&limit` — paginated (20/page); Liked Songs synthetic item prepended at offset=0 (parallel fetch for badge count); 30s page cache
-  - `GET /api/spotify/playlist-tracks?playlistId&offset&limit` — 100/page; handles both regular playlists and `liked-songs` (maps to `GET /me/tracks`); per-page 60s cache; filters local tracks
-  - `GET /api/spotify/devices` — 5s cache
-  - `POST /api/spotify/play-context { contextUri, deviceId?, shuffle? }` — sets shuffle state before starting if requested
-  - `POST /api/spotify/play-track { trackUri, contextUri?, deviceId? }` — plays specific track within context
-  - Scopes: `user-read-playback-state`, `user-modify-playback-state`, `user-read-currently-playing`, `playlist-read-private`, `playlist-read-collaborative`, `user-library-read`
-- `packages/shared/src/types/spotify.ts` — `TrackData` (+ `type: 'track' | 'episode'`), `SpotifyPlaylist`, `SpotifyDevice`, `SpotifyTrackItem`, `SpotifyPlaylistsPage`, `SpotifyTracksPage`
-- `apps/renderer/src/widgets/spotify/useSpotify.ts`:
-  - `usePlaylistsInfinite()` — `useInfiniteQuery`, 20/page
-  - `usePlaylistTracksInfinite(playlistId)` — `useInfiniteQuery`, 100/page
-  - `useDevices()`, `usePlayContext()`, `usePlayTrack()`
-  - Optimistic updates on all playback mutations
-- `apps/renderer/src/widgets/spotify/SpotifyWidget.tsx`:
-  - **Auth:** Connect Spotify → PKCE flow via `shell.openExternal`
-  - **Now playing:** album art, track/artist/album, smooth progress bar (1s local ticker between 3s polls), prev / ←15s / play-pause / 15s→ / next controls, shuffle + repeat toggles, volume slider
-  - **Volume icon click** → mute toggle; restores pre-mute level on second click
-  - **±15s buttons** (`RotateCcw`/`RotateCw`) use ref-tracked local progress for accuracy
-  - **Playlist panel** (toggle via `ListMusic` icon or "Browse playlists" button):
-    - Infinite scroll playlist list — play button + shuffle button always visible; click row body → track list
-    - Infinite scroll track list — click track → starts playback; local files greyed/disabled
-    - Device chips at top — click to target playback device; active device auto-selected
-    - Liked Songs first with heart icon + indigo→purple gradient
-  - **Podcast now-playing:** `Mic2` icon fallback, "Podcast" label, no album line
-- `apps/main/src/ipc/index.ts` — `spotify:open-auth` via `shell.openExternal(url)`
-- `apps/main/src/preload.ts` — `openSpotifyAuth(url: string)` via contextBridge
-- `apps/renderer/src/lib/apiClient.ts` — **fix:** omit `Content-Type` header when body is absent; skip `res.json()` on 204 responses (was causing `FST_ERR_CTP_EMPTY_JSON_BODY` on all no-body POSTs)
+  - **PKCE OAuth:** `GET /auth-url`, `GET /callback`. Tokens persisted to `~/.dash/spotify_tokens.json`; auto-refresh < 60s from expiry.
+  - `GET /auth-status`, `GET /now-playing` (2.5s cache, podcast support via `additional_types=track,episode`).
+  - `POST /play`, `/pause`, `/next`, `/previous`, `/seek`, `/volume`, `/shuffle`, `/repeat`.
+  - `GET /playlists` (20/page, Liked Songs synthetic item), `GET /playlist-tracks` (100/page), `GET /devices` (5s cache).
+  - `POST /play-context`, `POST /play-track`.
+- `packages/shared/src/types/spotify.ts` — `TrackData`, `SpotifyPlaylist`, `SpotifyDevice`, page types.
+- `useSpotify.ts` — infinite queries, devices, play-context/play-track, optimistic playback mutations.
+- `SpotifyWidget.tsx` — Connect (PKCE via `shell.openExternal`), now-playing (art, smooth progress, controls, shuffle/repeat, volume, ±15s), playlist panel (infinite scroll, device chips, Liked Songs), podcast now-playing.
+- `apps/main` — `spotify:open-auth` IPC + preload. `apiClient` fix: omit `Content-Type` when no body; skip `res.json()` on 204.
 
 ### Notes
-- **Re-auth required** for new scopes (`playlist-read-private`, `playlist-read-collaborative`, `user-library-read`) — click Connect Spotify; `show_dialog=false` makes it instant
-- **Redirect URI:** `SPOTIFY_REDIRECT_URI=http://127.0.0.1:7432/api/spotify/callback` — must also be registered in Spotify Developer Dashboard
-- **Token file:** `~/.dash/spotify_tokens.json` — delete to force re-auth
-- **`apiClient` fix** also repairs the sound widget's mute/device mutations which had the same silent failure
+- Redirect URI `http://127.0.0.1:7432/api/spotify/callback` must be registered in the Spotify dashboard. Token file: `~/.dash/spotify_tokens.json` (delete to force re-auth).
 
 ---
 
-## [PR #6] feat: hardware widget — CPU, GPU, RAM, disk, network with bars/sparklines toggle
-**Branch:** `feature/hardware-widget` → `master`  
-**Date:** 2026-05-24
+## [PR #6] feat: hardware widget — CPU/GPU/RAM/disk/network with bars + sparklines
+**Branch:** `feature/hardware-widget` → `master`
+**Date:** 2026-05-25
 
 ### Added
-- `packages/server/src/routes/hardware.ts` — full `systeminformation` implementation:
-  - All subsystems fetched in parallel via `Promise.all`
-  - CPU: brand/cores/physicalCores cached statically (fetched once); live usage + per-core load + temp
-  - GPU: picks highest-VRAM controller (dGPU > iGPU on multi-GPU Windows machines); VRAM used/total, utilization %, temp, clock speed — all from nvidia-smi on Windows NVIDIA
-  - RAM: uses `mem.active` (actual in-use pages) rather than `mem.used` for accurate macOS figure; swap included
-  - Disk I/O: aggregate read/write MB/s via `si.fsStats()` (`rx_sec`/`wx_sec`); per-mount usage from `si.fsSize()` with virtual/snap filesystem filtering
-  - Network: bytes→Mbps, loopback excluded, sorted by activity (not filtered) — always shows top 3 real interfaces
-  - Battery: shown only when `hasBattery === true` (macOS laptops)
-  - Uptime via `os.uptime()`
-  - 900ms TTL cache (prevents duplicate systeminformation calls from 1s poll)
-- `packages/shared/src/types/hardware.ts` — extended types:
-  - `CpuData`: added `brand`, `cores`, `physicalCores`
-  - `GpuData`: added `name`, `clockMhz`
-  - `HardwareData.ram`: added `swapUsedMb`, `swapTotalMb`
-  - New `DiskUsage` interface: `mount`, `usedGb`, `totalGb`, `usePercent`
-  - `HardwareData`: added `diskUsage`, `uptime`, `battery`
-- `apps/renderer/src/widgets/hardware/useHardware.ts` — 1s refetch hook with 60-entry rolling history buffers (cpuUsage, gpuUsage, ramUsage, netUp, netDown, diskRead, diskWrite)
-- `apps/renderer/src/widgets/hardware/HardwareWidget.tsx`:
-  - **Bars mode:** animated usage bars for CPU/GPU/RAM; VRAM secondary bar; per-mount disk usage bars
-  - **Sparks mode:** Recharts AreaChart sparklines for each metric (60-second history)
-  - Toggle button (Bars / Sparks) in widget header
-  - Per-core mini bars (color-coded: blue→amber→red by load)
-  - Temperature color-coding: green <70°C, amber 70–84°C, red ≥85°C
-  - **Configure panel:** gear button in header opens a 2-col checkbox grid; toggles which sections (CPU/GPU/RAM/Disk/Network/Battery) are rendered; all sections on by default
-  - GPU always renders (shows "No GPU detected" placeholder if `gpu` is null) — no unmounting on null
-  - Battery always renders when section is visible (shows "No battery" placeholder on desktop) — no unmounting
-  - Network always renders top-N interfaces regardless of idle traffic — no unmounting on idle
-  - Uptime in footer
-- `apps/renderer/src/store/hardwareStore.ts` — Zustand `persist` store; section visibility saved to `localStorage` under key `hardware-config`
+- `packages/server/src/routes/hardware.ts` — `systeminformation`, all subsystems in parallel: CPU (static brand/cores cached + live load/temp), GPU (highest-VRAM controller; nvidia-smi on Windows), RAM (`mem.active` + swap), disk I/O (`fsStats`) + per-mount usage (`fsSize`, virtual filtered), network (Mbps, loopback excluded), battery (when present), uptime. 900ms cache.
+- `packages/shared/src/types/hardware.ts` — extended `CpuData`/`GpuData`/`HardwareData` + `DiskUsage`.
+- `useHardware.ts` — 1s refetch + 60-entry rolling history buffers.
+- `HardwareWidget.tsx` — **Bars** + **Sparks** (Recharts) modes; per-core mini bars; temp color-coding; Configure panel (toggle sections, persisted to `hardware-config`); placeholders rather than unmounting.
 
 ### Notes
-- **Windows gaming:** GPU usage/VRAM/temp/clock require NVIDIA drivers (nvidia-smi); systeminformation calls it automatically
-- **macOS:** GPU utilization is not available (Apple Silicon has no systeminformation support for GPU usage); VRAM shows 0/dynamic; battery card appears on MacBook
-- **First poll:** `fsStats` disk I/O returns 0 on the very first call (needs baseline); accurate from second poll onward
+- Windows GPU metrics need NVIDIA drivers (nvidia-smi). macOS Apple Silicon GPU usage unavailable; battery on MacBooks. Disk I/O is 0 on the first poll.
 
 ---
 
 ## [PR #5] feat: sound widget — volume, mute, device switching, Windows app mixer
-**Branch:** `feature/sound-widget` → `master`  
+**Branch:** `feature/sound-widget` → `master`
 **Date:** 2026-05-25
 
 ### Added
-- `packages/server/src/routes/sound.ts` — full implementation:
-  - **macOS:** `osascript` for get/set volume + mute; `SwitchAudioSource` for device list/switch (degrades gracefully — `brew install switchaudio-osx`)
-  - **Windows:** `AudioDeviceCmdlets` PowerShell module preferred; WASAPI inline C# fallback (`IAudioEndpointVolume` via `MMDeviceEnumerator`) when not installed
-  - **Windows app mixer:** `IAudioSessionManager2` + `IAudioSessionEnumerator` + `IAudioSessionControl2` + `ISimpleAudioVolume` to enumerate active audio sessions (one row per PID, deduped); process names resolved via single bulk `Get-Process` call
-  - New `POST /api/sound/sessions/volume` — sets volume for all sessions matching a PID
-  - 5s TTL cache; `cache.clear()` on any successful mutation
-- `packages/shared/src/types/sound.ts` — added `AudioSession` interface; added `sessions: AudioSession[]` to `SoundData`
-- `apps/renderer/src/widgets/sound/useSound.ts` — TanStack Query hook (5s poll) + mutations for volume, mute, device, session volume; all slider mutations use synchronous optimistic cache updates
-- `apps/renderer/src/widgets/sound/SoundWidget.tsx`:
-  - Master volume slider + mute toggle (icon morphs Volume→VolumeX)
-  - Output device list with active device highlighted; click to switch
-  - App Mixer section (Windows only, hidden when `sessions` is empty) — per-app sliders with process name
-  - Sliders use persistent `localValue` state synced from parent only when pointer is not down — eliminates snap-back on release regardless of API latency
-- `packages/server/src/cache/SimpleCache.ts` — added `clear()` method
+- `packages/server/src/routes/sound.ts` — **macOS:** `osascript` (volume/mute) + `SwitchAudioSource` (devices). **Windows:** `AudioDeviceCmdlets` preferred, WASAPI inline-C# fallback (`IAudioEndpointVolume`). **App mixer (Windows):** `IAudioSessionManager2` enumeration (one row per PID); names via bulk `Get-Process`. `POST /api/sound/sessions/volume`. 5s cache, cleared on mutation.
+- `packages/shared/src/types/sound.ts` — `AudioSession` + `sessions[]`.
+- `useSound.ts` — 5s poll + optimistic mutations.
+- `SoundWidget.tsx` — master slider + mute, output device list, App Mixer (Windows, hidden when empty). Sliders sync from parent only when pointer is up (no snap-back).
+- `packages/server/src/cache/SimpleCache.ts` — added `clear()`.
 
 ### Notes
-- **macOS device switching:** requires `brew install switchaudio-osx`
-- **Windows device switching:** requires `Install-Module -Name AudioDeviceCmdlets` (once, as admin); volume/mute work without it via WASAPI fallback
-- **Windows app mixer:** works without any extra setup via WASAPI
+- macOS device switching needs `brew install switchaudio-osx`. Windows device switching needs `Install-Module AudioDeviceCmdlets` (volume/mute work without it via WASAPI).
 
 ---
 
-## [PR #4]
-**Branch:** `feature/sound-widget` → `master`  
-**Date:** 2026-05-25
-
-### Added
-- `packages/server/src/routes/sound.ts` — full implementation:
-  - **macOS:** `osascript` for get/set volume + mute; `SwitchAudioSource` for device list/switch (degrades gracefully to single "Default Output" if not installed — `brew install switchaudio-osx`)
-  - **Windows:** `AudioDeviceCmdlets` PowerShell module for get/set volume, mute, device list, and switching; falls back to WASAPI inline C# (`IAudioEndpointVolume` via `MMDeviceEnumerator`) when module is not installed
-  - 5s TTL cache; cache busted on any successful mutation
-  - Routes: `GET /api/sound`, `POST /api/sound/volume`, `POST /api/sound/mute`, `POST /api/sound/device`
-- `apps/renderer/src/widgets/sound/useSound.ts` — TanStack Query hook (5s poll) + 3 mutations (volume, mute, device)
-- `apps/renderer/src/widgets/sound/SoundWidget.tsx` — widget UI:
-  - Volume slider (native range, styled) — local state while dragging, commits to API on pointer-up
-  - Click speaker icon to toggle mute; icon changes between Volume/Volume1/Volume2/VolumeX by level
-  - Device list — active device highlighted with green dot; click non-active device to switch
-
-### Changed
-- `packages/server/src/cache/SimpleCache.ts` — added `clear()` method for cache busting on mutations
-
-### Notes (Windows)
-- Volume/mute works without any extra setup via WASAPI fallback
-- Device listing + switching requires `Install-Module -Name AudioDeviceCmdlets` (run once as admin in PowerShell)
-
----
-
-## [PR #4] feat: stocks widget — Alpaca REST snapshots, card grid UI, editable watchlist
-**Branch:** `feature/stocks-widget` → `master`  
+## [PR #4] feat: stocks widget — Alpaca IEX REST snapshots, card grid, editable watchlist
+**Branch:** `feature/stocks-widget` → `master`
 **Date:** 2026-05-24
 
 ### Added
-- `packages/server/src/routes/stocks.ts` — Alpaca IEX REST implementation:
-  - Accepts `?symbols=` query param (comma-separated, max 50); defaults to `SPY,QQQ,AAPL,MSFT,NVDA,TSLA,GOOGL,AMZN`
-  - Fetches snapshots + 5-minute bars in parallel; bars non-critical (returns empty on failure)
-  - Uses `dailyBar.c` as last price, `prevDailyBar.c` as prev close for stable change calculation
-  - Market-hours detection via `Intl.DateTimeFormat` with `America/New_York` timezone
-  - 5s in-memory cache per symbol set
-- `apps/renderer/src/store/stocksStore.ts` — Zustand persist store for watchlist (localStorage)
-- `apps/renderer/src/widgets/stocks/useStocks.ts` — TanStack Query, 5s refetch, passes watchlist as query param
-- `apps/renderer/src/widgets/stocks/StocksWidget.tsx` — full widget UI:
-  - 2-column card grid matching mockup
-  - Each card: triangle indicator, ticker, % change (top), Recharts area sparkline (middle), price + dollar change (bottom)
-  - Pencil button in header opens watchlist edit modal (add/remove tickers, persisted)
-  - Market Open / Market Closed status with animated dot
-  - Green/red theming per card based on daily change
+- `packages/server/src/routes/stocks.ts` — Alpaca IEX REST: `?symbols=` (max 50; defaults to 8 majors); snapshots + 5-min bars in parallel (bars non-critical); market-hours via `Intl.DateTimeFormat` (`America/New_York`); 5s cache.
+- `apps/renderer/src/store/stocksStore.ts` — Zustand persist watchlist.
+- `useStocks.ts` — 5s refetch, watchlist as query param.
+- `StocksWidget.tsx` — 2-col card grid (triangle, ticker, % change, Recharts sparkline, price); pencil → watchlist edit modal; market status dot.
 
 ### Changed
-- `packages/shared/src/types/stocks.ts` — added `sparkline: number[]` to `StockQuote`
+- `packages/shared/src/types/stocks.ts` — added `sparkline: number[]`.
 
 ### Removed
-- `packages/server/src/services/alpacaWs.ts` — WebSocket approach dropped (replaced by REST-only)
-- `packages/server/src/services/stocksService.ts` — consolidated into route file
+- `services/alpacaWs.ts` + `services/stocksService.ts` — WebSocket approach dropped (REST-only).
 
 ### Notes
-- Alpaca IEX feed: US equities only. Futures (MES=F, MGC=F) and crypto (BTC-USD) are not supported; the watchlist edit modal surfaces this caveat
+- Alpaca IEX = US equities only (no futures/crypto); the watchlist modal surfaces this.
 
 ---
 
 ## [PR #3] feat: weather widget — Open-Meteo, 15-min cache, full forecast UI
-**Branch:** `feature/weather-widget` → `master`  
+**Branch:** `feature/weather-widget` → `master`
 **Date:** 2026-05-24
 
 ### Added
-- `packages/server/src/cache/SimpleCache.ts` — generic in-memory TTL cache used by weather (and future widgets)
-- `packages/server/src/routes/weather.ts` — fetches Open-Meteo API, transforms to `WeatherData`, caches 15 min
-  - Austin TX hardcoded (lat: 30.2672, lon: -97.7431)
-  - Returns: current conditions, next 12 hourly entries from now, 5-day daily forecast
-  - Temperature in °F, wind in mph, timezone `America/Chicago`
-- `apps/renderer/src/widgets/weather/useWeather.ts` — TanStack Query hook, 15-min `refetchInterval` + `staleTime`
-- `apps/renderer/src/widgets/weather/weatherCodes.ts` — WMO weather code → `{ label, icon }` map covering all standard codes
-- `apps/renderer/src/widgets/weather/WeatherIcon.tsx` — maps icon key to lucide-react component
-- `apps/renderer/src/widgets/weather/WeatherWidget.tsx` — full widget UI:
-  - Large current temp + condition label + lucide weather icon
-  - 4-stat row: humidity, wind speed, precip chance, UV index
-  - Feels-like line
-  - Horizontal scrollable hourly strip (next 12h) with precip % shown when >20%
-  - 5-day daily strip with precip bar and high/low temps
+- `packages/server/src/cache/SimpleCache.ts` — generic in-memory TTL cache.
+- `packages/server/src/routes/weather.ts` — Open-Meteo → `WeatherData`, 15-min cache. Austin TX hardcoded (lat 30.2672, lon -97.7431); current + 12 hourly + 5-day daily; °F, mph, `America/Chicago`.
+- `useWeather.ts` — TanStack Query, 15-min interval.
+- `weatherCodes.ts` + `WeatherIcon.tsx` — WMO code → label/icon.
+- `WeatherWidget.tsx` — current temp + condition + icon, 4-stat row, feels-like, horizontal hourly strip, 5-day daily strip.
 
 ---
 
 ## [PR #2] feat: layout engine — resizable/draggable grid with presets
-**Branch:** `feature/layout-engine` → `master`  
+**Branch:** `feature/layout-engine` → `master`
 **Date:** 2026-05-24
 
 ### Added
-- `react-grid-layout` v1 replacing the static CSS grid in `App.tsx`
-- Each widget is independently resizable from all 8 handles (corners + edges)
-- Drag-to-reorder via title bar grip — other widgets reflow automatically on every move/resize
-- Layout persisted to `localStorage` via Zustand `persist` middleware — survives app restarts
-- 4 premade layout presets tuned for 1920×1080, selectable from a fixed top-right toolbar:
-  - **Default** — balanced 5-panel split
-  - **Stocks Focus** — stocks large left, others right
-  - **Media** — Spotify prominent left, everything else right
-  - **System** — hardware monitor dominant, stocks full-width bottom
-- `WidgetShell` component — title bar with grip icon as drag handle, content fills remaining space
-- `LayoutToolbar` component — highlights active preset, switches layout instantly on click
-- `DashboardGrid` component — `WidthProvider(ReactGridLayout)` mapping layout items to widget components
-- `layoutStore` (Zustand) — `setLayout` / `applyPreset` / `resetToDefault`
-- `src/lib/layouts.ts` — all preset definitions, `WidgetId` type, `NamedLayout` interface
-- `clsx`, `tailwind-merge`, `lucide-react` added to renderer deps
-- `src/lib/utils.ts` — `cn()` helper (clsx + twMerge)
-- Dark-themed resize handles — only visible on hover
+- `react-grid-layout` v1 replacing the static CSS grid. Each widget resizable from all 8 handles; drag-to-reorder via title grip; layout persisted to localStorage via Zustand `persist`.
+- 4 presets (Default, Stocks Focus, Media, System), `WidgetShell`, `LayoutToolbar`, `DashboardGrid` (`WidthProvider`), `layoutStore`, `src/lib/layouts.ts`, `cn()` helper. Dark resize handles visible on hover.
 
 ### Changed
-- `App.tsx` — replaced inline static grid with `<DashboardGrid />` + `<LayoutToolbar />`
-- `index.css` — added react-grid-layout and react-resizable base styles; custom dark-theme overrides for placeholder and resize handles
-- All 4 presets redesigned to be mathematically gap-free — every grid cell covered by exactly one widget, verified column-by-column (sum of `h` values for any column `x` = `numRows`)
-- `compactType='vertical'` added — items compact upward on drag so no holes are left behind
-- `rowHeight` changed from fixed `40` to dynamic — computed from window height and current layout's max row extent so the grid always fills 100% of the screen; recalculates on window resize
+- **`App.tsx`** — inline grid → `<DashboardGrid />` + `<LayoutToolbar />`.
+- **`index.css`** — react-grid-layout/react-resizable base styles + dark overrides. All presets mathematically gap-free; `compactType='vertical'`; dynamic `rowHeight` from window height.
 
 ### Fixed
-- `react-resizable` added as direct dep — pnpm strict hoisting blocked importing its CSS as a transitive dep of `react-grid-layout`
-- Downgraded `react-grid-layout` from v2 (complete API rewrite, no `WidthProvider`) to v1 (stable, documented API); replaced stub `@types/react-grid-layout@2.1.0` with v1 types (`1.3.5`)
-- Default preset had a geometric gap in the bottom-right quadrant — all presets now tile without gaps
+- `react-resizable` added as a direct dep (pnpm strict hoisting blocked its CSS). Downgraded `react-grid-layout` v2 → v1 (stable `WidthProvider` API). Fixed a Default-preset bottom-right gap.
 
 ---
 
 ## [PR #1] feat: monorepo scaffold — Electron + Vite + Fastify + Turborepo
-**Branch:** `feature/monorepo-scaffold` → `master`  
+**Branch:** `feature/monorepo-scaffold` → `master`
 **Date:** 2026-05-24
 
 ### Added
-- Turborepo + pnpm workspaces monorepo with 4 packages:
-  - `apps/main` — Electron main process (TypeScript, CommonJS)
-  - `apps/renderer` — React 18 + Vite + Tailwind frontend
-  - `packages/server` — Fastify API server on `localhost:7432`
-  - `packages/shared` — shared TypeScript types, single source of truth
-- `apps/main/src/index.ts` — BrowserWindow setup, dev (`loadURL :5173`) vs prod (`loadFile`) branching
-- `apps/main/src/preload.ts` — typed `contextBridge` IPC via `ElectronAPI` interface from `@dash/shared`
-- `apps/main/src/ipc/index.ts` — IPC handlers: `app:minimize`, `app:close`, `spotify:auth-start`
-- `apps/main/src/server/spawn.ts` — spawns compiled Fastify server in prod; in dev waits for it via health-check polling
-- `tsc-watch --onSuccess "electron ."` dev loop for main process — restarts Electron on successful compile
-- `packages/server/src/index.ts` — Fastify with `@fastify/cors`, dotenv, all 5 route namespaces registered
-- Route stubs returning 501 for all 5 widgets: weather, spotify, stocks, hardware, sound
-- `packages/shared` types:
-  - `WeatherData`, `TrackData`, `SpotifyAuthStatus`
-  - `StocksData`, `StockQuote`
-  - `HardwareData`, `CpuData`, `GpuData`, `DiskIo`, `NetworkIo`
-  - `SoundData`, `AudioDevice`
-  - `IpcChannels`, `ElectronAPI`
-- `apps/renderer/src/lib/apiClient.ts` — typed `get`/`post` wrappers over `fetch` to `localhost:7432`
-- `apps/renderer/src/types/electron.d.ts` — `window.electron` typed via `ElectronAPI`
-- Placeholder widget shells for all 5 widgets
-- TanStack Query v5 `QueryClient` configured in `App.tsx`
-- `CLAUDE.md` — auto-loaded project instructions for Claude Code sessions
-- `SPEC.md` — full project specification (source of truth for widget behavior)
-- `.env.example` with all required keys
-- `electron-builder.yml` — packaging config (Windows NSIS, macOS DMG)
-- `turbo.json` — build pipeline with `dependsOn: ["^build"]` for correct ordering
-- `tsconfig.base.json` — strict TypeScript base config extended by all packages
-- `pnpm-workspace.yaml` — workspace + `onlyBuiltDependencies` for electron/esbuild
+- Turborepo + pnpm workspaces with 4 packages: `apps/main` (Electron, CJS), `apps/renderer` (React 18 + Vite + Tailwind), `packages/server` (Fastify on :7432), `packages/shared` (types).
+- `apps/main` — BrowserWindow (dev `loadURL :5173` vs prod `loadFile`), typed `contextBridge` preload, IPC handlers, server spawn with health-check polling, `tsc-watch` dev loop.
+- `packages/server` — Fastify + CORS + dotenv; 5 route namespaces (501 stubs).
+- `packages/shared` — Weather/Spotify/Stocks/Hardware/Sound + IPC/ElectronAPI types.
+- `apps/renderer` — typed `apiClient`, `window.electron` typing, placeholder widgets, TanStack Query.
+- Tooling — `CLAUDE.md`, `SPEC.md`, `.env.example`, `electron-builder.yml` (Win NSIS / mac DMG), `turbo.json`, `tsconfig.base.json`, `pnpm-workspace.yaml`.
 
 ### Architecture decisions
-- All external API calls route through Fastify — renderer never touches secrets directly
-- Shared types in `packages/shared` imported by all packages, never redefined
-- In dev, Vite alias points `@dash/shared` directly to TypeScript source (skips build step)
-- `tsc paths` in main/server tsconfigs point to shared source for type resolution during `tsx watch`
-
-### Changed (vs initial README-only repo)
-- Swapped Polygon.io for Alpaca Markets — free IEX WebSocket feed, `ALPACA_API_KEY` + `ALPACA_API_SECRET`
-- Spotify redirect URI set to `http://127.0.0.1:7432/spotify/callback` (localhost blocked by Spotify's form)
-- `StocksData.futures` field removed — Alpaca has no futures data
-- `ALPACA_BASE_URL` added to env template (`https://data.alpaca.markets/v2`)
+- All external API calls route through Fastify; shared types never redefined. In dev, Vite + tsc paths alias `@dash/shared` to TS source (no build step). Swapped Polygon.io → Alpaca IEX; Spotify redirect URI uses `127.0.0.1`.
