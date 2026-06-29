@@ -110,8 +110,18 @@ async function refreshAccessToken(refreshToken: string): Promise<StoredTokens> {
 async function getValidToken(): Promise<string> {
   if (!tokens) throw new Error('Not authenticated');
   if (Date.now() > tokens.expires_at - 60_000) {
-    tokens = await refreshAccessToken(tokens.refresh_token);
-    saveTokens(tokens);
+    try {
+      tokens = await refreshAccessToken(tokens.refresh_token);
+      saveTokens(tokens);
+    } catch (err) {
+      // Refresh failed — most often because the cached token was minted under a
+      // different client_id (e.g. before the client_id was baked in) and is no
+      // longer valid for this app. Clear it so /auth-status flips to false and
+      // the widget shows "Connect" again, instead of looping 502s forever.
+      tokens = null;
+      try { fs.unlinkSync(TOKENS_FILE); } catch { /* already gone */ }
+      throw err;
+    }
   }
   return tokens.access_token;
 }
