@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { WeatherData } from '@dash/shared';
+import type { WeatherData, WeatherAlert } from '@dash/shared';
 
 const TTL_MS = 15 * 60 * 1000;
 const GEO_TTL_MS = 60 * 60 * 1000;
@@ -130,8 +130,30 @@ async function fetchWeather(geo: Geo): Promise<WeatherData> {
       weatherCode: raw.daily.weathercode[i],
     })),
     location: { name: geo.name, region: geo.region || undefined },
+    alerts: [],
     fetchedAt: new Date().toISOString(),
   };
+}
+
+// NWS active alerts for a point — keyless, US only. Returns [] on any failure / non-US.
+async function fetchAlerts(lat: number, lon: number): Promise<WeatherAlert[]> {
+  try {
+    const res = await fetch(
+      `https://api.weather.gov/alerts/active?point=${lat.toFixed(4)},${lon.toFixed(4)}`,
+      { headers: { 'User-Agent': '(Nishboard, personal desktop dashboard)', Accept: 'application/geo+json' } },
+    );
+    if (!res.ok) return [];
+    const j = (await res.json()) as {
+      features?: { properties: { event: string; severity: string; headline: string } }[];
+    };
+    return (j.features ?? []).slice(0, 5).map((f) => ({
+      event: f.properties.event,
+      severity: f.properties.severity,
+      headline: f.properties.headline,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 // ── Route ─────────────────────────────────────────────────────────────────────
@@ -149,7 +171,8 @@ export const weatherRoutes: FastifyPluginAsync = async (fastify) => {
 
       try {
         const geo = zip ? await getGeoFromZip(zip) : await getGeoFromIp();
-        const data = await fetchWeather(geo);
+        const [data, alerts] = await Promise.all([fetchWeather(geo), fetchAlerts(geo.lat, geo.lon)]);
+        data.alerts = alerts;
         weatherCache.set(key, { data, at: Date.now() });
         return reply.send(data);
       } catch (err) {

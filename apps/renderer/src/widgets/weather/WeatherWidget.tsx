@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Droplets, Wind, Zap, Umbrella } from 'lucide-react';
+import { Droplets, Wind, Zap, Umbrella, AlertTriangle } from 'lucide-react';
 import { useWeather } from './useWeather';
 import { getWeatherMeta } from './weatherCodes';
 import { WeatherIcon } from './WeatherIcon';
+import { cn } from '../../lib/utils';
 
 function formatHour(isoTime: string): string {
   const date = new Date(isoTime);
@@ -88,10 +89,35 @@ export function WeatherWidget() {
   }
 
   const { current, hourly, daily, location } = data;
+  const alerts = data.alerts ?? []; // defensive: older cached responses may lack it
   const meta = getWeatherMeta(current.weatherCode);
+  const severeAlert = alerts.some((a) => a.severity === 'Extreme' || a.severity === 'Severe');
 
   return (
     <div className="h-full flex flex-col gap-3 p-3 overflow-y-auto">
+
+      {/* Severe-weather alerts (NWS) */}
+      {alerts.length > 0 && (
+        <div
+          className={cn(
+            'shrink-0 flex items-start gap-1.5 rounded-lg px-2.5 py-1.5 border',
+            severeAlert ? 'bg-red-500/15 border-red-500/30' : 'bg-amber-500/15 border-amber-500/30',
+          )}
+          title={alerts.map((a) => a.headline || a.event).join('\n')}
+        >
+          <AlertTriangle className={cn('w-3.5 h-3.5 shrink-0 mt-0.5', severeAlert ? 'text-red-400' : 'text-amber-400')} />
+          <div className="min-w-0">
+            <p className={cn('text-xs font-medium leading-tight', severeAlert ? 'text-red-300' : 'text-amber-300')}>
+              {alerts[0].event}
+            </p>
+            {alerts.length > 1 && (
+              <p className={cn('text-[10px]', severeAlert ? 'text-red-400/70' : 'text-amber-400/70')}>
+                +{alerts.length - 1} more alert{alerts.length - 1 > 1 ? 's' : ''}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Current conditions */}
       <div className="flex items-start justify-between shrink-0">

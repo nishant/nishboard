@@ -4,6 +4,25 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #56] feat: weather severe-weather alerts (NWS)
+**Branch:** `feat/weather-alerts` → `master`
+**Date:** 2026-06-30
+
+### Context
+Batch 3, part 2 — surface active US severe-weather alerts in the Weather widget. Keyless (NWS api.weather.gov); the previous Open-Meteo forecast has no alerts.
+
+### Added
+- **NWS alerts** — `packages/server/src/routes/weather.ts`: `fetchAlerts(lat, lon)` queries `api.weather.gov/alerts/active?point=…` (keyless, US-only, requires a descriptive User-Agent), fetched in parallel with the forecast; returns `[]` on any failure / non-US. `WeatherData.alerts: WeatherAlert[]` (`event`, `severity`, `headline`) added in `packages/shared`.
+- **Alert banner** — `WeatherWidget.tsx`: when alerts exist, a banner above the current conditions shows the top alert's `event` + "+N more" (full headlines on hover), colored **red** for Extreme/Severe and **amber** otherwise.
+
+### Fixed
+- Repaired the CHANGELOG: the `## [PR #53]` header + a separator had been dropped by an earlier merge reorder, leaving a malformed entry + orphan `---`.
+
+### Notes
+- `WeatherWidget` defaults `alerts` to `[]` defensively, so a cached pre-update response can't crash the widget.
+
+---
+
 ## [PR #55] feat: News widget (Google News RSS) + open-external IPC
 **Branch:** `feat/news-widget` → `master`
 **Date:** 2026-06-30
@@ -41,6 +60,10 @@ Batch 2 of the roadmap — time tools. Adds the app's first native desktop-notif
 
 ### Notes
 - Alerts fire only while the app is running; the native toast plays the OS notification sound, backed by an in-app Web Audio chime.
+
+---
+
+## [PR #53] feat: settings export/import + UI scale & density
 **Branch:** `feat/settings-export-scale` → `master`
 **Date:** 2026-06-29
 
@@ -57,9 +80,6 @@ Batch 1B — dual-machine portability (export/import all non-secret settings) pl
 
 ### Notes
 - The zoom effect is Electron-only; in a plain browser the `setZoom` call still fires but does nothing.
-
----
-
 
 ---
 
