@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
-import { X, Eye, EyeOff, Check, Loader2, Lock } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, Eye, EyeOff, Check, Loader2, Lock, Minus, Plus, Download, Upload } from 'lucide-react';
 import { CREDENTIAL_DEFS, CREDENTIAL_KEYS } from '@dash/shared';
 import type { CredentialKey } from '@dash/shared';
 import { useAppSettingsStore } from '../store/settingsStore';
+import type { Density } from '../store/settingsStore';
+import { exportSettings, importSettings } from '../lib/backup';
 import { cn } from '../lib/utils';
 
 // Group defs by service
@@ -108,11 +110,32 @@ function ToggleRow({
 
 // ── App settings tab ──────────────────────────────────────────────────────────
 
+const SCALE_MIN = 0.8;
+const SCALE_MAX = 1.4;
+const clampScale = (n: number) => Math.round(Math.min(SCALE_MAX, Math.max(SCALE_MIN, n)) * 10) / 10;
+
 function AppSettingsPanel() {
-  const { weatherZip, showTempInClock, setWeatherZip, setShowTempInClock } = useAppSettingsStore();
+  const {
+    weatherZip, showTempInClock, uiScale, density,
+    setWeatherZip, setShowTempInClock, setUiScale, setDensity,
+  } = useAppSettingsStore();
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  async function onImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-importing the same filename
+    if (!file) return;
+    try {
+      await importSettings(file);
+      window.location.reload();
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Import failed');
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Weather */}
       <div className="flex flex-col gap-3">
         <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">Weather</span>
         <div className="flex flex-col gap-1.5">
@@ -134,6 +157,7 @@ function AppSettingsPanel() {
         </div>
       </div>
 
+      {/* Top bar */}
       <div className="flex flex-col gap-3">
         <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">Top bar</span>
         <ToggleRow
@@ -142,6 +166,80 @@ function AppSettingsPanel() {
           checked={showTempInClock}
           onChange={setShowTempInClock}
         />
+      </div>
+
+      {/* Display */}
+      <div className="flex flex-col gap-3">
+        <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">Display</span>
+
+        <div className="flex items-center gap-3">
+          <span className="text-th-3 text-[11px] w-28 shrink-0">UI scale</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setUiScale(clampScale(uiScale - 0.1))}
+              disabled={uiScale <= SCALE_MIN}
+              className="w-6 h-6 rounded bg-th-elevated hover:bg-th-overlay text-th-hi disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+              title="Smaller"
+            >
+              <Minus size={12} />
+            </button>
+            <span className="text-th-hi text-[11px] tabular-nums w-10 text-center">{Math.round(uiScale * 100)}%</span>
+            <button
+              onClick={() => setUiScale(clampScale(uiScale + 0.1))}
+              disabled={uiScale >= SCALE_MAX}
+              className="w-6 h-6 rounded bg-th-elevated hover:bg-th-overlay text-th-hi disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+              title="Larger"
+            >
+              <Plus size={12} />
+            </button>
+            {uiScale !== 1 && (
+              <button onClick={() => setUiScale(1)} className="ml-1 text-th-ghost hover:text-th-2 text-[10px] transition-colors">
+                Reset
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span className="text-th-3 text-[11px] w-28 shrink-0">Density</span>
+          <div className="flex rounded-lg bg-th-elevated p-0.5">
+            {(['comfortable', 'compact'] as Density[]).map((d) => (
+              <button
+                key={d}
+                onClick={() => setDensity(d)}
+                className={cn(
+                  'px-2.5 py-1 rounded text-[10px] capitalize transition-colors',
+                  density === d ? 'bg-th-overlay text-th-hi' : 'text-th-ghost hover:text-th-2',
+                )}
+              >
+                {d}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Backup */}
+      <div className="flex flex-col gap-3">
+        <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">Backup</span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={exportSettings}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-th-elevated hover:bg-th-overlay text-th-hi text-[11px] transition-colors"
+          >
+            <Download size={13} /> Export
+          </button>
+          <button
+            onClick={() => fileRef.current?.click()}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-th-elevated hover:bg-th-overlay text-th-hi text-[11px] transition-colors"
+          >
+            <Upload size={13} /> Import
+          </button>
+          <input ref={fileRef} type="file" accept="application/json,.json" onChange={onImportFile} className="hidden" />
+        </div>
+        <p className="text-th-ghost text-[10px] leading-relaxed">
+          Layout, theme &amp; preferences (not API keys). Import replaces local settings and reloads — handy for syncing two machines.
+        </p>
       </div>
     </div>
   );
@@ -162,6 +260,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!window.electron) { setLoading(false); return; } // defensive: no bridge outside Electron
     Promise.all([
       window.electron.credentials.getAll(),
       fetch('http://localhost:7432/api/credentials/builtin').then((r) => r.json() as Promise<{ keys: string[] }>),

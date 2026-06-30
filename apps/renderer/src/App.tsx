@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Titlebar } from './components/Titlebar';
 import { DashboardGrid } from './components/DashboardGrid';
 import { useThemeStore } from './store/themeStore';
+import { useAppSettingsStore } from './store/settingsStore';
 import { buildCustomVars, CUSTOM_VAR_KEYS } from './lib/colorUtils';
 
 const queryClient = new QueryClient({
@@ -17,6 +18,13 @@ const queryClient = new QueryClient({
 export function App() {
   const theme = useThemeStore((s) => s.theme);
   const customColors = useThemeStore((s) => s.customColors);
+  const uiScale = useAppSettingsStore((s) => s.uiScale);
+
+  // UI scale via Electron's renderer zoom (scales everything incl. px sizes + the
+  // grid; Chromium handles event coordinates correctly under zoom). No-op in the browser.
+  useLayoutEffect(() => {
+    window.electron?.setZoom?.(uiScale);
+  }, [uiScale]);
 
   // Tag <html> with the host OS so platform-specific CSS (Windows scrollbars +
   // rounded corners) can target it. Falls back to 'web' outside Electron.

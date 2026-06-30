@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import ReactGridLayout, { WidthProvider } from 'react-grid-layout';
 import type { Layout } from 'react-grid-layout';
 import { useLayoutStore } from '../store/layoutStore';
+import { useAppSettingsStore } from '../store/settingsStore';
 import { WidgetShell } from './WidgetShell';
 import { WeatherWidget } from '../widgets/weather/WeatherWidget';
 import { SpotifyWidget, SpotifyLogoutButton } from '../widgets/spotify/SpotifyWidget';
@@ -20,9 +21,6 @@ import type { WidgetId } from '../lib/layouts';
 
 const GridLayout = WidthProvider(ReactGridLayout);
 
-const MARGIN = 8;
-const PADDING = 8;
-
 const WIDGET_COMPONENTS: Record<WidgetId, React.ReactNode> = {
   weather: <WeatherWidget />,
   spotify: <SpotifyWidget />,
@@ -37,7 +35,7 @@ const WIDGET_COMPONENTS: Record<WidgetId, React.ReactNode> = {
   notes: <NotesWidget />,
 };
 
-function useRowHeight(layout: Layout[]): number {
+function useRowHeight(layout: Layout[], gap: number): number {
   const [windowHeight, setWindowHeight] = useState(window.innerHeight);
 
   useEffect(() => {
@@ -51,13 +49,15 @@ function useRowHeight(layout: Layout[]): number {
     [layout],
   );
 
-  // Solve: availHeight = numRows * rowHeight + (numRows - 1) * MARGIN + 2 * PADDING
+  // Solve: availHeight = numRows * rowHeight + (numRows - 1) * gap [margin] + 2 * gap [padding]
   const availHeight = windowHeight - TITLEBAR_H;
-  return Math.max(10, (availHeight - (numRows - 1) * MARGIN - 2 * PADDING) / numRows);
+  return Math.max(10, (availHeight - (numRows - 1) * gap - 2 * gap) / numRows);
 }
 
 export function DashboardGrid() {
   const { layout, setLayout, visibleWidgets } = useLayoutStore();
+  const density = useAppSettingsStore((s) => s.density);
+  const gap = density === 'compact' ? 4 : 8;
 
   // Only pass visible items to the grid; hidden items stay in `layout` with
   // their positions intact so they snap back when re-enabled.
@@ -66,15 +66,15 @@ export function DashboardGrid() {
     [layout, visibleWidgets],
   );
 
-  const rowHeight = useRowHeight(visibleLayout);
+  const rowHeight = useRowHeight(visibleLayout, gap);
 
   return (
     <GridLayout
       layout={visibleLayout}
       cols={24}
       rowHeight={rowHeight}
-      margin={[MARGIN, MARGIN]}
-      containerPadding={[PADDING, PADDING]}
+      margin={[gap, gap]}
+      containerPadding={[gap, gap]}
       draggableHandle=".widget-drag-handle"
       onLayoutChange={(newVisible) => {
         // Merge incoming positions with stored positions of hidden widgets so

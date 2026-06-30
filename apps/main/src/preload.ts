@@ -1,10 +1,11 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webFrame } from 'electron';
 import type { ElectronAPI, IpcChannels, CredentialKey } from '@dash/shared';
 
 const electronAPI: ElectronAPI = {
   platform: process.platform,
   minimize: () => ipcRenderer.send('app:minimize' satisfies IpcChannels),
   close: () => ipcRenderer.send('app:close' satisfies IpcChannels),
+  setZoom: (factor: number) => webFrame.setZoomFactor(factor),
   openSpotifyAuth: (url: string) => ipcRenderer.send('spotify:open-auth' satisfies IpcChannels, url),
   onSpotifyTokenStored: (cb: () => void) => {
     const channel: IpcChannels = 'spotify:token-store';
