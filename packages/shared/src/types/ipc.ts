@@ -9,6 +9,8 @@ export type IpcChannels =
   | 'credentials:save-all';
 
 export interface ElectronAPI {
+  /** Host OS, from the main process (`process.platform`): 'win32' | 'darwin' | 'linux' | … */
+  platform: string;
   minimize: () => void;
   close: () => void;
   openSpotifyAuth: (url: string) => void;

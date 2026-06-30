@@ -22,6 +22,26 @@ First batch of the feature roadmap (Batch 1A) — three self-contained widgets, 
 
 ---
 
+## [PR #51] feat: Windows UX parity — rounded corners + mac-style scrollbars
+**Branch:** `fix/windows-ux` → `master`
+**Date:** 2026-06-29
+
+### Context
+On Windows the frameless window showed square corners around the rounded content, and scrollbars were the chunky stock grey-with-arrows bars — both jarring next to macOS's rounded window + thin scrollbars. macOS handles both natively; these changes bring Windows to parity **without touching macOS**.
+
+### Added
+- **Platform exposed to the renderer** — `apps/main/src/preload.ts` exposes `process.platform`; `ElectronAPI.platform` added in `packages/shared/src/types/ipc.ts`; `App.tsx` tags `<html data-platform="…">` so CSS can target the OS. Falls back to `web` outside Electron.
+
+### Changed
+- **Mac-style scrollbars (Windows only)** — `apps/renderer/src/index.css`: under `[data-platform="win32"]`, `::-webkit-scrollbar` becomes thin (8px) with a rounded, theme-colored thumb and no arrow buttons. macOS keeps its native overlay scrollbars; the existing `.scrollbar-none` hidden areas are unaffected.
+- **Rounded window corners (Windows only)** — `apps/main/src/index.ts` creates the BrowserWindow `transparent` on Windows; `index.css` rounds the `.app-shell` (`border-radius: 10px; overflow: hidden`) and makes `body`/`#root` transparent so the desktop shows through the corners, matching macOS's native rounded frameless window. macOS stays opaque (it rounds natively).
+
+### Notes / verify on Windows
+- Mac-untestable by nature. Verified on macOS via the `data-platform="win32"` CSS path: `.app-shell` `border-radius: 10px` + `overflow: hidden`, transparent `body`/`#root`, 8px scrollbar; default platform is `web`/`darwin`, so macOS is untouched.
+- Transparent frameless windows on Windows lose the native drop shadow and edge-resize near the rounded corners may need tuning; maximized-state rounding isn't special-cased — flagged for on-device iteration.
+
+---
+
 ## [PR #50] fix: every widget can shrink to a minimal vertical size
 **Branch:** `fix/widget-sizing` → `master`
 **Date:** 2026-06-29
@@ -36,7 +56,6 @@ Several widgets couldn't be resized below a tall floor (Spotify/Stocks ≥ 5 row
 
 ### Known / TODO
 - **Windows resize jank (off-by-pixels)** is *not* addressed here. `DashboardGrid` already uses react-grid-layout's `WidthProvider` (measured width), so it isn't a width-measurement bug — the offset is almost certainly fractional display scaling (`devicePixelRatio` ≠ 1) and can't be reproduced on macOS. Needs on-device diagnosis on the Windows machine.
-
 ---
 
 ## [PR #49] fix: dev server no longer killed on Electron restart

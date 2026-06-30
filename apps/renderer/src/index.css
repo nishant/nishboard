@@ -346,3 +346,46 @@ body,
 .md-render blockquote { border-left: 2px solid rgb(var(--t-line)); padding-left: 0.6em; color: rgb(var(--t-3)); margin: 0.3em 0; }
 .md-render hr { border: none; border-top: 1px solid rgb(var(--t-line)); margin: 0.5em 0; }
 .md-render input[type="checkbox"] { margin-right: 0.4em; }
+/* ── Windows parity ──────────────────────────────────────────────────────────
+   Scoped to Windows via the data-platform attribute set on <html> from the
+   Electron platform, so macOS keeps its native overlay scrollbars + native
+   window rounding and is left completely untouched. */
+
+/* Mac-style thin, dark scrollbars (replaces Windows' chunky grey bar + arrows). */
+[data-platform="win32"] ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+[data-platform="win32"] ::-webkit-scrollbar-track {
+  background: transparent;
+}
+[data-platform="win32"] ::-webkit-scrollbar-thumb {
+  background: rgb(var(--t-overlay));
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+[data-platform="win32"] ::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--t-ghost));
+  background-clip: padding-box;
+}
+[data-platform="win32"] ::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+[data-platform="win32"] ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Rounded window corners. On Windows the BrowserWindow is created transparent
+   (frameless), so rounding + clipping the shell reveals the desktop behind the
+   corners — matching macOS's native rounded frameless window. */
+[data-platform="win32"] body,
+[data-platform="win32"] #root {
+  background: transparent;
+}
+[data-platform="win32"] .app-shell {
+  border-radius: 10px;
+  overflow: hidden;
+}
