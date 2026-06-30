@@ -18,6 +18,10 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     }
   });
 
+  ipcMain.on('app:open-external', (_event, url: string) => {
+    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+  });
+
   ipcMain.on('spotify:open-auth', (_event, url: string) => {
     shell.openExternal(url);
   });

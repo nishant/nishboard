@@ -2,11 +2,11 @@ import type { Layout } from 'react-grid-layout';
 
 export type WidgetId =
   | 'weather' | 'spotify' | 'stocks' | 'hardware' | 'sound' | 'calendar' | 'youtube' | 'twitch'
-  | 'tasks' | 'worldclock' | 'notes' | 'timer' | 'countdown';
+  | 'tasks' | 'worldclock' | 'notes' | 'timer' | 'countdown' | 'news';
 
 export const ALL_WIDGET_IDS: WidgetId[] = [
   'weather', 'spotify', 'stocks', 'hardware', 'sound', 'calendar', 'youtube', 'twitch',
-  'tasks', 'worldclock', 'notes', 'timer', 'countdown',
+  'tasks', 'worldclock', 'notes', 'timer', 'countdown', 'news',
 ];
 
 export const WIDGET_TITLES: Record<WidgetId, string> = {
@@ -23,6 +23,7 @@ export const WIDGET_TITLES: Record<WidgetId, string> = {
   notes: 'Notes',
   timer: 'Timer',
   countdown: 'Countdown',
+  news: 'News',
 };
 
 export interface NamedLayout {
@@ -212,6 +213,7 @@ const WIDGET_CONSTRAINTS: Record<WidgetId, { minW: number; minH: number }> = {
   notes:      { minW: 3, minH: 2 },
   timer:      { minW: 3, minH: 2 },
   countdown:  { minW: 3, minH: 2 },
+  news:       { minW: 4, minH: 3 },
 };
 
 /** Clamp each item's minW/minH to the authoritative WIDGET_CONSTRAINTS. Used to

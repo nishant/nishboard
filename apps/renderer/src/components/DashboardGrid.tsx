@@ -17,6 +17,7 @@ import { WorldClockWidget } from '../widgets/worldclock/WorldClockWidget';
 import { NotesWidget } from '../widgets/notes/NotesWidget';
 import { TimerWidget } from '../widgets/timer/TimerWidget';
 import { CountdownWidget } from '../widgets/countdown/CountdownWidget';
+import { NewsWidget } from '../widgets/news/NewsWidget';
 import { TITLEBAR_H } from './Titlebar';
 import { WIDGET_TITLES } from '../lib/layouts';
 import type { WidgetId } from '../lib/layouts';
@@ -37,6 +38,7 @@ const WIDGET_COMPONENTS: Record<WidgetId, React.ReactNode> = {
   notes: <NotesWidget />,
   timer: <TimerWidget />,
   countdown: <CountdownWidget />,
+  news: <NewsWidget />,
 };
 
 function useRowHeight(layout: Layout[], gap: number): number {
