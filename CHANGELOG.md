@@ -4,6 +4,24 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #52] feat: Notes, Tasks, and World Clock widgets
+**Branch:** `feat/widgets-notes-tasks-clock` → `master`
+**Date:** 2026-06-29
+
+### Context
+First batch of the feature roadmap (Batch 1A) — three self-contained widgets, no server/API, with state persisted to localStorage. Adding a widget is cheap (the grid auto-places new widgets and the Widgets menu auto-lists them), so this is mostly widget UI + per-widget stores.
+
+### Added
+- **Tasks widget** — `widgets/tasks/TasksWidget.tsx` + `store/tasksStore.ts` (persist `dashboard-tasks`): add (Enter or +), checkbox toggle with strikethrough, per-row delete, "Clear completed", remaining count.
+- **World Clock widget** — `widgets/worldclock/WorldClockWidget.tsx` + `store/worldClockStore.ts` (persist `dashboard-worldclock`): digital ↔ analog (SVG) toggle, add/remove timezones from a curated list, live per-second tick, defaults to the local zone.
+- **Notes widget** — `widgets/notes/NotesWidget.tsx` + `store/notesStore.ts` (persist `dashboard-notes`): textarea ↔ rendered-markdown toggle via `react-markdown` (lists, headings, bold, code, links). Added `.md-render` styles in `index.css` (Tailwind preflight strips list styling).
+- Wired via the add-widget pattern: `lib/layouts.ts` (`WidgetId`, `ALL_WIDGET_IDS`, `WIDGET_TITLES`, `WIDGET_CONSTRAINTS` at `minW:3, minH:2`) + `DashboardGrid.tsx` (`WIDGET_COMPONENTS`). Fresh layouts show them automatically; existing layouts toggle them on from the Widgets menu.
+
+### Notes
+- New renderer dependency: `react-markdown`.
+
+---
+
 ## [PR #50] fix: every widget can shrink to a minimal vertical size
 **Branch:** `fix/widget-sizing` → `master`
 **Date:** 2026-06-29
