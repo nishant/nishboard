@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Layout } from 'react-grid-layout';
-import { DEFAULT_LAYOUT, PRESETS, autoFillLayout, generateLayout, ALL_WIDGET_IDS } from '../lib/layouts';
+import { DEFAULT_LAYOUT, PRESETS, autoFillLayout, applyConstraints, generateLayout, ALL_WIDGET_IDS } from '../lib/layouts';
 import type { WidgetId } from '../lib/layouts';
 
 /** A user-saved layout: tile positions/sizes + which tiles are pinned (visible). */
@@ -162,13 +162,20 @@ export const useLayoutStore = create<LayoutState>()(
       name: 'dashboard-layout',
       onRehydrateStorage: () => (state) => {
         if (state) {
-          state.layout = autoFillLayout(state.layout);
+          // Re-clamp mins to current WIDGET_CONSTRAINTS so layouts saved with older
+          // (larger) minH/minW pick up the new, smaller floors instead of staying stuck.
+          state.layout = applyConstraints(autoFillLayout(state.layout));
           // Back-fill visibleWidgets for stored states that predate this field
           if (!state.visibleWidgets || state.visibleWidgets.length === 0) {
             state.visibleWidgets = [...ALL_WIDGET_IDS];
           }
-          // Back-fill custom-layout fields for stored states that predate them
+          // Back-fill custom-layout fields for stored states that predate them, and
+          // re-clamp each saved layout's mins too.
           if (!state.savedCustomLayouts) state.savedCustomLayouts = [];
+          else state.savedCustomLayouts = state.savedCustomLayouts.map((l) => ({
+            ...l,
+            layout: applyConstraints(l.layout),
+          }));
           if (state.activeCustomLayoutId === undefined) state.activeCustomLayoutId = null;
         }
       },

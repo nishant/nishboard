@@ -4,6 +4,23 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #50] fix: every widget can shrink to a minimal vertical size
+**Branch:** `fix/widget-sizing` → `master`
+**Date:** 2026-06-29
+
+### Context
+Several widgets couldn't be resized below a tall floor (Spotify/Stocks ≥ 5 rows, YouTube/Twitch ≥ 6), so they hogged vertical space. Every widget should shrink vertically as far as is practical.
+
+### Changed
+- `apps/renderer/src/lib/layouts.ts` — `WIDGET_CONSTRAINTS` `minH` lowered to **2** for every widget (≈ a header + sliver); `minW` unchanged (horizontal sizing was fine). The 8 static presets' `minH` props lowered to 2 to match, and `autoFillLayout` now derives appended widgets' mins from `WIDGET_CONSTRAINTS` instead of a hardcoded `minH: 3`.
+- Added `applyConstraints(layout)` — clamps each item's `minW`/`minH` to the authoritative `WIDGET_CONSTRAINTS`.
+- `apps/renderer/src/store/layoutStore.ts` — `onRehydrateStorage` now runs `applyConstraints` over the persisted active layout **and** every saved custom layout, so existing users' stored layouts adopt the new, smaller floors instead of staying stuck at the old ones.
+
+### Known / TODO
+- **Windows resize jank (off-by-pixels)** is *not* addressed here. `DashboardGrid` already uses react-grid-layout's `WidthProvider` (measured width), so it isn't a width-measurement bug — the offset is almost certainly fractional display scaling (`devicePixelRatio` ≠ 1) and can't be reproduced on macOS. Needs on-device diagnosis on the Windows machine.
+
+---
+
 ## [PR #49] fix: dev server no longer killed on Electron restart
 **Branch:** `fix/dev-server-kill-race` → `master`
 **Date:** 2026-06-29
