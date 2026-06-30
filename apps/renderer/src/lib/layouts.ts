@@ -2,11 +2,11 @@ import type { Layout } from 'react-grid-layout';
 
 export type WidgetId =
   | 'weather' | 'spotify' | 'stocks' | 'hardware' | 'sound' | 'calendar' | 'youtube' | 'twitch'
-  | 'tasks' | 'worldclock' | 'notes';
+  | 'tasks' | 'worldclock' | 'notes' | 'timer' | 'countdown';
 
 export const ALL_WIDGET_IDS: WidgetId[] = [
   'weather', 'spotify', 'stocks', 'hardware', 'sound', 'calendar', 'youtube', 'twitch',
-  'tasks', 'worldclock', 'notes',
+  'tasks', 'worldclock', 'notes', 'timer', 'countdown',
 ];
 
 export const WIDGET_TITLES: Record<WidgetId, string> = {
@@ -21,6 +21,8 @@ export const WIDGET_TITLES: Record<WidgetId, string> = {
   tasks: 'Tasks',
   worldclock: 'World Clock',
   notes: 'Notes',
+  timer: 'Timer',
+  countdown: 'Countdown',
 };
 
 export interface NamedLayout {
@@ -208,6 +210,8 @@ const WIDGET_CONSTRAINTS: Record<WidgetId, { minW: number; minH: number }> = {
   tasks:      { minW: 3, minH: 2 },
   worldclock: { minW: 3, minH: 2 },
   notes:      { minW: 3, minH: 2 },
+  timer:      { minW: 3, minH: 2 },
+  countdown:  { minW: 3, minH: 2 },
 };
 
 /** Clamp each item's minW/minH to the authoritative WIDGET_CONSTRAINTS. Used to
@@ -352,29 +356,34 @@ export function generateLayout(
   const missing = visibleIds.filter((id) => !placed.has(id));
   if (missing.length === 0) return base;
   const maxY = Math.max(...base.map((item) => item.y + item.h), 0);
-  const w = Math.floor(cols / missing.length);
-  return [
-    ...base,
-    ...missing.map((id, i) => {
-      const c = WIDGET_CONSTRAINTS[id];
-      return { i: id, x: i * w, y: maxY, w, h: 6, minW: c.minW, minH: c.minH };
-    }),
-  ];
+  return [...base, ...appendWidgets(missing, maxY, cols)];
 }
 
-// Appends any widget IDs missing from a stored/custom layout to the bottom row.
+/** Lay out `ids` left-to-right starting at row `startY`, each at least its `minW`
+ *  wide (so react-grid-layout never warns about minW > w), wrapping to a new row
+ *  when the current row would exceed `cols`. */
+function appendWidgets(ids: WidgetId[], startY: number, cols = 24): Layout[] {
+  if (ids.length === 0) return [];
+  const base = Math.max(3, Math.floor(cols / Math.min(ids.length, 6)));
+  const out: Layout[] = [];
+  let x = 0;
+  let y = startY;
+  for (const id of ids) {
+    const c = WIDGET_CONSTRAINTS[id];
+    const w = Math.min(cols, Math.max(c.minW, base));
+    if (x + w > cols) { x = 0; y += 6; }
+    out.push({ i: id, x, y, w, h: 6, minW: c.minW, minH: c.minH });
+    x += w;
+  }
+  return out;
+}
+
+// Appends any widget IDs missing from a stored/custom layout to the bottom row(s).
 // Ensures new widgets added to ALL_WIDGET_IDS automatically appear on load.
 export function autoFillLayout(layout: Layout[]): Layout[] {
   const existing = new Set(layout.map((item) => item.i));
   const missing = ALL_WIDGET_IDS.filter((id) => !existing.has(id));
   if (missing.length === 0) return layout;
   const maxY = Math.max(...layout.map((item) => item.y + item.h), 0);
-  const w = Math.floor(24 / missing.length);
-  return [
-    ...layout,
-    ...missing.map((id, i) => {
-      const c = WIDGET_CONSTRAINTS[id];
-      return { i: id, x: i * w, y: maxY, w, h: 6, minW: c.minW, minH: c.minH };
-    }),
-  ];
+  return [...layout, ...appendWidgets(missing, maxY)];
 }

@@ -4,7 +4,24 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
-## [PR #53] feat: settings export/import + UI scale & density
+## [PR #54] feat: Timer, Alarm & Countdown widgets + notification IPC
+**Branch:** `feat/time-tools` → `master`
+**Date:** 2026-06-30
+
+### Context
+Batch 2 of the roadmap — time tools. Adds the app's first native desktop-notification capability plus an asset-free chime, then two widgets that use them.
+
+### Added
+- **Notification IPC** — new `app:notify` channel: `preload.notify(title, body)` → `apps/main/src/ipc/index.ts` shows a native `Notification` (with the OS sound). `apps/renderer/src/lib/alerts.ts` adds `playAlarm()` (a Web Audio three-beep chime, no audio asset) and `fireAlert()` that does toast + chime.
+- **Timer / Alarm widget** — `widgets/timer/TimerWidget.tsx` + `store/timersStore.ts` (persist `dashboard-timers`). Tabs: **Timer** (multiple countdowns; start/pause/reset; fires at zero; survives reload via an absolute `endsAt` timestamp) and **Alarm** (multiple; set a time — defaults to today / next occurrence — fires at that time).
+- **Countdown widget** — `widgets/countdown/CountdownWidget.tsx` + `store/countdownStore.ts` (persist `dashboard-countdown`): add events with a datetime, shows time remaining, fires a notification + chime when reached while the app is open.
+- Both widgets wired via the add-widget pattern (`lib/layouts.ts` + `DashboardGrid.tsx`).
+
+### Fixed
+- `autoFillLayout` / `generateLayout` no longer place auto-appended widgets narrower than their `minW` (which made react-grid-layout warn `minWidth larger than item width`). New `appendWidgets()` helper gives each appended widget at least its `minW` and wraps to a new row when a row fills — surfaced once the widget count crossed 12.
+
+### Notes
+- Alerts fire only while the app is running; the native toast plays the OS notification sound, backed by an in-app Web Audio chime.
 **Branch:** `feat/settings-export-scale` → `master`
 **Date:** 2026-06-29
 

@@ -15,6 +15,8 @@ import { TwitchWidget } from '../widgets/twitch/TwitchWidget';
 import { TasksWidget } from '../widgets/tasks/TasksWidget';
 import { WorldClockWidget } from '../widgets/worldclock/WorldClockWidget';
 import { NotesWidget } from '../widgets/notes/NotesWidget';
+import { TimerWidget } from '../widgets/timer/TimerWidget';
+import { CountdownWidget } from '../widgets/countdown/CountdownWidget';
 import { TITLEBAR_H } from './Titlebar';
 import { WIDGET_TITLES } from '../lib/layouts';
 import type { WidgetId } from '../lib/layouts';
@@ -33,6 +35,8 @@ const WIDGET_COMPONENTS: Record<WidgetId, React.ReactNode> = {
   tasks: <TasksWidget />,
   worldclock: <WorldClockWidget />,
   notes: <NotesWidget />,
+  timer: <TimerWidget />,
+  countdown: <CountdownWidget />,
 };
 
 function useRowHeight(layout: Layout[], gap: number): number {
