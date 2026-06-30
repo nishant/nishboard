@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+export type Density = 'compact' | 'comfortable';
+
 /**
  * App-level user preferences (non-secret, renderer-only).
  * Distinct from API credentials (safeStorage, main process) and from
@@ -11,9 +13,15 @@ interface AppSettingsState {
   weatherZip: string;
   /** Show the current temperature next to the centered titlebar clock. */
   showTempInClock: boolean;
+  /** Renderer zoom factor (Electron `webFrame.setZoomFactor`). 1 = 100%. */
+  uiScale: number;
+  /** Spacing density of the widget grid (gap between tiles). */
+  density: Density;
 
   setWeatherZip: (zip: string) => void;
   setShowTempInClock: (show: boolean) => void;
+  setUiScale: (scale: number) => void;
+  setDensity: (density: Density) => void;
 }
 
 export const useAppSettingsStore = create<AppSettingsState>()(
@@ -21,9 +29,13 @@ export const useAppSettingsStore = create<AppSettingsState>()(
     (set) => ({
       weatherZip: '',
       showTempInClock: false,
+      uiScale: 1,
+      density: 'comfortable',
 
       setWeatherZip: (weatherZip) => set({ weatherZip }),
       setShowTempInClock: (showTempInClock) => set({ showTempInClock }),
+      setUiScale: (uiScale) => set({ uiScale }),
+      setDensity: (density) => set({ density }),
     }),
     { name: 'dashboard-app-settings' },
   ),

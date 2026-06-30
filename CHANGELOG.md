@@ -4,6 +4,29 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #53] feat: settings export/import + UI scale & density
+**Branch:** `feat/settings-export-scale` → `master`
+**Date:** 2026-06-29
+
+### Context
+Batch 1B — dual-machine portability (export/import all non-secret settings) plus display preferences (UI scale + grid density), all under Settings → App.
+
+### Added
+- **Settings export/import** — `apps/renderer/src/lib/backup.ts`: serializes all non-secret prefs (layout, theme, app settings, watchlist, hardware config, any `dashboard-*` widget store) into one JSON; import writes them back and reloads. **Secrets excluded** — API keys live in the main process via safeStorage, never in localStorage. Buttons in Settings → App → Backup.
+- **UI scale** — `settingsStore.uiScale` (persisted); a stepper (80–140%) in Settings → App → Display, applied via Electron `webFrame.setZoomFactor` (`ElectronAPI.setZoom` in `preload.ts`/`ipc.ts`, called from `App.tsx`) so everything scales correctly including the grid. No-op outside Electron.
+- **Density** — `settingsStore.density` (`comfortable` | `compact`); a toggle in Settings → App → Display; `DashboardGrid` uses it for the grid margin/padding (8px ↔ 4px).
+
+### Changed
+- `SettingsModal.tsx` — the App tab gains **Display** (UI scale + density) and **Backup** (export/import) sections; added a defensive guard so a missing `window.electron` can't crash the modal.
+
+### Notes
+- The zoom effect is Electron-only; in a plain browser the `setZoom` call still fires but does nothing.
+
+---
+
+
+---
+
 ## [PR #52] feat: Notes, Tasks, and World Clock widgets
 **Branch:** `feat/widgets-notes-tasks-clock` → `master`
 **Date:** 2026-06-29
@@ -57,7 +80,6 @@ Several widgets couldn't be resized below a tall floor (Spotify/Stocks ≥ 5 row
 ### Known / TODO
 - **Windows resize jank (off-by-pixels)** is *not* addressed here. `DashboardGrid` already uses react-grid-layout's `WidthProvider` (measured width), so it isn't a width-measurement bug — the offset is almost certainly fractional display scaling (`devicePixelRatio` ≠ 1) and can't be reproduced on macOS. Needs on-device diagnosis on the Windows machine.
 ---
-
 ## [PR #49] fix: dev server no longer killed on Electron restart
 **Branch:** `fix/dev-server-kill-race` → `master`
 **Date:** 2026-06-29
