@@ -4,6 +4,23 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #57] feat: stocks ticker detail — intraday chart + recent news
+**Branch:** `feat/stocks-detail` → `master`
+**Date:** 2026-06-30
+
+### Context
+Batch 3, part 3 — click a stock to drill into an intraday chart + recent headlines. Uses the **existing Alpaca keys** (the News API is included with them); no new API.
+
+### Added
+- **Detail route** — `packages/server/src/routes/stocks.ts`: `GET /api/stocks/detail?symbol=` returns intraday 5-min bars (Alpaca `/stocks/bars`) + recent news (Alpaca News API `/v1beta1/news`, Benzinga), 2-min cache. `StockBar` / `StockNewsItem` / `StockDetail` shared types + `useStockDetail(symbol)` hook.
+- **Detail panel** — `StocksWidget.tsx`: clicking a quote card opens an in-widget panel with a Recharts intraday area chart (emerald/red by direction, hover tooltip) + a list of recent headlines (click → browser); a back arrow returns to the grid.
+- **`openExternal` IPC** — `app:open-external` → `shell.openExternal` (http(s) only), exposed as `window.electron.openExternal`. (Shared with the News widget; identical addition.)
+
+### Fixed
+- Repaired the CHANGELOG: an earlier merge reorder had dropped the `## [PR #53]` header + a separator, leaving a malformed entry + orphan `---`.
+
+---
+
 ## [PR #56] feat: weather severe-weather alerts (NWS)
 **Branch:** `feat/weather-alerts` → `master`
 **Date:** 2026-06-30
