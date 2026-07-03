@@ -16,6 +16,7 @@ Batch 3, part 2 — surface active US severe-weather alerts in the Weather widge
 - **Alert banner** — `WeatherWidget.tsx`: when alerts exist, a banner above the current conditions shows the top alert's `event` + "+N more" (full headlines on hover), colored **red** for Extreme/Severe and **amber** otherwise.
 
 ### Fixed
+- **Weather 502 on geolocation failure** — the route had a single catch-all that returned a bare **502** whenever anything failed, including ip-api being unable to locate the user (reserved/private IP, downtime). Now failures are split: auto-geolocation failure with no ZIP set returns **422** with an actionable message — *"Couldn't detect your location automatically. Add a ZIP code in Settings → App."* (the ZIP path uses zippopotam.us over HTTPS, a different provider that **bypasses ip-api**); an unknown ZIP returns its own 422; only a genuine forecast-provider failure returns 502 (*"Weather service is unavailable, try again shortly."*). `getGeoFromIp` now also checks ip-api's `status` field and **serves the last-known location on a transient blip** instead of erroring. `WeatherWidget` renders the server's message (via the query `error`) rather than a generic "Failed to load weather".
 - Repaired the CHANGELOG: the `## [PR #53]` header + a separator had been dropped by an earlier merge reorder, leaving a malformed entry + orphan `---`.
 
 ### Notes

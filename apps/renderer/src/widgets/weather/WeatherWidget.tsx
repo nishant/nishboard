@@ -19,7 +19,7 @@ function formatDay(dateStr: string): string {
 }
 
 export function WeatherWidget() {
-  const { data, isLoading, isError } = useWeather();
+  const { data, isLoading, isError, error } = useWeather();
 
   // Callback ref — fires when the element actually mounts (after loading resolves),
   // unlike useRef which is null on the first render due to the early returns below.
@@ -81,9 +81,15 @@ export function WeatherWidget() {
   }
 
   if (isError || !data) {
+    // Surface the server's message (e.g. the geolocation hint that suggests setting a ZIP)
+    // instead of a generic failure string.
+    const message = error instanceof Error && error.message ? error.message : 'Failed to load weather';
     return (
-      <div className="h-full flex items-center justify-center">
-        <span className="text-red-500 text-sm">Failed to load weather</span>
+      <div className="h-full flex items-center justify-center p-4">
+        <p className="text-th-2 text-sm text-center leading-snug max-w-[240px]">
+          <AlertTriangle className="w-4 h-4 text-amber-400 inline-block mr-1.5 -mt-0.5" />
+          {message}
+        </p>
       </div>
     );
   }

@@ -13,13 +13,26 @@ let ipGeo: { data: Geo; at: number } | null = null;
 
 async function getGeoFromIp(): Promise<Geo> {
   if (ipGeo && Date.now() - ipGeo.at < GEO_TTL_MS) return ipGeo.data;
-  // ip-api.com: free, no key, 45 req/min — more than enough (we cache for an hour)
-  const res = await fetch('http://ip-api.com/json/?fields=lat,lon,timezone,city,regionName');
-  if (!res.ok) throw new Error(`ip-api error ${res.status}`);
-  const j = await res.json() as { lat: number; lon: number; timezone: string; city: string; regionName: string };
-  const data: Geo = { lat: j.lat, lon: j.lon, timezone: j.timezone, name: j.city, region: j.regionName };
-  ipGeo = { data, at: Date.now() };
-  return data;
+  try {
+    // ip-api.com: free, no key, 45 req/min — more than enough (we cache for an hour).
+    // Request `status`/`message` so we catch the 200-but-failed case (e.g. reserved/private IP).
+    const res = await fetch('http://ip-api.com/json/?fields=status,message,lat,lon,timezone,city,regionName');
+    if (!res.ok) throw new Error(`ip-api error ${res.status}`);
+    const j = await res.json() as {
+      status: string; message?: string;
+      lat: number; lon: number; timezone: string; city: string; regionName: string;
+    };
+    if (j.status !== 'success' || typeof j.lat !== 'number') {
+      throw new Error(`ip-api: ${j.message ?? 'geolocation failed'}`);
+    }
+    const data: Geo = { lat: j.lat, lon: j.lon, timezone: j.timezone, name: j.city, region: j.regionName };
+    ipGeo = { data, at: Date.now() };
+    return data;
+  } catch (err) {
+    // Transient blip — serve the last-known location (even if stale) rather than error out.
+    if (ipGeo) return ipGeo.data;
+    throw err;
+  }
 }
 
 // ZIP → lat/lon via zippopotam.us (free, no key). Cached per-ZIP.
@@ -169,14 +182,33 @@ export const weatherRoutes: FastifyPluginAsync = async (fastify) => {
       const cached = weatherCache.get(key);
       if (cached && Date.now() - cached.at < TTL_MS) return reply.send(cached.data);
 
+      // 1) Resolve a location. Distinguish geolocation failures (422 — the user can act on
+      //    them) from downstream forecast failures (502 — transient upstream).
+      let geo: Geo;
       try {
-        const geo = zip ? await getGeoFromZip(zip) : await getGeoFromIp();
+        geo = zip ? await getGeoFromZip(zip) : await getGeoFromIp();
+      } catch (err) {
+        if (zip) {
+          // A ZIP was provided but couldn't be geocoded → surface "Unknown ZIP …".
+          return reply.code(422).send({
+            error: err instanceof Error ? err.message : `Unknown ZIP code "${zip}".`,
+          });
+        }
+        // Auto (IP) geolocation failed and no ZIP is set → guide the user to set one.
+        // The ZIP path uses a different provider (zippopotam.us, HTTPS), so it bypasses this.
+        return reply.code(422).send({
+          error: "Couldn't detect your location automatically. Add a ZIP code in Settings → App.",
+        });
+      }
+
+      // 2) Fetch the forecast (+ alerts) for the resolved location.
+      try {
         const [data, alerts] = await Promise.all([fetchWeather(geo), fetchAlerts(geo.lat, geo.lon)]);
         data.alerts = alerts;
         weatherCache.set(key, { data, at: Date.now() });
         return reply.send(data);
-      } catch (err) {
-        return reply.code(502).send({ error: err instanceof Error ? err.message : 'Weather lookup failed' });
+      } catch {
+        return reply.code(502).send({ error: 'Weather service is unavailable, try again shortly.' });
       }
     },
   );
