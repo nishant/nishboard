@@ -13,6 +13,9 @@ import {
   useDevices, usePlayContext, usePlayTrack, useSpotifyLogout,
 } from './useSpotify';
 import { SpotifySearchDialog } from './SpotifySearchDialog';
+import { fmtMs } from '../../lib/time';
+import { useDeferredSlider } from '../../hooks/useDeferredSlider';
+import { useElementSize } from '../../hooks/useElementSize';
 import type { TrackData, SpotifyPlaylist, SpotifyDevice, SpotifyTrackItem } from '@dash/shared';
 
 // ── Size variant ──────────────────────────────────────────────────────────────
@@ -25,13 +28,6 @@ import type { TrackData, SpotifyPlaylist, SpotifyDevice, SpotifyTrackItem } from
 type SizeVariant = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function fmtMs(ms: number): string {
-  const totalSec = Math.floor(ms / 1000);
-  const m = Math.floor(totalSec / 60);
-  const s = totalSec % 60;
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
 
 function DeviceIcon({ type }: { type: string }) {
   if (type === 'Smartphone') return <Smartphone size={11} className="shrink-0" />;
@@ -143,6 +139,12 @@ function ProgressBar({
     if (!dragging.current) setLocalMs(progressMs);
   }, [progressMs]);
 
+  // Latest onTick in a ref so the interval below doesn't tear down and restart
+  // (resetting its phase → visible stutter) every time the parent re-renders
+  // with a fresh inline callback — which the 3s poll does constantly.
+  const onTickRef = useRef(onTick);
+  useEffect(() => { onTickRef.current = onTick; });
+
   // Advance 1s/s while playing so the bar doesn't jump every 3s
   useEffect(() => {
     if (!isPlaying) return;
@@ -150,13 +152,13 @@ function ProgressBar({
       if (!dragging.current) {
         setLocalMs((prev) => {
           const next = Math.min(prev + 1000, durationMs);
-          onTick?.(next);
+          onTickRef.current?.(next);
           return next;
         });
       }
     }, 1000);
     return () => clearInterval(id);
-  }, [isPlaying, durationMs, onTick]);
+  }, [isPlaying, durationMs]);
 
   const pct = durationMs > 0 ? (localMs / durationMs) * 100 : 0;
 
@@ -194,24 +196,20 @@ function VolumeSlider({
   onChange: (v: number) => void;
   size: SizeVariant;
 }) {
-  const [local, setLocal] = useState(value);
-  const pointerDown = useRef(false);
+  const { value: local, setValue, sliderProps } = useDeferredSlider(value, onChange);
   const prevVolume = useRef(value > 0 ? value : 50);
 
   useEffect(() => {
-    if (!pointerDown.current) setLocal(value);
     if (value > 0) prevVolume.current = value;
   }, [value]);
 
   const handleMuteToggle = () => {
     if (local > 0) {
       prevVolume.current = local;
-      setLocal(0);
-      onChange(0);
+      setValue(0, true);
     } else {
       const restore = prevVolume.current > 0 ? prevVolume.current : 50;
-      setLocal(restore);
-      onChange(restore);
+      setValue(restore, true);
     }
   };
 
@@ -230,10 +228,8 @@ function VolumeSlider({
           : <Volume2 size={iconSize} className="shrink-0" />}
       </button>
       <input
-        type="range" min={0} max={100} value={local}
-        onChange={(e) => setLocal(Number(e.target.value))}
-        onPointerDown={() => { pointerDown.current = true; }}
-        onPointerUp={() => { pointerDown.current = false; onChange(local); }}
+        type="range" min={0} max={100}
+        {...sliderProps}
         className={`${sliderW} h-1 rounded-full appearance-none cursor-pointer bg-th-overlay accent-th-accent`}
       />
     </div>
@@ -893,56 +889,18 @@ export function SpotifyWidget() {
   const [showPlaylists, setShowPlaylists] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
 
-  // Responsive sizing via a callback ref + useEffect([containerEl]).
-  //
-  // WHY not useRef + useLayoutEffect([]): the component has conditional early
-  // returns for loading/auth states. Those views don't render the container div,
-  // so containerRef.current is null on first mount. useLayoutEffect([]) fires
-  // once — on null — and never re-runs once the real element appears.
-  //
-  // Callback ref (setContainerEl) is called by React whenever the element
-  // mounts/unmounts, updating the state and re-triggering the effect with the
-  // real element.
-  //
-  // WHY retry RAF loop instead of a single RAF: Chromium on macOS can return 0
-  // from getBoundingClientRect for multiple frames while the flex grid row is
-  // compositing. We keep retrying until we get a real height, then hand off
-  // to the ResizeObserver for all future updates.
-  const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
-  const [size, setSize] = useState<SizeVariant>('sm');
+  // Responsive sizing — useElementSize handles the callback-ref + retry-RAF +
+  // ResizeObserver dance (conditional early returns below mean the container
+  // doesn't exist on first render; see the hook for the full rationale).
+  const { ref: setContainerEl, height: containerH } = useElementSize<HTMLDivElement>();
 
-  const classify = (h: number): SizeVariant => {
-    if (h < 200) return 'xs';
-    if (h < 300) return 'sm';
-    if (h < 400) return 'md';
-    if (h < 480) return 'lg';
-    return 'xl';
-  };
-
-  useEffect(() => {
-    if (!containerEl) return;
-
-    let rafId: number;
-    const tryMeasure = () => {
-      const h = containerEl.getBoundingClientRect().height;
-      if (h > 0) {
-        setSize(classify(h));
-      } else {
-        rafId = requestAnimationFrame(tryMeasure); // retry until layout settles
-      }
-    };
-    rafId = requestAnimationFrame(tryMeasure);
-
-    const ro = new ResizeObserver(([entry]) => {
-      setSize(classify(entry.contentRect.height));
-    });
-    ro.observe(containerEl);
-
-    return () => {
-      cancelAnimationFrame(rafId);
-      ro.disconnect();
-    };
-  }, [containerEl]);
+  const size: SizeVariant =
+    containerH === 0 ? 'sm' // unmeasured — keep the pre-hook default, not 'xs'
+    : containerH < 200 ? 'xs'
+    : containerH < 300 ? 'sm'
+    : containerH < 400 ? 'md'
+    : containerH < 480 ? 'lg'
+    : 'xl';
 
   const handleConnect = useCallback(async () => {
     const result = await authUrlQuery.refetch();

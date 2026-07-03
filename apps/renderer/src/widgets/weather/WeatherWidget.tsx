@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Droplets, Wind, Zap, Umbrella, AlertTriangle } from 'lucide-react';
 import { useWeather } from './useWeather';
 import { getWeatherMeta } from './weatherCodes';
 import { WeatherIcon } from './WeatherIcon';
+import { useDragScroll } from '../../hooks/useDragScroll';
 import { cn } from '../../lib/utils';
 
 function formatHour(isoTime: string): string {
@@ -21,13 +22,13 @@ function formatDay(dateStr: string): string {
 export function WeatherWidget() {
   const { data, isLoading, isError, error } = useWeather();
 
-  // Callback ref — fires when the element actually mounts (after loading resolves),
-  // unlike useRef which is null on the first render due to the early returns below.
-  const [hourlyEl, setHourlyEl] = useState<HTMLDivElement | null>(null);
+  // Drag-to-pan the hourly strip (the hook's callback ref fires once the
+  // element mounts after the loading/error early-returns below).
+  const { ref: setHourlyEl, el: hourlyEl } = useDragScroll<HTMLDivElement>('x');
 
+  // Vertical wheel → horizontal scroll on the strip (weather-specific).
   useEffect(() => {
     if (!hourlyEl) return;
-
     const onWheel = (e: WheelEvent) => {
       if (e.deltaX !== 0) return; // let native horizontal scroll pass through
       e.preventDefault();
@@ -35,41 +36,8 @@ export function WeatherWidget() {
       const px = e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY;
       hourlyEl.scrollLeft += px;
     };
-
-    let isDragging = false;
-    let startX = 0;
-    let startScrollLeft = 0;
-
-    const onMouseDown = (e: MouseEvent) => {
-      isDragging = true;
-      startX = e.pageX;
-      startScrollLeft = hourlyEl.scrollLeft;
-      hourlyEl.style.cursor = 'grabbing';
-      hourlyEl.style.userSelect = 'none';
-    };
-
-    const onMouseMove = (e: MouseEvent) => {
-      if (!isDragging) return;
-      hourlyEl.scrollLeft = startScrollLeft - (e.pageX - startX);
-    };
-
-    const onMouseUp = () => {
-      isDragging = false;
-      hourlyEl.style.cursor = '';
-      hourlyEl.style.userSelect = '';
-    };
-
     hourlyEl.addEventListener('wheel', onWheel, { passive: false });
-    hourlyEl.addEventListener('mousedown', onMouseDown);
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-
-    return () => {
-      hourlyEl.removeEventListener('wheel', onWheel);
-      hourlyEl.removeEventListener('mousedown', onMouseDown);
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-    };
+    return () => hourlyEl.removeEventListener('wheel', onWheel);
   }, [hourlyEl]);
 
   if (isLoading) {

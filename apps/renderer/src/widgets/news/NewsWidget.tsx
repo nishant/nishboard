@@ -2,18 +2,7 @@ import { useEffect, useState } from 'react';
 import { Newspaper, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNews } from './useNews';
 import { cn } from '../../lib/utils';
-
-function relTime(iso: string): string {
-  if (!iso) return '';
-  const ms = Date.now() - new Date(iso).getTime();
-  if (ms < 0) return '';
-  const m = Math.floor(ms / 60000);
-  if (m < 1) return 'just now';
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
+import { relTimeAgo } from '../../lib/time';
 
 export function NewsWidget() {
   const { data, isLoading, isError } = useNews();
@@ -63,7 +52,7 @@ export function NewsWidget() {
           {cur.title}
         </span>
         <span className="text-th-ghost text-[10px] mt-2 flex items-center gap-1 min-w-0">
-          <span className="truncate">{cur.source}{cur.pubDate && ` · ${relTime(cur.pubDate)}`}</span>
+          <span className="truncate">{cur.source}{cur.pubDate && ` · ${relTimeAgo(cur.pubDate)}`}</span>
           <ExternalLink className="w-2.5 h-2.5 shrink-0 opacity-0 group-hover:opacity-100 transition" />
         </span>
       </button>

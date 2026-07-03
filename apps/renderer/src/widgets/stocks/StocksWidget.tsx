@@ -3,19 +3,8 @@ import { TrendingUp, TrendingDown, Pencil, X, Plus, ArrowLeft, ExternalLink } fr
 import { AreaChart, Area, ResponsiveContainer, YAxis, Tooltip } from 'recharts';
 import { useStocks, useStockDetail } from './useStocks';
 import { useStocksStore } from '../../store/stocksStore';
+import { relTimeAgo } from '../../lib/time';
 import type { StockQuote } from '@dash/shared';
-
-function relTime(iso: string): string {
-  if (!iso) return '';
-  const ms = Date.now() - new Date(iso).getTime();
-  if (ms < 0) return '';
-  const m = Math.floor(ms / 60000);
-  if (m < 1) return 'just now';
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
 
 // ── Market session ────────────────────────────────────────────────────────────
 
@@ -182,7 +171,7 @@ function StockDetailPanel({ ticker, onClose }: { ticker: string; onClose: () => 
                   {n.headline}
                   <ExternalLink className="w-2.5 h-2.5 shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition" />
                 </span>
-                <span className="text-th-ghost text-[10px]">{n.source}{n.createdAt && ` · ${relTime(n.createdAt)}`}</span>
+                <span className="text-th-ghost text-[10px]">{n.source}{n.createdAt && ` · ${relTimeAgo(n.createdAt)}`}</span>
               </button>
             ))
           )}

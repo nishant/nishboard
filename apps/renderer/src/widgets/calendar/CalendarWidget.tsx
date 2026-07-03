@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useElementSize } from '../../hooks/useElementSize';
 
 const DOW = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
@@ -56,44 +57,12 @@ function MonthView({
 }
 
 export function CalendarWidget() {
-  const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
-  const [cols, setCols] = useState(1);
-  const [rows, setRows] = useState(1);
+  const MIN_W = 155; // px — min width per month column
+  const MIN_H = 195; // px — min height per month row
 
-  // Same callback-ref + retry-RAF pattern as SpotifyWidget to handle
-  // both conditional renders and macOS compositing delays
-  useEffect(() => {
-    if (!containerEl) return;
-
-    const MIN_W = 155; // px — min width per month column
-    const MIN_H = 195; // px — min height per month row
-
-    const compute = (w: number, h: number) => {
-      setCols(Math.max(1, Math.floor(w / MIN_W)));
-      setRows(Math.max(1, Math.floor(h / MIN_H)));
-    };
-
-    let rafId: number;
-    const tryMeasure = () => {
-      const { width, height } = containerEl.getBoundingClientRect();
-      if (width > 0 && height > 0) {
-        compute(width, height);
-      } else {
-        rafId = requestAnimationFrame(tryMeasure);
-      }
-    };
-    rafId = requestAnimationFrame(tryMeasure);
-
-    const ro = new ResizeObserver(([entry]) => {
-      compute(entry.contentRect.width, entry.contentRect.height);
-    });
-    ro.observe(containerEl);
-
-    return () => {
-      cancelAnimationFrame(rafId);
-      ro.disconnect();
-    };
-  }, [containerEl]);
+  const { ref: setContainerEl, width, height } = useElementSize<HTMLDivElement>();
+  const cols = Math.max(1, Math.floor(width / MIN_W));
+  const rows = Math.max(1, Math.floor(height / MIN_H));
 
   // Re-render at midnight: without a tick the today-highlight (and the visible
   // month range) stays on yesterday until a resize/remount forces a render.

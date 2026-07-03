@@ -3,21 +3,14 @@ import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { Cpu, Thermometer, HardDrive, Wifi, Battery, BatteryCharging, BarChart2, Activity, Settings, Loader2 } from 'lucide-react';
 import { useHardware, type HardwareHistory } from './useHardware';
 import { useHardwareStore, type HardwareSection } from '../../store/hardwareStore';
+import { useDragScroll } from '../../hooks/useDragScroll';
+import { fmtUptime } from '../../lib/time';
 import type { HardwareData } from '@dash/shared';
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 function fmt(n: number, dec = 1): string {
   return n.toFixed(dec);
-}
-
-function fmtUptime(s: number): string {
-  const d = Math.floor(s / 86400);
-  const h = Math.floor((s % 86400) / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  if (d > 0) return `${d}d ${h}h ${m}m`;
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
 }
 
 function tempColor(c: number | null): string {
@@ -399,47 +392,8 @@ export function HardwareWidget() {
   const [view, setView] = useState<ViewMode>('sparks');
   const [configOpen, setConfigOpen] = useState(false);
 
-  // Callback ref so the effect wires up after loading/error resolves
-  const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!scrollEl) return;
-
-    let isDragging = false;
-    let startY = 0;
-    let startScrollTop = 0;
-
-    const onMouseDown = (e: MouseEvent) => {
-      // Don't hijack clicks on buttons/inputs inside the widget
-      if ((e.target as HTMLElement).closest('button, input, label')) return;
-      isDragging = true;
-      startY = e.pageY;
-      startScrollTop = scrollEl.scrollTop;
-      scrollEl.style.cursor = 'grabbing';
-      scrollEl.style.userSelect = 'none';
-    };
-
-    const onMouseMove = (e: MouseEvent) => {
-      if (!isDragging) return;
-      scrollEl.scrollTop = startScrollTop - (e.pageY - startY);
-    };
-
-    const onMouseUp = () => {
-      isDragging = false;
-      scrollEl.style.cursor = '';
-      scrollEl.style.userSelect = '';
-    };
-
-    scrollEl.addEventListener('mousedown', onMouseDown);
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-
-    return () => {
-      scrollEl.removeEventListener('mousedown', onMouseDown);
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-    };
-  }, [scrollEl]);
+  // Drag-to-scroll (callback ref inside the hook wires up after loading/error resolves)
+  const { ref: setScrollEl } = useDragScroll<HTMLDivElement>('y');
 
   if (query.isLoading) {
     return (
