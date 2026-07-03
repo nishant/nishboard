@@ -91,4 +91,8 @@ One section per merged PR, newest first. Canonical structure:
 ## Memory Protocol
 When Nish gives feedback or states a preference, add it to **both**:
 - `CLAUDE.md` (this file, committed — travels with the repo to all machines)
-- `~/.claude/projects/-Users-nishant-Code-desktop-dashboard/memory/` (local auto-memory for this machine)
+- Local auto-memory (per-machine, **not** committed). The dir is derived from the checkout path, so it differs per machine — Nish develops on both:
+  - **macOS:** `~/.claude/projects/-Users-nishant-Code-desktop-dashboard/memory/`
+  - **Windows:** `C:\Users\nish5\.claude\projects\C--Code-desktop-dashboard-desktop-dashboard\memory\`
+
+  Prefer `CLAUDE.md` for anything that should follow the repo; use local auto-memory for machine-specific facts.

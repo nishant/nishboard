@@ -4,6 +4,19 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #58] chore: package.json name → nishboard + Windows memory path
+**Branch:** `chore/nishboard-name` → `master`
+**Date:** 2026-07-03
+
+### Context
+Salvages the two still-relevant bits from the abandoned #45 (the rest was superseded by #47's docs rewrite): the project is branded **Nishboard** everywhere — README, app title, installer — *except* the root `package.json`, and CLAUDE.md's Memory Protocol only documented the macOS auto-memory path even though Nish develops on both machines.
+
+### Changed
+- Root **`package.json`** `name`: `desktop-dashboard` → `nishboard` (the package `name` field only — no deps or scripts touched).
+- **CLAUDE.md → Memory Protocol** now lists the local auto-memory directory for **both** machines (macOS + Windows), noting the dir is derived from the checkout path so it differs per machine.
+
+---
+
 ## [PR #57] feat: stocks ticker detail — intraday chart + recent news
 **Branch:** `feat/stocks-detail` → `master`
 **Date:** 2026-06-30
