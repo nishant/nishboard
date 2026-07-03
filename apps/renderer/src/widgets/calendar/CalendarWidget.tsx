@@ -95,7 +95,18 @@ export function CalendarWidget() {
     };
   }, [containerEl]);
 
-  const today = new Date();
+  // Re-render at midnight: without a tick the today-highlight (and the visible
+  // month range) stays on yesterday until a resize/remount forces a render.
+  const [dateKey, setDateKey] = useState(() => new Date().toDateString());
+  useEffect(() => {
+    const id = setInterval(() => {
+      const key = new Date().toDateString();
+      setDateKey((prev) => (prev === key ? prev : key));
+    }, 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const today = new Date(dateKey);
   const todayYear = today.getFullYear();
   const todayMonth = today.getMonth();
   const todayDate = today.getDate();

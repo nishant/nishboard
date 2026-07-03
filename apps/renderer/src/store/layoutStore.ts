@@ -19,7 +19,12 @@ interface LayoutState {
   visibleWidgets: WidgetId[];
   savedCustomLayouts: SavedCustomLayout[];
   activeCustomLayoutId: string | null; // id of the saved layout that's active, or null
-  setLayout: (layout: Layout[]) => void;
+  /** Update tile geometry only — never touches the active-preset markers.
+   *  react-grid-layout echoes onLayoutChange on mount and after programmatic
+   *  changes (applyPreset), so geometry sync must not imply a user edit. */
+  syncLayout: (layout: Layout[]) => void;
+  /** A real pointer gesture (drag/resize stop) — the layout is now custom. */
+  markUserEdited: () => void;
   applyPreset: (name: string) => void;
   resetToDefault: () => void;
   pinPreset: (name: string) => void;
@@ -46,7 +51,9 @@ export const useLayoutStore = create<LayoutState>()(
       savedCustomLayouts: [],
       activeCustomLayoutId: null,
 
-      setLayout: (layout) => set({ layout, activePreset: null, activeCustomLayoutId: null }),
+      syncLayout: (layout) => set({ layout }),
+
+      markUserEdited: () => set({ activePreset: null, activeCustomLayoutId: null }),
 
       applyPreset: (name) => {
         const preset = PRESETS.find((p) => p.name === name);

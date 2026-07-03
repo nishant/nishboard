@@ -38,9 +38,12 @@ function timeToTimestamp(hhmm: string): number | null {
   if (!m) return null;
   const d = new Date();
   d.setHours(Number(m[1]), Number(m[2]), 0, 0);
-  let at = d.getTime();
-  if (at <= Date.now()) at += 24 * 3600 * 1000; // next occurrence
-  return at;
+  if (d.getTime() <= Date.now()) {
+    // Next occurrence by wall clock — setDate (not +24h in ms) so the alarm
+    // stays at the entered local time across a DST transition.
+    d.setDate(d.getDate() + 1);
+  }
+  return d.getTime();
 }
 
 const iconBtn = 'shrink-0 p-1 rounded text-th-ghost hover:text-th-2 hover:bg-th-elevated/60 transition disabled:opacity-30 disabled:cursor-not-allowed';

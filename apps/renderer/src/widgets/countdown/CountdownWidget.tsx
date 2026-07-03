@@ -46,7 +46,8 @@ export function CountdownWidget() {
   function submit() {
     if (!when) return;
     const at = new Date(when).getTime();
-    if (Number.isNaN(at)) return;
+    // Reject past datetimes — they'd render "now" and fire an alert on the next tick.
+    if (Number.isNaN(at) || at <= Date.now()) return;
     addEvent(label.trim(), at);
     setLabel('');
     setWhen('');
