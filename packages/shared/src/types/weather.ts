@@ -28,10 +28,18 @@ export interface WeatherLocation {
   region?: string;
 }
 
+export interface WeatherAlert {
+  event: string; // e.g. "Severe Thunderstorm Warning"
+  severity: string; // "Extreme" | "Severe" | "Moderate" | "Minor" | "Unknown"
+  headline: string;
+}
+
 export interface WeatherData {
   current: WeatherCurrent;
   hourly: WeatherHourly[];
   daily: WeatherDaily[];
   location: WeatherLocation;
+  /** Active NWS severe-weather alerts (US only; empty otherwise). */
+  alerts: WeatherAlert[];
   fetchedAt: string;
 }
