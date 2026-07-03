@@ -47,6 +47,17 @@ function base64url(buf: Buffer): string {
   return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 }
 
+// The /callback HTML page is same-origin with the whole localhost API, so any
+// request-derived text must be escaped before interpolation into markup.
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function generatePkce(): { verifier: string; challenge: string; state: string } {
   const verifier = base64url(crypto.randomBytes(48));
   const challenge = base64url(crypto.createHash('sha256').update(verifier).digest());
@@ -107,11 +118,20 @@ async function refreshAccessToken(refreshToken: string): Promise<StoredTokens> {
   };
 }
 
+// Single-flight guard: with 3s now-playing polling plus concurrent device/playlist
+// calls, several requests can hit the expiry window at once. Spotify rotates refresh
+// tokens, so parallel refreshes race to persist different tokens (last-write-wins can
+// store a dead one, forcing a re-auth). All concurrent callers await the same refresh.
+let refreshInFlight: Promise<StoredTokens> | null = null;
+
 async function getValidToken(): Promise<string> {
   if (!tokens) throw new Error('Not authenticated');
   if (Date.now() > tokens.expires_at - 60_000) {
     try {
-      tokens = await refreshAccessToken(tokens.refresh_token);
+      refreshInFlight ??= refreshAccessToken(tokens.refresh_token).finally(() => {
+        refreshInFlight = null;
+      });
+      tokens = await refreshInFlight;
       saveTokens(tokens);
     } catch (err) {
       // Refresh failed — most often because the cached token was minted under a
@@ -300,7 +320,7 @@ export const spotifyRoutes: FastifyPluginAsync = async (fastify) => {
       const { code, state, error } = req.query;
       if (error) {
         return reply.type('text/html')
-          .send(`<html><body><h2>Spotify auth denied: ${error}</h2><p>You can close this tab.</p></body></html>`);
+          .send(`<html><body><h2>Spotify auth denied: ${escapeHtml(error)}</h2><p>You can close this tab.</p></body></html>`);
       }
       if (!code || !state || !pendingPkce || pendingPkce.state !== state) {
         return reply.code(400).type('text/html')
@@ -322,7 +342,7 @@ export const spotifyRoutes: FastifyPluginAsync = async (fastify) => {
         const msg = err instanceof Error ? err.message : String(err);
         fastify.log.error(`[spotify] callback error: ${msg}`);
         return reply.code(502).type('text/html')
-          .send(`<html><body><h2>Token exchange failed.</h2><pre>${msg}</pre></body></html>`);
+          .send(`<html><body><h2>Token exchange failed.</h2><pre>${escapeHtml(msg)}</pre></body></html>`);
       }
     },
   );
