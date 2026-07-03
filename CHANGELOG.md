@@ -4,6 +4,22 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #59] feat: compact titlebar — icon-only menus + pinned-layouts dropdown
+**Branch:** `feat/titlebar-compact` → `master`
+**Date:** 2026-07-03
+
+### Context
+On narrower windows the titlebar overflowed: the inline pinned-layout buttons on the left collided with the centered clock, and the labeled menu buttons on the right ate too much room. This compacts both sides.
+
+### Changed
+- **Right side is now icon-only** — `Titlebar.tsx`: the Themes / Widgets / Layouts / Settings buttons drop their text labels and become uniform 24px square icon buttons, right-aligned in the corner (labels moved to `title` tooltips). The Themes button keeps the active-theme color as a small corner-swatch badge. `menuBtn` restyled to a centered square accordingly.
+- **Left pinned layouts collapsed into a dropdown** — the inline per-preset buttons are replaced by a single `PinnedLayoutsMenu`: a compact trigger showing the active pinned preset (or "Layouts" once the layout's been modified) that opens a menu of the pinned presets; selecting one calls `applyPreset`. Rendered only when at least one preset is pinned.
+
+### Notes
+- Pinning/unpinning still lives in the right-side Layouts menu; the new left menu is just a quick-switcher for already-pinned presets.
+
+---
+
 ## [PR #58] chore: package.json name → nishboard + Windows memory path
 **Branch:** `chore/nishboard-name` → `master`
 **Date:** 2026-07-03
