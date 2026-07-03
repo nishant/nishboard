@@ -116,8 +116,8 @@ const clampScale = (n: number) => Math.round(Math.min(SCALE_MAX, Math.max(SCALE_
 
 function AppSettingsPanel() {
   const {
-    weatherZip, showTempInClock, uiScale, density,
-    setWeatherZip, setShowTempInClock, setUiScale, setDensity,
+    weatherZip, showTempInClock, uiScale, density, compactTitlebar,
+    setWeatherZip, setShowTempInClock, setUiScale, setDensity, setCompactTitlebar,
   } = useAppSettingsStore();
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -165,6 +165,12 @@ function AppSettingsPanel() {
           description="Display the current temperature next to the clock."
           checked={showTempInClock}
           onChange={setShowTempInClock}
+        />
+        <ToggleRow
+          label="Compact titlebar"
+          description="Always use icon-only menus and a pinned-layouts dropdown. Off = compact only on narrow windows."
+          checked={compactTitlebar}
+          onChange={setCompactTitlebar}
         />
       </div>
 

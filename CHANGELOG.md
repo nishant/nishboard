@@ -4,6 +4,19 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #61] feat: responsive titlebar + compact-mode toggle
+**Branch:** `feat/titlebar-responsive` → `master`
+**Date:** 2026-07-03
+
+### Context
+#59 made the compact (icon-only + pinned-layouts dropdown) titlebar the *only* mode, so it applied even full-screen. It should compact only when the window is narrow (so the left content stops crowding the centered clock), with an opt-in to force it always.
+
+### Added
+- **Compact-titlebar setting** — `settingsStore.compactTitlebar` (persisted, default off) + a **Compact titlebar** toggle in Settings → App → Top bar. On = always compact regardless of width.
+
+### Changed
+- **Titlebar is now responsive** — below `COMPACT_BREAKPOINT` (900px, via a `useIsNarrow` window-resize hook) **or** when the setting is on, it compacts: right-side menus become icon-only squares and the left pinned presets collapse into the `PinnedLayoutsMenu` dropdown. At/above the breakpoint with the setting off, it shows the full labeled menus + inline pinned-preset buttons (`InlinePinnedPresets`, restored from pre-#59). `menuBtn` gains a `compact` flag; the three menu components + Settings button take a `compact` prop.
+
 ## [PR #60] docs: sync widget catalog in README / CLAUDE.md / SPEC
 **Branch:** `docs/sync-widget-catalog` → `master`
 **Date:** 2026-07-03
