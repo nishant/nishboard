@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LayoutGrid, Pin, Layers, Palette, ArrowLeft, ChevronRight, Plus, X, Settings } from 'lucide-react';
+import { LayoutGrid, Pin, Layers, Palette, ArrowLeft, ChevronRight, ChevronDown, Plus, X, Settings } from 'lucide-react';
 import { SettingsModal } from './SettingsModal';
 import { PRESETS, ALL_WIDGET_IDS, WIDGET_TITLES } from '../lib/layouts';
 import { useLayoutStore } from '../store/layoutStore';
@@ -50,9 +50,10 @@ function Backdrop({ onClose }: { onClose: () => void }) {
   );
 }
 
+// Icon-only square button for the right-side titlebar menus (label lives in `title`).
 const menuBtn = (open: boolean) =>
   cn(
-    'flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] transition-colors',
+    'flex items-center justify-center w-6 h-6 rounded transition-colors',
     open
       ? 'bg-th-elevated text-th-hi'
       : 'text-th-ghost hover:text-th-hi hover:bg-th-elevated/60',
@@ -262,9 +263,8 @@ function LayoutsMenu() {
 
   return (
     <div className="relative" style={noDragStyle}>
-      <button onClick={handleToggle} className={menuBtn(open)}>
-        <LayoutGrid size={11} />
-        Layouts
+      <button onClick={handleToggle} className={menuBtn(open)} title="Layouts">
+        <LayoutGrid size={13} />
       </button>
 
       {open && (
@@ -425,9 +425,8 @@ function WidgetsMenu() {
 
   return (
     <div className="relative" style={noDragStyle}>
-      <button onClick={() => setOpen((o) => !o)} className={menuBtn(open)}>
-        <Layers size={11} />
-        Widgets
+      <button onClick={() => setOpen((o) => !o)} className={menuBtn(open)} title="Widgets">
+        <Layers size={13} />
       </button>
 
       {open && (
@@ -741,11 +740,10 @@ function ThemeMenu() {
 
   return (
     <div className="relative" style={noDragStyle}>
-      <button onClick={handleToggle} className={menuBtn(open)}>
-        <Palette size={11} />
-        Themes
+      <button onClick={handleToggle} className={cn(menuBtn(open), 'relative')} title="Themes">
+        <Palette size={13} />
         <span
-          className="h-2 w-2 rounded-full shrink-0 ring-1 ring-th-line"
+          className="absolute bottom-0.5 right-0.5 h-1.5 w-1.5 rounded-full ring-1 ring-th-bar"
           style={{ background: activeSwatch }}
         />
       </button>
@@ -886,10 +884,61 @@ function ThemeMenu() {
   );
 }
 
+// ── Pinned layouts — quick-switch menu (left side) ────────────────────────────
+
+function PinnedLayoutsMenu() {
+  const { activePreset, applyPreset, pinnedPresets } = useLayoutStore();
+  const [open, setOpen] = useState(false);
+  if (pinnedPresets.length === 0) return null;
+
+  // Show the active preset's name when it's a pinned one; otherwise a neutral label.
+  const label = activePreset && pinnedPresets.includes(activePreset) ? activePreset : 'Layouts';
+
+  return (
+    <div className="relative" style={noDragStyle}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className={cn(
+          'flex items-center gap-1 pl-1.5 pr-1 py-0.5 rounded text-[11px] font-medium transition-colors max-w-[140px]',
+          open
+            ? 'bg-th-elevated text-th-hi'
+            : 'text-th-ghost hover:text-th-hi hover:bg-th-elevated/60',
+        )}
+        title="Switch pinned layout"
+      >
+        <LayoutGrid size={11} className="shrink-0" />
+        <span className="truncate">{label}</span>
+        <ChevronDown size={10} className={cn('shrink-0 transition-transform', open && 'rotate-180')} />
+      </button>
+
+      {open && (
+        <>
+          <Backdrop onClose={() => setOpen(false)} />
+          <div className="absolute left-0 top-full mt-1 z-50 bg-th-surface border border-th-line rounded-lg shadow-xl py-1 min-w-[140px]">
+            {pinnedPresets.map((name) => (
+              <button
+                key={name}
+                onClick={() => { applyPreset(name); setOpen(false); }}
+                className={cn(
+                  'w-full text-left px-3 py-1.5 text-[11px] transition-colors',
+                  activePreset === name
+                    ? 'bg-th-elevated text-th-hi'
+                    : 'text-th-2 hover:bg-th-elevated/60 hover:text-th-hi',
+                )}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Titlebar ──────────────────────────────────────────────────────────────────
 
 export function Titlebar() {
-  const { activePreset, applyPreset, pinnedPresets } = useLayoutStore();
   const clock = useClock();
   const showTempInClock = useAppSettingsStore((s) => s.showTempInClock);
   const weather = useWeather(showTempInClock);
@@ -901,27 +950,12 @@ export function Titlebar() {
       style={dragStyle}
       className="h-8 relative flex items-center px-3 bg-th-bar border-b border-th-line/50 shrink-0 select-none"
     >
-      {/* Left: brand + pinned preset buttons */}
-      <div className="flex items-center gap-1">
-        <span className="text-th-ghost text-[11px] font-semibold tracking-[0.2em] uppercase shrink-0 mr-1.5">
+      {/* Left: brand + pinned-layout quick-switch menu */}
+      <div className="flex items-center gap-1.5 min-w-0">
+        <span className="text-th-ghost text-[11px] font-semibold tracking-[0.2em] uppercase shrink-0">
           nishboard
         </span>
-        <div style={noDragStyle} className="flex items-center gap-0.5">
-          {pinnedPresets.map((name) => (
-            <button
-              key={name}
-              onClick={() => applyPreset(name)}
-              className={cn(
-                'px-2 py-0.5 rounded text-[11px] font-medium transition-colors',
-                activePreset === name
-                  ? 'bg-th-elevated text-th-hi'
-                  : 'text-th-ghost hover:text-th-hi hover:bg-th-elevated/60',
-              )}
-            >
-              {name}
-            </button>
-          ))}
-        </div>
+        <PinnedLayoutsMenu />
       </div>
 
       {/* Center: clock — absolute so it's always perfectly centred */}
@@ -942,8 +976,7 @@ export function Titlebar() {
             className={menuBtn(false)}
             title="Settings"
           >
-            <Settings size={11} />
-            Settings
+            <Settings size={13} />
           </button>
           <div className="w-px h-3 bg-th-line mx-1" />
           <button
