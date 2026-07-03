@@ -4,15 +4,27 @@ import type { NewsData, NewsItem } from '@dash/shared';
 const TTL_MS = 10 * 60 * 1000;
 const cache = new Map<string, { data: NewsData; at: number }>();
 
+// Safe codepoint → string: fromCodePoint handles astral chars (emoji) that
+// fromCharCode mangles, but throws on out-of-range values — drop those.
+function codePoint(n: number): string {
+  try {
+    return String.fromCodePoint(n);
+  } catch {
+    return '';
+  }
+}
+
 function decodeEntities(s: string): string {
   return s
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    // &amp; first so double-encoded entities (e.g. &amp;#39;) still resolve.
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
-    .replace(/&#0*39;|&apos;/g, "'")
-    .replace(/&#(\d+);/g, (_, n: string) => String.fromCharCode(Number(n)))
+    .replace(/&apos;/g, "'")
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, n: string) => codePoint(parseInt(n, 16)))
+    .replace(/&#(\d+);/g, (_, n: string) => codePoint(Number(n)))
     .trim();
 }
 
