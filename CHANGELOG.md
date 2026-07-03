@@ -4,6 +4,20 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #60] docs: sync widget catalog in README / CLAUDE.md / SPEC
+**Branch:** `docs/sync-widget-catalog` → `master`
+**Date:** 2026-07-03
+
+### Context
+The batch work (Notes/Tasks/World Clock, Timer/Alarm/Countdown, News, weather alerts, stocks detail) had landed in code + CHANGELOG, but the feature/widget catalogs in the docs still listed only the original eight widgets.
+
+### Changed
+- **README** — Features table adds News, Notes, Tasks, World Clock, Timer & Alarm, Countdown; Weather now notes severe-weather alerts and Stocks the click-through detail chart + headlines. Project-structure `widgets/` list updated.
+- **CLAUDE.md** — Widgets & APIs table adds the six new widgets and updates the Weather (NWS alerts) and Stocks (detail + Benzinga news) rows.
+- **SPEC.md** — "Out of Scope" corrected: shipped phase-2 items (notifications/alerts, news) moved out; Google Calendar integration + a generic widget-config UI flagged as still-unbuilt; added a note that SPEC's per-widget sections need a fuller behavior refresh (CLAUDE.md table + CHANGELOG are the current source of truth).
+
+---
+
 ## [PR #59] feat: compact titlebar — icon-only menus + pinned-layouts dropdown
 **Branch:** `feat/titlebar-compact` → `master`
 **Date:** 2026-07-03

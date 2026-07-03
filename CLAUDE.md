@@ -23,14 +23,20 @@ Personal ambient desktop dashboard for Nish, running all day on a secondary moni
 ## Widgets & APIs
 | Widget | API | Key | Interval |
 |---|---|---|---|
-| Weather | Open-Meteo (+ ip-api geolocation, zippopotam.us for ZIP) | none | 15min |
+| Weather | Open-Meteo forecast + NWS severe-weather alerts (+ ip-api geolocation, zippopotam.us for ZIP) | none | 15min |
 | Spotify | Spotify Web API (remote control — no Web Playback SDK; stock Electron lacks Widevine) | PKCE OAuth (`SPOTIFY_CLIENT_ID`) | 3s REST |
-| Stocks | Alpaca Markets IEX REST snapshots | ALPACA_API_KEY + ALPACA_API_SECRET | 5s poll |
+| Stocks | Alpaca Markets IEX REST snapshots (+ per-ticker detail: intraday/daily bars + Benzinga news) | ALPACA_API_KEY + ALPACA_API_SECRET | 5s poll |
 | Hardware | systeminformation | none | 1s |
 | Sound | PowerShell/WASAPI (Win) / osascript + SwitchAudioSource (mac) | none | 5s |
 | Calendar | none (pure-JS date rendering) | none | n/a |
 | YouTube | YouTube Data API v3 (search) + localhost embed proxy | YOUTUBE_API_KEY (~100 searches/day free) | on demand |
 | Twitch | Twitch Helix (search) + localhost embed proxy | client-credentials app token (TWITCH_CLIENT_ID + TWITCH_CLIENT_SECRET) | on demand |
+| News | Google News RSS (keyless) | none | 10min |
+| Notes | none (Markdown scratchpad, localStorage) | none | n/a |
+| Tasks | none (checklist, localStorage) | none | n/a |
+| World Clock | none (pure-JS timezones, digital/analog) | none | n/a |
+| Timer / Alarm | none (fires via notification IPC + Web Audio chime) | none | n/a |
+| Countdown | none (target datetime, localStorage; fires via notification IPC) | none | n/a |
 
 ## Secrets & Credentials
 Three places a key can live — checked in this order at runtime:

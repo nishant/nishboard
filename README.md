@@ -42,14 +42,20 @@
 
 | Widget | What it shows | Data source |
 |---|---|---|
-| 🌤️ **Weather** | Current conditions, hourly strip, 5-day forecast | Open-Meteo (location via IP, or a ZIP override) |
+| 🌤️ **Weather** | Current conditions, hourly strip, 5-day forecast, severe-weather alerts | Open-Meteo + NWS alerts (location via IP, or a ZIP override) |
 | 🎧 **Spotify** | Now playing, full transport controls, playlists, search, devices | Spotify Web API (PKCE OAuth) — *remote control*¹ |
-| 📈 **Stocks** | Editable watchlist, % change, sparklines, market-session status | Alpaca Markets IEX (REST snapshots) |
+| 📈 **Stocks** | Editable watchlist, % change, sparklines, market session; click a ticker for an intraday/daily chart + headlines | Alpaca Markets IEX (REST snapshots + Benzinga news) |
 | 🧮 **Hardware** | CPU / GPU / RAM / disk / network as bars or live sparklines | `systeminformation` (nvidia-smi / WASAPI under the hood) |
 | 🔊 **Sound** | Master volume, mute, output switching, per-app mixer (Windows) | `osascript` (mac) / PowerShell + WASAPI (Windows) |
 | 📅 **Calendar** | Month grid, today highlighted, multi-month at larger sizes | Pure JS — no API |
 | ▶️ **YouTube** | Search and watch inline | YouTube Data API v3 + localhost embed proxy |
 | 🟣 **Twitch** | Search channels, watch live streams inline | Twitch Helix + localhost embed proxy |
+| 📰 **News** | Rotating headline ticker, click to open the article | Google News RSS — no key |
+| 📝 **Notes** | Markdown scratchpad, edit ↔ rendered toggle | Local (localStorage) |
+| ✅ **Tasks** | Quick checklist — add, check off, clear completed | Local (localStorage) |
+| 🕐 **World Clock** | Multiple timezones, digital or analog faces | Pure JS — no API |
+| ⏱️ **Timer & Alarm** | Countdown timers + wall-clock alarms with a native notification | Local + notification IPC |
+| 🎯 **Countdown** | Days/hours remaining to a target datetime | Local (localStorage) |
 
 Everything lives on a **draggable, resizable grid** (react-grid-layout) with built-in presets, saveable custom layouts, and 15 themes plus a custom theme editor.
 
@@ -253,7 +259,7 @@ desktop-dashboard/
 │   └── renderer/          # React UI
 │       └── src/
 │           ├── components/       # Titlebar, DashboardGrid, WidgetShell, SettingsModal
-│           ├── widgets/          # weather, spotify, stocks, hardware, sound, calendar, youtube, twitch
+│           ├── widgets/          # weather, spotify, stocks, hardware, sound, calendar, youtube, twitch, news, notes, tasks, worldclock, timer, countdown
 │           ├── store/            # Zustand stores (layout, theme, …)
 │           ├── lib/              # layouts.ts (grid engine), apiClient, utils
 │           └── index.css         # theme tokens + global styles
