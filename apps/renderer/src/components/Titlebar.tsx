@@ -42,6 +42,26 @@ function useClock() {
   return str;
 }
 
+// ── Responsive width ──────────────────────────────────────────────────────────
+
+// Below this window width the titlebar auto-compacts (icon-only menus + pinned
+// layouts collapse into a dropdown) so the left/right content stops crowding the
+// centered clock. Above it, the full labeled titlebar is shown.
+const COMPACT_BREAKPOINT = 900;
+
+function useIsNarrow(threshold: number): boolean {
+  const [narrow, setNarrow] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < threshold,
+  );
+  useEffect(() => {
+    const onResize = () => setNarrow(window.innerWidth < threshold);
+    onResize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [threshold]);
+  return narrow;
+}
+
 // ── Shared dropdown primitives ────────────────────────────────────────────────
 
 function Backdrop({ onClose }: { onClose: () => void }) {
@@ -50,10 +70,13 @@ function Backdrop({ onClose }: { onClose: () => void }) {
   );
 }
 
-// Icon-only square button for the right-side titlebar menus (label lives in `title`).
-const menuBtn = (open: boolean) =>
+// Right-side titlebar menu button. `compact` → icon-only 24px square (label in
+// `title`); otherwise icon + text label.
+const menuBtn = (open: boolean, compact: boolean) =>
   cn(
-    'flex items-center justify-center w-6 h-6 rounded transition-colors',
+    compact
+      ? 'flex items-center justify-center w-6 h-6 rounded transition-colors'
+      : 'flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] transition-colors',
     open
       ? 'bg-th-elevated text-th-hi'
       : 'text-th-ghost hover:text-th-hi hover:bg-th-elevated/60',
@@ -226,7 +249,7 @@ function LayoutDeleteModal({
 
 type LayoutPanel = 'list' | 'custom-list' | 'editor';
 
-function LayoutsMenu() {
+function LayoutsMenu({ compact }: { compact: boolean }) {
   const {
     activePreset, applyPreset, pinnedPresets, pinPreset, unpinPreset,
     visibleWidgets, showWidget, hideWidget,
@@ -263,8 +286,9 @@ function LayoutsMenu() {
 
   return (
     <div className="relative" style={noDragStyle}>
-      <button onClick={handleToggle} className={menuBtn(open)} title="Layouts">
-        <LayoutGrid size={13} />
+      <button onClick={handleToggle} className={menuBtn(open, compact)} title="Layouts">
+        <LayoutGrid size={compact ? 13 : 11} />
+        {!compact && 'Layouts'}
       </button>
 
       {open && (
@@ -419,14 +443,15 @@ function LayoutsMenu() {
 
 // ── Widgets menu ──────────────────────────────────────────────────────────────
 
-function WidgetsMenu() {
+function WidgetsMenu({ compact }: { compact: boolean }) {
   const { visibleWidgets, showWidget, hideWidget } = useLayoutStore();
   const [open, setOpen] = useState(false);
 
   return (
     <div className="relative" style={noDragStyle}>
-      <button onClick={() => setOpen((o) => !o)} className={menuBtn(open)} title="Widgets">
-        <Layers size={13} />
+      <button onClick={() => setOpen((o) => !o)} className={menuBtn(open, compact)} title="Widgets">
+        <Layers size={compact ? 13 : 11} />
+        {!compact && 'Widgets'}
       </button>
 
       {open && (
@@ -694,7 +719,7 @@ function DeleteModal({
 
 type ThemePanel = 'list' | 'custom-list' | 'editor';
 
-function ThemeMenu() {
+function ThemeMenu({ compact }: { compact: boolean }) {
   const {
     theme, customColors, savedCustomThemes, activeCustomId,
     setTheme, setCustomColors, saveCustomTheme, deleteCustomTheme, applyCustomTheme, updateCustomTheme,
@@ -740,10 +765,13 @@ function ThemeMenu() {
 
   return (
     <div className="relative" style={noDragStyle}>
-      <button onClick={handleToggle} className={cn(menuBtn(open), 'relative')} title="Themes">
-        <Palette size={13} />
+      <button onClick={handleToggle} className={cn(menuBtn(open, compact), compact && 'relative')} title="Themes">
+        <Palette size={compact ? 13 : 11} />
+        {!compact && 'Themes'}
         <span
-          className="absolute bottom-0.5 right-0.5 h-1.5 w-1.5 rounded-full ring-1 ring-th-bar"
+          className={compact
+            ? 'absolute bottom-0.5 right-0.5 h-1.5 w-1.5 rounded-full ring-1 ring-th-bar'
+            : 'h-2 w-2 rounded-full shrink-0 ring-1 ring-th-line'}
           style={{ background: activeSwatch }}
         />
       </button>
@@ -936,11 +964,40 @@ function PinnedLayoutsMenu() {
   );
 }
 
+// ── Pinned layouts — inline buttons (full-width left side) ────────────────────
+
+function InlinePinnedPresets() {
+  const { activePreset, applyPreset, pinnedPresets } = useLayoutStore();
+  if (pinnedPresets.length === 0) return null;
+
+  return (
+    <div style={noDragStyle} className="flex items-center gap-0.5 min-w-0">
+      {pinnedPresets.map((name) => (
+        <button
+          key={name}
+          onClick={() => applyPreset(name)}
+          className={cn(
+            'px-2 py-0.5 rounded text-[11px] font-medium transition-colors truncate',
+            activePreset === name
+              ? 'bg-th-elevated text-th-hi'
+              : 'text-th-ghost hover:text-th-hi hover:bg-th-elevated/60',
+          )}
+        >
+          {name}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ── Titlebar ──────────────────────────────────────────────────────────────────
 
 export function Titlebar() {
   const clock = useClock();
   const showTempInClock = useAppSettingsStore((s) => s.showTempInClock);
+  const forceCompact = useAppSettingsStore((s) => s.compactTitlebar);
+  const narrow = useIsNarrow(COMPACT_BREAKPOINT);
+  const compact = forceCompact || narrow;
   const weather = useWeather(showTempInClock);
   const temp = weather.data?.current.temp;
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -950,12 +1007,12 @@ export function Titlebar() {
       style={dragStyle}
       className="h-8 relative flex items-center px-3 bg-th-bar border-b border-th-line/50 shrink-0 select-none"
     >
-      {/* Left: brand + pinned-layout quick-switch menu */}
+      {/* Left: brand + pinned layouts (inline when wide, dropdown when compact) */}
       <div className="flex items-center gap-1.5 min-w-0">
         <span className="text-th-ghost text-[11px] font-semibold tracking-[0.2em] uppercase shrink-0">
           nishboard
         </span>
-        <PinnedLayoutsMenu />
+        {compact ? <PinnedLayoutsMenu /> : <InlinePinnedPresets />}
       </div>
 
       {/* Center: clock — absolute so it's always perfectly centred */}
@@ -966,17 +1023,18 @@ export function Titlebar() {
       </div>
 
       {/* Right: theme + widget + layout menus + settings */}
-      <div className="ml-auto flex items-center gap-1">
-        <ThemeMenu />
-        <WidgetsMenu />
-        <LayoutsMenu />
+      <div className="ml-auto flex items-center gap-1 shrink-0">
+        <ThemeMenu compact={compact} />
+        <WidgetsMenu compact={compact} />
+        <LayoutsMenu compact={compact} />
         <div style={noDragStyle} className="flex items-center gap-1">
           <button
             onClick={() => setSettingsOpen(true)}
-            className={menuBtn(false)}
+            className={menuBtn(false, compact)}
             title="Settings"
           >
-            <Settings size={13} />
+            <Settings size={compact ? 13 : 11} />
+            {!compact && 'Settings'}
           </button>
           <div className="w-px h-3 bg-th-line mx-1" />
           <button

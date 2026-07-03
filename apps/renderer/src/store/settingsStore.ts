@@ -17,11 +17,15 @@ interface AppSettingsState {
   uiScale: number;
   /** Spacing density of the widget grid (gap between tiles). */
   density: Density;
+  /** Force the compact (icon-only + pinned-layouts submenu) titlebar at any width.
+   *  When false, the titlebar auto-compacts only on narrow windows. */
+  compactTitlebar: boolean;
 
   setWeatherZip: (zip: string) => void;
   setShowTempInClock: (show: boolean) => void;
   setUiScale: (scale: number) => void;
   setDensity: (density: Density) => void;
+  setCompactTitlebar: (compact: boolean) => void;
 }
 
 export const useAppSettingsStore = create<AppSettingsState>()(
@@ -31,11 +35,13 @@ export const useAppSettingsStore = create<AppSettingsState>()(
       showTempInClock: false,
       uiScale: 1,
       density: 'comfortable',
+      compactTitlebar: false,
 
       setWeatherZip: (weatherZip) => set({ weatherZip }),
       setShowTempInClock: (showTempInClock) => set({ showTempInClock }),
       setUiScale: (uiScale) => set({ uiScale }),
       setDensity: (density) => set({ density }),
+      setCompactTitlebar: (compactTitlebar) => set({ compactTitlebar }),
     }),
     { name: 'dashboard-app-settings' },
   ),
