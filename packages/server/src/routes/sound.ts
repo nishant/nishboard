@@ -6,6 +6,7 @@ import { writeFile, unlink } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { SimpleCache } from '../cache/SimpleCache';
+import { HttpError } from '../lib/http';
 
 const execFileAsync = promisify(execFile);
 const cache = new SimpleCache<SoundData>();
@@ -432,15 +433,9 @@ export const soundRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Reply: SoundData | { error: string } }>('/', async (_req, reply) => {
     const cached = cache.get();
     if (cached) return reply.send(cached);
-    try {
-      const data = await getData();
-      cache.set(data, TTL_MS);
-      return reply.send(data);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      fastify.log.error(`[sound] ${msg}`);
-      return reply.code(502).send({ error: msg });
-    }
+    const data = await getData();
+    cache.set(data, TTL_MS);
+    return reply.send(data);
   });
 
   // Runtime body schemas — the Fastify generics above are compile-time only, so
@@ -456,13 +451,9 @@ export const soundRoutes: FastifyPluginAsync = async (fastify) => {
     '/volume',
     { schema: { body: volumeBody } },
     async (req, reply) => {
-      try {
-        await setVolume(req.body.volumePercent);
-        cache.clear();
-        return reply.send({ ok: true });
-      } catch (err) {
-        return reply.code(502).send({ error: err instanceof Error ? err.message : String(err) });
-      }
+      await setVolume(req.body.volumePercent);
+      cache.clear();
+      return reply.send({ ok: true });
     },
   );
 
@@ -478,13 +469,9 @@ export const soundRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     async (req, reply) => {
-      try {
-        await setMute(req.body.muted);
-        cache.clear();
-        return reply.send({ ok: true });
-      } catch (err) {
-        return reply.code(502).send({ error: err instanceof Error ? err.message : String(err) });
-      }
+      await setMute(req.body.muted);
+      cache.clear();
+      return reply.send({ ok: true });
     },
   );
 
@@ -500,13 +487,9 @@ export const soundRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     async (req, reply) => {
-      try {
-        await switchDevice(req.body.deviceId);
-        cache.clear();
-        return reply.send({ ok: true });
-      } catch (err) {
-        return reply.code(502).send({ error: err instanceof Error ? err.message : String(err) });
-      }
+      await switchDevice(req.body.deviceId);
+      cache.clear();
+      return reply.send({ ok: true });
     },
   );
 
@@ -533,16 +516,12 @@ export const soundRoutes: FastifyPluginAsync = async (fastify) => {
       // Belt-and-braces: pid is interpolated into a PowerShell script, so re-check
       // it's a plain integer even though the schema already enforces it.
       if (!Number.isInteger(pid) || pid < 0 || pid > 0xffffffff) {
-        return reply.code(400).send({ error: 'pid must be a non-negative integer' });
+        throw new HttpError(400, 'pid must be a non-negative integer');
       }
       if (process.platform !== 'win32') return reply.send({ ok: true });
-      try {
-        await winSetSessionVolume(pid, volumePercent);
-        cache.clear();
-        return reply.send({ ok: true });
-      } catch (err) {
-        return reply.code(502).send({ error: err instanceof Error ? err.message : String(err) });
-      }
+      await winSetSessionVolume(pid, volumePercent);
+      cache.clear();
+      return reply.send({ ok: true });
     },
   );
 };
