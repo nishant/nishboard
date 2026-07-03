@@ -243,7 +243,14 @@ pnpm package
 - Authentication / user accounts
 - Cloud sync
 - Mobile / web version
-- Notifications / alerts (phase 2)
-- Google Calendar widget (phase 2)
-- News feed (phase 2)
-- Custom widget config UI (phase 2)
+
+### Phase-2 items now shipped (see CHANGELOG)
+- **Notifications / alerts** — native notification IPC (`app:notify`) + NWS severe-weather alerts in the Weather widget.
+- **News feed** — keyless Google News RSS widget.
+- Also added beyond the original phase-2 list: Notes, Tasks, World Clock, Timer/Alarm, Countdown widgets, and per-ticker Stocks detail (intraday/daily chart + headlines).
+
+### Still not built
+- **Google Calendar integration** — the Calendar widget is a pure-JS month grid, not synced calendar events.
+- **Generic per-widget config UI** — partially covered today (Widgets menu toggles tiles, Hardware has its own config panel, Stocks has a watchlist editor), but no unified config framework.
+
+> **Note:** the Widgets sections above still describe the original five widgets and some early assumptions (e.g. Stocks via WebSocket, weather hardcoded to Austin) that have since changed — this file needs a fuller behavior refresh; CLAUDE.md's Widgets table + the CHANGELOG are the current source of truth.
