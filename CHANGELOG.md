@@ -4,6 +4,23 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #57] feat: stocks ticker detail — intraday chart + recent news
+**Branch:** `feat/stocks-detail` → `master`
+**Date:** 2026-06-30
+
+### Context
+Batch 3, part 3 — click a stock to drill into an intraday chart + recent headlines. Uses the **existing Alpaca keys** (the News API is included with them); no new API.
+
+### Added
+- **Detail route** — `packages/server/src/routes/stocks.ts`: `GET /api/stocks/detail?symbol=` returns chart bars + recent news (Alpaca News API `/v1beta1/news`, Benzinga), 2-min cache. Bars come from a `start`-windowed Alpaca `/stocks/bars` query (`sort=desc` → reversed to chronological) so the **most recent session renders even when the market is closed**; if intraday is empty it falls back to ~2 months of **daily** closes. `StockBar` / `StockNewsItem` / `StockDetail` (with a `range: 'intraday' | 'daily'` discriminator) shared types + `useStockDetail(symbol)` hook.
+- **Detail panel** — `StocksWidget.tsx`: clicking a quote card opens an in-widget panel with a Recharts area chart (emerald/red by direction, hover tooltip, date-vs-time axis by range) + a small range label (`Intraday` / `Daily · ~2mo`) + a list of recent headlines (click → browser); a back arrow returns to the grid.
+- **`openExternal` IPC** — `app:open-external` → `shell.openExternal` (http(s) only), exposed as `window.electron.openExternal`. (Shared with the News widget; identical addition.)
+
+### Fixed
+- **"No intraday data" on a closed market** — the original detail query had no `start`, so the Alpaca IEX feed returned nothing once the market had been closed a while. Now a 5-day `start` window (last ~100 5-min bars) reliably shows the last session, with a daily-close fallback for long-closed / illiquid symbols; the empty state only fires when *both* are empty.
+
+---
+
 ## [PR #56] feat: weather severe-weather alerts (NWS)
 **Branch:** `feat/weather-alerts` → `master`
 **Date:** 2026-06-30
