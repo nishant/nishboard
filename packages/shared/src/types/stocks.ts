@@ -33,4 +33,6 @@ export interface StockDetail {
   ticker: string;
   bars: StockBar[];
   news: StockNewsItem[];
+  /** Which bar series `bars` holds: recent 5-min intraday, or a daily-close fallback (market long closed / illiquid). */
+  range: 'intraday' | 'daily';
 }

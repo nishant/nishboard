@@ -125,12 +125,40 @@ function cacheKey(symbols: string[]): string {
 
 interface AlpacaNewsItem { headline: string; url: string; source: string; created_at: string; }
 
-async function fetchIntradayBars(symbol: string): Promise<StockBar[]> {
-  const url = `${baseUrl()}/stocks/bars?symbols=${symbol}&timeframe=5Min&limit=100&feed=iex`;
+function daysAgoIso(days: number): string {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+}
+
+async function fetchBarSeries(
+  symbol: string,
+  timeframe: string,
+  start: string,
+  limit: number,
+  sort: 'asc' | 'desc',
+): Promise<StockBar[]> {
+  const url =
+    `${baseUrl()}/stocks/bars?symbols=${symbol}&timeframe=${timeframe}` +
+    `&start=${encodeURIComponent(start)}&limit=${limit}&sort=${sort}&feed=iex`;
   const res = await fetch(url, { headers: authHeaders() });
   if (!res.ok) return [];
   const data = (await res.json()) as { bars?: Record<string, AlpacaBar[]> };
   return (data.bars?.[symbol] ?? []).map((b) => ({ t: b.t, c: b.c }));
+}
+
+/**
+ * Detail chart bars. Alpaca returns bars ascending *from* `start`, so we pull the most
+ * recent ones with `sort=desc` then reverse to chronological order.
+ * - Intraday: last ~100 5-min bars within a 5-day window (spans the most recent session,
+ *   even across a weekend). Empty once the market's been closed long enough / illiquid symbol →
+ * - Daily fallback: ~2 months of daily closes so a closed market still shows a line.
+ */
+async function fetchDetailBars(
+  symbol: string,
+): Promise<{ bars: StockBar[]; range: 'intraday' | 'daily' }> {
+  const intraday = await fetchBarSeries(symbol, '5Min', daysAgoIso(5), 100, 'desc');
+  if (intraday.length > 0) return { bars: intraday.reverse(), range: 'intraday' };
+  const daily = await fetchBarSeries(symbol, '1Day', daysAgoIso(60), 60, 'asc');
+  return { bars: daily, range: 'daily' };
 }
 
 async function fetchSymbolNews(symbol: string): Promise<StockNewsItem[]> {
@@ -190,8 +218,8 @@ export const stocksRoutes: FastifyPluginAsync = async (fastify) => {
       if (cached && Date.now() - cached.at < DETAIL_TTL) return reply.send(cached.data);
 
       try {
-        const [bars, news] = await Promise.all([fetchIntradayBars(symbol), fetchSymbolNews(symbol)]);
-        const data: StockDetail = { ticker: symbol, bars, news };
+        const [detail, news] = await Promise.all([fetchDetailBars(symbol), fetchSymbolNews(symbol)]);
+        const data: StockDetail = { ticker: symbol, bars: detail.bars, news, range: detail.range };
         detailCache.set(symbol, { data, at: Date.now() });
         return reply.send(data);
       } catch (err) {

@@ -104,11 +104,13 @@ function StockDetailPanel({ ticker, onClose }: { ticker: string; onClose: () => 
   const { data, isLoading, isError } = useStockDetail(ticker);
   const bars = data?.bars ?? [];
   const news = data?.news ?? [];
+  const range = data?.range ?? 'intraday';
   const first = bars[0]?.c ?? 0;
   const last = bars[bars.length - 1]?.c ?? 0;
   const up = last >= first;
   const color = up ? '#34d399' : '#f87171'; // emerald-400 / red-400
   const gradId = `stk-${ticker}`;
+  const rangeLabel = range === 'daily' ? 'Daily · ~2mo' : 'Intraday';
 
   return (
     <div className="absolute inset-0 z-10 bg-th-surface rounded-lg flex flex-col">
@@ -118,9 +120,12 @@ function StockDetailPanel({ ticker, onClose }: { ticker: string; onClose: () => 
         </button>
         <span className="font-mono font-bold text-th-hi text-sm">{ticker}</span>
         {bars.length > 0 && (
-          <span className={`ml-auto font-mono text-xs tabular-nums ${up ? 'text-emerald-400' : 'text-red-400'}`}>
-            {fmtPrice(last)}
-          </span>
+          <>
+            <span className="text-th-ghost text-[10px] uppercase tracking-wider">{rangeLabel}</span>
+            <span className={`ml-auto font-mono text-xs tabular-nums ${up ? 'text-emerald-400' : 'text-red-400'}`}>
+              {fmtPrice(last)}
+            </span>
+          </>
         )}
       </div>
 
@@ -132,7 +137,7 @@ function StockDetailPanel({ ticker, onClose }: { ticker: string; onClose: () => 
           ) : isError ? (
             <div className="h-full flex items-center justify-center text-red-400 text-xs">Failed to load</div>
           ) : bars.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-th-ghost text-xs">No intraday data</div>
+            <div className="h-full flex items-center justify-center text-th-ghost text-xs">No chart data available</div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={bars} margin={{ top: 4, right: 2, bottom: 0, left: 2 }}>
@@ -147,7 +152,11 @@ function StockDetailPanel({ ticker, onClose }: { ticker: string; onClose: () => 
                   isAnimationActive={false}
                   cursor={{ stroke: 'rgb(var(--t-ghost))', strokeWidth: 1 }}
                   contentStyle={{ background: 'rgb(var(--t-elevated))', border: '1px solid rgb(var(--t-line))', borderRadius: 6, fontSize: 11 }}
-                  labelFormatter={(t: string) => new Date(t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                  labelFormatter={(t: string) =>
+                    range === 'daily'
+                      ? new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                      : new Date(t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+                  }
                   formatter={(v: number) => [fmtPrice(v), 'Price']}
                 />
                 <Area type="monotone" dataKey="c" stroke={color} strokeWidth={1.5} fill={`url(#${gradId})`} isAnimationActive={false} />
