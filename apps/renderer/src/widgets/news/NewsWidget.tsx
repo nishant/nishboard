@@ -65,11 +65,17 @@ export function NewsWidget() {
         >
           <ChevronLeft size={14} />
         </button>
-        <div className="flex gap-1">
-          {items.slice(0, 8).map((_, i) => (
-            <span key={i} className={cn('w-1 h-1 rounded-full transition-colors', i === safeIdx % 8 ? 'bg-th-2' : 'bg-th-overlay')} />
-          ))}
-        </div>
+        {/* With >8 items dots can't map 1:1, so show a position counter instead
+            of a modulo-highlighted dot that lies about which item is active. */}
+        {items.length <= 8 ? (
+          <div className="flex gap-1">
+            {items.map((_, i) => (
+              <span key={i} className={cn('w-1 h-1 rounded-full transition-colors', i === safeIdx ? 'bg-th-2' : 'bg-th-overlay')} />
+            ))}
+          </div>
+        ) : (
+          <span className="text-th-ghost text-[10px] tabular-nums">{safeIdx + 1}/{items.length}</span>
+        )}
         <button
           onClick={() => setIdx((i) => (i + 1) % items.length)}
           className="p-1 rounded text-th-ghost hover:text-th-2 hover:bg-th-elevated/60 transition"

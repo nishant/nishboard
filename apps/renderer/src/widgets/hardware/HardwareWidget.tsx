@@ -357,9 +357,16 @@ function ConfigPanel({
       <div className="grid grid-cols-2 gap-x-4 gap-y-2">
         {sections.map((section) => (
           <label key={section} className="flex items-center gap-2 cursor-pointer group">
+            {/* Real checkbox (visually hidden) so the toggle is keyboard-focusable
+                and screen-reader announceable; the styled div is just its face. */}
+            <input
+              type="checkbox"
+              checked={visible[section]}
+              onChange={(e) => setVisible(section, e.target.checked)}
+              className="sr-only peer"
+            />
             <div
-              onClick={() => setVisible(section, !visible[section])}
-              className={`w-4 h-4 rounded border flex items-center justify-center transition-colors cursor-pointer ${
+              className={`w-4 h-4 rounded border flex items-center justify-center transition-colors cursor-pointer peer-focus-visible:ring-2 peer-focus-visible:ring-th-accent ${
                 visible[section]
                   ? 'bg-th-hi border-th-hi'
                   : 'bg-transparent border-th-ghost group-hover:border-th-3'
@@ -371,10 +378,7 @@ function ConfigPanel({
                 </svg>
               )}
             </div>
-            <span
-              onClick={() => setVisible(section, !visible[section])}
-              className="text-xs text-th-2 select-none"
-            >
+            <span className="text-xs text-th-2 select-none">
               {SECTION_LABELS[section]}
             </span>
           </label>

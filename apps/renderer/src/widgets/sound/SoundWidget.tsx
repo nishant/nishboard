@@ -137,9 +137,10 @@ export function SoundWidget() {
             {muted ? 'muted' : `${vol}%`}
           </span>
         </div>
+        {/* Stays enabled while muted — pre-setting the level before unmuting is
+            the natural gesture; forcing unmute-first was a papercut. */}
         <VolumeSlider
           value={vol}
-          disabled={muted}
           onChange={(v) => setVolume.mutate(v)}
         />
       </div>
