@@ -1,5 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { WeatherData, WeatherAlert } from '@dash/shared';
+import { fetchJson, HttpError } from '../lib/http';
+import { TtlCache } from '../lib/TtlCache';
 
 const TTL_MS = 15 * 60 * 1000;
 const GEO_TTL_MS = 60 * 60 * 1000;
@@ -16,12 +18,12 @@ async function getGeoFromIp(): Promise<Geo> {
   try {
     // ip-api.com: free, no key, 45 req/min — more than enough (we cache for an hour).
     // Request `status`/`message` so we catch the 200-but-failed case (e.g. reserved/private IP).
-    const res = await fetch('http://ip-api.com/json/?fields=status,message,lat,lon,timezone,city,regionName');
-    if (!res.ok) throw new Error(`ip-api error ${res.status}`);
-    const j = await res.json() as {
+    const j = await fetchJson<{
       status: string; message?: string;
       lat: number; lon: number; timezone: string; city: string; regionName: string;
-    };
+    }>('http://ip-api.com/json/?fields=status,message,lat,lon,timezone,city,regionName', undefined, {
+      label: 'ip-api',
+    });
     if (j.status !== 'success' || typeof j.lat !== 'number') {
       throw new Error(`ip-api: ${j.message ?? 'geolocation failed'}`);
     }
@@ -36,16 +38,17 @@ async function getGeoFromIp(): Promise<Geo> {
 }
 
 // ZIP → lat/lon via zippopotam.us (free, no key). Cached per-ZIP.
-const zipGeoCache = new Map<string, { data: Geo; at: number }>();
+const zipGeoCache = new TtlCache<string, Geo>(GEO_TTL_MS);
 
 async function getGeoFromZip(zip: string): Promise<Geo> {
   const cached = zipGeoCache.get(zip);
-  if (cached && Date.now() - cached.at < GEO_TTL_MS) return cached.data;
-  const res = await fetch(`https://api.zippopotam.us/us/${zip}`);
-  if (!res.ok) throw new Error(`Unknown ZIP code "${zip}"`);
-  const j = await res.json() as {
-    places?: { 'place name': string; 'state abbreviation': string; latitude: string; longitude: string }[];
-  };
+  if (cached) return cached;
+  let j: { places?: { 'place name': string; 'state abbreviation': string; latitude: string; longitude: string }[] };
+  try {
+    j = await fetchJson(`https://api.zippopotam.us/us/${zip}`, undefined, { label: 'zippopotam' });
+  } catch {
+    throw new Error(`Unknown ZIP code "${zip}"`);
+  }
   const p = j.places?.[0];
   if (!p) throw new Error(`Unknown ZIP code "${zip}"`);
   const data: Geo = {
@@ -56,13 +59,13 @@ async function getGeoFromZip(zip: string): Promise<Geo> {
     name: p['place name'],
     region: p['state abbreviation'],
   };
-  zipGeoCache.set(zip, { data, at: Date.now() });
+  zipGeoCache.set(zip, data);
   return data;
 }
 
 // ── Weather fetch ─────────────────────────────────────────────────────────────
 
-const weatherCache = new Map<string, { data: WeatherData; at: number }>();
+const weatherCache = new TtlCache<string, WeatherData>(TTL_MS);
 
 function buildUrl(lat: number, lon: number, timezone: string): string {
   const url = new URL('https://api.open-meteo.com/v1/forecast');
@@ -86,10 +89,7 @@ function buildUrl(lat: number, lon: number, timezone: string): string {
 }
 
 async function fetchWeather(geo: Geo): Promise<WeatherData> {
-  const res = await fetch(buildUrl(geo.lat, geo.lon, geo.timezone));
-  if (!res.ok) throw new Error(`Open-Meteo error ${res.status}`);
-
-  const raw = await res.json() as {
+  const raw = await fetchJson<{
     current: {
       time: string;
       temperature_2m: number;
@@ -113,7 +113,7 @@ async function fetchWeather(geo: Geo): Promise<WeatherData> {
       temperature_2m_min: number[];
       precipitation_probability_max: number[];
     };
-  };
+  }>(buildUrl(geo.lat, geo.lon, geo.timezone), undefined, { label: 'Open-Meteo' });
 
   const nowHour = raw.current.time.slice(0, 13);
   const hourIdx = raw.hourly.time.findIndex((t) => t.startsWith(nowHour));
@@ -151,14 +151,13 @@ async function fetchWeather(geo: Geo): Promise<WeatherData> {
 // NWS active alerts for a point — keyless, US only. Returns [] on any failure / non-US.
 async function fetchAlerts(lat: number, lon: number): Promise<WeatherAlert[]> {
   try {
-    const res = await fetch(
+    const j = await fetchJson<{
+      features?: { properties: { event: string; severity: string; headline: string } }[];
+    }>(
       `https://api.weather.gov/alerts/active?point=${lat.toFixed(4)},${lon.toFixed(4)}`,
       { headers: { 'User-Agent': '(Nishboard, personal desktop dashboard)', Accept: 'application/geo+json' } },
+      { label: 'NWS alerts' },
     );
-    if (!res.ok) return [];
-    const j = (await res.json()) as {
-      features?: { properties: { event: string; severity: string; headline: string } }[];
-    };
     return (j.features ?? []).slice(0, 5).map((f) => ({
       event: f.properties.event,
       severity: f.properties.severity,
@@ -180,7 +179,7 @@ export const weatherRoutes: FastifyPluginAsync = async (fastify) => {
       const key = zip || 'auto';
 
       const cached = weatherCache.get(key);
-      if (cached && Date.now() - cached.at < TTL_MS) return reply.send(cached.data);
+      if (cached) return reply.send(cached);
 
       // 1) Resolve a location. Distinguish geolocation failures (422 — the user can act on
       //    them) from downstream forecast failures (502 — transient upstream).
@@ -190,25 +189,24 @@ export const weatherRoutes: FastifyPluginAsync = async (fastify) => {
       } catch (err) {
         if (zip) {
           // A ZIP was provided but couldn't be geocoded → surface "Unknown ZIP …".
-          return reply.code(422).send({
-            error: err instanceof Error ? err.message : `Unknown ZIP code "${zip}".`,
-          });
+          throw new HttpError(422, err instanceof Error ? err.message : `Unknown ZIP code "${zip}".`);
         }
         // Auto (IP) geolocation failed and no ZIP is set → guide the user to set one.
         // The ZIP path uses a different provider (zippopotam.us, HTTPS), so it bypasses this.
-        return reply.code(422).send({
-          error: "Couldn't detect your location automatically. Add a ZIP code in Settings → App.",
-        });
+        throw new HttpError(
+          422,
+          "Couldn't detect your location automatically. Add a ZIP code in Settings → App.",
+        );
       }
 
       // 2) Fetch the forecast (+ alerts) for the resolved location.
       try {
         const [data, alerts] = await Promise.all([fetchWeather(geo), fetchAlerts(geo.lat, geo.lon)]);
         data.alerts = alerts;
-        weatherCache.set(key, { data, at: Date.now() });
+        weatherCache.set(key, data);
         return reply.send(data);
       } catch {
-        return reply.code(502).send({ error: 'Weather service is unavailable, try again shortly.' });
+        throw new HttpError(502, 'Weather service is unavailable, try again shortly.');
       }
     },
   );

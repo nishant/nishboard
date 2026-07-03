@@ -1,5 +1,8 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { StocksData, StockQuote, StockDetail, StockBar, StockNewsItem } from '@dash/shared';
+import { fetchJson, HttpError } from '../lib/http';
+import { TtlCache } from '../lib/TtlCache';
+import { cred } from '../lib/env';
 
 const DEFAULT_SYMBOLS = ['SPY', 'QQQ', 'AAPL', 'MSFT', 'NVDA', 'TSLA', 'GOOGL', 'AMZN'];
 
@@ -9,8 +12,8 @@ function baseUrl(): string {
 
 function authHeaders(): Record<string, string> {
   return {
-    'APCA-API-KEY-ID': process.env['ALPACA_API_KEY'] || process.env['ALPACA_API_KEY_BUILTIN'] || '',
-    'APCA-API-SECRET-KEY': process.env['ALPACA_API_SECRET'] || process.env['ALPACA_API_SECRET_BUILTIN'] || '',
+    'APCA-API-KEY-ID': cred('ALPACA_API_KEY'),
+    'APCA-API-SECRET-KEY': cred('ALPACA_API_SECRET'),
   };
 }
 
@@ -59,28 +62,31 @@ function isMarketOpen(): boolean {
 
 async function fetchSnapshots(symbols: string[]): Promise<Map<string, AlpacaSnapshot>> {
   const url = `${baseUrl()}/stocks/snapshots?symbols=${symbols.join(',')}&feed=iex`;
-  const res = await fetch(url, { headers: authHeaders() });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Alpaca snapshots ${res.status}: ${body}`);
-  }
-  const data = (await res.json()) as Record<string, AlpacaSnapshot>;
+  const data = await fetchJson<Record<string, AlpacaSnapshot>>(
+    url,
+    { headers: authHeaders() },
+    { label: 'Alpaca snapshots' },
+  );
   return new Map(Object.entries(data));
 }
 
 async function fetchBars(symbols: string[]): Promise<Map<string, number[]>> {
   const url = `${baseUrl()}/stocks/bars?symbols=${symbols.join(',')}&timeframe=5Min&limit=60&feed=iex`;
-  const res = await fetch(url, { headers: authHeaders() });
-  if (!res.ok) {
+  try {
+    const data = await fetchJson<{ bars: Record<string, AlpacaBar[]> }>(
+      url,
+      { headers: authHeaders() },
+      { label: 'Alpaca bars' },
+    );
+    const result = new Map<string, number[]>();
+    for (const [sym, bars] of Object.entries(data.bars ?? {})) {
+      result.set(sym, bars.map((b) => b.c));
+    }
+    return result;
+  } catch {
     // bars are non-critical; return empty map rather than failing
     return new Map();
   }
-  const data = (await res.json()) as { bars: Record<string, AlpacaBar[]> };
-  const result = new Map<string, number[]>();
-  for (const [sym, bars] of Object.entries(data.bars ?? {})) {
-    result.set(sym, bars.map((b) => b.c));
-  }
-  return result;
 }
 
 function buildData(
@@ -114,8 +120,8 @@ function buildData(
   return { equities, updatedAt: new Date().toISOString() };
 }
 
-const cache = new Map<string, { data: StocksData; expiresAt: number }>();
 const CACHE_TTL = 4 * 60 * 1000; // 4 min — slightly under renderer's 5-min poll
+const cache = new TtlCache<string, StocksData>(CACHE_TTL);
 
 function cacheKey(symbols: string[]): string {
   return [...symbols].sort().join(',');
@@ -139,10 +145,16 @@ async function fetchBarSeries(
   const url =
     `${baseUrl()}/stocks/bars?symbols=${symbol}&timeframe=${timeframe}` +
     `&start=${encodeURIComponent(start)}&limit=${limit}&sort=${sort}&feed=iex`;
-  const res = await fetch(url, { headers: authHeaders() });
-  if (!res.ok) return [];
-  const data = (await res.json()) as { bars?: Record<string, AlpacaBar[]> };
-  return (data.bars?.[symbol] ?? []).map((b) => ({ t: b.t, c: b.c }));
+  try {
+    const data = await fetchJson<{ bars?: Record<string, AlpacaBar[]> }>(
+      url,
+      { headers: authHeaders() },
+      { label: 'Alpaca bars' },
+    );
+    return (data.bars?.[symbol] ?? []).map((b) => ({ t: b.t, c: b.c }));
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -164,19 +176,25 @@ async function fetchDetailBars(
 async function fetchSymbolNews(symbol: string): Promise<StockNewsItem[]> {
   // Alpaca News API (Benzinga) — v1beta1, same auth headers.
   const url = `https://data.alpaca.markets/v1beta1/news?symbols=${symbol}&limit=10&sort=desc`;
-  const res = await fetch(url, { headers: authHeaders() });
-  if (!res.ok) return [];
-  const data = (await res.json()) as { news?: AlpacaNewsItem[] };
-  return (data.news ?? []).map((n) => ({
-    headline: n.headline,
-    url: n.url,
-    source: n.source,
-    createdAt: n.created_at,
-  }));
+  try {
+    const data = await fetchJson<{ news?: AlpacaNewsItem[] }>(
+      url,
+      { headers: authHeaders() },
+      { label: 'Alpaca news' },
+    );
+    return (data.news ?? []).map((n) => ({
+      headline: n.headline,
+      url: n.url,
+      source: n.source,
+      createdAt: n.created_at,
+    }));
+  } catch {
+    return [];
+  }
 }
 
-const detailCache = new Map<string, { data: StockDetail; at: number }>();
 const DETAIL_TTL = 2 * 60 * 1000;
+const detailCache = new TtlCache<string, StockDetail>(DETAIL_TTL);
 
 export const stocksRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{
@@ -190,41 +208,31 @@ export const stocksRoutes: FastifyPluginAsync = async (fastify) => {
       .filter(Boolean)
       .slice(0, 50);
 
-    if (symbols.length === 0) return reply.code(400).send({ error: 'No symbols provided' });
+    if (symbols.length === 0) throw new HttpError(400, 'No symbols provided');
 
     const key = cacheKey(symbols);
     const cached = cache.get(key);
-    if (cached && Date.now() < cached.expiresAt) return reply.send(cached.data);
+    if (cached) return reply.send(cached);
 
-    try {
-      const [snapshots, bars] = await Promise.all([fetchSnapshots(symbols), fetchBars(symbols)]);
-      const data = buildData(symbols, snapshots, bars);
-      cache.set(key, { data, expiresAt: Date.now() + CACHE_TTL });
-      return reply.send(data);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      fastify.log.error(`[stocks] ${msg}`);
-      return reply.code(502).send({ error: msg });
-    }
+    const [snapshots, bars] = await Promise.all([fetchSnapshots(symbols), fetchBars(symbols)]);
+    const data = buildData(symbols, snapshots, bars);
+    cache.set(key, data);
+    return reply.send(data);
   });
 
   fastify.get<{ Querystring: { symbol?: string }; Reply: StockDetail | { error: string } }>(
     '/detail',
     async (req, reply) => {
       const symbol = (req.query.symbol ?? '').trim().toUpperCase();
-      if (!/^[A-Z.]{1,10}$/.test(symbol)) return reply.code(400).send({ error: 'Invalid symbol' });
+      if (!/^[A-Z.]{1,10}$/.test(symbol)) throw new HttpError(400, 'Invalid symbol');
 
       const cached = detailCache.get(symbol);
-      if (cached && Date.now() - cached.at < DETAIL_TTL) return reply.send(cached.data);
+      if (cached) return reply.send(cached);
 
-      try {
-        const [detail, news] = await Promise.all([fetchDetailBars(symbol), fetchSymbolNews(symbol)]);
-        const data: StockDetail = { ticker: symbol, bars: detail.bars, news, range: detail.range };
-        detailCache.set(symbol, { data, at: Date.now() });
-        return reply.send(data);
-      } catch (err) {
-        return reply.code(502).send({ error: err instanceof Error ? err.message : 'Detail lookup failed' });
-      }
+      const [detail, news] = await Promise.all([fetchDetailBars(symbol), fetchSymbolNews(symbol)]);
+      const data: StockDetail = { ticker: symbol, bars: detail.bars, news, range: detail.range };
+      detailCache.set(symbol, data);
+      return reply.send(data);
     },
   );
 };

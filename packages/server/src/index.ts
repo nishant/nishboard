@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import type { FastifyError } from 'fastify';
 import cors from '@fastify/cors';
 import { config } from 'dotenv';
 import { resolve } from 'path';
@@ -11,6 +12,7 @@ import { soundRoutes } from './routes/sound';
 import { youtubeRoutes } from './routes/youtube';
 import { twitchRoutes } from './routes/twitch';
 import { newsRoutes } from './routes/news';
+import { HttpError, UpstreamError } from './lib/http';
 
 // CWD is packages/server when run via Turborepo — walk up to monorepo root
 config({ path: resolve(__dirname, '../../../.env') });
@@ -19,8 +21,35 @@ const server = Fastify({ logger: { level: 'info' } });
 
 const port = Number(process.env.SERVER_PORT ?? 7432);
 
+// Upstream statuses worth passing through — they tell the user something
+// actionable (bad key, dev-mode allowlist, missing resource, rate limit).
+// Anything else from an upstream is our 502.
+const PASSTHROUGH_STATUSES = [401, 403, 404, 429];
+
 async function start(): Promise<void> {
-  await server.register(cors, { origin: ['http://localhost:5173', 'file://'] });
+  // 'file://' is what Electron sends as the Origin from file:// pages today;
+  // 'null' is what stock Chromium serializes — allow both so an Electron
+  // upgrade can't silently break every packaged-app fetch.
+  await server.register(cors, { origin: ['http://localhost:5173', 'file://', 'null'] });
+
+  // Central error handler — routes throw HttpError/UpstreamError (or let
+  // fetchJson throw) instead of repeating try/catch → reply.code().send().
+  server.setErrorHandler((err: FastifyError, req, reply) => {
+    if (err instanceof HttpError) {
+      return reply.code(err.statusCode).send({ error: err.message });
+    }
+    if (err instanceof UpstreamError) {
+      req.log.error(`[${req.routeOptions.url}] ${err.message}`);
+      const status = PASSTHROUGH_STATUSES.includes(err.status) ? err.status : 502;
+      return reply.code(status).send({ error: err.message });
+    }
+    // Fastify schema-validation errors (and other client errors) keep their status.
+    if (err.statusCode && err.statusCode < 500) {
+      return reply.code(err.statusCode).send({ error: err.message });
+    }
+    req.log.error(err);
+    return reply.code(502).send({ error: err.message });
+  });
 
   server.register(weatherRoutes, { prefix: '/api/weather' });
   server.register(spotifyRoutes, { prefix: '/api/spotify' });

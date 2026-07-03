@@ -1,10 +1,11 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { YoutubeVideo, YoutubeSearchPage } from '@dash/shared';
+import { fetchJson, HttpError } from '../lib/http';
+import { cred } from '../lib/env';
 
 const BASE = 'https://www.googleapis.com/youtube/v3';
 
 export const youtubeRoutes: FastifyPluginAsync = async (fastify) => {
-  const apiKey = process.env.YOUTUBE_API_KEY || process.env.YOUTUBE_API_KEY_BUILTIN;
 
   // GET /api/youtube/embed?videoId=...
   // Serves a minimal HTML page embedding the YouTube player. The parent origin
@@ -33,12 +34,11 @@ export const youtubeRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{
     Querystring: { q: string; pageToken?: string };
   }>('/search', async (req, reply) => {
-    if (!apiKey) {
-      return reply.status(503).send({ error: 'YOUTUBE_API_KEY not configured' });
-    }
+    const apiKey = cred('YOUTUBE_API_KEY');
+    if (!apiKey) throw new HttpError(503, 'YOUTUBE_API_KEY not configured');
 
     const { q, pageToken } = req.query;
-    if (!q?.trim()) return reply.status(400).send({ error: 'q is required' });
+    if (!q?.trim()) throw new HttpError(400, 'q is required');
 
     const url = new URL(`${BASE}/search`);
     url.searchParams.set('part', 'snippet');
@@ -49,16 +49,9 @@ export const youtubeRoutes: FastifyPluginAsync = async (fastify) => {
     url.searchParams.set('key', apiKey);
     if (pageToken) url.searchParams.set('pageToken', pageToken);
 
-    const res = await fetch(url.toString());
-    if (!res.ok) {
-      const body = await res.text();
-      req.log.error({ status: res.status, body }, 'YouTube API error');
-      return reply.status(502).send({ error: 'YouTube API error' });
-    }
-
-    const data = await res.json() as {
+    const data = await fetchJson<{
       nextPageToken?: string;
-      items: Array<{
+      items?: Array<{
         id: { videoId: string };
         snippet: {
           title: string;
@@ -67,11 +60,11 @@ export const youtubeRoutes: FastifyPluginAsync = async (fastify) => {
           publishedAt: string;
         };
       }>;
-    };
+    }>(url.toString(), undefined, { label: 'YouTube API' });
 
     const page: YoutubeSearchPage = {
       nextPageToken: data.nextPageToken ?? null,
-      items: data.items.map((item): YoutubeVideo => ({
+      items: (data.items ?? []).map((item): YoutubeVideo => ({
         videoId: item.id.videoId,
         title: decodeHTMLEntities(item.snippet.title),
         channelTitle: item.snippet.channelTitle,

@@ -1,8 +1,10 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { NewsData, NewsItem } from '@dash/shared';
+import { fetchText } from '../lib/http';
+import { TtlCache } from '../lib/TtlCache';
 
 const TTL_MS = 10 * 60 * 1000;
-const cache = new Map<string, { data: NewsData; at: number }>();
+const cache = new TtlCache<string, NewsData>(TTL_MS);
 
 // Safe codepoint → string: fromCodePoint handles astral chars (emoji) that
 // fromCharCode mangles, but throws on out-of-range values — drop those.
@@ -72,7 +74,7 @@ export const newsRoutes: FastifyPluginAsync = async (fastify) => {
       const key = topic || 'top';
 
       const cached = cache.get(key);
-      if (cached && Date.now() - cached.at < TTL_MS) return reply.send(cached.data);
+      if (cached) return reply.send(cached);
 
       // Google News RSS — keyless. Top headlines, or a topic search.
       const base = 'https://news.google.com/rss';
@@ -80,16 +82,14 @@ export const newsRoutes: FastifyPluginAsync = async (fastify) => {
         ? `${base}/search?q=${encodeURIComponent(topic)}&hl=en-US&gl=US&ceid=US:en`
         : `${base}?hl=en-US&gl=US&ceid=US:en`;
 
-      try {
-        const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 Nishboard' } });
-        if (!res.ok) throw new Error(`Google News ${res.status}`);
-        const xml = await res.text();
-        const data: NewsData = { items: parseRss(xml), fetchedAt: new Date().toISOString() };
-        cache.set(key, { data, at: Date.now() });
-        return reply.send(data);
-      } catch (err) {
-        return reply.code(502).send({ error: err instanceof Error ? err.message : 'News fetch failed' });
-      }
+      const xml = await fetchText(
+        url,
+        { headers: { 'User-Agent': 'Mozilla/5.0 Nishboard' } },
+        { label: 'Google News' },
+      );
+      const data: NewsData = { items: parseRss(xml), fetchedAt: new Date().toISOString() };
+      cache.set(key, data);
+      return reply.send(data);
     },
   );
 };
