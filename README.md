@@ -141,7 +141,7 @@ Four workspaces, each with a single responsibility:
 
 ```bash
 git clone <repo-url>
-cd desktop-dashboard
+cd nishboard
 pnpm install
 
 cp .env.example .env      # then fill in your API keys (see Configuration)
@@ -247,7 +247,7 @@ Artifacts land in `release/`. Both targets are **unsigned** (no code-signing cer
 ## 📁 Project Structure
 
 ```
-desktop-dashboard/
+nishboard/
 ├── apps/
 │   ├── main/              # Electron main: BrowserWindow, preload, IPC, server spawn
 │   │   └── src/

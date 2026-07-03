@@ -4,12 +4,12 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
-## [PR #62] fix: audit batch — security/stability hardening, behavior bugs, dedup refactors
+## [PR #62] fix: audit batch — hardening, behavior bugs, dedup refactors, perf, docs
 **Branch:** `claude/checkout-latest-master-lyq32p` → master
 **Date:** 2026-07-03
 
 ### Context
-Waves 1–3 of the full-app audit: two command-injection holes and an XSS in the server, Electron lifecycle gaps, four renderer behavior bugs, then the systematic copy-paste cleanup (server route plumbing, renderer hooks, YouTube/Twitch unification, Titlebar extraction). Remaining waves (perf hot paths, server resource usage, docs refresh) are tracked in the audit plan.
+Waves 1–5 of the full-app audit: two command-injection holes and an XSS in the server, Electron lifecycle gaps, four renderer behavior bugs, the systematic copy-paste cleanup (server route plumbing, renderer hooks, YouTube/Twitch unification, Titlebar extraction), perf hot paths, server resource usage, UX polish, and the docs drift. Still open (decision-gated): stocks poll cadence, credentials write-only UI, Spotify redirect-URI host, ESLint adoption.
 
 ### Fixed
 - **mac command injection in `POST /api/sound/device`** — `SwitchAudioSource`/`osascript` ran through a shell with only `"` escaped, so a crafted `deviceId` (`$(…)`, backticks) executed arbitrary commands. All mac sound calls now use `execFile` (no shell); the PowerShell runner also invokes via `execFile`.
@@ -35,8 +35,22 @@ Waves 1–3 of the full-app audit: two command-injection holes and an XSS in the
 - **YouTube/Twitch unified** — both widgets were ~90% identical; a generic `widgets/embed/EmbedSearchWidget` owns the state machine/search/iframe-kept-mounted logic and each service is now a small adapter. Search-error copy now points at Settings → Developer instead of `.env` (which doesn't exist in packaged builds).
 - **Titlebar extracted** — the 1053-line component split into `components/menus/` (ThemeMenu, LayoutsMenu, WidgetsMenu, PinnedLayouts + shared primitives: `WidgetPinList`, `SaveAsForm`, `SavedItemRow`, `ConfirmDeleteDialog`); the duplicated delete modals and editor footers are now single implementations. Titlebar itself is ~120 lines. No behavior change.
 
+### Added
+- **Minimize button** in the titlebar (the IPC existed unused); **`credentials:encryption-available` IPC** — Settings shows an explicit "stored unencrypted" warning when safeStorage has no OS keychain instead of falsely claiming keychain encryption.
+- **YouTube server-side quota budget** — 90 searches/day (429 with a clear message past that) + a 10-min server response cache; a stuck client can no longer burn the ~100/day quota.
+
+### Perf
+- **ThemeManager null-component** — theme/scale changes (incl. live color-picker drags) no longer re-render the whole widget tree; `data-theme` + custom vars move to `<html>`.
+- **WorldClock** 1s tick isolated to the clock list; **Hardware** cards memoized + history snapshots copy-on-write (fixes the stale-array-identity trap); config/view toggles stop redrawing all six Recharts charts.
+- **Server hardware route** — fsSize cached 60s, battery 30s, graphics 10s on macOS only (Windows keeps 1s for live nvidia-smi GPU util).
+- **Bundle** — vite `manualChunks` splits recharts/react-grid-layout/vendor (app chunk 973kB → 288kB); sourcemaps `'hidden'` (no 4MB map referenced from the packaged bundle). Root `engines: node >=20`.
+- Deliberately skipped: blanket narrow-Zustand-selector conversion — the flagged widgets consume every field of their small stores; per-field selectors would be churn with no re-render benefit.
+
 ### Notes
 - `winSwitchDevice`'s `''`-escaping was audited and is safe (single-quoted inside a `-File` script, never through cmd.exe) — now documented in-code.
+- Settings polish: credential save now shows "Restarting server…" and invalidates all queries once the server is back (widgets used to sit in error until their next poll); import errors are inline (no `window.alert`); backup import validates `app`/`version` and only restores known/`dashboard-*` keys.
+- `window.electron` is now typed optional (it is, outside Electron); hardware config toggles are real keyboard-focusable checkboxes; sound master slider stays usable while muted; news dot indicator replaced by an n/total counter past 8 items; `index.html` title → Nishboard.
+- Docs: PROJECT_INSTRUCTIONS.md replaced with a pointer to CLAUDE.md (all four of its architecture claims had drifted); SPEC.md fixed (Spotify tokens are plain JSON at `~/.dash/`, IPC table completed, env list completed); README rename leftovers.
 - Verify on Windows: single-instance focus behavior and the sound mixer after the `execFile` switch. Verify on macOS: window close → Dock reopen keeps widgets alive.
 
 ---
