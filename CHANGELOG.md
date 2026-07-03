@@ -4,6 +4,38 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #62] fix: security & stability hardening + behavior-bug batch
+**Branch:** `claude/checkout-latest-master-lyq32p` → master
+**Date:** 2026-07-03
+
+### Context
+First implementation batch (waves 1–2) from the full-app audit: two command-injection holes and an XSS in the server, Electron lifecycle gaps, and four renderer behavior bugs. Later waves (dedup/abstraction refactors, perf, docs refresh) are tracked in the audit plan.
+
+### Fixed
+- **mac command injection in `POST /api/sound/device`** — `SwitchAudioSource`/`osascript` ran through a shell with only `"` escaped, so a crafted `deviceId` (`$(…)`, backticks) executed arbitrary commands. All mac sound calls now use `execFile` (no shell); the PowerShell runner also invokes via `execFile`.
+- **Windows PowerShell injection in `POST /api/sound/sessions/volume`** — `pid` was interpolated into the generated script without validation (TS `number` is compile-time only). Now enforced by a runtime JSON schema + an integer re-check before interpolation; all four sound mutation routes gained body schemas.
+- **Spotify token-refresh race** — concurrent requests near expiry each ran their own refresh; Spotify rotates refresh tokens, so last-write-wins could persist a dead token and force a re-auth. `getValidToken()` now single-flights the refresh (all callers await the same promise).
+- **Reflected XSS on `/api/spotify/callback`** — the `error` query param and upstream error text were interpolated raw into the returned HTML (same-origin with the whole localhost API). Now HTML-escaped.
+- **Second launch killed the running app's server** — no single-instance lock meant instance 2's prod `killStaleOnPort(7432)` SIGKILLed instance 1's server. Added `requestSingleInstanceLock()`; a second launch now focuses the existing window.
+- **macOS: reopening the window left every widget dead** — `window-all-closed` stopped the server but `activate` only re-created the window. `stopServer()` moved to `before-quit` (fires on both platforms; Windows/Linux quit path unchanged).
+- **Server crash was permanent until app restart** — `spawn.ts` now auto-respawns the Fastify child on unexpected exit with 1s/2s/4s… backoff (max 5 attempts, counter resets after 60s healthy); intentional stops (quit, credential-save restart) don't trigger it.
+- **Active preset/layout highlight wiped on launch** — react-grid-layout echoes `onLayoutChange` on mount and after `applyPreset`, and `setLayout` unconditionally cleared the markers. Split into `syncLayout` (geometry only, used by `onLayoutChange`) + `markUserEdited` (called from `onDragStop`/`onResizeStop`), so the highlight survives launch and preset application and clears only on a real gesture.
+- **Alarm/countdown chime burst on relaunch** — items that elapsed while the app was closed all fired on the first tick. Both stores now settle stale items (>30s past) silently in `onRehydrateStorage` and show one aggregate notification; items <30s past still fire normally.
+- **Calendar stuck on yesterday after midnight** — `today` was computed only at render. A 60s tick now re-renders when the date changes.
+- **Alarm DST drift** — "next occurrence" added a flat +24h; now advances by wall-clock day (`setDate`), keeping the entered local time across DST transitions.
+- **Countdown accepted past datetimes** (which fired immediately) — now rejected on submit.
+
+### Changed
+- **Credential storage whitelisted** — `readCredentials`/`writeCredentials` only accept `CREDENTIAL_KEYS`, so the renderer can no longer persist arbitrary keys that get injected into the spawned server's env (`NODE_OPTIONS`, `PATH`, …).
+- **Window hardening** — `setWindowOpenHandler` denies all popups; `will-navigate` blocks navigation away from the app; `spotify:open-auth` only opens `https://accounts.spotify.com/…` URLs.
+- **DevTools shortcut** now window-scoped via `before-input-event` (Cmd+Opt+I / Ctrl+Alt+I, still available in packaged builds) instead of a system-wide `globalShortcut` that stole the combo from every app while Nishboard ran.
+
+### Notes
+- `winSwitchDevice`'s `''`-escaping was audited and is safe (single-quoted inside a `-File` script, never through cmd.exe) — now documented in-code.
+- Verify on Windows: single-instance focus behavior and the sound mixer after the `execFile` switch. Verify on macOS: window close → Dock reopen keeps widgets alive.
+
+---
+
 ## [PR #61] feat: responsive titlebar + compact-mode toggle
 **Branch:** `feat/titlebar-responsive` → `master`
 **Date:** 2026-07-03
