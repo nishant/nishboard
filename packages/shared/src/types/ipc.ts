@@ -8,7 +8,8 @@ export type IpcChannels =
   | 'spotify:open-auth'
   | 'spotify:token-store'
   | 'credentials:get-all'
-  | 'credentials:save-all';
+  | 'credentials:save-all'
+  | 'credentials:encryption-available';
 
 export interface ElectronAPI {
   /** Host OS, from the main process (`process.platform`): 'win32' | 'darwin' | 'linux' | … */
@@ -26,5 +27,8 @@ export interface ElectronAPI {
   credentials: {
     getAll: () => Promise<Partial<Record<CredentialKey, string>>>;
     saveAll: (creds: Partial<Record<CredentialKey, string>>) => Promise<void>;
+    /** False when safeStorage has no OS keychain (some Linux setups) — keys
+     *  are then stored as plaintext on disk and the UI should say so. */
+    encryptionAvailable: () => Promise<boolean>;
   };
 }

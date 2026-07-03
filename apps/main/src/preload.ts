@@ -21,6 +21,8 @@ const electronAPI: ElectronAPI = {
       >,
     saveAll: (creds: Partial<Record<CredentialKey, string>>) =>
       ipcRenderer.invoke('credentials:save-all' satisfies IpcChannels, creds) as Promise<void>,
+    encryptionAvailable: () =>
+      ipcRenderer.invoke('credentials:encryption-available' satisfies IpcChannels) as Promise<boolean>,
   },
 };
 

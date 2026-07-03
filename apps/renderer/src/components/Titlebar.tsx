@@ -103,7 +103,7 @@ export function Titlebar() {
           </button>
           <div className="w-px h-3 bg-th-line mx-1" />
           <button
-            onClick={() => window.electron.close()}
+            onClick={() => window.electron?.close()}
             className="flex items-center justify-center w-6 h-6 rounded text-th-ghost hover:text-red-400 hover:bg-th-elevated/60 transition-colors"
             title="Close"
           >

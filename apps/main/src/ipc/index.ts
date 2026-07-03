@@ -1,4 +1,4 @@
-import { app, BrowserWindow, IpcMain, Notification, shell } from 'electron';
+import { app, BrowserWindow, IpcMain, Notification, safeStorage, shell } from 'electron';
 import { readCredentials, writeCredentials } from '../credentials';
 import { restartServer } from '../server/spawn';
 import type { CredentialKey } from '@dash/shared';
@@ -37,5 +37,9 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('credentials:save-all', async (_event, creds: Partial<Record<CredentialKey, string>>) => {
     writeCredentials(creds);
     await restartServer();
+  });
+
+  ipcMain.handle('credentials:encryption-available', () => {
+    return safeStorage.isEncryptionAvailable();
   });
 }

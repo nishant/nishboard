@@ -904,7 +904,7 @@ export function SpotifyWidget() {
 
   const handleConnect = useCallback(async () => {
     const result = await authUrlQuery.refetch();
-    if (result.data?.url) window.electron.openSpotifyAuth(result.data.url);
+    if (result.data?.url) window.electron?.openSpotifyAuth(result.data.url);
   }, [authUrlQuery]);
 
   if (status.isLoading) {

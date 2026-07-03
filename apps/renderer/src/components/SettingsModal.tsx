@@ -4,6 +4,7 @@ import { CREDENTIAL_DEFS, CREDENTIAL_KEYS } from '@dash/shared';
 import type { CredentialKey } from '@dash/shared';
 import { useAppSettingsStore } from '../store/settingsStore';
 import type { Density } from '../store/settingsStore';
+import { useQueryClient } from '@tanstack/react-query';
 import { exportSettings, importSettings } from '../lib/backup';
 import { apiClient } from '../lib/apiClient';
 import { cn } from '../lib/utils';
@@ -122,6 +123,8 @@ function AppSettingsPanel() {
   } = useAppSettingsStore();
   const fileRef = useRef<HTMLInputElement | null>(null);
 
+  const [importError, setImportError] = useState<string | null>(null);
+
   async function onImportFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = ''; // allow re-importing the same filename
@@ -130,7 +133,7 @@ function AppSettingsPanel() {
       await importSettings(file);
       window.location.reload();
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : 'Import failed');
+      setImportError(err instanceof Error ? err.message : 'Import failed');
     }
   }
 
@@ -244,6 +247,9 @@ function AppSettingsPanel() {
           </button>
           <input ref={fileRef} type="file" accept="application/json,.json" onChange={onImportFile} className="hidden" />
         </div>
+        {importError && (
+          <p className="text-red-400 text-[10px] leading-relaxed">{importError}</p>
+        )}
         <p className="text-th-ghost text-[10px] leading-relaxed">
           Layout, theme &amp; preferences (not API keys). Import replaces local settings and reloads — handy for syncing two machines.
         </p>
@@ -265,19 +271,27 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   const [builtinKeys, setBuiltinKeys] = useState<string[]>([]);
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [loading, setLoading] = useState(true);
+  const [encryptionAvailable, setEncryptionAvailable] = useState(true);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (!window.electron) { setLoading(false); return; } // defensive: no bridge outside Electron
+    const electron = window.electron;
+    if (!electron) { setLoading(false); return; } // defensive: no bridge outside Electron
+    let cancelled = false; // don't setState after Escape unmounts the modal mid-load
     Promise.all([
-      window.electron.credentials.getAll(),
+      electron.credentials.getAll(),
       apiClient.get<{ keys: string[] }>('/api/credentials/builtin'),
-    ]).then(([stored, builtin]) => {
+      electron.credentials.encryptionAvailable().catch(() => true),
+    ]).then(([stored, builtin, encAvailable]) => {
+      if (cancelled) return;
       setValues((prev) => ({ ...prev, ...stored }));
       setBuiltinKeys(builtin.keys);
+      setEncryptionAvailable(encAvailable);
       setLoading(false);
     }).catch(() => {
-      setLoading(false);
+      if (!cancelled) setLoading(false);
     });
+    return () => { cancelled = true; };
   }, []);
 
   // Close on Escape
@@ -288,9 +302,14 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   }, [onClose]);
 
   async function handleSave() {
+    if (!window.electron) return;
     setSaveState('saving');
     try {
+      // Resolves only after the Fastify child has restarted with the new env.
       await window.electron.credentials.saveAll(values);
+      // Widgets were getting connection-refused during the restart — refetch
+      // everything now instead of leaving them in error until their next poll.
+      await queryClient.invalidateQueries();
       setSaveState('saved');
       setTimeout(() => setSaveState('idle'), 2000);
     } catch {
@@ -374,10 +393,20 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
               })}
 
               {/* Info note */}
-              <p className="text-th-ghost text-[10px] leading-relaxed border-t border-th-line pt-4">
+              {!encryptionAvailable && (
+                <p className="text-amber-400 text-[10px] leading-relaxed border-t border-th-line pt-4">
+                  OS keychain unavailable — keys will be stored unencrypted on this device's disk.
+                </p>
+              )}
+              <p className={cn(
+                'text-th-ghost text-[10px] leading-relaxed',
+                encryptionAvailable && 'border-t border-th-line pt-4',
+              )}>
                 Spotify uses sign-in — no key needed. Weather, Hardware, and Sound require no API keys.
                 <br />
-                Keys are encrypted with your OS keychain and never leave this device.
+                {encryptionAvailable
+                  ? 'Keys are encrypted with your OS keychain and never leave this device.'
+                  : 'Keys never leave this device.'}
               </p>
             </>
           )}
@@ -387,9 +416,12 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         {tab === 'dev' && (
           <div className="px-5 py-3 border-t border-th-line shrink-0 flex items-center justify-between">
             {saveState === 'error' && (
-              <span className="text-red-400 text-[11px]">Failed to save — check console</span>
+              <span className="text-red-400 text-[11px]">Failed to save — the server didn't restart cleanly. Try again.</span>
             )}
-            {saveState !== 'error' && <span />}
+            {saveState === 'saving' && (
+              <span className="text-th-ghost text-[11px]">Restarting server with new keys…</span>
+            )}
+            {saveState !== 'error' && saveState !== 'saving' && <span />}
 
             <button
               onClick={handleSave}
