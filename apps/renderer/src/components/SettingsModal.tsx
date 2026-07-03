@@ -5,6 +5,7 @@ import type { CredentialKey } from '@dash/shared';
 import { useAppSettingsStore } from '../store/settingsStore';
 import type { Density } from '../store/settingsStore';
 import { exportSettings, importSettings } from '../lib/backup';
+import { apiClient } from '../lib/apiClient';
 import { cn } from '../lib/utils';
 
 // Group defs by service
@@ -269,7 +270,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     if (!window.electron) { setLoading(false); return; } // defensive: no bridge outside Electron
     Promise.all([
       window.electron.credentials.getAll(),
-      fetch('http://localhost:7432/api/credentials/builtin').then((r) => r.json() as Promise<{ keys: string[] }>),
+      apiClient.get<{ keys: string[] }>('/api/credentials/builtin'),
     ]).then(([stored, builtin]) => {
       setValues((prev) => ({ ...prev, ...stored }));
       setBuiltinKeys(builtin.keys);

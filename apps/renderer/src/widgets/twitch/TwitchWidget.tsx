@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Search, X, ArrowLeft, ChevronRight } from 'lucide-react';
 import { useTwitchSearch } from './useTwitch';
+import { embedUrl } from '../../lib/apiClient';
 import type { TwitchChannel } from '@dash/shared';
 
 type View = 'home' | 'search';
@@ -213,7 +214,7 @@ export function TwitchWidget() {
         <div className="shrink-0 overflow-hidden" style={{ height: showSearch ? 0 : iframeH }}>
           <iframe
             key={selectedChannel.login}
-            src={`http://localhost:7432/api/twitch/embed?channel=${selectedChannel.login}`}
+            src={embedUrl(`/api/twitch/embed?channel=${selectedChannel.login}`)}
             className="w-full h-full"
             allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
             allowFullScreen

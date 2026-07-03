@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Search, X, ArrowLeft, ChevronRight } from 'lucide-react';
 import { useYoutubeSearch } from './useYoutube';
+import { embedUrl } from '../../lib/apiClient';
 import type { YoutubeVideo } from '@dash/shared';
 
 type View = 'home' | 'search';
@@ -178,7 +179,7 @@ export function YoutubeWidget() {
         <div className="shrink-0 overflow-hidden" style={{ height: showSearch ? 0 : iframeH }}>
           <iframe
             key={selectedVideo.videoId}
-            src={`http://localhost:7432/api/youtube/embed?videoId=${selectedVideo.videoId}`}
+            src={embedUrl(`/api/youtube/embed?videoId=${selectedVideo.videoId}`)}
             className="w-full h-full"
             allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
             allowFullScreen
