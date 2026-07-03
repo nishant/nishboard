@@ -8,6 +8,48 @@ const cache = new SimpleCache<HardwareData>();
 // 900ms TTL — renderer polls every 1s, prevents duplicate work if two requests land close together
 const TTL_MS = 900;
 
+// Slow-changing subsystems don't need re-querying every second:
+// - fsSize (disk usage) shells out per mount and moves on the order of minutes
+// - battery percent moves on the order of minutes
+// - graphics on macOS shells out to system_profiler AND reports no live GPU
+//   utilization anyway; on Windows nvidia-smi carries live utilization, so it
+//   must stay on the 1s path there
+const fsSizeCache = new SimpleCache<si.Systeminformation.FsSizeData[]>();
+// Boxed: SimpleCache uses null for "miss", and a failed battery query is a
+// legitimate cached value — without the box it would re-query every second.
+const batteryCache = new SimpleCache<{ value: si.Systeminformation.BatteryData | null }>();
+const graphicsCache = new SimpleCache<si.Systeminformation.GraphicsData>();
+const FS_SIZE_TTL = 60_000;
+const BATTERY_TTL = 30_000;
+const GRAPHICS_TTL_DARWIN = 10_000;
+
+async function getFsSize(): Promise<si.Systeminformation.FsSizeData[]> {
+  const cached = fsSizeCache.get();
+  if (cached) return cached;
+  const data = await si.fsSize().catch(() => [] as si.Systeminformation.FsSizeData[]);
+  fsSizeCache.set(data, FS_SIZE_TTL);
+  return data;
+}
+
+async function getBattery(): Promise<si.Systeminformation.BatteryData | null> {
+  const cached = batteryCache.get();
+  if (cached) return cached.value;
+  const value = await si.battery().catch(() => null);
+  batteryCache.set({ value }, BATTERY_TTL);
+  return value;
+}
+
+async function getGraphics(): Promise<si.Systeminformation.GraphicsData> {
+  if (process.platform !== 'darwin') {
+    return si.graphics().catch(() => ({ controllers: [], displays: [] }));
+  }
+  const cached = graphicsCache.get();
+  if (cached) return cached;
+  const data = await si.graphics().catch(() => ({ controllers: [], displays: [] }));
+  graphicsCache.set(data, GRAPHICS_TTL_DARWIN);
+  return data;
+}
+
 // CPU brand/core count/speed never changes at runtime — fetch once
 let staticCpu: { brand: string; cores: number; physicalCores: number; speedGhz: number } | null = null;
 async function getStaticCpu() {
@@ -77,12 +119,12 @@ async function buildHardwareData(): Promise<HardwareData> {
     getStaticCpu(),
     si.currentLoad(),
     si.cpuTemperature().catch(() => null),
-    si.graphics().catch(() => ({ controllers: [], displays: [] })),
+    getGraphics(),
     si.mem(),
     si.fsStats().catch(() => null),
-    si.fsSize().catch(() => [] as si.Systeminformation.FsSizeData[]),
+    getFsSize(),
     si.networkStats().catch(() => [] as si.Systeminformation.NetworkStatsData[]),
-    si.battery().catch(() => null),
+    getBattery(),
   ]);
 
   // ── CPU ────────────────────────────────────────────────────────────────
@@ -169,14 +211,8 @@ export const hardwareRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Reply: HardwareData | { error: string } }>('/', async (_req, reply) => {
     const cached = cache.get();
     if (cached) return reply.send(cached);
-    try {
-      const data = await buildHardwareData();
-      cache.set(data, TTL_MS);
-      return reply.send(data);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      fastify.log.error(`[hardware] ${msg}`);
-      return reply.code(502).send({ error: msg });
-    }
+    const data = await buildHardwareData();
+    cache.set(data, TTL_MS);
+    return reply.send(data);
   });
 };

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, memo } from 'react';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { Cpu, Thermometer, HardDrive, Wifi, Battery, BatteryCharging, BarChart2, Activity, Settings, Loader2 } from 'lucide-react';
 import { useHardware, type HardwareHistory } from './useHardware';
@@ -88,7 +88,7 @@ function Card({ children }: { children: React.ReactNode }) {
 
 // ── CPU card ─────────────────────────────────────────────────────────────
 
-function CpuCard({ cpu, history, view }: { cpu: HardwareData['cpu']; history: HardwareHistory; view: ViewMode }) {
+const CpuCard = memo(function CpuCard({ cpu, history, view }: { cpu: HardwareData['cpu']; history: HardwareHistory; view: ViewMode }) {
   return (
     <Card>
       <div className="flex items-center justify-between mb-1.5">
@@ -119,11 +119,11 @@ function CpuCard({ cpu, history, view }: { cpu: HardwareData['cpu']; history: Ha
       <CoreGrid coreUsage={cpu.coreUsage} />
     </Card>
   );
-}
+});
 
 // ── GPU card ─────────────────────────────────────────────────────────────
 
-function GpuCard({ gpu, history, view }: { gpu: HardwareData['gpu']; history: HardwareHistory; view: ViewMode }) {
+const GpuCard = memo(function GpuCard({ gpu, history, view }: { gpu: HardwareData['gpu']; history: HardwareHistory; view: ViewMode }) {
   if (!gpu) {
     return (
       <Card>
@@ -171,11 +171,11 @@ function GpuCard({ gpu, history, view }: { gpu: HardwareData['gpu']; history: Ha
       )}
     </Card>
   );
-}
+});
 
 // ── RAM card ──────────────────────────────────────────────────────────────
 
-function RamCard({ ram, history, view }: { ram: HardwareData['ram']; history: HardwareHistory; view: ViewMode }) {
+const RamCard = memo(function RamCard({ ram, history, view }: { ram: HardwareData['ram']; history: HardwareHistory; view: ViewMode }) {
   const usedGb = ram.usedMb / 1024;
   const totalGb = ram.totalMb / 1024;
 
@@ -206,11 +206,11 @@ function RamCard({ ram, history, view }: { ram: HardwareData['ram']; history: Ha
       )}
     </Card>
   );
-}
+});
 
 // ── Disk card ─────────────────────────────────────────────────────────────
 
-function DiskCard({ disks, diskUsage, history, view }: {
+const DiskCard = memo(function DiskCard({ disks, diskUsage, history, view }: {
   disks: HardwareData['disks'];
   diskUsage: HardwareData['diskUsage'];
   history: HardwareHistory;
@@ -253,11 +253,11 @@ function DiskCard({ disks, diskUsage, history, view }: {
       )}
     </Card>
   );
-}
+});
 
 // ── Network card ──────────────────────────────────────────────────────────
 
-function NetworkCard({ network, history, view }: {
+const NetworkCard = memo(function NetworkCard({ network, history, view }: {
   network: HardwareData['network'];
   history: HardwareHistory;
   view: ViewMode;
@@ -298,11 +298,11 @@ function NetworkCard({ network, history, view }: {
       )}
     </Card>
   );
-}
+});
 
 // ── Battery row ───────────────────────────────────────────────────────────
 
-function BatteryCard({ battery }: { battery: NonNullable<HardwareData['battery']> }) {
+const BatteryCard = memo(function BatteryCard({ battery }: { battery: NonNullable<HardwareData['battery']> }) {
   const Icon = battery.charging ? BatteryCharging : Battery;
   const pctColor = battery.percent <= 20 ? '#f87171' : battery.percent <= 40 ? '#fbbf24' : '#34d399';
   const textColor = battery.percent <= 20 ? 'text-red-400' : battery.percent <= 40 ? 'text-amber-400' : 'text-emerald-400';
@@ -320,7 +320,7 @@ function BatteryCard({ battery }: { battery: NonNullable<HardwareData['battery']
       <UsageBar pct={battery.percent} color={pctColor} />
     </Card>
   );
-}
+});
 
 // ── No-battery placeholder ────────────────────────────────────────────────
 

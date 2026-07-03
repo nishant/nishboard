@@ -5,6 +5,9 @@
   "author": "Nish",
   "private": true,
   "packageManager": "pnpm@11.3.0",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "pnpm --filter @dash/shared build && concurrently -k -n shared,server,renderer,main -c cyan,blue,green,yellow \"pnpm --filter @dash/shared dev\" \"pnpm --filter @dash/server dev\" \"pnpm --filter @dash/renderer dev\" \"pnpm --filter @dash/main dev\"",
     "build": "turbo build",

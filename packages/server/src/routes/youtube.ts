@@ -1,9 +1,33 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { YoutubeVideo, YoutubeSearchPage } from '@dash/shared';
 import { fetchJson, HttpError } from '../lib/http';
+import { TtlCache } from '../lib/TtlCache';
 import { cred } from '../lib/env';
 
 const BASE = 'https://www.googleapis.com/youtube/v3';
+
+// Each search costs 100 of the 10,000/day quota units (~100 searches/day).
+// The renderer's search-on-Enter + client cache is the first line of defense,
+// but nothing server-side stopped a stuck client or a second window from
+// burning the whole day's quota. Budget slightly under the real limit and
+// cache responses so repeat queries are free.
+const SEARCH_CACHE = new TtlCache<string, YoutubeSearchPage>(10 * 60 * 1000);
+const DAILY_SEARCH_BUDGET = 90;
+let budgetDay = '';
+let searchesToday = 0;
+
+function takeSearchBudget(): boolean {
+  // YouTube quota resets at midnight Pacific; local-date granularity is close
+  // enough for a personal budget.
+  const today = new Date().toDateString();
+  if (today !== budgetDay) {
+    budgetDay = today;
+    searchesToday = 0;
+  }
+  if (searchesToday >= DAILY_SEARCH_BUDGET) return false;
+  searchesToday += 1;
+  return true;
+}
 
 export const youtubeRoutes: FastifyPluginAsync = async (fastify) => {
 
@@ -40,6 +64,14 @@ export const youtubeRoutes: FastifyPluginAsync = async (fastify) => {
     const { q, pageToken } = req.query;
     if (!q?.trim()) throw new HttpError(400, 'q is required');
 
+    const cacheKey = `${q.trim().toLowerCase()}|${pageToken ?? ''}`;
+    const cached = SEARCH_CACHE.get(cacheKey);
+    if (cached) return reply.send(cached);
+
+    if (!takeSearchBudget()) {
+      throw new HttpError(429, 'Daily YouTube search budget reached — resets tomorrow');
+    }
+
     const url = new URL(`${BASE}/search`);
     url.searchParams.set('part', 'snippet');
     url.searchParams.set('q', q.trim());
@@ -73,6 +105,7 @@ export const youtubeRoutes: FastifyPluginAsync = async (fastify) => {
       })),
     };
 
+    SEARCH_CACHE.set(cacheKey, page);
     return reply.send(page);
   });
 };
