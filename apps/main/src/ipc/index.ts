@@ -23,7 +23,9 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   });
 
   ipcMain.on('spotify:open-auth', (_event, url: string) => {
-    shell.openExternal(url);
+    // The auth URL is always built by our own /auth-url route — anything else
+    // reaching this channel is not a legitimate Spotify OAuth flow.
+    if (url.startsWith('https://accounts.spotify.com/')) shell.openExternal(url);
   });
 
   // ── Credentials ─────────────────────────────────────────────────────────────
