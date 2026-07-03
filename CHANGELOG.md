@@ -4,12 +4,12 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
-## [PR #62] fix: security & stability hardening + behavior-bug batch
+## [PR #62] fix: audit batch — security/stability hardening, behavior bugs, dedup refactors
 **Branch:** `claude/checkout-latest-master-lyq32p` → master
 **Date:** 2026-07-03
 
 ### Context
-First implementation batch (waves 1–2) from the full-app audit: two command-injection holes and an XSS in the server, Electron lifecycle gaps, and four renderer behavior bugs. Later waves (dedup/abstraction refactors, perf, docs refresh) are tracked in the audit plan.
+Waves 1–3 of the full-app audit: two command-injection holes and an XSS in the server, Electron lifecycle gaps, four renderer behavior bugs, then the systematic copy-paste cleanup (server route plumbing, renderer hooks, YouTube/Twitch unification, Titlebar extraction). Remaining waves (perf hot paths, server resource usage, docs refresh) are tracked in the audit plan.
 
 ### Fixed
 - **mac command injection in `POST /api/sound/device`** — `SwitchAudioSource`/`osascript` ran through a shell with only `"` escaped, so a crafted `deviceId` (`$(…)`, backticks) executed arbitrary commands. All mac sound calls now use `execFile` (no shell); the PowerShell runner also invokes via `execFile`.
@@ -29,6 +29,11 @@ First implementation batch (waves 1–2) from the full-app audit: two command-in
 - **Credential storage whitelisted** — `readCredentials`/`writeCredentials` only accept `CREDENTIAL_KEYS`, so the renderer can no longer persist arbitrary keys that get injected into the spawned server's env (`NODE_OPTIONS`, `PATH`, …).
 - **Window hardening** — `setWindowOpenHandler` denies all popups; `will-navigate` blocks navigation away from the app; `spotify:open-auth` only opens `https://accounts.spotify.com/…` URLs.
 - **DevTools shortcut** now window-scoped via `before-input-event` (Cmd+Opt+I / Ctrl+Alt+I, still available in packaged builds) instead of a system-wide `globalShortcut` that stole the combo from every app while Nishboard ran.
+- **Server shared lib** (`packages/server/src/lib/`) — `HttpError`/`UpstreamError` + a central `setErrorHandler` replace ~30 per-route try/catch→502 blocks; `fetchJson`/`fetchText` add a 10s timeout to every upstream call (a hung API can no longer stall a route); `TtlCache<K,V>` replaces the four ad-hoc `Map` cache idioms; `cred()` centralizes the env-then-`_BUILTIN` fallback. All routes converted; `SpotifyApiError` folded into `UpstreamError` (informative upstream statuses 401/403/404/429 now pass through on every route, not just now-playing). Dead `ws` dependency removed.
+- **Renderer API base** — `apiClient` exports `API_BASE` (`http://127.0.0.1:7432` — matches the server's v4-only bind; Windows can resolve `localhost` to `::1`) and everything fetches through it (`useYoutube`/`useTwitch` raw-fetch copies and the SettingsModal hardcoded URL removed). Embed iframes intentionally stay on `localhost` via `embedUrl()` — Twitch's `parent=` param rejects bare IPs. CORS adds the `'null'` origin defensively.
+- **Shared renderer hooks** — `useElementSize` (callback-ref + retry-RAF + ResizeObserver, was copy-pasted 4×), `useDeferredSlider` (drag-safe polled sliders, 3×), `useDragScroll` (2×), and `lib/time` (six scattered formatters, two byte-identical). Spotify's ProgressBar keeps `onTick` in a ref so its 1s interval survives poll re-renders (stutter fix).
+- **YouTube/Twitch unified** — both widgets were ~90% identical; a generic `widgets/embed/EmbedSearchWidget` owns the state machine/search/iframe-kept-mounted logic and each service is now a small adapter. Search-error copy now points at Settings → Developer instead of `.env` (which doesn't exist in packaged builds).
+- **Titlebar extracted** — the 1053-line component split into `components/menus/` (ThemeMenu, LayoutsMenu, WidgetsMenu, PinnedLayouts + shared primitives: `WidgetPinList`, `SaveAsForm`, `SavedItemRow`, `ConfirmDeleteDialog`); the duplicated delete modals and editor footers are now single implementations. Titlebar itself is ~120 lines. No behavior change.
 
 ### Notes
 - `winSwitchDevice`'s `''`-escaping was audited and is safe (single-quoted inside a `-File` script, never through cmd.exe) — now documented in-code.
