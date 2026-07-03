@@ -4,6 +4,25 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #55] feat: News widget (Google News RSS) + open-external IPC
+**Branch:** `feat/news-widget` → `master`
+**Date:** 2026-06-30
+
+### Context
+Batch 3 (info & markets), part 1 — a keyless news-headline widget. No API key or developer app needed; the server reads Google News RSS directly.
+
+### Added
+- **News route** — `packages/server/src/routes/news.ts`: `GET /api/news?topic=` fetches Google News RSS (keyless), parses items with a small regex (title with the trailing source stripped, link, source, `pubDate` → ISO), 10-minute cache keyed by topic. Registered at `/api/news`.
+- **`NewsItem` / `NewsData`** types (`packages/shared`).
+- **News widget** — `widgets/news/NewsWidget.tsx` + `useNews`: a rotating-headline ticker (auto-advances every 6s, pauses on hover, prev/next + dots); shows source + relative time; clicking opens the article in the default browser.
+- **`openExternal` IPC** — new `app:open-external` channel → `shell.openExternal` (http(s) only), exposed as `window.electron.openExternal`. Reusable for any external link.
+- Wired via the add-widget pattern (`lib/layouts.ts` + `DashboardGrid.tsx`).
+
+### Notes
+- Google News `<link>` values are Google redirect URLs that resolve to the article on click — expected, and keyless.
+
+---
+
 ## [PR #54] feat: Timer, Alarm & Countdown widgets + notification IPC
 **Branch:** `feat/time-tools` → `master`
 **Date:** 2026-06-30

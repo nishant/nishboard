@@ -4,6 +4,7 @@ export type IpcChannels =
   | 'app:minimize'
   | 'app:close'
   | 'app:notify'
+  | 'app:open-external'
   | 'spotify:open-auth'
   | 'spotify:token-store'
   | 'credentials:get-all'
@@ -18,6 +19,8 @@ export interface ElectronAPI {
   setZoom: (factor: number) => void;
   /** Show a native desktop notification (with the OS notification sound). */
   notify: (title: string, body: string) => void;
+  /** Open an http(s) URL in the user's default browser. */
+  openExternal: (url: string) => void;
   openSpotifyAuth: (url: string) => void;
   onSpotifyTokenStored: (cb: () => void) => () => void;
   credentials: {
