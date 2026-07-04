@@ -1,5 +1,8 @@
 import { useEffect } from 'react';
-import { Droplets, Wind, Zap, Umbrella, AlertTriangle } from 'lucide-react';
+import {
+  Droplets, Wind, Zap, Umbrella, AlertTriangle,
+  Sunrise, Sunset, Radar, ChevronLeft, ChevronRight,
+} from 'lucide-react';
 import { useWeather } from './useWeather';
 import { getWeatherMeta } from './weatherCodes';
 import { WeatherIcon } from './WeatherIcon';
@@ -7,7 +10,11 @@ import { useDragScroll } from '../../hooks/useDragScroll';
 import { WidgetSkeleton } from '../../components/Skeleton';
 import { ErrorState } from '../../components/ErrorState';
 import { RefreshAction } from '../../components/RefreshAction';
+import { HeaderAction } from '../../components/HeaderAction';
 import { useAppSettingsStore } from '../../store/settingsStore';
+import { useWeatherUiStore } from '../../store/weatherUiStore';
+import { apiUrl } from '../../lib/apiClient';
+import { hourFormat } from '../../lib/time';
 import { cn } from '../../lib/utils';
 
 function formatHour(isoTime: string, clock24h: boolean): string {
@@ -24,9 +31,39 @@ function formatDay(dateStr: string): string {
   return date.toLocaleDateString('en-US', { weekday: 'short' });
 }
 
+/** Open-Meteo returns local wall-time ISO strings ("2026-07-04T05:42") —
+ *  parse + format both happen in machine-local time, so the digits pass through. */
+function formatSun(iso: string, clock24h: boolean): string {
+  return new Date(iso).toLocaleTimeString('en-US', {
+    hour: 'numeric', minute: '2-digit', ...hourFormat(clock24h),
+  });
+}
+
+const AQI_LEVELS = [
+  { max: 50,       label: 'Good',           dot: 'bg-emerald-400' },
+  { max: 100,      label: 'Moderate',       dot: 'bg-yellow-400' },
+  { max: 150,      label: 'Unhealthy (SG)', dot: 'bg-orange-400' },
+  { max: 200,      label: 'Unhealthy',      dot: 'bg-red-400' },
+  { max: 300,      label: 'Very unhealthy', dot: 'bg-purple-400' },
+  { max: Infinity, label: 'Hazardous',      dot: 'bg-rose-800' },
+] as const;
+
+function aqiMeta(aqi: number) {
+  return AQI_LEVELS.find((l) => aqi <= l.max) ?? AQI_LEVELS[AQI_LEVELS.length - 1];
+}
+
 /** WidgetShell header actions for the weather tile. */
 export function WeatherActions() {
-  return <RefreshAction queryKey={['weather']} title="Refresh weather" />;
+  const radarOpen = useWeatherUiStore((s) => s.radarOpen);
+  const toggleRadar = useWeatherUiStore((s) => s.toggleRadar);
+  return (
+    <>
+      <HeaderAction title={radarOpen ? 'Hide radar' : 'Show radar'} active={radarOpen} onClick={toggleRadar}>
+        <Radar size={12} />
+      </HeaderAction>
+      <RefreshAction queryKey={['weather']} title="Refresh weather" />
+    </>
+  );
 }
 
 export function WeatherWidget() {
@@ -34,8 +71,14 @@ export function WeatherWidget() {
   const tempUnit = useAppSettingsStore((s) => s.tempUnit);
   const windUnit = useAppSettingsStore((s) => s.windUnit);
   const clock24h = useAppSettingsStore((s) => s.clock24h);
+  const zips = useAppSettingsStore((s) => s.weatherZips);
+  const zipIdx = useAppSettingsStore((s) => s.weatherZipIdx);
+  const setZipIdx = useAppSettingsStore((s) => s.setWeatherZipIdx);
+  const radarOpen = useWeatherUiStore((s) => s.radarOpen);
   const tempLabel = tempUnit === 'c' ? 'C' : 'F';
   const windLabel = windUnit === 'kmh' ? 'km/h' : 'mph';
+  const multiLoc = zips.length > 1;
+  const cycle = (dir: 1 | -1) => setZipIdx((zipIdx + dir + zips.length) % zips.length);
 
   // Drag-to-pan the hourly strip (the hook's callback ref fires once the
   // element mounts after the loading/error early-returns below).
@@ -70,9 +113,23 @@ export function WeatherWidget() {
   const alerts = data.alerts ?? []; // defensive: older cached responses may lack it
   const meta = getWeatherMeta(current.weatherCode);
   const severeAlert = alerts.some((a) => a.severity === 'Extreme' || a.severity === 'Severe');
+  const today = daily[0];
+  const aqi = data.airQuality?.usAqi ?? null;
+  const pollen = data.airQuality?.pollen ?? null;
 
   return (
     <div className="h-full flex flex-col gap-3 p-3 overflow-y-auto">
+
+      {/* Radar — iframe mounts only while open (lazy by design) */}
+      {radarOpen && location.lat != null && (
+        <div className="shrink-0 h-52 rounded-lg overflow-hidden border border-th-line">
+          <iframe
+            src={apiUrl(`/api/weather/radar-embed?lat=${location.lat}&lon=${location.lon}`)}
+            className="w-full h-full"
+            title="Weather radar"
+          />
+        </div>
+      )}
 
       {/* Severe-weather alerts (NWS) */}
       {alerts.length > 0 && (
@@ -105,9 +162,22 @@ export function WeatherWidget() {
             <span className="text-th-2 text-base mb-1">{tempLabel}</span>
           </div>
           <p className="text-th-2 text-sm mt-1">{meta.label}</p>
-          <p className="text-th-ghost text-xs mt-0.5">
-            {location.name}{location.region ? `, ${location.region}` : ''}
-          </p>
+          <div className="flex items-center gap-0.5 mt-0.5">
+            {multiLoc && (
+              <button onClick={() => cycle(-1)} className="text-th-ghost hover:text-th-2 transition-colors" title="Previous location">
+                <ChevronLeft size={12} />
+              </button>
+            )}
+            <p className="text-th-ghost text-xs">
+              {location.name}{location.region ? `, ${location.region}` : ''}
+              {multiLoc && <span className="ml-1 tabular-nums">{zipIdx % zips.length + 1}/{zips.length}</span>}
+            </p>
+            {multiLoc && (
+              <button onClick={() => cycle(1)} className="text-th-ghost hover:text-th-2 transition-colors" title="Next location">
+                <ChevronRight size={12} />
+              </button>
+            )}
+          </div>
         </div>
         <WeatherIcon icon={meta.icon} className="w-14 h-14 text-th-hi shrink-0" />
       </div>
@@ -128,8 +198,36 @@ export function WeatherWidget() {
         ))}
       </div>
 
-      {/* Feels like */}
-      <p className="text-th-3 text-xs shrink-0">Feels like {current.feelsLike}°{tempLabel}</p>
+      {/* Feels like · sun times · air quality */}
+      <div className="flex items-center gap-3 flex-wrap shrink-0 text-xs text-th-3">
+        <span>Feels like {current.feelsLike}°{tempLabel}</span>
+        {today?.sunrise && (
+          <span className="flex items-center gap-1" title="Sunrise">
+            <Sunrise size={13} className="text-amber-300" />{formatSun(today.sunrise, clock24h)}
+          </span>
+        )}
+        {today?.sunset && (
+          <span className="flex items-center gap-1" title="Sunset">
+            <Sunset size={13} className="text-orange-400" />{formatSun(today.sunset, clock24h)}
+          </span>
+        )}
+        {aqi != null && (
+          <span className="flex items-center gap-1.5" title="US Air Quality Index">
+            <span className={cn('w-2 h-2 rounded-full shrink-0', aqiMeta(aqi).dot)} />
+            AQI {Math.round(aqi)} · {aqiMeta(aqi).label}
+          </span>
+        )}
+      </div>
+
+      {/* Pollen — CAMS data is Europe-only; hidden when every type is null */}
+      {pollen && (
+        <p className="text-th-ghost text-xs shrink-0">
+          Pollen (gr/m³)
+          {pollen.tree != null && <> · Tree {Math.round(pollen.tree)}</>}
+          {pollen.grass != null && <> · Grass {Math.round(pollen.grass)}</>}
+          {pollen.weed != null && <> · Weed {Math.round(pollen.weed)}</>}
+        </p>
+      )}
 
       {/* Hourly strip */}
       <div className="shrink-0">
