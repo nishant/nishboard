@@ -1,17 +1,21 @@
 import { useEffect, useState } from 'react';
 import { X, Plus } from 'lucide-react';
 import { useCountdownStore } from '../../store/countdownStore';
+import { useAppSettingsStore } from '../../store/settingsStore';
 import { fireAlert } from '../../lib/alerts';
 import { cn } from '../../lib/utils';
-import { fmtRemaining } from '../../lib/time';
+import { fmtRemaining, hourFormat } from '../../lib/time';
 import { EmptyState } from '../../components/EmptyState';
 
-function fmtDate(at: number): string {
-  return new Date(at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+function fmtDate(at: number, clock24h: boolean): string {
+  return new Date(at).toLocaleString('en-US', {
+    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', ...hourFormat(clock24h),
+  });
 }
 
 export function CountdownWidget() {
   const { events, addEvent, removeEvent } = useCountdownStore();
+  const clock24h = useAppSettingsStore((s) => s.clock24h);
   const [label, setLabel] = useState('');
   const [when, setWhen] = useState('');
   const [, setNow] = useState(Date.now());
@@ -79,7 +83,7 @@ export function CountdownWidget() {
               <div key={e.id} className="group flex items-center gap-2 px-2 py-1.5 rounded-lg bg-th-elevated/40">
                 <div className="flex flex-col flex-1 min-w-0">
                   <span className={cn('text-xs truncate', passed ? 'text-th-ghost' : 'text-th-hi')}>{e.label || 'Event'}</span>
-                  <span className="text-th-ghost text-[10px] truncate">{fmtDate(e.at)}</span>
+                  <span className="text-th-ghost text-[10px] truncate">{fmtDate(e.at, clock24h)}</span>
                 </div>
                 <span className={cn('text-sm tabular-nums shrink-0', passed ? 'text-amber-500/70' : 'text-th-accent')}>
                   {passed ? 'now' : fmtRemaining(remaining)}

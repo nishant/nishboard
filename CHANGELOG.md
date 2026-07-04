@@ -4,6 +4,29 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #65] feat: settings — temperature/wind units & 24-hour clock
+**Branch:** `feat/settings-units-clock` → master
+**Date:** 2026-07-04
+
+### Context
+Feature-slate batch 2. Everything was hardcoded to °F/mph/12-hour; these are now app settings.
+
+### Added
+- **Settings → App → Units & time**: temperature (°F/°C), wind speed (mph/km/h) segmented pickers and a 24-hour clock toggle. All persist in `useAppSettingsStore` (localStorage) with imperial/12h defaults, so existing installs are unaffected.
+- `GET /api/weather` accepts `temp=f|c` and `wind=mph|kmh`, forwarded to Open-Meteo (`temperature_unit`/`windspeed_unit`). Unrecognized values fall back to imperial rather than erroring. The server cache key is now `zip:temp:wind` — cached payloads carry unit-specific numbers.
+- `hourFormat(clock24h)` helper in `lib/time.ts` — returns `{ hourCycle: 'h23' }` (never `hour12: false`, which can render midnight as "24") or `{ hour12: true }`, spread into `Intl.DateTimeFormat` options at every wall-clock display site.
+
+### Changed
+- `useWeather` puts units in the query key (`['weather', zip, tempUnit, windUnit]`) and query string; the widget's °F, mph and "Feels like" labels follow the setting, and the hourly strip shows "15:00"-style labels in 24h mode.
+- 24-hour clock honored by: titlebar clock (AM/PM suffix dropped), world-clock digital view, timer/alarm times, countdown target dates, and the stocks intraday chart tooltip.
+- `SettingsModal`: extracted a generic `SegmentedRow` (used by the new unit pickers and the pre-existing Density row).
+
+### Notes
+- Analog world clocks are inherently 12-hour; only the digital view changes.
+- Sandbox verification covered the client side (clock flip to `16:55` live, weather request carrying `?temp=&wind=`); Open-Meteo's actual unit conversion is a passthrough of documented params.
+
+---
+
 ## [PR #64] feat: UI system — skeletons, error/empty states, toasts, widget action rows
 **Branch:** `feat/ui-system` → master
 **Date:** 2026-07-04

@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { useWorldClockStore } from '../../store/worldClockStore';
+import { useAppSettingsStore } from '../../store/settingsStore';
 import { cn } from '../../lib/utils';
+import { hourFormat } from '../../lib/time';
 import { EmptyState } from '../../components/EmptyState';
 
 const COMMON_ZONES: { tz: string; label: string }[] = [
@@ -49,8 +51,10 @@ function timeParts(tz: string, now: Date): { h: number; m: number; s: number } {
   return { h, m: get('minute'), s: get('second') };
 }
 
-function digitalTime(tz: string, now: Date): string {
-  return new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true }).format(now);
+function digitalTime(tz: string, now: Date, clock24h: boolean): string {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hour: 'numeric', minute: '2-digit', ...hourFormat(clock24h),
+  }).format(now);
 }
 
 function dayLabel(tz: string, now: Date): string {
@@ -92,6 +96,7 @@ function ClockList({
   removeZone: (tz: string) => void;
 }) {
   useTick(1000);
+  const clock24h = useAppSettingsStore((s) => s.clock24h);
   const now = new Date();
 
   if (zones.length === 0) {
@@ -104,7 +109,7 @@ function ClockList({
         {zones.map((tz) => (
           <div key={tz} className="group flex items-center gap-2 px-1.5 py-1 rounded hover:bg-th-elevated/50">
             <div className="flex flex-col min-w-0">
-              <span className="text-th-hi text-sm tabular-nums leading-tight">{digitalTime(tz, now)}</span>
+              <span className="text-th-hi text-sm tabular-nums leading-tight">{digitalTime(tz, now, clock24h)}</span>
               <span className="text-th-ghost text-[10px] truncate">{zoneLabel(tz)} · {dayLabel(tz, now)}</span>
             </div>
             <button

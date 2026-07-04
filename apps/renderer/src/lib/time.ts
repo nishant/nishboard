@@ -57,6 +57,13 @@ export function relTimeUntil(at: number, now: number): string {
   return `in ${Math.floor(h / 24)}d ${h % 24}h`;
 }
 
+/** Intl options fragment for the user's clock-format setting — spread into
+ *  DateTimeFormat options wherever a wall-clock time is displayed.
+ *  `h23` (not `hour12: false`) so midnight renders "00", never "24". */
+export function hourFormat(clock24h: boolean): Intl.DateTimeFormatOptions {
+  return clock24h ? { hourCycle: 'h23' } : { hour12: true };
+}
+
 /** "3d 4h 12m" / "4h 12m" / "12m" from seconds — system uptime. */
 export function fmtUptime(s: number): string {
   const d = Math.floor(s / 86400);

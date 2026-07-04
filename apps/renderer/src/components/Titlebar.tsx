@@ -8,30 +8,33 @@ import { PinnedLayoutsMenu, InlinePinnedPresets } from './menus/PinnedLayouts';
 import { menuBtn, dragStyle, noDragStyle } from './menus/primitives';
 import { useAppSettingsStore } from '../store/settingsStore';
 import { useWeather } from '../widgets/weather/useWeather';
+import { hourFormat } from '../lib/time';
 
 export const TITLEBAR_H = 32;
 
 // ── Clock ─────────────────────────────────────────────────────────────────────
 
-function formatClock(d: Date): string {
+function formatClock(d: Date, clock24h: boolean): string {
   const parts = new Intl.DateTimeFormat('en-US', {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
-    hour12: true,
+    ...hourFormat(clock24h),
   }).formatToParts(d);
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
-  return `${get('weekday')} ${get('month')} ${get('day')} ${get('hour')}:${get('minute')} ${get('dayPeriod')}`;
+  const base = `${get('weekday')} ${get('month')} ${get('day')} ${get('hour')}:${get('minute')}`;
+  return clock24h ? base : `${base} ${get('dayPeriod')}`;
 }
 
-function useClock() {
-  const [str, setStr] = useState(() => formatClock(new Date()));
+function useClock(clock24h: boolean) {
+  const [str, setStr] = useState(() => formatClock(new Date(), clock24h));
   useEffect(() => {
-    const id = setInterval(() => setStr(formatClock(new Date())), 1000);
+    setStr(formatClock(new Date(), clock24h)); // re-render immediately on format toggle
+    const id = setInterval(() => setStr(formatClock(new Date(), clock24h)), 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [clock24h]);
   return str;
 }
 
@@ -58,7 +61,8 @@ function useIsNarrow(threshold: number): boolean {
 // ── Titlebar ──────────────────────────────────────────────────────────────────
 
 export function Titlebar() {
-  const clock = useClock();
+  const clock24h = useAppSettingsStore((s) => s.clock24h);
+  const clock = useClock(clock24h);
   const showTempInClock = useAppSettingsStore((s) => s.showTempInClock);
   const forceCompact = useAppSettingsStore((s) => s.compactTitlebar);
   const narrow = useIsNarrow(COMPACT_BREAKPOINT);

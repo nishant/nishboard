@@ -7,11 +7,13 @@ import { useDragScroll } from '../../hooks/useDragScroll';
 import { WidgetSkeleton } from '../../components/Skeleton';
 import { ErrorState } from '../../components/ErrorState';
 import { RefreshAction } from '../../components/RefreshAction';
+import { useAppSettingsStore } from '../../store/settingsStore';
 import { cn } from '../../lib/utils';
 
-function formatHour(isoTime: string): string {
+function formatHour(isoTime: string, clock24h: boolean): string {
   const date = new Date(isoTime);
   const h = date.getHours();
+  if (clock24h) return `${h}:00`;
   if (h === 0) return '12am';
   if (h === 12) return '12pm';
   return h > 12 ? `${h - 12}pm` : `${h}am`;
@@ -29,6 +31,11 @@ export function WeatherActions() {
 
 export function WeatherWidget() {
   const { data, isLoading, isError, error } = useWeather();
+  const tempUnit = useAppSettingsStore((s) => s.tempUnit);
+  const windUnit = useAppSettingsStore((s) => s.windUnit);
+  const clock24h = useAppSettingsStore((s) => s.clock24h);
+  const tempLabel = tempUnit === 'c' ? 'C' : 'F';
+  const windLabel = windUnit === 'kmh' ? 'km/h' : 'mph';
 
   // Drag-to-pan the hourly strip (the hook's callback ref fires once the
   // element mounts after the loading/error early-returns below).
@@ -95,7 +102,7 @@ export function WeatherWidget() {
         <div>
           <div className="flex items-end gap-2">
             <span className="text-6xl font-light text-th-hi leading-none">{current.temp}°</span>
-            <span className="text-th-2 text-base mb-1">F</span>
+            <span className="text-th-2 text-base mb-1">{tempLabel}</span>
           </div>
           <p className="text-th-2 text-sm mt-1">{meta.label}</p>
           <p className="text-th-ghost text-xs mt-0.5">
@@ -109,7 +116,7 @@ export function WeatherWidget() {
       <div className="grid grid-cols-4 gap-2 shrink-0">
         {[
           { icon: <Droplets className="w-3.5 h-3.5" />, label: 'Humidity', value: `${current.humidity}%` },
-          { icon: <Wind className="w-3.5 h-3.5" />,     label: 'Wind',     value: `${current.windSpeed}mph` },
+          { icon: <Wind className="w-3.5 h-3.5" />,     label: 'Wind',     value: `${current.windSpeed}${windLabel}` },
           { icon: <Umbrella className="w-3.5 h-3.5" />, label: 'Rain',     value: `${current.precipChance}%` },
           { icon: <Zap className="w-3.5 h-3.5" />,      label: 'UV',       value: `${Math.round(current.uvIndex)}` },
         ].map(({ icon, label, value }) => (
@@ -122,7 +129,7 @@ export function WeatherWidget() {
       </div>
 
       {/* Feels like */}
-      <p className="text-th-3 text-xs shrink-0">Feels like {current.feelsLike}°F</p>
+      <p className="text-th-3 text-xs shrink-0">Feels like {current.feelsLike}°{tempLabel}</p>
 
       {/* Hourly strip */}
       <div className="shrink-0">
@@ -132,7 +139,7 @@ export function WeatherWidget() {
             const hMeta = getWeatherMeta(h.weatherCode);
             return (
               <div key={h.time} className="flex flex-col items-center gap-1 shrink-0 min-w-[44px]">
-                <span className="text-th-3 text-xs">{formatHour(h.time)}</span>
+                <span className="text-th-3 text-xs">{formatHour(h.time, clock24h)}</span>
                 <WeatherIcon icon={hMeta.icon} className="w-4 h-4 text-th-2" />
                 <span className="text-th-hi text-xs font-medium">{h.temp}°</span>
                 {h.precipChance > 20 && (
