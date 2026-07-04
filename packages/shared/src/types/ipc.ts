@@ -9,6 +9,15 @@ export interface LauncherItemData {
   kind: 'app' | 'url';
 }
 
+/** One clipboard-history entry. Text-only and in-memory only (main process) —
+ *  history is never written to disk and dies with the app. */
+export interface ClipboardEntryData {
+  id: string;
+  text: string;
+  /** Epoch ms when captured. */
+  at: number;
+}
+
 export type IpcChannels =
   | 'app:minimize'
   | 'app:close'
@@ -26,7 +35,12 @@ export type IpcChannels =
   | 'launcher:remove-item'
   | 'launcher:rename-item'
   | 'launcher:reorder'
-  | 'launcher:launch';
+  | 'launcher:launch'
+  | 'clipboard:get-history'
+  | 'clipboard:copy'
+  | 'clipboard:clear'
+  | 'clipboard:set-enabled'
+  | 'clipboard:changed';
 
 export interface ElectronAPI {
   /** Host OS, from the main process (`process.platform`): 'win32' | 'darwin' | 'linux' | … */
@@ -54,6 +68,17 @@ export interface ElectronAPI {
     reorder: (ids: string[]) => Promise<void>;
     /** Launch by id — shell.openPath / openExternal happen main-side. */
     launch: (id: string) => Promise<void>;
+  };
+  clipboardHistory: {
+    getHistory: () => Promise<ClipboardEntryData[]>;
+    /** Put an entry's text back on the OS clipboard (by id). */
+    copy: (id: string) => Promise<void>;
+    clear: () => Promise<void>;
+    /** Start/stop the main-process 1s poller — it runs ONLY while the widget
+     *  is mounted and unpaused. */
+    setEnabled: (enabled: boolean) => Promise<void>;
+    /** Fires when a new entry is captured; returns unsubscribe. */
+    onChanged: (cb: () => void) => () => void;
   };
   credentials: {
     /** Which keys are set — never the values. The Settings UI is write-only:

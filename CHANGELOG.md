@@ -4,6 +4,23 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #75] feat: clipboard history widget (text-only, in-memory, gated poller)
+**Branch:** `feat/clipboard-history` → master
+**Date:** 2026-07-04
+
+### Context
+Feature-slate batch 12. Scope per Nish's call: text only, never persisted.
+
+### Added
+- `apps/main/src/clipboardHistory.ts` — 1s `clipboard.readText()` poller that runs **only while the widget is mounted and unpaused** (`clipboard:set-enabled` gates it; unmount/hide stops capture). Dedupes consecutive reads, caps 50 entries and 10k chars/entry, lives purely in module memory — nothing ever touches disk. Copying an entry pre-sets the dedupe marker so our own write isn't re-captured.
+- IPC: `clipboard:get-history/copy/clear/set-enabled` + `clipboard:changed` push (sent to the subscribing window), typed `ElectronAPI.clipboardHistory` wrappers with an unsubscribe-returning `onChanged`.
+- **Clipboard widget** (`WidgetId 'clipboard'`): live-filter search, click-to-copy rows (relative timestamps, 2-line clamp) with a success toast, header actions for pause/resume (with a "paused" badge) and clear. Browser build shows a placeholder.
+
+### Notes
+- Verified headless with a mocked bridge: rows/filter/copy-by-id/toast, pause drives `setEnabled(false)`, clear empties via the push event. The real Electron `clipboard` poller needs an on-device look.
+
+---
+
 ## [PR #74] feat: quick launcher widget (apps + links, paths never cross the bridge)
 **Branch:** `feat/quick-launcher` → master
 **Date:** 2026-07-04
