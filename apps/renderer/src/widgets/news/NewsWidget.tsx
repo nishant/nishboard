@@ -3,6 +3,15 @@ import { Newspaper, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react
 import { useNews } from './useNews';
 import { cn } from '../../lib/utils';
 import { relTimeAgo } from '../../lib/time';
+import { WidgetSkeleton } from '../../components/Skeleton';
+import { ErrorState } from '../../components/ErrorState';
+import { EmptyState } from '../../components/EmptyState';
+import { RefreshAction } from '../../components/RefreshAction';
+
+/** WidgetShell header actions for the news tile. */
+export function NewsActions() {
+  return <RefreshAction queryKey={['news']} title="Refresh headlines" />;
+}
 
 export function NewsWidget() {
   const { data, isLoading, isError } = useNews();
@@ -22,10 +31,13 @@ export function NewsWidget() {
   }, [items.length, idx]);
 
   if (isLoading) {
-    return <div className="h-full flex items-center justify-center text-th-ghost text-sm">Loading…</div>;
+    return <WidgetSkeleton lines={2} />;
   }
-  if (isError || items.length === 0) {
-    return <div className="h-full flex items-center justify-center text-th-ghost text-xs">No news</div>;
+  if (isError) {
+    return <ErrorState message="Couldn't load headlines" queryKey={['news']} />;
+  }
+  if (items.length === 0) {
+    return <EmptyState icon={<Newspaper size={16} />} message="No news" />;
   }
 
   const safeIdx = Math.min(idx, items.length - 1);

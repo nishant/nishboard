@@ -1,5 +1,8 @@
-// Asset-free alert sound (Web Audio) + native desktop notification.
+// Asset-free alert sound (Web Audio) + native desktop notification + in-app toast.
 // Used by the Timer / Alarm / Countdown widgets when something fires.
+
+import { useToastStore } from '../store/toastStore';
+import type { ToastKind } from '../store/toastStore';
 
 let ctx: AudioContext | null = null;
 
@@ -33,8 +36,15 @@ export function playAlarm(): void {
   }
 }
 
-/** Fire a full alert: native toast (with OS sound) + the chime. */
+/** In-app transient toast (bottom-right). No sound, no native notification. */
+export function toast(title: string, body?: string, kind: ToastKind = 'info'): void {
+  useToastStore.getState().push({ title, body, kind });
+}
+
+/** Fire a full alert: chime + in-app toast + native notification (native kept
+ *  because timers/alarms fire while the app is unfocused). */
 export function fireAlert(title: string, body: string): void {
   playAlarm();
+  toast(title, body);
   window.electron?.notify?.(title, body);
 }

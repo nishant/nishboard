@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { useWorldClockStore } from '../../store/worldClockStore';
 import { cn } from '../../lib/utils';
+import { EmptyState } from '../../components/EmptyState';
 
 const COMMON_ZONES: { tz: string; label: string }[] = [
   { tz: 'Pacific/Honolulu', label: 'Honolulu' },
@@ -94,7 +95,7 @@ function ClockList({
   const now = new Date();
 
   if (zones.length === 0) {
-    return <div className="h-full flex items-center justify-center text-th-ghost text-xs">No clocks — add one</div>;
+    return <EmptyState message="No clocks — add one" />;
   }
 
   if (view === 'digital') {

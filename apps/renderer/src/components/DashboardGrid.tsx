@@ -4,11 +4,11 @@ import type { Layout } from 'react-grid-layout';
 import { useLayoutStore } from '../store/layoutStore';
 import { useAppSettingsStore } from '../store/settingsStore';
 import { WidgetShell } from './WidgetShell';
-import { WeatherWidget } from '../widgets/weather/WeatherWidget';
+import { WeatherWidget, WeatherActions } from '../widgets/weather/WeatherWidget';
 import { SpotifyWidget, SpotifyLogoutButton } from '../widgets/spotify/SpotifyWidget';
-import { StocksWidget } from '../widgets/stocks/StocksWidget';
-import { HardwareWidget } from '../widgets/hardware/HardwareWidget';
-import { SoundWidget } from '../widgets/sound/SoundWidget';
+import { StocksWidget, StocksActions } from '../widgets/stocks/StocksWidget';
+import { HardwareWidget, HardwareActions } from '../widgets/hardware/HardwareWidget';
+import { SoundWidget, SoundActions } from '../widgets/sound/SoundWidget';
 import { CalendarWidget } from '../widgets/calendar/CalendarWidget';
 import { YoutubeWidget } from '../widgets/youtube/YoutubeWidget';
 import { TwitchWidget } from '../widgets/twitch/TwitchWidget';
@@ -17,28 +17,35 @@ import { WorldClockWidget } from '../widgets/worldclock/WorldClockWidget';
 import { NotesWidget } from '../widgets/notes/NotesWidget';
 import { TimerWidget } from '../widgets/timer/TimerWidget';
 import { CountdownWidget } from '../widgets/countdown/CountdownWidget';
-import { NewsWidget } from '../widgets/news/NewsWidget';
+import { NewsWidget, NewsActions } from '../widgets/news/NewsWidget';
 import { TITLEBAR_H } from './Titlebar';
 import { WIDGET_TITLES } from '../lib/layouts';
 import type { WidgetId } from '../lib/layouts';
+import { cn } from '../lib/utils';
 
 const GridLayout = WidthProvider(ReactGridLayout);
 
-const WIDGET_COMPONENTS: Record<WidgetId, React.ReactNode> = {
-  weather: <WeatherWidget />,
-  spotify: <SpotifyWidget />,
-  stocks: <StocksWidget />,
-  hardware: <HardwareWidget />,
-  sound: <SoundWidget />,
-  calendar: <CalendarWidget />,
-  youtube: <YoutubeWidget />,
-  twitch: <TwitchWidget />,
-  tasks: <TasksWidget />,
-  worldclock: <WorldClockWidget />,
-  notes: <NotesWidget />,
-  timer: <TimerWidget />,
-  countdown: <CountdownWidget />,
-  news: <NewsWidget />,
+interface WidgetEntry {
+  Component: React.ComponentType;
+  /** Rendered in the WidgetShell header's hover-revealed action row. */
+  Actions?: React.ComponentType;
+}
+
+const WIDGET_REGISTRY: Record<WidgetId, WidgetEntry> = {
+  weather: { Component: WeatherWidget, Actions: WeatherActions },
+  spotify: { Component: SpotifyWidget, Actions: SpotifyLogoutButton },
+  stocks: { Component: StocksWidget, Actions: StocksActions },
+  hardware: { Component: HardwareWidget, Actions: HardwareActions },
+  sound: { Component: SoundWidget, Actions: SoundActions },
+  calendar: { Component: CalendarWidget },
+  youtube: { Component: YoutubeWidget },
+  twitch: { Component: TwitchWidget },
+  tasks: { Component: TasksWidget },
+  worldclock: { Component: WorldClockWidget },
+  notes: { Component: NotesWidget },
+  timer: { Component: TimerWidget },
+  countdown: { Component: CountdownWidget },
+  news: { Component: NewsWidget, Actions: NewsActions },
 };
 
 function useRowHeight(layout: Layout[], gap: number): number {
@@ -65,6 +72,15 @@ export function DashboardGrid() {
   const density = useAppSettingsStore((s) => s.density);
   const gap = density === 'compact' ? 4 : 8;
 
+  // RGL's stock CSS animates every position change — including the initial
+  // layout pass, which makes tiles fly in from the corner on launch. Suppress
+  // transitions until the first layout has settled.
+  const [animReady, setAnimReady] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setAnimReady(true), 350);
+    return () => clearTimeout(t);
+  }, []);
+
   // Only pass visible items to the grid; hidden items stay in `layout` with
   // their positions intact so they snap back when re-enabled.
   const visibleLayout = useMemo(
@@ -76,6 +92,7 @@ export function DashboardGrid() {
 
   return (
     <GridLayout
+      className={cn(!animReady && 'rgl-no-anim')}
       layout={visibleLayout}
       cols={24}
       rowHeight={rowHeight}
@@ -101,13 +118,14 @@ export function DashboardGrid() {
     >
       {visibleLayout.map((item) => {
         const id = item.i as WidgetId;
+        const { Component, Actions } = WIDGET_REGISTRY[id];
         return (
           <div key={id}>
             <WidgetShell
               title={WIDGET_TITLES[id]}
-              actions={id === 'spotify' ? <SpotifyLogoutButton /> : undefined}
+              actions={Actions ? <Actions /> : undefined}
             >
-              {WIDGET_COMPONENTS[id]}
+              <Component />
             </WidgetShell>
           </div>
         );

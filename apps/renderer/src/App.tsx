@@ -2,6 +2,7 @@ import { useLayoutEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Titlebar } from './components/Titlebar';
 import { DashboardGrid } from './components/DashboardGrid';
+import { ToastHost } from './components/ToastHost';
 import { useThemeStore } from './store/themeStore';
 import { useAppSettingsStore } from './store/settingsStore';
 import { buildCustomVars, CUSTOM_VAR_KEYS } from './lib/colorUtils';
@@ -67,6 +68,7 @@ export function App() {
         <div className="flex-1 min-h-0">
           <DashboardGrid />
         </div>
+        <ToastHost />
       </div>
     </QueryClientProvider>
   );

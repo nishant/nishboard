@@ -3,7 +3,12 @@ import { TrendingUp, TrendingDown, Pencil, X, Plus, ArrowLeft, ExternalLink } fr
 import { AreaChart, Area, ResponsiveContainer, YAxis, Tooltip } from 'recharts';
 import { useStocks, useStockDetail } from './useStocks';
 import { useStocksStore } from '../../store/stocksStore';
+import { useStocksUiStore } from '../../store/stocksUiStore';
 import { relTimeAgo } from '../../lib/time';
+import { WidgetSkeleton, Skeleton } from '../../components/Skeleton';
+import { ErrorState } from '../../components/ErrorState';
+import { HeaderAction } from '../../components/HeaderAction';
+import { RefreshAction } from '../../components/RefreshAction';
 import type { StockQuote } from '@dash/shared';
 
 // ── Market session ────────────────────────────────────────────────────────────
@@ -122,7 +127,7 @@ function StockDetailPanel({ ticker, onClose }: { ticker: string; onClose: () => 
         {/* Intraday chart */}
         <div className="h-28 shrink-0">
           {isLoading ? (
-            <div className="h-full flex items-center justify-center text-th-ghost text-xs">Loading…</div>
+            <Skeleton className="h-full w-full" />
           ) : isError ? (
             <div className="h-full flex items-center justify-center text-red-400 text-xs">Failed to load</div>
           ) : bars.length === 0 ? (
@@ -256,9 +261,22 @@ function WatchlistModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+/** WidgetShell header actions: watchlist edit pencil + refresh. */
+export function StocksActions() {
+  const setEditing = useStocksUiStore((s) => s.setEditing);
+  return (
+    <>
+      <HeaderAction title="Edit watchlist" onClick={() => setEditing(true)}>
+        <Pencil size={11} />
+      </HeaderAction>
+      <RefreshAction queryKey={['stocks']} title="Refresh quotes" />
+    </>
+  );
+}
+
 export function StocksWidget() {
-  const { data, isLoading, isError } = useStocks();
-  const [editing, setEditing] = useState(false);
+  const { data, isLoading, isError, error } = useStocks();
+  const { editing, setEditing } = useStocksUiStore();
   const [selected, setSelected] = useState<string | null>(null);
   const session = useMarketSession();
 
@@ -282,7 +300,7 @@ export function StocksWidget() {
       {editing && <WatchlistModal onClose={() => setEditing(false)} />}
       {selected && <StockDetailPanel ticker={selected} onClose={() => setSelected(null)} />}
 
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-th-line shrink-0">
+      <div className="flex items-center px-3 py-1.5 border-b border-th-line shrink-0">
         <span
           className={`text-[10px] flex items-center gap-1.5 ${session === 'closed' ? 'text-th-ghost' : 'text-th-3'}`}
           title="Prices refresh every 5 minutes"
@@ -290,25 +308,17 @@ export function StocksWidget() {
           <span className={`h-1.5 w-1.5 rounded-full inline-block shrink-0 ${sessionDot[session]}`} />
           {sessionLabel[session]}
         </span>
-        <button
-          onClick={() => setEditing(true)}
-          className="text-th-ghost hover:text-th-hi transition-colors p-0.5"
-          title="Edit watchlist"
-        >
-          <Pencil size={12} />
-        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
-        {isLoading && (
-          <div className="h-full flex items-center justify-center text-th-3 text-sm">
-            Loading…
-          </div>
-        )}
+        {isLoading && <WidgetSkeleton lines={4} />}
         {isError && (
-          <div className="h-full flex items-center justify-center text-red-400 text-sm">
-            Failed to load market data
-          </div>
+          // Surface the server's message (e.g. the missing-keys pointer to
+          // Settings → Developer) rather than a generic failure string.
+          <ErrorState
+            message={error instanceof Error && error.message ? error.message : 'Failed to load market data'}
+            queryKey={['stocks']}
+          />
         )}
         {data && (
           <div className="grid grid-cols-2 gap-2">

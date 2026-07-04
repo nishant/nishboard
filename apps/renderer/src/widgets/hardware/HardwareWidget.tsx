@@ -1,8 +1,14 @@
-import { useState, memo } from 'react';
+import { memo } from 'react';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { Cpu, Thermometer, HardDrive, Wifi, Battery, BatteryCharging, BarChart2, Activity, Settings, Loader2 } from 'lucide-react';
 import { useHardware, type HardwareHistory } from './useHardware';
 import { useHardwareStore, type HardwareSection } from '../../store/hardwareStore';
+import { useHardwareUiStore } from '../../store/hardwareUiStore';
+import type { HardwareViewMode } from '../../store/hardwareUiStore';
+import { WidgetSkeleton } from '../../components/Skeleton';
+import { ErrorState } from '../../components/ErrorState';
+import { HeaderAction } from '../../components/HeaderAction';
+import { RefreshAction } from '../../components/RefreshAction';
 import { useDragScroll } from '../../hooks/useDragScroll';
 import { fmtUptime } from '../../lib/time';
 import type { HardwareData } from '@dash/shared';
@@ -20,7 +26,7 @@ function tempColor(c: number | null): string {
   return 'text-emerald-400';
 }
 
-type ViewMode = 'bars' | 'sparks';
+type ViewMode = HardwareViewMode;
 
 // ── Sparkline ────────────────────────────────────────────────────────────
 
@@ -390,73 +396,53 @@ function ConfigPanel({
 
 // ── Main widget ───────────────────────────────────────────────────────────
 
+/** WidgetShell header actions: sparks/bars view toggle + section config + refresh. */
+export function HardwareActions() {
+  const { view, setView, configOpen, toggleConfig } = useHardwareUiStore();
+  return (
+    <>
+      <HeaderAction
+        title="Sparkline view"
+        active={view === 'sparks'}
+        onClick={() => setView('sparks')}
+      >
+        <Activity size={11} />
+      </HeaderAction>
+      <HeaderAction
+        title="Bar view"
+        active={view === 'bars'}
+        onClick={() => setView('bars')}
+      >
+        <BarChart2 size={11} />
+      </HeaderAction>
+      <HeaderAction title="Visible sections" active={configOpen} onClick={toggleConfig}>
+        <Settings size={11} />
+      </HeaderAction>
+      <RefreshAction queryKey={['hardware']} title="Refresh hardware" />
+    </>
+  );
+}
+
 export function HardwareWidget() {
   const { query, history } = useHardware();
   const { visible, setVisible } = useHardwareStore();
-  const [view, setView] = useState<ViewMode>('sparks');
-  const [configOpen, setConfigOpen] = useState(false);
+  const { view, configOpen } = useHardwareUiStore();
 
   // Drag-to-scroll (callback ref inside the hook wires up after loading/error resolves)
   const { ref: setScrollEl } = useDragScroll<HTMLDivElement>('y');
 
   if (query.isLoading) {
-    return (
-      <div className="rounded-lg border border-th-line bg-th-surface p-4 flex items-center justify-center h-full">
-        <span className="text-th-3 text-sm">Loading hardware…</span>
-      </div>
-    );
+    return <WidgetSkeleton lines={5} />;
   }
 
   if (query.isError || !query.data) {
-    return (
-      <div className="rounded-lg border border-th-line bg-th-surface p-4 flex items-center justify-center h-full">
-        <span className="text-red-400 text-sm">Failed to load hardware data</span>
-      </div>
-    );
+    return <ErrorState message="Failed to load hardware data" queryKey={['hardware']} />;
   }
 
   const d = query.data;
 
   return (
-    <div ref={setScrollEl} className="rounded-lg border border-th-line bg-th-surface p-3 flex flex-col gap-2 h-full overflow-y-auto scrollbar-none">
-      {/* Header */}
-      <div className="flex items-center justify-between px-0.5 shrink-0">
-        <div className="flex items-center gap-1.5">
-          <Cpu size={14} className="text-th-2" />
-          <span className="text-sm font-semibold text-th-hi">Hardware</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="flex items-center gap-1 bg-th-elevated rounded-md p-0.5">
-            <button
-              onClick={() => setView('sparks')}
-              className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] transition-colors ${
-                view === 'sparks' ? 'bg-th-overlay text-th-hi' : 'text-th-3 hover:text-th-hi'
-              }`}
-            >
-              <Activity size={10} />
-              Sparks
-            </button>
-            <button
-              onClick={() => setView('bars')}
-              className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] transition-colors ${
-                view === 'bars' ? 'bg-th-overlay text-th-hi' : 'text-th-3 hover:text-th-hi'
-              }`}
-            >
-              <BarChart2 size={10} />
-              Bars
-            </button>
-          </div>
-          <button
-            onClick={() => setConfigOpen((o) => !o)}
-            className={`p-1 rounded transition-colors ${
-              configOpen ? 'text-th-hi bg-th-overlay' : 'text-th-3 hover:text-th-hi'
-            }`}
-          >
-            <Settings size={13} />
-          </button>
-        </div>
-      </div>
-
+    <div ref={setScrollEl} className="p-3 flex flex-col gap-2 h-full overflow-y-auto scrollbar-none">
       {/* Config panel */}
       {configOpen && <ConfigPanel visible={visible} setVisible={setVisible} />}
 
