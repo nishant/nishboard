@@ -34,6 +34,19 @@ function VisibilityKicker() {
   return null;
 }
 
+/** Renders nothing — refetches everything after the main process restarts the
+ *  Fastify child (tray "Restart server"), instead of leaving widgets in
+ *  connection-refused error states until their next poll. */
+function ServerRestartListener() {
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    return window.electron?.onServerRestarted?.(() => {
+      void queryClient.invalidateQueries();
+    });
+  }, [queryClient]);
+  return null;
+}
+
 /** Renders nothing — exists so theme/scale changes re-render THIS component
  *  only, applying everything to <html> via effects. If App itself subscribed,
  *  every theme tweak (live color-picker drags included) would re-render the
@@ -82,6 +95,7 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeManager />
       <VisibilityKicker />
+      <ServerRestartListener />
       <div className="app-shell h-screen w-screen bg-th-bg overflow-hidden flex flex-col">
         <Titlebar />
         <div className="flex-1 min-h-0">

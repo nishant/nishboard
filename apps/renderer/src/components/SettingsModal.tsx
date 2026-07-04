@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Eye, EyeOff, Check, Loader2, Lock, Minus, Plus, Download, Upload } from 'lucide-react';
 import { CREDENTIAL_DEFS, CREDENTIAL_KEYS } from '@dash/shared';
-import type { CredentialKey } from '@dash/shared';
+import type { CredentialKey, AppPrefsData } from '@dash/shared';
 import { useAppSettingsStore } from '../store/settingsStore';
 import type { Density, TempUnit, WindUnit, LowPowerMode } from '../store/settingsStore';
 import { useQueryClient } from '@tanstack/react-query';
@@ -201,6 +201,46 @@ function SegmentedRow<T extends string>({
   );
 }
 
+// ── System prefs (main-side prefs.json via IPC — Electron only) ───────────────
+
+function SystemPrefsSection() {
+  const [prefs, setPrefs] = useState<AppPrefsData | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void window.electron?.prefs?.get().then((p) => { if (!cancelled) setPrefs(p); });
+    return () => { cancelled = true; };
+  }, []);
+
+  if (!window.electron?.prefs || !prefs) return null;
+
+  async function update(patch: Partial<AppPrefsData>) {
+    const next = await window.electron!.prefs.set(patch);
+    setPrefs(next);
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">System</span>
+      <SegmentedRow<AppPrefsData['closeAction']>
+        label="Close button"
+        value={prefs.closeAction}
+        options={[{ value: 'quit', label: 'Quit' }, { value: 'tray', label: 'Hide to tray' }]}
+        onChange={(v) => void update({ closeAction: v })}
+      />
+      <ToggleRow
+        label="Global show/hide hotkey"
+        description="Ctrl+Shift+D (Cmd+Shift+D on macOS) toggles the dashboard from anywhere."
+        checked={prefs.globalHotkey}
+        onChange={(v) => void update({ globalHotkey: v })}
+      />
+      <p className="text-th-ghost text-[10px] leading-relaxed">
+        The tray icon is always available: show/hide, Spotify play/pause, restart server, quit.
+      </p>
+    </div>
+  );
+}
+
 // ── App settings tab ──────────────────────────────────────────────────────────
 
 const SCALE_MIN = 0.8;
@@ -346,6 +386,9 @@ function AppSettingsPanel() {
           onChange={setDensity}
         />
       </div>
+
+      {/* System (Electron only — hidden in the browser) */}
+      <SystemPrefsSection />
 
       {/* Power */}
       <div className="flex flex-col gap-3">
