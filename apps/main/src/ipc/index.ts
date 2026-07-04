@@ -1,6 +1,10 @@
 import { app, BrowserWindow, IpcMain, Notification, safeStorage, shell } from 'electron';
 import { readCredentialStatus, writeCredentials } from '../credentials';
 import { restartServer } from '../server/spawn';
+import {
+  getLauncherItems, addLauncherApp, addLauncherUrl,
+  removeLauncherItem, renameLauncherItem, reorderLauncherItems, launchItem,
+} from '../launcher';
 import type { CredentialKey } from '@dash/shared';
 
 export function registerIpcHandlers(ipcMain: IpcMain): void {
@@ -32,6 +36,22 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     // Same guard pattern: only Twitch's identity host is a legitimate target.
     if (url.startsWith('https://id.twitch.tv/')) shell.openExternal(url);
   });
+
+  // ── Quick launcher ──────────────────────────────────────────────────────────
+  // Targets (paths/URLs) live only in main — the renderer gets sanitized items
+  // and launches by id.
+
+  ipcMain.handle('launcher:get-items', () => getLauncherItems());
+  ipcMain.handle('launcher:add-app', (event) =>
+    addLauncherApp(BrowserWindow.fromWebContents(event.sender)));
+  ipcMain.handle('launcher:add-url', (_event, label: string, url: string) =>
+    addLauncherUrl(String(label ?? ''), String(url ?? '')));
+  ipcMain.handle('launcher:remove-item', (_event, id: string) => removeLauncherItem(String(id)));
+  ipcMain.handle('launcher:rename-item', (_event, id: string, label: string) =>
+    renameLauncherItem(String(id), String(label ?? '')));
+  ipcMain.handle('launcher:reorder', (_event, ids: string[]) =>
+    reorderLauncherItems(Array.isArray(ids) ? ids.map(String) : []));
+  ipcMain.handle('launcher:launch', (_event, id: string) => launchItem(String(id)));
 
   // ── Credentials ─────────────────────────────────────────────────────────────
 
