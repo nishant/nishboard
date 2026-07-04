@@ -1,0 +1,287 @@
+import { useState, useRef } from 'react';
+import { Search, X, ArrowLeft, ChevronRight } from 'lucide-react';
+import { useElementSize } from '../../hooks/useElementSize';
+import type { EmbedItem, EmbedServiceAdapter } from './types';
+
+type View = 'home' | 'search';
+
+const CONTROL_BAR_H = 44;
+
+function LiveDot() {
+  return <span className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0 animate-pulse" />;
+}
+
+// ── Home screen ───────────────────────────────────────────────────────────────
+
+function HomeScreen({
+  adapter, onSearch, height,
+}: {
+  adapter: EmbedServiceAdapter;
+  onSearch: () => void;
+  height: number;
+}) {
+  const iconH = Math.max(14, Math.min(28, Math.round(height * 0.08)));
+  const textSize = Math.max(10, Math.min(20, Math.round(iconH * 0.85)));
+  const compact = height < 120;
+
+  if (compact) {
+    return (
+      <div className="flex items-center justify-center h-full gap-3">
+        <div className="text-th-ghost">
+          <adapter.Icon size={iconH} />
+        </div>
+        <button
+          onClick={onSearch}
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-th-line hover:border-th-3 text-th-3 hover:text-th-hi transition-colors text-[10px]"
+        >
+          <Search size={10} />
+          Search
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center justify-center h-full gap-5">
+      <div className="flex items-center gap-2.5 text-th-ghost">
+        <adapter.Icon size={iconH} />
+        <span className="font-semibold tracking-tight text-th-ghost" style={{ fontSize: textSize }}>
+          {adapter.serviceName}
+        </span>
+      </div>
+      <button
+        onClick={onSearch}
+        className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-th-line hover:border-th-3 hover:bg-th-elevated/50 text-th-3 hover:text-th-hi transition-colors text-[11px]"
+      >
+        <Search size={12} />
+        {adapter.homeCta}
+      </button>
+    </div>
+  );
+}
+
+// ── Search bar ────────────────────────────────────────────────────────────────
+
+function SearchBar({
+  placeholder, value, onChange, onSubmit, loading, onBack,
+}: {
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+  onSubmit: () => void;
+  loading: boolean;
+  onBack: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-1.5 px-3 py-2 border-b border-th-line shrink-0">
+      <button onClick={onBack} className="text-th-ghost hover:text-th-2 transition-colors shrink-0">
+        <ArrowLeft size={12} />
+      </button>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') onSubmit(); }}
+        placeholder={placeholder}
+        className="flex-1 bg-transparent text-th-hi text-xs placeholder-zinc-600 outline-none"
+        autoFocus
+      />
+      {value && (
+        <button onClick={() => onChange('')} className="text-th-ghost hover:text-th-2 transition-colors">
+          <X size={11} />
+        </button>
+      )}
+      <button
+        onClick={onSubmit}
+        disabled={!value.trim() || loading}
+        className="text-th-3 hover:text-th-hi disabled:opacity-30 transition-colors"
+      >
+        <ChevronRight size={14} />
+      </button>
+    </div>
+  );
+}
+
+// ── Result row ────────────────────────────────────────────────────────────────
+
+function ResultRow({
+  item, thumbShape, onPlay,
+}: {
+  item: EmbedItem;
+  thumbShape: 'wide' | 'round';
+  onPlay: () => void;
+}) {
+  return (
+    <button
+      onClick={onPlay}
+      className="flex items-center gap-2.5 w-full px-3 py-2 hover:bg-th-elevated/60 transition-colors text-left"
+    >
+      <img
+        src={item.thumbnailUrl}
+        alt={item.title}
+        className={
+          thumbShape === 'wide'
+            ? 'w-16 h-9 object-cover rounded shrink-0 bg-th-elevated'
+            : 'w-9 h-9 object-cover rounded-full shrink-0 bg-th-elevated'
+        }
+        loading="lazy"
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          {item.isLive && <LiveDot />}
+          <p className="text-th-hi text-[11px] leading-snug line-clamp-2 font-medium">{item.title}</p>
+        </div>
+        <p className="text-th-3 text-[10px] mt-0.5 truncate">{item.subtitle}</p>
+      </div>
+    </button>
+  );
+}
+
+// ── Widget root ───────────────────────────────────────────────────────────────
+// One state machine for every search-and-embed service (YouTube, Twitch):
+// home ↔ search, plus a playing state where the iframe is KEPT MOUNTED at
+// height 0 while the search overlay is open so playback position survives.
+
+export function EmbedSearchWidget({ adapter }: { adapter: EmbedServiceAdapter }) {
+  const [view, setView] = useState<View>('home');
+  const [inputValue, setInputValue] = useState('');
+  const [submittedQuery, setSubmittedQuery] = useState('');
+  const [selectedItem, setSelectedItem] = useState<EmbedItem | null>(null);
+  const { ref: setContainerEl, height } = useElementSize<HTMLDivElement>();
+  const resultsRef = useRef<HTMLDivElement>(null);
+
+  const { items, isFetching, isError } = adapter.useSearch(submittedQuery);
+
+  const goHome = () => { setSelectedItem(null); setView('home'); };
+  const handlePlay = (item: EmbedItem) => { setSelectedItem(item); setView('home'); };
+
+  const handleSubmit = () => {
+    const q = inputValue.trim();
+    if (!q) return;
+    setSubmittedQuery(q);
+    if (resultsRef.current) resultsRef.current.scrollTop = 0;
+  };
+
+  const results = (
+    <>
+      {!submittedQuery && (
+        <div className="flex flex-col items-center justify-center h-full gap-2 p-6">
+          <Search size={18} className="text-th-ghost" />
+          <p className="text-th-ghost text-xs text-center">{adapter.emptyHint}</p>
+        </div>
+      )}
+      {submittedQuery && isFetching && !items && (
+        <p className="text-th-ghost text-xs text-center py-6">Searching…</p>
+      )}
+      {isError && (
+        <p className="text-red-400/70 text-xs text-center py-6">{adapter.errorHint}</p>
+      )}
+      {items?.map((item) => (
+        <ResultRow
+          key={item.id}
+          item={item}
+          thumbShape={adapter.thumbShape}
+          onPlay={() => handlePlay(item)}
+        />
+      ))}
+      {items?.length === 0 && (
+        <p className="text-th-ghost text-xs text-center py-6">No results</p>
+      )}
+    </>
+  );
+
+  // ── Playing (or playing + search overlay) ────────────────────────────────────
+  if (selectedItem) {
+    const showSearch = view === 'search';
+    const iframeH = Math.max(60, height - CONTROL_BAR_H);
+
+    return (
+      <div ref={setContainerEl} className="h-full flex flex-col overflow-hidden">
+        {/*
+          Iframe kept mounted at height=0 while search is open so playback
+          position is preserved when the user returns to the player.
+        */}
+        <div className="shrink-0 overflow-hidden" style={{ height: showSearch ? 0 : iframeH }}>
+          <iframe
+            key={selectedItem.id}
+            src={adapter.embedUrl(selectedItem)}
+            className="w-full h-full"
+            allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+            allowFullScreen
+          />
+        </div>
+
+        {showSearch ? (
+          /* Search overlay while playback stays loaded in background */
+          <>
+            <SearchBar
+              placeholder={adapter.searchPlaceholder}
+              value={inputValue}
+              onChange={setInputValue}
+              onSubmit={handleSubmit}
+              loading={isFetching}
+              onBack={() => setView('home')}
+            />
+            <div ref={resultsRef} className="flex-1 overflow-y-auto min-h-0">
+              {results}
+            </div>
+          </>
+        ) : (
+          /* Control bar */
+          <div
+            className="flex items-center gap-2 px-3 border-t border-th-line shrink-0"
+            style={{ height: CONTROL_BAR_H }}
+          >
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                {selectedItem.isLive && <LiveDot />}
+                <p className="text-th-hi text-[11px] font-medium truncate">{selectedItem.title}</p>
+              </div>
+              <p className="text-th-ghost text-[10px] truncate">{selectedItem.subtitle}</p>
+            </div>
+            <button
+              onClick={() => setView('search')}
+              title="Search"
+              className="text-th-ghost hover:text-th-hi transition-colors shrink-0"
+            >
+              <Search size={13} />
+            </button>
+            <button
+              onClick={goHome}
+              title={adapter.closeLabel}
+              className="text-th-ghost hover:text-th-hi transition-colors shrink-0"
+            >
+              <X size={13} />
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Home ──────────────────────────────────────────────────────────────────────
+  if (view === 'home') {
+    return (
+      <div ref={setContainerEl} className="h-full overflow-hidden">
+        <HomeScreen adapter={adapter} onSearch={() => setView('search')} height={height} />
+      </div>
+    );
+  }
+
+  // ── Search (nothing playing) ──────────────────────────────────────────────────
+  return (
+    <div ref={setContainerEl} className="h-full flex flex-col overflow-hidden">
+      <SearchBar
+        placeholder={adapter.searchPlaceholder}
+        value={inputValue}
+        onChange={setInputValue}
+        onSubmit={handleSubmit}
+        loading={isFetching}
+        onBack={goHome}
+      />
+      <div ref={resultsRef} className="flex-1 overflow-y-auto min-h-0">
+        {results}
+      </div>
+    </div>
+  );
+}

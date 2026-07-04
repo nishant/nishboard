@@ -81,10 +81,65 @@ function AnalogClock({ tz, now, size = 56 }: { tz: string; now: Date; size?: num
   );
 }
 
-export function WorldClockWidget() {
-  const { zones, view, addZone, removeZone, setView } = useWorldClockStore();
+// Ticking leaf: the 1s re-render is confined to the clock list — the toolbar
+// (and anything else the widget grows) doesn't re-render every second.
+function ClockList({
+  zones, view, removeZone,
+}: {
+  zones: string[];
+  view: 'digital' | 'analog';
+  removeZone: (tz: string) => void;
+}) {
   useTick(1000);
   const now = new Date();
+
+  if (zones.length === 0) {
+    return <div className="h-full flex items-center justify-center text-th-ghost text-xs">No clocks — add one</div>;
+  }
+
+  if (view === 'digital') {
+    return (
+      <div className="flex flex-col gap-1">
+        {zones.map((tz) => (
+          <div key={tz} className="group flex items-center gap-2 px-1.5 py-1 rounded hover:bg-th-elevated/50">
+            <div className="flex flex-col min-w-0">
+              <span className="text-th-hi text-sm tabular-nums leading-tight">{digitalTime(tz, now)}</span>
+              <span className="text-th-ghost text-[10px] truncate">{zoneLabel(tz)} · {dayLabel(tz, now)}</span>
+            </div>
+            <button
+              onClick={() => removeZone(tz)}
+              className="ml-auto shrink-0 p-0.5 rounded text-th-ghost hover:text-red-400 opacity-0 group-hover:opacity-100 transition"
+              title="Remove"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-2 gap-2 justify-items-center p-1">
+      {zones.map((tz) => (
+        <div key={tz} className="group relative flex flex-col items-center gap-0.5 w-full">
+          <AnalogClock tz={tz} now={now} />
+          <span className="text-th-ghost text-[10px] truncate max-w-full">{zoneLabel(tz)}</span>
+          <button
+            onClick={() => removeZone(tz)}
+            className="absolute top-0 right-0 p-0.5 rounded text-th-ghost hover:text-red-400 opacity-0 group-hover:opacity-100 transition"
+            title="Remove"
+          >
+            <X size={11} />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function WorldClockWidget() {
+  const { zones, view, addZone, removeZone, setView } = useWorldClockStore();
   const available = COMMON_ZONES.filter((z) => !zones.includes(z.tz));
 
   return (
@@ -118,43 +173,7 @@ export function WorldClockWidget() {
 
       {/* Clocks */}
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {zones.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-th-ghost text-xs">No clocks — add one</div>
-        ) : view === 'digital' ? (
-          <div className="flex flex-col gap-1">
-            {zones.map((tz) => (
-              <div key={tz} className="group flex items-center gap-2 px-1.5 py-1 rounded hover:bg-th-elevated/50">
-                <div className="flex flex-col min-w-0">
-                  <span className="text-th-hi text-sm tabular-nums leading-tight">{digitalTime(tz, now)}</span>
-                  <span className="text-th-ghost text-[10px] truncate">{zoneLabel(tz)} · {dayLabel(tz, now)}</span>
-                </div>
-                <button
-                  onClick={() => removeZone(tz)}
-                  className="ml-auto shrink-0 p-0.5 rounded text-th-ghost hover:text-red-400 opacity-0 group-hover:opacity-100 transition"
-                  title="Remove"
-                >
-                  <X size={12} />
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-2 justify-items-center p-1">
-            {zones.map((tz) => (
-              <div key={tz} className="group relative flex flex-col items-center gap-0.5 w-full">
-                <AnalogClock tz={tz} now={now} />
-                <span className="text-th-ghost text-[10px] truncate max-w-full">{zoneLabel(tz)}</span>
-                <button
-                  onClick={() => removeZone(tz)}
-                  className="absolute top-0 right-0 p-0.5 rounded text-th-ghost hover:text-red-400 opacity-0 group-hover:opacity-100 transition"
-                  title="Remove"
-                >
-                  <X size={11} />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+        <ClockList zones={zones} view={view} removeZone={removeZone} />
       </div>
     </div>
   );

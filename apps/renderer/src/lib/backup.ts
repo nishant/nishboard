@@ -57,11 +57,20 @@ export function exportSettings(): void {
 export async function importSettings(file: File): Promise<void> {
   const text = await file.text();
   const parsed = JSON.parse(text) as Partial<BackupFile>;
-  const data = parsed?.data;
+  if (parsed?.app !== 'nishboard') {
+    throw new Error('Not a Nishboard settings file');
+  }
+  if (parsed.version !== 1) {
+    throw new Error(`Unsupported settings-file version (${String(parsed.version)})`);
+  }
+  const data = parsed.data;
   if (!data || typeof data !== 'object') {
     throw new Error('Not a valid Nishboard settings file');
   }
   for (const [k, v] of Object.entries(data)) {
+    // Only restore our own keys — a crafted file must not be able to write
+    // arbitrary localStorage entries.
+    if (!KNOWN_KEYS.includes(k) && !k.startsWith('dashboard-')) continue;
     localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v));
   }
 }

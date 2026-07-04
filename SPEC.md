@@ -107,7 +107,7 @@ dashboard/
 
 ### 2. Spotify Now Playing
 - **API:** Spotify Web API
-- **Auth:** OAuth 2.0 PKCE flow; refresh token persisted via Electron `safeStorage`
+- **Auth:** OAuth 2.0 PKCE flow; tokens persisted as plain JSON at `~/.dash/spotify_tokens.json` (home dir, survives reinstalls — NOT safeStorage; see CLAUDE.md → Secrets & Credentials)
 - **Data:** Track name, artist, album art, duration, progress, shuffle/repeat state
 - **Controls:** Play/pause, skip forward/back, seek, volume, shuffle toggle
 - **Poll interval:** 3 seconds (REST polling, not WebSocket)
@@ -170,17 +170,20 @@ Renderer (React)
 ## Environment Variables
 
 ```env
-# .env (never committed)
+# .env (never committed — dev only; packaged builds use safeStorage / baked _BUILTIN values)
 ALPACA_API_KEY=
 ALPACA_API_SECRET=
 ALPACA_BASE_URL=https://data.alpaca.markets/v2
 SPOTIFY_CLIENT_ID=
-SPOTIFY_CLIENT_SECRET=
-SPOTIFY_REDIRECT_URI=http://127.0.0.1:7432/spotify/callback
+SPOTIFY_REDIRECT_URI=http://127.0.0.1:7432/api/spotify/callback
+YOUTUBE_API_KEY=
+TWITCH_CLIENT_ID=
+TWITCH_CLIENT_SECRET=
 SERVER_PORT=7432
 ```
 
 Secrets loaded by Fastify server only. Renderer never sees them.
+(PKCE needs no `SPOTIFY_CLIENT_SECRET`. The full three-tier secrets model — safeStorage → baked `_BUILTIN` → `.env` — is documented in CLAUDE.md.)
 
 ---
 
@@ -190,8 +193,13 @@ Secrets loaded by Fastify server only. Renderer never sees them.
 |---|---|---|
 | `app:minimize` | R → M | Minimize window |
 | `app:close` | R → M | Quit app |
+| `app:notify` | R → M | Show a native desktop notification |
+| `app:open-external` | R → M | Open an http(s) URL in the default browser |
+| `spotify:open-auth` | R → M | Open the Spotify OAuth URL in the browser |
 | `spotify:token-store` | M → R | Notify token saved |
-| `spotify:auth-start` | R → M | Open OAuth browser window |
+| `credentials:get-all` | R → M | Read stored API keys (safeStorage) |
+| `credentials:save-all` | R → M | Save API keys + restart the server |
+| `credentials:encryption-available` | R → M | Whether safeStorage has an OS keychain |
 
 ---
 
@@ -199,8 +207,7 @@ Secrets loaded by Fastify server only. Renderer never sees them.
 
 | Widget | Method | Interval |
 |---|---|---|
-| Stocks (equity) | Alpaca WebSocket IEX | Real-time |
-| Stocks (fallback) | Alpaca REST | 5s |
+| Stocks | Alpaca REST (IEX snapshots) | 5min |
 | Spotify | REST | 3s |
 | Hardware | systeminformation | 1s |
 | Weather | REST | 15min |

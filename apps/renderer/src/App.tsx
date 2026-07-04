@@ -15,7 +15,12 @@ const queryClient = new QueryClient({
   },
 });
 
-export function App() {
+/** Renders nothing — exists so theme/scale changes re-render THIS component
+ *  only, applying everything to <html> via effects. If App itself subscribed,
+ *  every theme tweak (live color-picker drags included) would re-render the
+ *  whole tree, grid and all widgets. The `[data-theme="x"]` CSS-var blocks
+ *  match the attribute on <html> and cascade identically. */
+function ThemeManager() {
   const theme = useThemeStore((s) => s.theme);
   const customColors = useThemeStore((s) => s.customColors);
   const uiScale = useAppSettingsStore((s) => s.uiScale);
@@ -32,11 +37,11 @@ export function App() {
     document.documentElement.dataset.platform = window.electron?.platform ?? 'web';
   }, []);
 
-  // Apply / remove custom CSS vars on <html> so they cascade to all widgets.
-  // Named themes are handled by [data-theme="x"] CSS selectors on the root div;
-  // the custom theme has no CSS block — JS injects the vars instead.
+  // Named themes: [data-theme="x"] CSS blocks. Custom theme: no CSS block —
+  // JS injects the vars on <html> instead.
   useLayoutEffect(() => {
     const el = document.documentElement;
+    el.dataset.theme = theme;
     if (theme === 'custom') {
       const vars = buildCustomVars(
         customColors.primary,
@@ -50,12 +55,14 @@ export function App() {
     }
   }, [theme, customColors]);
 
+  return null;
+}
+
+export function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <div
-        data-theme={theme}
-        className="app-shell h-screen w-screen bg-th-bg overflow-hidden flex flex-col"
-      >
+      <ThemeManager />
+      <div className="app-shell h-screen w-screen bg-th-bg overflow-hidden flex flex-col">
         <Titlebar />
         <div className="flex-1 min-h-0">
           <DashboardGrid />

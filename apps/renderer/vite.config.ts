@@ -16,7 +16,21 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true,
+    // 'hidden' keeps maps out of the bundle references (nothing ships pointing
+    // at them) while still emitting them locally for debugging a prod build.
+    // `true` inlined a 4MB map reference into the packaged app.
+    sourcemap: 'hidden',
+    rollupOptions: {
+      output: {
+        // Split the heavyweights so the initial parse/execute on cold start is
+        // smaller and vendor code caches independently of app code.
+        manualChunks: {
+          recharts: ['recharts'],
+          'grid-layout': ['react-grid-layout'],
+          vendor: ['react', 'react-dom', '@tanstack/react-query', 'lucide-react'],
+        },
+      },
+    },
   },
   // Relative asset paths so file:// protocol works in the packaged Electron app.
   // Without this Vite emits src="/assets/..." which resolves to filesystem root, not the bundle.

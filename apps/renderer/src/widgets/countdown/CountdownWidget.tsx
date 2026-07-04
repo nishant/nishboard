@@ -3,18 +3,7 @@ import { X, Plus } from 'lucide-react';
 import { useCountdownStore } from '../../store/countdownStore';
 import { fireAlert } from '../../lib/alerts';
 import { cn } from '../../lib/utils';
-
-function fmtRemaining(ms: number): string {
-  if (ms <= 0) return 'now';
-  const s = Math.floor(ms / 1000);
-  const d = Math.floor(s / 86400);
-  const h = Math.floor((s % 86400) / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  if (d > 0) return `${d}d ${h}h`;
-  if (h > 0) return `${h}h ${m}m`;
-  if (m > 0) return `${m}m ${s % 60}s`;
-  return `${s}s`;
-}
+import { fmtRemaining } from '../../lib/time';
 
 function fmtDate(at: number): string {
   return new Date(at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
@@ -46,7 +35,8 @@ export function CountdownWidget() {
   function submit() {
     if (!when) return;
     const at = new Date(when).getTime();
-    if (Number.isNaN(at)) return;
+    // Reject past datetimes — they'd render "now" and fire an alert on the next tick.
+    if (Number.isNaN(at) || at <= Date.now()) return;
     addEvent(label.trim(), at);
     setLabel('');
     setWhen('');

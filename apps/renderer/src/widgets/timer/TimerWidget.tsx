@@ -3,17 +3,9 @@ import { Play, Pause, RotateCcw, X, Plus, Bell } from 'lucide-react';
 import { useTimersStore } from '../../store/timersStore';
 import { fireAlert } from '../../lib/alerts';
 import { cn } from '../../lib/utils';
+import { fmtDuration, relTimeUntil } from '../../lib/time';
 
 type Tab = 'timer' | 'alarm';
-
-function fmtDur(ms: number): string {
-  const total = Math.max(0, Math.ceil(ms / 1000));
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  const s = total % 60;
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
-}
 
 function fmtAlarm(at: number): string {
   const d = new Date(at);
@@ -23,24 +15,17 @@ function fmtAlarm(at: number): string {
   return sameDay ? time : `${d.toLocaleDateString('en-US', { weekday: 'short' })} ${time}`;
 }
 
-function relTime(at: number, now: number): string {
-  const ms = at - now;
-  if (ms <= 0) return 'now';
-  const m = Math.floor(ms / 60000);
-  if (m < 60) return `in ${m}m`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `in ${h}h ${m % 60}m`;
-  return `in ${Math.floor(h / 24)}d ${h % 24}h`;
-}
-
 function timeToTimestamp(hhmm: string): number | null {
   const m = hhmm.match(/^(\d{1,2}):(\d{2})$/);
   if (!m) return null;
   const d = new Date();
   d.setHours(Number(m[1]), Number(m[2]), 0, 0);
-  let at = d.getTime();
-  if (at <= Date.now()) at += 24 * 3600 * 1000; // next occurrence
-  return at;
+  if (d.getTime() <= Date.now()) {
+    // Next occurrence by wall clock — setDate (not +24h in ms) so the alarm
+    // stays at the entered local time across a DST transition.
+    d.setDate(d.getDate() + 1);
+  }
+  return d.getTime();
 }
 
 const iconBtn = 'shrink-0 p-1 rounded text-th-ghost hover:text-th-2 hover:bg-th-elevated/60 transition disabled:opacity-30 disabled:cursor-not-allowed';
@@ -78,7 +63,6 @@ export function TimerWidget() {
       setNow(now);
     }, 500);
     return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const now = Date.now();
@@ -141,7 +125,7 @@ export function TimerWidget() {
                     <div className="flex flex-col min-w-0 flex-1">
                       {t.label && <span className="text-th-ghost text-[10px] truncate">{t.label}</span>}
                       <span className={cn('text-xl tabular-nums leading-none', done ? 'text-th-accent' : 'text-th-hi')}>
-                        {fmtDur(remaining)}
+                        {fmtDuration(remaining)}
                       </span>
                     </div>
                     <button
@@ -187,7 +171,7 @@ export function TimerWidget() {
                     {a.label && <span className="text-th-ghost text-[10px] truncate">{a.label}</span>}
                   </div>
                   <span className={cn('text-[10px] shrink-0', a.done ? 'text-amber-500/70' : 'text-th-ghost')}>
-                    {a.done ? 'rang' : relTime(a.at, now)}
+                    {a.done ? 'rang' : relTimeUntil(a.at, now)}
                   </span>
                   <button onClick={() => removeAlarm(a.id)} className={iconBtn} title="Delete"><X size={13} /></button>
                 </div>

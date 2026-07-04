@@ -1,18 +1,21 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { SoundData, AudioDevice, AudioSession } from '@dash/shared';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { writeFile, unlink } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { SimpleCache } from '../cache/SimpleCache';
+import { HttpError } from '../lib/http';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 const cache = new SimpleCache<SoundData>();
 const TTL_MS = 5_000;
 
-async function sh(cmd: string): Promise<string> {
-  const { stdout } = await execAsync(cmd, { encoding: 'utf8' });
+// execFile (no shell) so arguments are passed verbatim — request-supplied
+// values like device names can never be interpreted as shell syntax.
+async function run(cmd: string, args: string[]): Promise<string> {
+  const { stdout } = await execFileAsync(cmd, args, { encoding: 'utf8' });
   return stdout.trim();
 }
 
@@ -31,8 +34,9 @@ async function psRun(script: string): Promise<string> {
   const buf = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(script, 'utf16le')]);
   await writeFile(tmp, buf);
   try {
-    const { stdout } = await execAsync(
-      `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${tmp}"`,
+    const { stdout } = await execFileAsync(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', tmp],
       { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 },
     );
     return stdout.trim();
@@ -45,8 +49,8 @@ async function psRun(script: string): Promise<string> {
 
 async function macGetData(): Promise<SoundData> {
   const [volStr, mutedStr] = await Promise.all([
-    sh(`osascript -e 'output volume of (get volume settings)'`),
-    sh(`osascript -e 'output muted of (get volume settings)'`),
+    run('osascript', ['-e', 'output volume of (get volume settings)']),
+    run('osascript', ['-e', 'output muted of (get volume settings)']),
   ]);
   const volumePercent = Number(volStr);
   const muted = mutedStr === 'true';
@@ -56,8 +60,8 @@ async function macGetData(): Promise<SoundData> {
 
   try {
     const [current, all] = await Promise.all([
-      sh('SwitchAudioSource -c'),
-      sh('SwitchAudioSource -a -t output'),
+      run('SwitchAudioSource', ['-c']),
+      run('SwitchAudioSource', ['-a', '-t', 'output']),
     ]);
     activeDeviceName = current;
     devices = all
@@ -73,15 +77,15 @@ async function macGetData(): Promise<SoundData> {
 }
 
 async function macSetVolume(vol: number): Promise<void> {
-  await sh(`osascript -e 'set volume output volume ${Math.round(vol)}'`);
+  await run('osascript', ['-e', `set volume output volume ${Math.round(vol)}`]);
 }
 
 async function macSetMute(muted: boolean): Promise<void> {
-  await sh(`osascript -e 'set volume ${muted ? 'with' : 'without'} output muted'`);
+  await run('osascript', ['-e', `set volume ${muted ? 'with' : 'without'} output muted`]);
 }
 
 async function macSwitchDevice(id: string): Promise<void> {
-  await sh(`SwitchAudioSource -s "${id.replace(/"/g, '\\"')}"`);
+  await run('SwitchAudioSource', ['-s', id]);
 }
 
 // ── Windows — WASAPI COM via Add-Typed C# helpers ─────────────────────────
@@ -383,6 +387,9 @@ async function winSetMute(muted: boolean): Promise<void> {
 }
 
 async function winSwitchDevice(id: string): Promise<void> {
+  // ''-doubling is the complete escape inside PowerShell single quotes, and the
+  // script reaches PowerShell via a temp .ps1 (-File) — never through cmd.exe —
+  // so this interpolation is injection-safe. Don't "simplify" to double quotes.
   const safe = id.replace(/'/g, "''");
   await psRun(
     `Get-AudioDevice -List | Where-Object { $_.Name -eq '${safe}' -and $_.Type -eq 'Playback' } | Set-AudioDevice`,
@@ -426,57 +433,63 @@ export const soundRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Reply: SoundData | { error: string } }>('/', async (_req, reply) => {
     const cached = cache.get();
     if (cached) return reply.send(cached);
-    try {
-      const data = await getData();
-      cache.set(data, TTL_MS);
-      return reply.send(data);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      fastify.log.error(`[sound] ${msg}`);
-      return reply.code(502).send({ error: msg });
-    }
+    const data = await getData();
+    cache.set(data, TTL_MS);
+    return reply.send(data);
   });
+
+  // Runtime body schemas — the Fastify generics above are compile-time only, so
+  // without these a hand-crafted JSON body (e.g. a string pid) reaches the
+  // PowerShell/osascript layer unchecked.
+  const volumeBody = {
+    type: 'object',
+    required: ['volumePercent'],
+    properties: { volumePercent: { type: 'number', minimum: 0, maximum: 100 } },
+  } as const;
 
   fastify.post<{ Body: { volumePercent: number }; Reply: { ok: boolean } | { error: string } }>(
     '/volume',
+    { schema: { body: volumeBody } },
     async (req, reply) => {
-      const { volumePercent } = req.body;
-      if (typeof volumePercent !== 'number' || volumePercent < 0 || volumePercent > 100) {
-        return reply.code(400).send({ error: 'volumePercent must be 0–100' });
-      }
-      try {
-        await setVolume(volumePercent);
-        cache.clear();
-        return reply.send({ ok: true });
-      } catch (err) {
-        return reply.code(502).send({ error: err instanceof Error ? err.message : String(err) });
-      }
+      await setVolume(req.body.volumePercent);
+      cache.clear();
+      return reply.send({ ok: true });
     },
   );
 
   fastify.post<{ Body: { muted: boolean }; Reply: { ok: boolean } | { error: string } }>(
     '/mute',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['muted'],
+          properties: { muted: { type: 'boolean' } },
+        },
+      },
+    },
     async (req, reply) => {
-      try {
-        await setMute(req.body.muted);
-        cache.clear();
-        return reply.send({ ok: true });
-      } catch (err) {
-        return reply.code(502).send({ error: err instanceof Error ? err.message : String(err) });
-      }
+      await setMute(req.body.muted);
+      cache.clear();
+      return reply.send({ ok: true });
     },
   );
 
   fastify.post<{ Body: { deviceId: string }; Reply: { ok: boolean } | { error: string } }>(
     '/device',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['deviceId'],
+          properties: { deviceId: { type: 'string', minLength: 1, maxLength: 256 } },
+        },
+      },
+    },
     async (req, reply) => {
-      try {
-        await switchDevice(req.body.deviceId);
-        cache.clear();
-        return reply.send({ ok: true });
-      } catch (err) {
-        return reply.code(502).send({ error: err instanceof Error ? err.message : String(err) });
-      }
+      await switchDevice(req.body.deviceId);
+      cache.clear();
+      return reply.send({ ok: true });
     },
   );
 
@@ -484,18 +497,31 @@ export const soundRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post<{
     Body: { pid: number; volumePercent: number };
     Reply: { ok: boolean } | { error: string };
-  }>('/sessions/volume', async (req, reply) => {
-    const { pid, volumePercent } = req.body;
-    if (typeof volumePercent !== 'number' || volumePercent < 0 || volumePercent > 100) {
-      return reply.code(400).send({ error: 'volumePercent must be 0–100' });
-    }
-    if (process.platform !== 'win32') return reply.send({ ok: true });
-    try {
+  }>(
+    '/sessions/volume',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['pid', 'volumePercent'],
+          properties: {
+            pid: { type: 'integer', minimum: 0, maximum: 0xffffffff },
+            volumePercent: { type: 'number', minimum: 0, maximum: 100 },
+          },
+        },
+      },
+    },
+    async (req, reply) => {
+      const { pid, volumePercent } = req.body;
+      // Belt-and-braces: pid is interpolated into a PowerShell script, so re-check
+      // it's a plain integer even though the schema already enforces it.
+      if (!Number.isInteger(pid) || pid < 0 || pid > 0xffffffff) {
+        throw new HttpError(400, 'pid must be a non-negative integer');
+      }
+      if (process.platform !== 'win32') return reply.send({ ok: true });
       await winSetSessionVolume(pid, volumePercent);
       cache.clear();
       return reply.send({ ok: true });
-    } catch (err) {
-      return reply.code(502).send({ error: err instanceof Error ? err.message : String(err) });
-    }
-  });
+    },
+  );
 };

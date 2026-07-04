@@ -61,7 +61,7 @@ function useRowHeight(layout: Layout[], gap: number): number {
 }
 
 export function DashboardGrid() {
-  const { layout, setLayout, visibleWidgets } = useLayoutStore();
+  const { layout, syncLayout, markUserEdited, visibleWidgets } = useLayoutStore();
   const density = useAppSettingsStore((s) => s.density);
   const gap = density === 'compact' ? 4 : 8;
 
@@ -84,11 +84,16 @@ export function DashboardGrid() {
       draggableHandle=".widget-drag-handle"
       onLayoutChange={(newVisible) => {
         // Merge incoming positions with stored positions of hidden widgets so
-        // drag/resize doesn't wipe out hidden-widget position state.
+        // drag/resize doesn't wipe out hidden-widget position state. This also
+        // fires on mount and after applyPreset, so it must only sync geometry —
+        // clearing the active-preset markers here would wipe the highlight on
+        // every launch. Real edits are detected by the gesture handlers below.
         const visibleIds = new Set(newVisible.map((i) => i.i));
         const hiddenItems = layout.filter((i) => !visibleIds.has(i.i));
-        setLayout([...newVisible, ...hiddenItems]);
+        syncLayout([...newVisible, ...hiddenItems]);
       }}
+      onDragStop={markUserEdited}
+      onResizeStop={markUserEdited}
       compactType="vertical"
       isResizable
       isDraggable

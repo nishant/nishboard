@@ -55,8 +55,18 @@ export function useHardware() {
     push(h.diskRead, d.disks.reduce((s, dk) => s + dk.readMBs, 0));
     push(h.diskWrite, d.disks.reduce((s, dk) => s + dk.writeMBs, 0));
 
-    // Shallow copy to trigger re-render with updated arrays
-    setHistory({ ...h });
+    // Copy the arrays too, not just the wrapper: the published snapshot must be
+    // immutable so memoized consumers comparing by reference see each update
+    // (the ref's arrays keep mutating in place).
+    setHistory({
+      cpuUsage: [...h.cpuUsage],
+      gpuUsage: [...h.gpuUsage],
+      ramUsage: [...h.ramUsage],
+      netUp: [...h.netUp],
+      netDown: [...h.netDown],
+      diskRead: [...h.diskRead],
+      diskWrite: [...h.diskWrite],
+    });
   }, [query.data]);
 
   return { query, history };

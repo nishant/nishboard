@@ -1,23 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, memo } from 'react';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { Cpu, Thermometer, HardDrive, Wifi, Battery, BatteryCharging, BarChart2, Activity, Settings, Loader2 } from 'lucide-react';
 import { useHardware, type HardwareHistory } from './useHardware';
 import { useHardwareStore, type HardwareSection } from '../../store/hardwareStore';
+import { useDragScroll } from '../../hooks/useDragScroll';
+import { fmtUptime } from '../../lib/time';
 import type { HardwareData } from '@dash/shared';
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 function fmt(n: number, dec = 1): string {
   return n.toFixed(dec);
-}
-
-function fmtUptime(s: number): string {
-  const d = Math.floor(s / 86400);
-  const h = Math.floor((s % 86400) / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  if (d > 0) return `${d}d ${h}h ${m}m`;
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
 }
 
 function tempColor(c: number | null): string {
@@ -95,7 +88,7 @@ function Card({ children }: { children: React.ReactNode }) {
 
 // ── CPU card ─────────────────────────────────────────────────────────────
 
-function CpuCard({ cpu, history, view }: { cpu: HardwareData['cpu']; history: HardwareHistory; view: ViewMode }) {
+const CpuCard = memo(function CpuCard({ cpu, history, view }: { cpu: HardwareData['cpu']; history: HardwareHistory; view: ViewMode }) {
   return (
     <Card>
       <div className="flex items-center justify-between mb-1.5">
@@ -126,11 +119,11 @@ function CpuCard({ cpu, history, view }: { cpu: HardwareData['cpu']; history: Ha
       <CoreGrid coreUsage={cpu.coreUsage} />
     </Card>
   );
-}
+});
 
 // ── GPU card ─────────────────────────────────────────────────────────────
 
-function GpuCard({ gpu, history, view }: { gpu: HardwareData['gpu']; history: HardwareHistory; view: ViewMode }) {
+const GpuCard = memo(function GpuCard({ gpu, history, view }: { gpu: HardwareData['gpu']; history: HardwareHistory; view: ViewMode }) {
   if (!gpu) {
     return (
       <Card>
@@ -178,11 +171,11 @@ function GpuCard({ gpu, history, view }: { gpu: HardwareData['gpu']; history: Ha
       )}
     </Card>
   );
-}
+});
 
 // ── RAM card ──────────────────────────────────────────────────────────────
 
-function RamCard({ ram, history, view }: { ram: HardwareData['ram']; history: HardwareHistory; view: ViewMode }) {
+const RamCard = memo(function RamCard({ ram, history, view }: { ram: HardwareData['ram']; history: HardwareHistory; view: ViewMode }) {
   const usedGb = ram.usedMb / 1024;
   const totalGb = ram.totalMb / 1024;
 
@@ -213,11 +206,11 @@ function RamCard({ ram, history, view }: { ram: HardwareData['ram']; history: Ha
       )}
     </Card>
   );
-}
+});
 
 // ── Disk card ─────────────────────────────────────────────────────────────
 
-function DiskCard({ disks, diskUsage, history, view }: {
+const DiskCard = memo(function DiskCard({ disks, diskUsage, history, view }: {
   disks: HardwareData['disks'];
   diskUsage: HardwareData['diskUsage'];
   history: HardwareHistory;
@@ -260,11 +253,11 @@ function DiskCard({ disks, diskUsage, history, view }: {
       )}
     </Card>
   );
-}
+});
 
 // ── Network card ──────────────────────────────────────────────────────────
 
-function NetworkCard({ network, history, view }: {
+const NetworkCard = memo(function NetworkCard({ network, history, view }: {
   network: HardwareData['network'];
   history: HardwareHistory;
   view: ViewMode;
@@ -305,11 +298,11 @@ function NetworkCard({ network, history, view }: {
       )}
     </Card>
   );
-}
+});
 
 // ── Battery row ───────────────────────────────────────────────────────────
 
-function BatteryCard({ battery }: { battery: NonNullable<HardwareData['battery']> }) {
+const BatteryCard = memo(function BatteryCard({ battery }: { battery: NonNullable<HardwareData['battery']> }) {
   const Icon = battery.charging ? BatteryCharging : Battery;
   const pctColor = battery.percent <= 20 ? '#f87171' : battery.percent <= 40 ? '#fbbf24' : '#34d399';
   const textColor = battery.percent <= 20 ? 'text-red-400' : battery.percent <= 40 ? 'text-amber-400' : 'text-emerald-400';
@@ -327,7 +320,7 @@ function BatteryCard({ battery }: { battery: NonNullable<HardwareData['battery']
       <UsageBar pct={battery.percent} color={pctColor} />
     </Card>
   );
-}
+});
 
 // ── No-battery placeholder ────────────────────────────────────────────────
 
@@ -364,9 +357,16 @@ function ConfigPanel({
       <div className="grid grid-cols-2 gap-x-4 gap-y-2">
         {sections.map((section) => (
           <label key={section} className="flex items-center gap-2 cursor-pointer group">
+            {/* Real checkbox (visually hidden) so the toggle is keyboard-focusable
+                and screen-reader announceable; the styled div is just its face. */}
+            <input
+              type="checkbox"
+              checked={visible[section]}
+              onChange={(e) => setVisible(section, e.target.checked)}
+              className="sr-only peer"
+            />
             <div
-              onClick={() => setVisible(section, !visible[section])}
-              className={`w-4 h-4 rounded border flex items-center justify-center transition-colors cursor-pointer ${
+              className={`w-4 h-4 rounded border flex items-center justify-center transition-colors cursor-pointer peer-focus-visible:ring-2 peer-focus-visible:ring-th-accent ${
                 visible[section]
                   ? 'bg-th-hi border-th-hi'
                   : 'bg-transparent border-th-ghost group-hover:border-th-3'
@@ -378,10 +378,7 @@ function ConfigPanel({
                 </svg>
               )}
             </div>
-            <span
-              onClick={() => setVisible(section, !visible[section])}
-              className="text-xs text-th-2 select-none"
-            >
+            <span className="text-xs text-th-2 select-none">
               {SECTION_LABELS[section]}
             </span>
           </label>
@@ -399,47 +396,8 @@ export function HardwareWidget() {
   const [view, setView] = useState<ViewMode>('sparks');
   const [configOpen, setConfigOpen] = useState(false);
 
-  // Callback ref so the effect wires up after loading/error resolves
-  const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!scrollEl) return;
-
-    let isDragging = false;
-    let startY = 0;
-    let startScrollTop = 0;
-
-    const onMouseDown = (e: MouseEvent) => {
-      // Don't hijack clicks on buttons/inputs inside the widget
-      if ((e.target as HTMLElement).closest('button, input, label')) return;
-      isDragging = true;
-      startY = e.pageY;
-      startScrollTop = scrollEl.scrollTop;
-      scrollEl.style.cursor = 'grabbing';
-      scrollEl.style.userSelect = 'none';
-    };
-
-    const onMouseMove = (e: MouseEvent) => {
-      if (!isDragging) return;
-      scrollEl.scrollTop = startScrollTop - (e.pageY - startY);
-    };
-
-    const onMouseUp = () => {
-      isDragging = false;
-      scrollEl.style.cursor = '';
-      scrollEl.style.userSelect = '';
-    };
-
-    scrollEl.addEventListener('mousedown', onMouseDown);
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-
-    return () => {
-      scrollEl.removeEventListener('mousedown', onMouseDown);
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-    };
-  }, [scrollEl]);
+  // Drag-to-scroll (callback ref inside the hook wires up after loading/error resolves)
+  const { ref: setScrollEl } = useDragScroll<HTMLDivElement>('y');
 
   if (query.isLoading) {
     return (

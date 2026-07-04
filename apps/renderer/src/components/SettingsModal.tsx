@@ -4,49 +4,108 @@ import { CREDENTIAL_DEFS, CREDENTIAL_KEYS } from '@dash/shared';
 import type { CredentialKey } from '@dash/shared';
 import { useAppSettingsStore } from '../store/settingsStore';
 import type { Density } from '../store/settingsStore';
+import { useQueryClient } from '@tanstack/react-query';
 import { exportSettings, importSettings } from '../lib/backup';
+import { apiClient } from '../lib/apiClient';
 import { cn } from '../lib/utils';
 
 // Group defs by service
 const SERVICES = Array.from(new Set(CREDENTIAL_DEFS.map((d) => d.service)));
 
-// ── Single credential row ─────────────────────────────────────────────────────
+// ── Single credential row (write-only) ────────────────────────────────────────
+// Stored values never reach the renderer — a set key renders masked with
+// Replace/Clear; only newly typed values live in state.
+
+/** Pending change for one key: absent = untouched. */
+type CredentialEdit = { mode: 'set'; value: string } | { mode: 'clear' };
 
 function CredentialRow({
   label,
   hint,
-  value,
-  onChange,
+  isSet,
+  edit,
+  onEdit,
 }: {
   label: string;
   hint?: string;
-  value: string;
-  onChange: (v: string) => void;
+  /** A value is stored in the main process. */
+  isSet: boolean;
+  edit: CredentialEdit | undefined;
+  onEdit: (e: CredentialEdit | undefined) => void;
 }) {
   const [visible, setVisible] = useState(false);
+
+  const showInput = !isSet || edit?.mode === 'set';
+  const pendingClear = isSet && edit?.mode === 'clear';
 
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-3">
         <span className="text-th-3 text-[11px] w-28 shrink-0">{label}</span>
-        <div className="flex-1 flex items-center gap-1.5">
-          <input
-            type={visible ? 'text' : 'password'}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder="—"
-            spellCheck={false}
-            className="flex-1 bg-th-elevated border border-th-line rounded-lg px-3 py-1.5 text-th-hi text-[11px] font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-3 transition-colors"
-          />
-          <button
-            onClick={() => setVisible((v) => !v)}
-            className="text-th-ghost hover:text-th-2 transition-colors shrink-0 p-1"
-            tabIndex={-1}
-            title={visible ? 'Hide' : 'Show'}
-          >
-            {visible ? <EyeOff size={13} /> : <Eye size={13} />}
-          </button>
-        </div>
+
+        {showInput ? (
+          <div className="flex-1 flex items-center gap-1.5">
+            <input
+              type={visible ? 'text' : 'password'}
+              value={edit?.mode === 'set' ? edit.value : ''}
+              onChange={(e) => {
+                const v = e.target.value;
+                // Emptied input on an unset key = untouched again
+                onEdit(v === '' && !isSet ? undefined : { mode: 'set', value: v });
+              }}
+              placeholder={isSet ? 'New value…' : '—'}
+              autoFocus={isSet}
+              spellCheck={false}
+              className="flex-1 bg-th-elevated border border-th-line rounded-lg px-3 py-1.5 text-th-hi text-[11px] font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-3 transition-colors"
+            />
+            <button
+              onClick={() => setVisible((v) => !v)}
+              className="text-th-ghost hover:text-th-2 transition-colors shrink-0 p-1"
+              tabIndex={-1}
+              title={visible ? 'Hide' : 'Show'}
+            >
+              {visible ? <EyeOff size={13} /> : <Eye size={13} />}
+            </button>
+            {isSet && (
+              <button
+                onClick={() => onEdit(undefined)}
+                className="text-th-ghost hover:text-th-2 transition-colors shrink-0 p-1"
+                title="Keep the saved value"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+        ) : pendingClear ? (
+          <div className="flex-1 flex items-center gap-2">
+            <span className="text-amber-400 text-[11px]">Will be removed on save</span>
+            <button
+              onClick={() => onEdit(undefined)}
+              className="text-th-ghost hover:text-th-2 text-[10px] underline transition-colors"
+            >
+              Undo
+            </button>
+          </div>
+        ) : (
+          <div className="flex-1 flex items-center gap-2">
+            <span className="text-th-hi text-[11px] font-mono tracking-widest">••••••••</span>
+            <span className="text-th-ghost text-[10px]">saved</span>
+            <div className="ml-auto flex items-center gap-1">
+              <button
+                onClick={() => onEdit({ mode: 'set', value: '' })}
+                className="px-2 py-0.5 rounded text-[10px] text-th-2 bg-th-elevated hover:bg-th-overlay transition-colors"
+              >
+                Replace
+              </button>
+              <button
+                onClick={() => onEdit({ mode: 'clear' })}
+                className="px-2 py-0.5 rounded text-[10px] text-th-ghost hover:text-red-400 bg-th-elevated transition-colors"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        )}
       </div>
       {hint && (
         <p className="text-th-ghost text-[10px] leading-relaxed pl-[calc(7rem+0.75rem)]">{hint}</p>
@@ -121,6 +180,8 @@ function AppSettingsPanel() {
   } = useAppSettingsStore();
   const fileRef = useRef<HTMLInputElement | null>(null);
 
+  const [importError, setImportError] = useState<string | null>(null);
+
   async function onImportFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = ''; // allow re-importing the same filename
@@ -129,7 +190,7 @@ function AppSettingsPanel() {
       await importSettings(file);
       window.location.reload();
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : 'Import failed');
+      setImportError(err instanceof Error ? err.message : 'Import failed');
     }
   }
 
@@ -243,6 +304,9 @@ function AppSettingsPanel() {
           </button>
           <input ref={fileRef} type="file" accept="application/json,.json" onChange={onImportFile} className="hidden" />
         </div>
+        {importError && (
+          <p className="text-red-400 text-[10px] leading-relaxed">{importError}</p>
+        )}
         <p className="text-th-ghost text-[10px] leading-relaxed">
           Layout, theme &amp; preferences (not API keys). Import replaces local settings and reloads — handy for syncing two machines.
         </p>
@@ -258,25 +322,34 @@ type Tab = 'app' | 'dev';
 
 export function SettingsModal({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<Tab>('app');
-  const [values, setValues] = useState<Partial<Record<CredentialKey, string>>>(
-    () => Object.fromEntries(CREDENTIAL_KEYS.map((k) => [k, ''])) as Record<CredentialKey, string>,
-  );
+  // Which keys have a stored value (booleans only — values never come over).
+  const [status, setStatus] = useState<Partial<Record<CredentialKey, boolean>>>({});
+  // Pending changes keyed by credential; absent = untouched.
+  const [edits, setEdits] = useState<Partial<Record<CredentialKey, CredentialEdit>>>({});
   const [builtinKeys, setBuiltinKeys] = useState<string[]>([]);
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [loading, setLoading] = useState(true);
+  const [encryptionAvailable, setEncryptionAvailable] = useState(true);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (!window.electron) { setLoading(false); return; } // defensive: no bridge outside Electron
+    const electron = window.electron;
+    if (!electron) { setLoading(false); return; } // defensive: no bridge outside Electron
+    let cancelled = false; // don't setState after Escape unmounts the modal mid-load
     Promise.all([
-      window.electron.credentials.getAll(),
-      fetch('http://localhost:7432/api/credentials/builtin').then((r) => r.json() as Promise<{ keys: string[] }>),
-    ]).then(([stored, builtin]) => {
-      setValues((prev) => ({ ...prev, ...stored }));
+      electron.credentials.getStatus(),
+      apiClient.get<{ keys: string[] }>('/api/credentials/builtin'),
+      electron.credentials.encryptionAvailable().catch(() => true),
+    ]).then(([storedStatus, builtin, encAvailable]) => {
+      if (cancelled) return;
+      setStatus(storedStatus);
       setBuiltinKeys(builtin.keys);
+      setEncryptionAvailable(encAvailable);
       setLoading(false);
     }).catch(() => {
-      setLoading(false);
+      if (!cancelled) setLoading(false);
     });
+    return () => { cancelled = true; };
   }, []);
 
   // Close on Escape
@@ -286,10 +359,35 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     return () => window.removeEventListener('keydown', handler);
   }, [onClose]);
 
+  // Payload for saveAll: non-empty string = set/replace, '' = clear, absent = keep.
+  // Replace-mode rows with nothing typed yet are skipped (nothing to save).
+  const payload: Partial<Record<CredentialKey, string>> = {};
+  for (const key of CREDENTIAL_KEYS) {
+    const edit = edits[key];
+    if (!edit) continue;
+    if (edit.mode === 'clear') payload[key] = '';
+    else if (edit.value.trim() !== '') payload[key] = edit.value.trim();
+  }
+  const hasChanges = Object.keys(payload).length > 0;
+
   async function handleSave() {
+    if (!window.electron || !hasChanges) return;
     setSaveState('saving');
     try {
-      await window.electron.credentials.saveAll(values);
+      // Resolves only after the Fastify child has restarted with the new env.
+      await window.electron.credentials.saveAll(payload);
+      // Reflect the merge locally: set keys become "saved", cleared ones unset.
+      setStatus((prev) => {
+        const next = { ...prev };
+        for (const [key, val] of Object.entries(payload)) {
+          next[key as CredentialKey] = val !== '';
+        }
+        return next;
+      });
+      setEdits({});
+      // Widgets were getting connection-refused during the restart — refetch
+      // everything now instead of leaving them in error until their next poll.
+      await queryClient.invalidateQueries();
       setSaveState('saved');
       setTimeout(() => setSaveState('idle'), 2000);
     } catch {
@@ -298,8 +396,13 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     }
   }
 
-  function setValue(key: CredentialKey, val: string) {
-    setValues((prev) => ({ ...prev, [key]: val }));
+  function setEdit(key: CredentialKey, edit: CredentialEdit | undefined) {
+    setEdits((prev) => {
+      const next = { ...prev };
+      if (edit === undefined) delete next[key];
+      else next[key] = edit;
+      return next;
+    });
     if (saveState !== 'idle') setSaveState('idle');
   }
 
@@ -363,8 +466,9 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                           key={def.key}
                           label={def.label}
                           hint={def.hint}
-                          value={values[def.key] ?? ''}
-                          onChange={(v) => setValue(def.key, v)}
+                          isSet={status[def.key] === true}
+                          edit={edits[def.key]}
+                          onEdit={(e) => setEdit(def.key, e)}
                         />
                       )
                     )}
@@ -373,10 +477,20 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
               })}
 
               {/* Info note */}
-              <p className="text-th-ghost text-[10px] leading-relaxed border-t border-th-line pt-4">
+              {!encryptionAvailable && (
+                <p className="text-amber-400 text-[10px] leading-relaxed border-t border-th-line pt-4">
+                  OS keychain unavailable — keys will be stored unencrypted on this device's disk.
+                </p>
+              )}
+              <p className={cn(
+                'text-th-ghost text-[10px] leading-relaxed',
+                encryptionAvailable && 'border-t border-th-line pt-4',
+              )}>
                 Spotify uses sign-in — no key needed. Weather, Hardware, and Sound require no API keys.
                 <br />
-                Keys are encrypted with your OS keychain and never leave this device.
+                {encryptionAvailable
+                  ? 'Keys are encrypted with your OS keychain and are write-only: they can be replaced or cleared here, never viewed.'
+                  : 'Keys are write-only: they can be replaced or cleared here, never viewed.'}
               </p>
             </>
           )}
@@ -386,13 +500,16 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         {tab === 'dev' && (
           <div className="px-5 py-3 border-t border-th-line shrink-0 flex items-center justify-between">
             {saveState === 'error' && (
-              <span className="text-red-400 text-[11px]">Failed to save — check console</span>
+              <span className="text-red-400 text-[11px]">Failed to save — the server didn't restart cleanly. Try again.</span>
             )}
-            {saveState !== 'error' && <span />}
+            {saveState === 'saving' && (
+              <span className="text-th-ghost text-[11px]">Restarting server with new keys…</span>
+            )}
+            {saveState !== 'error' && saveState !== 'saving' && <span />}
 
             <button
               onClick={handleSave}
-              disabled={saveState === 'saving' || loading}
+              disabled={saveState === 'saving' || loading || !hasChanges}
               className={cn(
                 'flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-medium transition-colors',
                 saveState === 'saved'

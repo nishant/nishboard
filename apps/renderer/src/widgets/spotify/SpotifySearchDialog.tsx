@@ -5,14 +5,8 @@ import {
   useDebouncedValue, useSpotifySearch, useDevices,
   usePlayTrack, useQueueTrack,
 } from './useSpotify';
+import { fmtMs } from '../../lib/time';
 import type { SpotifyTrackItem } from '@dash/shared';
-
-function fmtMs(ms: number): string {
-  const totalSec = Math.floor(ms / 1000);
-  const m = Math.floor(totalSec / 60);
-  const s = totalSec % 60;
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
 
 type RowAction = 'play' | 'queue';
 type ActionStatus = 'idle' | 'pending' | 'done' | 'error';
@@ -24,17 +18,19 @@ interface ResultRowProps {
   onAction: (track: SpotifyTrackItem, action: RowAction) => void;
 }
 
-const ResultRow = memo(function ResultRow({
-  track, playStatus, queueStatus, onAction,
-}: ResultRowProps) {
-  const ActionButton = ({
-    action, status, icon, title,
-  }: {
-    action: RowAction;
-    status: ActionStatus;
-    icon: React.ReactNode;
-    title: string;
-  }) => (
+// Hoisted (not defined inside ResultRow): a component created during render
+// gets a fresh identity each time, remounting its DOM on every parent render.
+function ActionButton({
+  track, action, status, icon, title, onAction,
+}: {
+  track: SpotifyTrackItem;
+  action: RowAction;
+  status: ActionStatus;
+  icon: React.ReactNode;
+  title: string;
+  onAction: (track: SpotifyTrackItem, action: RowAction) => void;
+}) {
+  return (
     <button
       onClick={(e) => { e.stopPropagation(); onAction(track, action); }}
       disabled={track.isLocal || status === 'pending'}
@@ -54,7 +50,11 @@ const ResultRow = memo(function ResultRow({
         : icon}
     </button>
   );
+}
 
+const ResultRow = memo(function ResultRow({
+  track, playStatus, queueStatus, onAction,
+}: ResultRowProps) {
   return (
     <div className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md hover:bg-th-elevated/60 group">
       {track.imageUrl ? (
@@ -72,8 +72,8 @@ const ResultRow = memo(function ResultRow({
       </div>
       <span className="text-th-ghost text-[10px] tabular-nums shrink-0">{fmtMs(track.durationMs)}</span>
       <div className="flex items-center gap-0.5 shrink-0">
-        <ActionButton action="play" status={playStatus} icon={<Play size={13} />} title="Play now" />
-        <ActionButton action="queue" status={queueStatus} icon={<Plus size={13} />} title="Add to queue" />
+        <ActionButton track={track} onAction={onAction} action="play" status={playStatus} icon={<Play size={13} />} title="Play now" />
+        <ActionButton track={track} onAction={onAction} action="queue" status={queueStatus} icon={<Plus size={13} />} title="Add to queue" />
       </div>
     </div>
   );

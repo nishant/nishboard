@@ -3,12 +3,12 @@ import { persist } from 'zustand/middleware';
 
 export type HardwareSection = 'cpu' | 'gpu' | 'ram' | 'disk' | 'network' | 'battery';
 
-interface HardwareStore {
+interface HardwareState {
   visible: Record<HardwareSection, boolean>;
   setVisible: (section: HardwareSection, value: boolean) => void;
 }
 
-export const useHardwareStore = create<HardwareStore>()(
+export const useHardwareStore = create<HardwareState>()(
   persist(
     (set) => ({
       visible: {

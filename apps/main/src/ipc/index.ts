@@ -1,5 +1,5 @@
-import { app, BrowserWindow, IpcMain, Notification, shell } from 'electron';
-import { readCredentials, writeCredentials } from '../credentials';
+import { app, BrowserWindow, IpcMain, Notification, safeStorage, shell } from 'electron';
+import { readCredentialStatus, writeCredentials } from '../credentials';
 import { restartServer } from '../server/spawn';
 import type { CredentialKey } from '@dash/shared';
 
@@ -23,17 +23,26 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   });
 
   ipcMain.on('spotify:open-auth', (_event, url: string) => {
-    shell.openExternal(url);
+    // The auth URL is always built by our own /auth-url route — anything else
+    // reaching this channel is not a legitimate Spotify OAuth flow.
+    if (url.startsWith('https://accounts.spotify.com/')) shell.openExternal(url);
   });
 
   // ── Credentials ─────────────────────────────────────────────────────────────
 
-  ipcMain.handle('credentials:get-all', () => {
-    return readCredentials();
+  // Write-only credentials: the renderer learns which keys are set, never
+  // their values (get-all was removed — decrypted keys used to prefill the
+  // Settings form, violating "secrets never reach the renderer").
+  ipcMain.handle('credentials:get-status', () => {
+    return readCredentialStatus();
   });
 
   ipcMain.handle('credentials:save-all', async (_event, creds: Partial<Record<CredentialKey, string>>) => {
     writeCredentials(creds);
     await restartServer();
+  });
+
+  ipcMain.handle('credentials:encryption-available', () => {
+    return safeStorage.isEncryptionAvailable();
   });
 }

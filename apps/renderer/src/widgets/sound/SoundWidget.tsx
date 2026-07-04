@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
 import { Volume2, VolumeX, Volume1, Volume } from 'lucide-react';
 import { useSound, useSetVolume, useSetMute, useSwitchDevice, useSetSessionVolume } from './useSound';
+import { useDeferredSlider } from '../../hooks/useDeferredSlider';
 import type { AudioDevice, AudioSession } from '@dash/shared';
 
 function VolumeIcon({ vol, muted }: { vol: number; muted: boolean }) {
@@ -19,29 +19,15 @@ function VolumeSlider({
   onChange: (v: number) => void;
   disabled?: boolean;
 }) {
-  const [local, setLocal] = useState(value);
-  const pointerDown = useRef(false);
-
-  // Sync from parent only when user isn't touching the slider.
-  // This lets server polls update the display while idle, but never
-  // interrupts an active drag or snap after a commit.
-  useEffect(() => {
-    if (!pointerDown.current) setLocal(value);
-  }, [value]);
+  const { sliderProps } = useDeferredSlider(value, onChange);
 
   return (
     <input
       type="range"
       min={0}
       max={100}
-      value={local}
       disabled={disabled}
-      onChange={(e) => setLocal(Number(e.target.value))}
-      onPointerDown={() => { pointerDown.current = true; }}
-      onPointerUp={() => {
-        pointerDown.current = false;
-        onChange(local);
-      }}
+      {...sliderProps}
       className="w-full h-1 rounded-full appearance-none cursor-pointer
         bg-th-overlay accent-th-accent
         disabled:opacity-40 disabled:cursor-not-allowed"
@@ -81,12 +67,10 @@ function DeviceItem({
 }
 
 function SessionRow({ session, onCommit }: { session: AudioSession; onCommit: (pid: number, vol: number) => void }) {
-  const [local, setLocal] = useState(session.volumePercent);
-  const pointerDown = useRef(false);
-
-  useEffect(() => {
-    if (!pointerDown.current) setLocal(session.volumePercent);
-  }, [session.volumePercent]);
+  const { value: local, sliderProps } = useDeferredSlider(
+    session.volumePercent,
+    (v) => onCommit(session.pid, v),
+  );
 
   return (
     <div className="flex items-center gap-2 group">
@@ -97,13 +81,7 @@ function SessionRow({ session, onCommit }: { session: AudioSession; onCommit: (p
         type="range"
         min={0}
         max={100}
-        value={local}
-        onChange={(e) => setLocal(Number(e.target.value))}
-        onPointerDown={() => { pointerDown.current = true; }}
-        onPointerUp={() => {
-          pointerDown.current = false;
-          onCommit(session.pid, local);
-        }}
+        {...sliderProps}
         className="flex-1 h-1 rounded-full appearance-none cursor-pointer bg-th-overlay accent-th-accent"
       />
       <span className="text-th-3 text-[10px] tabular-nums font-mono w-7 text-right shrink-0">
@@ -159,9 +137,10 @@ export function SoundWidget() {
             {muted ? 'muted' : `${vol}%`}
           </span>
         </div>
+        {/* Stays enabled while muted — pre-setting the level before unmuting is
+            the natural gesture; forcing unmute-first was a papercut. */}
         <VolumeSlider
           value={vol}
-          disabled={muted}
           onChange={(v) => setVolume.mutate(v)}
         />
       </div>

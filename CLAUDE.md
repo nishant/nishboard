@@ -25,7 +25,7 @@ Personal ambient desktop dashboard for Nish, running all day on a secondary moni
 |---|---|---|---|
 | Weather | Open-Meteo forecast + NWS severe-weather alerts (+ ip-api geolocation, zippopotam.us for ZIP) | none | 15min |
 | Spotify | Spotify Web API (remote control — no Web Playback SDK; stock Electron lacks Widevine) | PKCE OAuth (`SPOTIFY_CLIENT_ID`) | 3s REST |
-| Stocks | Alpaca Markets IEX REST snapshots (+ per-ticker detail: intraday/daily bars + Benzinga news) | ALPACA_API_KEY + ALPACA_API_SECRET | 5s poll |
+| Stocks | Alpaca Markets IEX REST snapshots (+ per-ticker detail: intraday/daily bars + Benzinga news) | ALPACA_API_KEY + ALPACA_API_SECRET | 5min poll |
 | Hardware | systeminformation | none | 1s |
 | Sound | PowerShell/WASAPI (Win) / osascript + SwitchAudioSource (mac) | none | 5s |
 | Calendar | none (pure-JS date rendering) | none | n/a |
@@ -39,6 +39,8 @@ Personal ambient desktop dashboard for Nish, running all day on a secondary moni
 | Countdown | none (target datetime, localStorage; fires via notification IPC) | none | n/a |
 
 ## Secrets & Credentials
+Settings → Developer is **write-only**: the renderer only ever learns *which* keys are set (`credentials:get-status` booleans); stored values can be replaced or cleared but never viewed. Decrypted keys exist only in the main process and the spawned server's env.
+
 Three places a key can live — checked in this order at runtime:
 1. **Runtime env from safeStorage** — user-entered keys are encrypted with Electron `safeStorage` in `userData/credentials.json`, decrypted on launch, and injected as env vars into the spawned Fastify process. Saving in Settings restarts the server.
 2. **Build-time baked values** — `packages/server/build.mjs` reads the root `.env` at package time and bakes each key into the server bundle via esbuild `--define` as `process.env.<KEY>_BUILTIN`. The *value* lands in the compiled bundle only — never in source or git (`.env` is gitignored). This is what lets a distributed DMG/EXE "just work". Each route reads runtime env first, then falls back to the `_BUILTIN` value.

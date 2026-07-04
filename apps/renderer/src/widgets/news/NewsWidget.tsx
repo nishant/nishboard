@@ -2,18 +2,7 @@ import { useEffect, useState } from 'react';
 import { Newspaper, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNews } from './useNews';
 import { cn } from '../../lib/utils';
-
-function relTime(iso: string): string {
-  if (!iso) return '';
-  const ms = Date.now() - new Date(iso).getTime();
-  if (ms < 0) return '';
-  const m = Math.floor(ms / 60000);
-  if (m < 1) return 'just now';
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
+import { relTimeAgo } from '../../lib/time';
 
 export function NewsWidget() {
   const { data, isLoading, isError } = useNews();
@@ -63,7 +52,7 @@ export function NewsWidget() {
           {cur.title}
         </span>
         <span className="text-th-ghost text-[10px] mt-2 flex items-center gap-1 min-w-0">
-          <span className="truncate">{cur.source}{cur.pubDate && ` · ${relTime(cur.pubDate)}`}</span>
+          <span className="truncate">{cur.source}{cur.pubDate && ` · ${relTimeAgo(cur.pubDate)}`}</span>
           <ExternalLink className="w-2.5 h-2.5 shrink-0 opacity-0 group-hover:opacity-100 transition" />
         </span>
       </button>
@@ -76,11 +65,17 @@ export function NewsWidget() {
         >
           <ChevronLeft size={14} />
         </button>
-        <div className="flex gap-1">
-          {items.slice(0, 8).map((_, i) => (
-            <span key={i} className={cn('w-1 h-1 rounded-full transition-colors', i === safeIdx % 8 ? 'bg-th-2' : 'bg-th-overlay')} />
-          ))}
-        </div>
+        {/* With >8 items dots can't map 1:1, so show a position counter instead
+            of a modulo-highlighted dot that lies about which item is active. */}
+        {items.length <= 8 ? (
+          <div className="flex gap-1">
+            {items.map((_, i) => (
+              <span key={i} className={cn('w-1 h-1 rounded-full transition-colors', i === safeIdx ? 'bg-th-2' : 'bg-th-overlay')} />
+            ))}
+          </div>
+        ) : (
+          <span className="text-th-ghost text-[10px] tabular-nums">{safeIdx + 1}/{items.length}</span>
+        )}
         <button
           onClick={() => setIdx((i) => (i + 1) % items.length)}
           className="p-1 rounded text-th-ghost hover:text-th-2 hover:bg-th-elevated/60 transition"

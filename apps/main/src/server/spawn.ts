@@ -4,6 +4,14 @@ import path from 'path';
 import { readCredentials } from '../credentials';
 
 let serverProcess: ChildProcess | null = null;
+// Distinguishes our own kill (quit, credential-save restart) from a crash, so the
+// exit handler only auto-respawns on the latter.
+let intentionalStop = false;
+let restartAttempts = 0;
+let restartTimer: NodeJS.Timeout | null = null;
+
+const MAX_RESTART_ATTEMPTS = 5;
+const HEALTHY_RESET_MS = 60_000;
 
 const isDev = process.env.NODE_ENV === 'development';
 const port = Number(process.env.SERVER_PORT ?? 7432);
@@ -38,6 +46,52 @@ async function waitForServer(timeoutMs = 15000): Promise<void> {
   throw new Error(`Server on :${port} did not start within ${timeoutMs}ms`);
 }
 
+function startChild(): void {
+  // In production the server lives at {appPath}/server/index.js
+  // (electron-builder maps packages/server/dist → server/ with asar: false)
+  const serverEntry = path.join(app.getAppPath(), 'server', 'index.js');
+
+  // Inject credentials stored via safeStorage so the server reads them from process.env
+  const credentials = readCredentials();
+
+  // process.execPath in Electron is the Electron binary, not Node.js.
+  // Setting ELECTRON_RUN_AS_NODE=1 makes the Electron binary behave as a
+  // plain Node.js runner — the correct way to spawn Node scripts from Electron.
+  serverProcess = spawn(process.execPath, [serverEntry], {
+    env: {
+      ...process.env,
+      ELECTRON_RUN_AS_NODE: '1',
+      NODE_ENV: 'production',
+      SERVER_PORT: String(port),
+      ...credentials,
+    },
+    stdio: 'pipe',
+  });
+  serverProcess.stdout?.pipe(process.stdout);
+  serverProcess.stderr?.pipe(process.stderr);
+  serverProcess.on('error', (err) => console.error('[server] spawn error:', err));
+
+  const startedAt = Date.now();
+  serverProcess.on('exit', (code, signal) => {
+    serverProcess = null;
+    if (intentionalStop) return;
+    // A crash after a healthy stretch is a fresh incident, not a crash loop.
+    if (Date.now() - startedAt > HEALTHY_RESET_MS) restartAttempts = 0;
+    if (restartAttempts >= MAX_RESTART_ATTEMPTS) {
+      console.error(
+        `[server] exited (code ${code}, signal ${signal}) — giving up after ${MAX_RESTART_ATTEMPTS} restarts`,
+      );
+      return;
+    }
+    const delay = 1000 * 2 ** restartAttempts;
+    restartAttempts += 1;
+    console.error(
+      `[server] exited (code ${code}, signal ${signal}) — restarting in ${delay}ms (attempt ${restartAttempts}/${MAX_RESTART_ATTEMPTS})`,
+    );
+    restartTimer = setTimeout(startChild, delay);
+  });
+}
+
 export async function spawnServer(): Promise<void> {
   if (!isDev) {
     // Production only: clear any leftover process on our port before spawning ours.
@@ -45,30 +99,9 @@ export async function spawnServer(): Promise<void> {
     // the port here would take down the live dev server on every Electron restart
     // (Electron restarts whenever a main/shared file recompiles), so we skip it.
     killStaleOnPort(port);
-
-    // In production the server lives at {appPath}/server/index.js
-    // (electron-builder maps packages/server/dist → server/ with asar: false)
-    const serverEntry = path.join(app.getAppPath(), 'server', 'index.js');
-
-    // Inject credentials stored via safeStorage so the server reads them from process.env
-    const credentials = readCredentials();
-
-    // process.execPath in Electron is the Electron binary, not Node.js.
-    // Setting ELECTRON_RUN_AS_NODE=1 makes the Electron binary behave as a
-    // plain Node.js runner — the correct way to spawn Node scripts from Electron.
-    serverProcess = spawn(process.execPath, [serverEntry], {
-      env: {
-        ...process.env,
-        ELECTRON_RUN_AS_NODE: '1',
-        NODE_ENV: 'production',
-        SERVER_PORT: String(port),
-        ...credentials,
-      },
-      stdio: 'pipe',
-    });
-    serverProcess.stdout?.pipe(process.stdout);
-    serverProcess.stderr?.pipe(process.stderr);
-    serverProcess.on('error', (err) => console.error('[server] spawn error:', err));
+    intentionalStop = false;
+    restartAttempts = 0;
+    startChild();
   }
   // In dev, concurrently already started the server — just wait for it.
 
@@ -77,6 +110,11 @@ export async function spawnServer(): Promise<void> {
 }
 
 export function stopServer(): void {
+  intentionalStop = true;
+  if (restartTimer) {
+    clearTimeout(restartTimer);
+    restartTimer = null;
+  }
   serverProcess?.kill();
   serverProcess = null;
 }

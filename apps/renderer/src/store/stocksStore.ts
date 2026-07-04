@@ -1,14 +1,14 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-interface StocksStore {
+interface StocksState {
   watchlist: string[];
   addTicker: (ticker: string) => void;
   removeTicker: (ticker: string) => void;
   setWatchlist: (tickers: string[]) => void;
 }
 
-export const useStocksStore = create<StocksStore>()(
+export const useStocksStore = create<StocksState>()(
   persist(
     (set) => ({
       watchlist: ['SPY', 'QQQ', 'AAPL', 'MSFT', 'NVDA', 'TSLA', 'GOOGL', 'AMZN'],

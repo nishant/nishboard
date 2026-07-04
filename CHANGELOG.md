@@ -4,6 +4,63 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #63] fix: audit batch — hardening, behavior bugs, dedup refactors, perf, docs
+**Branch:** `fix/full-app-audit` → master
+**Date:** 2026-07-03
+
+### Context
+The complete full-app audit: two command-injection holes and an XSS in the server, Electron lifecycle gaps, four renderer behavior bugs, the systematic copy-paste cleanup (server route plumbing, renderer hooks, YouTube/Twitch unification, Titlebar extraction), perf hot paths, server resource usage, UX polish, docs drift — plus the four decision-gated items (resolved by Nish): stocks stays on its 5-min poll (docs/UI made honest), credentials became write-only, Spotify redirect URI standardized on the registered `127.0.0.1` form, and ESLint adopted for real.
+
+### Fixed
+- **mac command injection in `POST /api/sound/device`** — `SwitchAudioSource`/`osascript` ran through a shell with only `"` escaped, so a crafted `deviceId` (`$(…)`, backticks) executed arbitrary commands. All mac sound calls now use `execFile` (no shell); the PowerShell runner also invokes via `execFile`.
+- **Windows PowerShell injection in `POST /api/sound/sessions/volume`** — `pid` was interpolated into the generated script without validation (TS `number` is compile-time only). Now enforced by a runtime JSON schema + an integer re-check before interpolation; all four sound mutation routes gained body schemas.
+- **Spotify token-refresh race** — concurrent requests near expiry each ran their own refresh; Spotify rotates refresh tokens, so last-write-wins could persist a dead token and force a re-auth. `getValidToken()` now single-flights the refresh (all callers await the same promise).
+- **Reflected XSS on `/api/spotify/callback`** — the `error` query param and upstream error text were interpolated raw into the returned HTML (same-origin with the whole localhost API). Now HTML-escaped.
+- **Second launch killed the running app's server** — no single-instance lock meant instance 2's prod `killStaleOnPort(7432)` SIGKILLed instance 1's server. Added `requestSingleInstanceLock()`; a second launch now focuses the existing window.
+- **macOS: reopening the window left every widget dead** — `window-all-closed` stopped the server but `activate` only re-created the window. `stopServer()` moved to `before-quit` (fires on both platforms; Windows/Linux quit path unchanged).
+- **Server crash was permanent until app restart** — `spawn.ts` now auto-respawns the Fastify child on unexpected exit with 1s/2s/4s… backoff (max 5 attempts, counter resets after 60s healthy); intentional stops (quit, credential-save restart) don't trigger it.
+- **Active preset/layout highlight wiped on launch** — react-grid-layout echoes `onLayoutChange` on mount and after `applyPreset`, and `setLayout` unconditionally cleared the markers. Split into `syncLayout` (geometry only, used by `onLayoutChange`) + `markUserEdited` (called from `onDragStop`/`onResizeStop`), so the highlight survives launch and preset application and clears only on a real gesture.
+- **Alarm/countdown chime burst on relaunch** — items that elapsed while the app was closed all fired on the first tick. Both stores now settle stale items (>30s past) silently in `onRehydrateStorage` and show one aggregate notification; items <30s past still fire normally.
+- **Calendar stuck on yesterday after midnight** — `today` was computed only at render. A 60s tick now re-renders when the date changes.
+- **Alarm DST drift** — "next occurrence" added a flat +24h; now advances by wall-clock day (`setDate`), keeping the entered local time across DST transitions.
+- **Countdown accepted past datetimes** (which fired immediately) — now rejected on submit.
+
+### Changed
+- **Credential storage whitelisted** — `readCredentials`/`writeCredentials` only accept `CREDENTIAL_KEYS`, so the renderer can no longer persist arbitrary keys that get injected into the spawned server's env (`NODE_OPTIONS`, `PATH`, …).
+- **Window hardening** — `setWindowOpenHandler` denies all popups; `will-navigate` blocks navigation away from the app; `spotify:open-auth` only opens `https://accounts.spotify.com/…` URLs.
+- **DevTools shortcut** now window-scoped via `before-input-event` (Cmd+Opt+I / Ctrl+Alt+I, still available in packaged builds) instead of a system-wide `globalShortcut` that stole the combo from every app while Nishboard ran.
+- **Server shared lib** (`packages/server/src/lib/`) — `HttpError`/`UpstreamError` + a central `setErrorHandler` replace ~30 per-route try/catch→502 blocks; `fetchJson`/`fetchText` add a 10s timeout to every upstream call (a hung API can no longer stall a route); `TtlCache<K,V>` replaces the four ad-hoc `Map` cache idioms; `cred()` centralizes the env-then-`_BUILTIN` fallback. All routes converted; `SpotifyApiError` folded into `UpstreamError` (informative upstream statuses 401/403/404/429 now pass through on every route, not just now-playing). Dead `ws` dependency removed.
+- **Renderer API base** — `apiClient` exports `API_BASE` (`http://127.0.0.1:7432` — matches the server's v4-only bind; Windows can resolve `localhost` to `::1`) and everything fetches through it (`useYoutube`/`useTwitch` raw-fetch copies and the SettingsModal hardcoded URL removed). Embed iframes intentionally stay on `localhost` via `embedUrl()` — Twitch's `parent=` param rejects bare IPs. CORS adds the `'null'` origin defensively.
+- **Shared renderer hooks** — `useElementSize` (callback-ref + retry-RAF + ResizeObserver, was copy-pasted 4×), `useDeferredSlider` (drag-safe polled sliders, 3×), `useDragScroll` (2×), and `lib/time` (six scattered formatters, two byte-identical). Spotify's ProgressBar keeps `onTick` in a ref so its 1s interval survives poll re-renders (stutter fix).
+- **YouTube/Twitch unified** — both widgets were ~90% identical; a generic `widgets/embed/EmbedSearchWidget` owns the state machine/search/iframe-kept-mounted logic and each service is now a small adapter. Search-error copy now points at Settings → Developer instead of `.env` (which doesn't exist in packaged builds).
+- **Titlebar extracted** — the 1053-line component split into `components/menus/` (ThemeMenu, LayoutsMenu, WidgetsMenu, PinnedLayouts + shared primitives: `WidgetPinList`, `SaveAsForm`, `SavedItemRow`, `ConfirmDeleteDialog`); the duplicated delete modals and editor footers are now single implementations. Titlebar itself is ~120 lines. No behavior change.
+
+### Added
+- **Minimize button** in the titlebar (the IPC existed unused); **`credentials:encryption-available` IPC** — Settings shows an explicit "stored unencrypted" warning when safeStorage has no OS keychain instead of falsely claiming keychain encryption.
+- **YouTube server-side quota budget** — 90 searches/day (429 with a clear message past that) + a 10-min server response cache; a stuck client can no longer burn the ~100/day quota.
+
+### Perf
+- **ThemeManager null-component** — theme/scale changes (incl. live color-picker drags) no longer re-render the whole widget tree; `data-theme` + custom vars move to `<html>`.
+- **WorldClock** 1s tick isolated to the clock list; **Hardware** cards memoized + history snapshots copy-on-write (fixes the stale-array-identity trap); config/view toggles stop redrawing all six Recharts charts.
+- **Server hardware route** — fsSize cached 60s, battery 30s, graphics 10s on macOS only (Windows keeps 1s for live nvidia-smi GPU util).
+- **Bundle** — vite `manualChunks` splits recharts/react-grid-layout/vendor (app chunk 973kB → 288kB); sourcemaps `'hidden'` (no 4MB map referenced from the packaged bundle). Root `engines: node >=20`.
+- Deliberately skipped: blanket narrow-Zustand-selector conversion — the flagged widgets consume every field of their small stores; per-field selectors would be churn with no re-render benefit.
+
+### Decisions (final batch)
+- **Stocks cadence** — kept at 5-min (deliberate; minimal Alpaca usage). CLAUDE.md/SPEC interval tables corrected from the stale "5s"; the market-session dot no longer pulses (it marks the session, not a live feed) and tooltips the refresh rate. Missing Alpaca keys now yield a 503 pointing at Settings → Developer instead of a raw upstream 403.
+- **Credentials are write-only** — `credentials:get-all` removed; `credentials:get-status` returns booleans and the status check never decrypts. Settings shows stored keys masked with Replace (inline, cancelable) / Clear (undo-able before save); `writeCredentials` merges (`''` clears, absent keeps) so stored values never round-trip through the renderer. Trade-off: keys can't be viewed in the app anymore.
+- **Spotify redirect URI = `http://127.0.0.1:7432/api/spotify/callback`** everywhere (code default was `localhost` — mismatched the URI registered in the Spotify dashboard; exact-match). Verify the Connect flow once on-device.
+- **ESLint adopted** — root flat config (typescript-eslint recommended + react-hooks in the renderer; the React-Compiler-era rules are off with in-config rationale), per-package `lint` scripts make `turbo lint` real, and the codebase lints clean. First pass caught dead code in `colorUtils` and a component-defined-during-render in `SpotifySearchDialog` (hoisted).
+
+### Notes
+- `winSwitchDevice`'s `''`-escaping was audited and is safe (single-quoted inside a `-File` script, never through cmd.exe) — now documented in-code.
+- Settings polish: credential save now shows "Restarting server…" and invalidates all queries once the server is back (widgets used to sit in error until their next poll); import errors are inline (no `window.alert`); backup import validates `app`/`version` and only restores known/`dashboard-*` keys.
+- `window.electron` is now typed optional (it is, outside Electron); hardware config toggles are real keyboard-focusable checkboxes; sound master slider stays usable while muted; news dot indicator replaced by an n/total counter past 8 items; `index.html` title → Nishboard.
+- Docs: PROJECT_INSTRUCTIONS.md replaced with a pointer to CLAUDE.md (all four of its architecture claims had drifted); SPEC.md fixed (Spotify tokens are plain JSON at `~/.dash/`, IPC table completed, env list completed); README rename leftovers.
+- Verify on Windows: single-instance focus behavior and the sound mixer after the `execFile` switch. Verify on macOS: window close → Dock reopen keeps widgets alive.
+
+---
+
 ## [PR #61] feat: responsive titlebar + compact-mode toggle
 **Branch:** `feat/titlebar-responsive` → `master`
 **Date:** 2026-07-03
