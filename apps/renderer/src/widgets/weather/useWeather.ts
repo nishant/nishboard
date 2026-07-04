@@ -5,11 +5,17 @@ import type { WeatherData } from '@dash/shared';
 
 export function useWeather(enabled = true) {
   const zip = useAppSettingsStore((s) => s.weatherZip).trim();
+  const tempUnit = useAppSettingsStore((s) => s.tempUnit);
+  const windUnit = useAppSettingsStore((s) => s.windUnit);
   return useQuery<WeatherData>({
-    // Key includes the ZIP so changing it in Settings refetches the right location.
-    queryKey: ['weather', zip],
-    queryFn: () =>
-      apiClient.get<WeatherData>(`/api/weather${zip ? `?zip=${encodeURIComponent(zip)}` : ''}`),
+    // Key includes ZIP + units so changing either in Settings refetches the right data
+    // (the server caches per zip:temp:wind combination too).
+    queryKey: ['weather', zip, tempUnit, windUnit],
+    queryFn: () => {
+      const params = new URLSearchParams({ temp: tempUnit, wind: windUnit });
+      if (zip) params.set('zip', zip);
+      return apiClient.get<WeatherData>(`/api/weather?${params}`);
+    },
     enabled,
     refetchInterval: 15 * 60 * 1000,
     staleTime: 15 * 60 * 1000,

@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react';
 import { Play, Pause, RotateCcw, X, Plus, Bell } from 'lucide-react';
 import { useTimersStore } from '../../store/timersStore';
+import { useAppSettingsStore } from '../../store/settingsStore';
 import { fireAlert } from '../../lib/alerts';
 import { cn } from '../../lib/utils';
-import { fmtDuration, relTimeUntil } from '../../lib/time';
+import { fmtDuration, relTimeUntil, hourFormat } from '../../lib/time';
 import { EmptyState } from '../../components/EmptyState';
 
 type Tab = 'timer' | 'alarm';
 
-function fmtAlarm(at: number): string {
+function fmtAlarm(at: number, clock24h: boolean): string {
   const d = new Date(at);
   const today = new Date();
-  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', ...hourFormat(clock24h) });
   const sameDay = d.toDateString() === today.toDateString();
   return sameDay ? time : `${d.toLocaleDateString('en-US', { weekday: 'short' })} ${time}`;
 }
@@ -33,6 +34,7 @@ const iconBtn = 'shrink-0 p-1 rounded text-th-ghost hover:text-th-2 hover:bg-th-
 
 export function TimerWidget() {
   const [tab, setTab] = useState<Tab>('timer');
+  const clock24h = useAppSettingsStore((s) => s.clock24h);
   const { timers, alarms, addTimer, startTimer, pauseTimer, resetTimer, removeTimer,
     addAlarm, removeAlarm } = useTimersStore();
 
@@ -167,7 +169,7 @@ export function TimerWidget() {
                   <Bell size={13} className={cn('shrink-0', a.done ? 'text-th-ghost' : 'text-th-accent')} />
                   <div className="flex flex-col flex-1 min-w-0">
                     <span className={cn('text-sm tabular-nums leading-tight', a.done ? 'text-th-ghost line-through' : 'text-th-hi')}>
-                      {fmtAlarm(a.at)}
+                      {fmtAlarm(a.at, clock24h)}
                     </span>
                     {a.label && <span className="text-th-ghost text-[10px] truncate">{a.label}</span>}
                   </div>

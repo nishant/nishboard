@@ -4,7 +4,8 @@ import { AreaChart, Area, ResponsiveContainer, YAxis, Tooltip } from 'recharts';
 import { useStocks, useStockDetail } from './useStocks';
 import { useStocksStore } from '../../store/stocksStore';
 import { useStocksUiStore } from '../../store/stocksUiStore';
-import { relTimeAgo } from '../../lib/time';
+import { useAppSettingsStore } from '../../store/settingsStore';
+import { relTimeAgo, hourFormat } from '../../lib/time';
 import { WidgetSkeleton, Skeleton } from '../../components/Skeleton';
 import { ErrorState } from '../../components/ErrorState';
 import { HeaderAction } from '../../components/HeaderAction';
@@ -96,6 +97,7 @@ function QuoteCard({ q, onClick }: { q: StockQuote; onClick: () => void }) {
 
 function StockDetailPanel({ ticker, onClose }: { ticker: string; onClose: () => void }) {
   const { data, isLoading, isError } = useStockDetail(ticker);
+  const clock24h = useAppSettingsStore((s) => s.clock24h);
   const bars = data?.bars ?? [];
   const news = data?.news ?? [];
   const range = data?.range ?? 'intraday';
@@ -149,7 +151,7 @@ function StockDetailPanel({ ticker, onClose }: { ticker: string; onClose: () => 
                   labelFormatter={(t: string) =>
                     range === 'daily'
                       ? new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                      : new Date(t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+                      : new Date(t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', ...hourFormat(clock24h) })
                   }
                   formatter={(v: number) => [fmtPrice(v), 'Price']}
                 />

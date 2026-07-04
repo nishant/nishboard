@@ -3,7 +3,7 @@ import { X, Eye, EyeOff, Check, Loader2, Lock, Minus, Plus, Download, Upload } f
 import { CREDENTIAL_DEFS, CREDENTIAL_KEYS } from '@dash/shared';
 import type { CredentialKey } from '@dash/shared';
 import { useAppSettingsStore } from '../store/settingsStore';
-import type { Density } from '../store/settingsStore';
+import type { Density, TempUnit, WindUnit } from '../store/settingsStore';
 import { useQueryClient } from '@tanstack/react-query';
 import { exportSettings, importSettings } from '../lib/backup';
 import { apiClient } from '../lib/apiClient';
@@ -167,6 +167,40 @@ function ToggleRow({
   );
 }
 
+// ── Segmented picker row ──────────────────────────────────────────────────────
+
+function SegmentedRow<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="text-th-3 text-[11px] w-28 shrink-0">{label}</span>
+      <div className="flex rounded-lg bg-th-elevated p-0.5">
+        {options.map((o) => (
+          <button
+            key={o.value}
+            onClick={() => onChange(o.value)}
+            className={cn(
+              'px-2.5 py-1 rounded text-[10px] transition-colors',
+              value === o.value ? 'bg-th-overlay text-th-hi' : 'text-th-ghost hover:text-th-2',
+            )}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── App settings tab ──────────────────────────────────────────────────────────
 
 const SCALE_MIN = 0.8;
@@ -176,7 +210,9 @@ const clampScale = (n: number) => Math.round(Math.min(SCALE_MAX, Math.max(SCALE_
 function AppSettingsPanel() {
   const {
     weatherZip, showTempInClock, uiScale, density, compactTitlebar,
+    tempUnit, windUnit, clock24h,
     setWeatherZip, setShowTempInClock, setUiScale, setDensity, setCompactTitlebar,
+    setTempUnit, setWindUnit, setClock24h,
   } = useAppSettingsStore();
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -216,6 +252,29 @@ function AppSettingsPanel() {
             5-digit US ZIP to override your location. Leave blank to detect automatically.
           </p>
         </div>
+      </div>
+
+      {/* Units & time */}
+      <div className="flex flex-col gap-3">
+        <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">Units &amp; time</span>
+        <SegmentedRow<TempUnit>
+          label="Temperature"
+          value={tempUnit}
+          options={[{ value: 'f', label: '°F' }, { value: 'c', label: '°C' }]}
+          onChange={setTempUnit}
+        />
+        <SegmentedRow<WindUnit>
+          label="Wind speed"
+          value={windUnit}
+          options={[{ value: 'mph', label: 'mph' }, { value: 'kmh', label: 'km/h' }]}
+          onChange={setWindUnit}
+        />
+        <ToggleRow
+          label="24-hour clock"
+          description="Applies to the titlebar clock, world clock, alarms and countdowns."
+          checked={clock24h}
+          onChange={setClock24h}
+        />
       </div>
 
       {/* Top bar */}
@@ -267,23 +326,12 @@ function AppSettingsPanel() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <span className="text-th-3 text-[11px] w-28 shrink-0">Density</span>
-          <div className="flex rounded-lg bg-th-elevated p-0.5">
-            {(['comfortable', 'compact'] as Density[]).map((d) => (
-              <button
-                key={d}
-                onClick={() => setDensity(d)}
-                className={cn(
-                  'px-2.5 py-1 rounded text-[10px] capitalize transition-colors',
-                  density === d ? 'bg-th-overlay text-th-hi' : 'text-th-ghost hover:text-th-2',
-                )}
-              >
-                {d}
-              </button>
-            ))}
-          </div>
-        </div>
+        <SegmentedRow<Density>
+          label="Density"
+          value={density}
+          options={[{ value: 'comfortable', label: 'Comfortable' }, { value: 'compact', label: 'Compact' }]}
+          onChange={setDensity}
+        />
       </div>
 
       {/* Backup */}

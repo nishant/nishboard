@@ -67,7 +67,10 @@ async function getGeoFromZip(zip: string): Promise<Geo> {
 
 const weatherCache = new TtlCache<string, WeatherData>(TTL_MS);
 
-function buildUrl(lat: number, lon: number, timezone: string): string {
+type TempUnit = 'f' | 'c';
+type WindUnit = 'mph' | 'kmh';
+
+function buildUrl(lat: number, lon: number, timezone: string, temp: TempUnit, wind: WindUnit): string {
   const url = new URL('https://api.open-meteo.com/v1/forecast');
   url.searchParams.set('latitude', String(lat));
   url.searchParams.set('longitude', String(lon));
@@ -81,14 +84,14 @@ function buildUrl(lat: number, lon: number, timezone: string): string {
   url.searchParams.set('daily', [
     'weathercode', 'temperature_2m_max', 'temperature_2m_min', 'precipitation_probability_max',
   ].join(','));
-  url.searchParams.set('temperature_unit', 'fahrenheit');
-  url.searchParams.set('windspeed_unit', 'mph');
+  url.searchParams.set('temperature_unit', temp === 'c' ? 'celsius' : 'fahrenheit');
+  url.searchParams.set('windspeed_unit', wind === 'kmh' ? 'kmh' : 'mph');
   url.searchParams.set('timezone', timezone);
   url.searchParams.set('forecast_days', '6');
   return url.toString();
 }
 
-async function fetchWeather(geo: Geo): Promise<WeatherData> {
+async function fetchWeather(geo: Geo, temp: TempUnit, wind: WindUnit): Promise<WeatherData> {
   const raw = await fetchJson<{
     current: {
       time: string;
@@ -113,7 +116,7 @@ async function fetchWeather(geo: Geo): Promise<WeatherData> {
       temperature_2m_min: number[];
       precipitation_probability_max: number[];
     };
-  }>(buildUrl(geo.lat, geo.lon, geo.timezone), undefined, { label: 'Open-Meteo' });
+  }>(buildUrl(geo.lat, geo.lon, geo.timezone, temp, wind), undefined, { label: 'Open-Meteo' });
 
   const nowHour = raw.current.time.slice(0, 13);
   const hourIdx = raw.hourly.time.findIndex((t) => t.startsWith(nowHour));
@@ -171,12 +174,16 @@ async function fetchAlerts(lat: number, lon: number): Promise<WeatherAlert[]> {
 // ── Route ─────────────────────────────────────────────────────────────────────
 
 export const weatherRoutes: FastifyPluginAsync = async (fastify) => {
-  fastify.get<{ Querystring: { zip?: string }; Reply: WeatherData | { error: string } }>(
+  fastify.get<{ Querystring: { zip?: string; temp?: string; wind?: string }; Reply: WeatherData | { error: string } }>(
     '/',
     async (req, reply) => {
       const rawZip = (req.query.zip ?? '').trim();
       const zip = /^\d{5}$/.test(rawZip) ? rawZip : '';
-      const key = zip || 'auto';
+      // Units default to imperial; anything unrecognized falls back rather than erroring.
+      const temp: TempUnit = req.query.temp === 'c' ? 'c' : 'f';
+      const wind: WindUnit = req.query.wind === 'kmh' ? 'kmh' : 'mph';
+      // Units are part of the cache key — the cached payload's numbers are unit-specific.
+      const key = `${zip || 'auto'}:${temp}:${wind}`;
 
       const cached = weatherCache.get(key);
       if (cached) return reply.send(cached);
@@ -201,7 +208,7 @@ export const weatherRoutes: FastifyPluginAsync = async (fastify) => {
 
       // 2) Fetch the forecast (+ alerts) for the resolved location.
       try {
-        const [data, alerts] = await Promise.all([fetchWeather(geo), fetchAlerts(geo.lat, geo.lon)]);
+        const [data, alerts] = await Promise.all([fetchWeather(geo, temp, wind), fetchAlerts(geo.lat, geo.lon)]);
         data.alerts = alerts;
         weatherCache.set(key, data);
         return reply.send(data);
