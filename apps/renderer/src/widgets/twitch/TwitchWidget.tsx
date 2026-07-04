@@ -1,7 +1,9 @@
-import { useTwitchSearch } from './useTwitch';
+import { LogOut } from 'lucide-react';
+import { useTwitchSearch, useTwitchAuthStatus, useTwitchConnect, useTwitchLogout, useTwitchFollowed } from './useTwitch';
 import { embedUrl } from '../../lib/apiClient';
 import { EmbedSearchWidget } from '../embed/EmbedSearchWidget';
 import type { EmbedSearchState, EmbedServiceAdapter } from '../embed/types';
+import type { TwitchSearchPage } from '@dash/shared';
 
 // simple-icons glyph
 function TwitchIcon({ size }: { size: number }) {
@@ -12,20 +14,59 @@ function TwitchIcon({ size }: { size: number }) {
   );
 }
 
+function toItems(data: TwitchSearchPage | undefined) {
+  return data?.items.map((c) => ({
+    // login is both the embed param and unique per channel
+    id: c.login,
+    title: c.displayName,
+    subtitle: c.isLive ? (c.gameName || c.title || 'Live') : 'Offline',
+    thumbnailUrl: c.thumbnailUrl,
+    isLive: c.isLive,
+  }));
+}
+
 function useTwitchEmbedSearch(query: string): EmbedSearchState {
   const { data, isFetching, isError } = useTwitchSearch(query);
-  return {
-    items: data?.items.map((c) => ({
-      // login is both the embed param and unique per channel
-      id: c.login,
-      title: c.displayName,
-      subtitle: c.isLive ? (c.gameName || c.title || 'Live') : 'Offline',
-      thumbnailUrl: c.thumbnailUrl,
-      isLive: c.isLive,
-    })),
-    isFetching,
-    isError,
-  };
+  return { items: toItems(data), isFetching, isError };
+}
+
+function useTwitchEmbedBrowse(_tabId: string, enabled: boolean): EmbedSearchState {
+  const authed = useTwitchAuthStatus().data?.authenticated === true;
+  const { data, isFetching, isError } = useTwitchFollowed(enabled && authed);
+  if (!authed) {
+    return {
+      items: undefined, isFetching: false, isError: false,
+      hint: "Connect your Twitch account to see who's live",
+    };
+  }
+  return { items: toItems(data), isFetching, isError };
+}
+
+/** Tab-strip control: Connect when signed out, a small disconnect when in. */
+function TwitchConnectHeader() {
+  const { data } = useTwitchAuthStatus();
+  const connect = useTwitchConnect();
+  const logout = useTwitchLogout();
+  if (data?.authenticated) {
+    return (
+      <button
+        onClick={() => logout.mutate()}
+        title="Disconnect Twitch"
+        className="p-1 rounded text-th-ghost hover:text-red-400 transition-colors shrink-0"
+      >
+        <LogOut size={11} />
+      </button>
+    );
+  }
+  return (
+    <button
+      onClick={() => connect.mutate()}
+      disabled={connect.isPending}
+      className="px-2 py-0.5 rounded-full text-[10px] shrink-0 transition-colors bg-[#9146FF]/20 text-[#c39aff] hover:bg-[#9146FF]/35 disabled:opacity-50"
+    >
+      Connect
+    </button>
+  );
 }
 
 const TWITCH_ADAPTER: EmbedServiceAdapter = {
@@ -39,6 +80,11 @@ const TWITCH_ADAPTER: EmbedServiceAdapter = {
   closeLabel: 'Close stream',
   embedUrl: (item) => embedUrl(`/api/twitch/embed?channel=${item.id}`),
   useSearch: useTwitchEmbedSearch,
+  browse: {
+    tabs: [{ id: 'following', label: 'Following' }],
+    useBrowse: useTwitchEmbedBrowse,
+    HomeHeader: TwitchConnectHeader,
+  },
 };
 
 export function TwitchWidget() {

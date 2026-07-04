@@ -13,3 +13,7 @@ export interface TwitchSearchPage {
   items: TwitchChannel[];
   nextCursor: string | null;
 }
+
+export interface TwitchAuthStatus {
+  authenticated: boolean;
+}

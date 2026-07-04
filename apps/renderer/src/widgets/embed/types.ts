@@ -18,6 +18,9 @@ export interface EmbedSearchState {
   items: EmbedItem[] | undefined;
   isFetching: boolean;
   isError: boolean;
+  /** Shown in the browse body when there's nothing to fetch yet
+   *  (e.g. "Connect your Twitch account…"). */
+  hint?: string;
 }
 
 export interface EmbedBrowseTab {

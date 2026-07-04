@@ -4,6 +4,29 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #73] feat: twitch — user OAuth + Following tab (shared user-token store)
+**Branch:** `feat/twitch-user-oauth` → master
+**Date:** 2026-07-04
+
+### Context
+Feature-slate batch 10: followed-live channels need user consent — an authorization-code OAuth flow (the client secret lives server-side; no PKCE needed), plus a shared token store so Spotify and Twitch don't duplicate refresh logic.
+
+### Added
+- `packages/server/src/lib/userTokenStore.ts` — file-backed (`~/.dash/<service>_tokens.json`) store with **single-flight refresh** (both services rotate refresh tokens; parallel refreshes race and can persist a dead pair) and **clear-on-dead-refresh** (auth-status flips to disconnected instead of looping errors). Supports service `meta` (Twitch persists `userId`).
+- Twitch user OAuth: `GET /auth-url` (state + 10-min expiry), `GET /callback` (code exchange → `/helix/users` once for the user id → store), `GET /auth-status`, `POST /logout`, and `GET /followed` (`/helix/streams/followed`, 60s cache, 401 when not connected — an expected state, not an error).
+- `twitch:open-auth` IPC channel (main-process guard: only `https://id.twitch.tv/` URLs open) + typed `openTwitchAuth` wrapper.
+- Twitch widget gains a **Following** browse tab (via #72's adapter extension): purple **Connect** button in the tab strip when signed out (with a hint row), live followed channels with game names when signed in, small disconnect button. Auth status polls every 15s (gated) so the widget flips over automatically after the browser OAuth round-trip.
+
+### Changed
+- `spotify.ts` refactored onto `UserTokenStore` — behavior identical (same file path, same single-flight + clear semantics, formerly inline).
+- `EmbedSearchState` gains optional `hint` (browse body copy when there's nothing to fetch yet).
+
+### Notes
+- **Nish action required before this works**: register `http://localhost:7432/api/twitch/callback` as an OAuth redirect URL for the app in the Twitch dev console.
+- Verified: auth-url construction (exact params/scope/redirect on a scratch server with test creds), callback rejects bad state (400), `/followed` 401 when unauthenticated, Spotify auth-status/now-playing regression unchanged; widget UI in both auth states via fixtures (Connect + hint signed out; followed rows + disconnect signed in). The full browser OAuth round-trip needs real Twitch creds — on-device test.
+
+---
+
 ## [PR #72] feat: youtube — cheap browse tabs (Trending / Music / Gaming)
 **Branch:** `feat/youtube-browse` → master
 **Date:** 2026-07-04

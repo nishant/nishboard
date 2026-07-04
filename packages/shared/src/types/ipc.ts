@@ -7,6 +7,7 @@ export type IpcChannels =
   | 'app:open-external'
   | 'spotify:open-auth'
   | 'spotify:token-store'
+  | 'twitch:open-auth'
   | 'credentials:get-status'
   | 'credentials:save-all'
   | 'credentials:encryption-available';
@@ -23,6 +24,8 @@ export interface ElectronAPI {
   /** Open an http(s) URL in the user's default browser. */
   openExternal: (url: string) => void;
   openSpotifyAuth: (url: string) => void;
+  /** Open a Twitch OAuth URL — main process rejects anything not on id.twitch.tv. */
+  openTwitchAuth: (url: string) => void;
   onSpotifyTokenStored: (cb: () => void) => () => void;
   credentials: {
     /** Which keys are set — never the values. The Settings UI is write-only:
