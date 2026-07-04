@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { HardwareData, CpuData, GpuData, DiskIo, DiskUsage, NetworkIo } from '@dash/shared';
+import type { HardwareData, CpuData, GpuData, DiskIo, DiskUsage, NetworkIo, ProcessListData, ProcessItemData } from '@dash/shared';
 import si from 'systeminformation';
 import os from 'os';
 import { SimpleCache } from '../cache/SimpleCache';
@@ -207,12 +207,66 @@ async function buildHardwareData(): Promise<HardwareData> {
   };
 }
 
+// ── Top processes ─────────────────────────────────────────────────────────
+// si.processes() is cheap on macOS (`ps`) but expensive on Windows (PowerShell
+// CIM, hundreds of ms) — hence the 5s renderer poll with a 4.5s cache, and the
+// renderer only polls while the panel is open. Windows caveat: CPU% is
+// delta-based, so the very first sample reports 0 for every process.
+const processCache = new SimpleCache<ProcessListData>();
+const PROCESS_TTL = 4_500;
+
+async function buildProcessList(): Promise<ProcessListData> {
+  const procs = await si.processes();
+  // Group by name (chrome × 14 …) — summed CPU/RSS reads like Task Manager's
+  // grouped view and keeps the list stable across per-tab process churn.
+  const byName = new Map<string, ProcessItemData>();
+  for (const p of procs.list) {
+    if (!p.name) continue;
+    const row = byName.get(p.name);
+    const memMb = (p.memRss ?? 0) / 1024; // memRss is KB
+    if (row) {
+      row.count += 1;
+      row.cpuPercent += p.cpu ?? 0;
+      row.memMb += memMb;
+      row.memPercent += p.mem ?? 0;
+    } else {
+      byName.set(p.name, {
+        name: p.name,
+        count: 1,
+        cpuPercent: p.cpu ?? 0,
+        memMb,
+        memPercent: p.mem ?? 0,
+      });
+    }
+  }
+  const all = [...byName.values()];
+  // Union of top-20 by CPU and top-20 by RAM so the renderer can sort by
+  // either without another round-trip.
+  const topCpu = [...all].sort((a, b) => b.cpuPercent - a.cpuPercent).slice(0, 20);
+  const topMem = [...all].sort((a, b) => b.memMb - a.memMb).slice(0, 20);
+  const union = [...new Set([...topCpu, ...topMem])].map((p) => ({
+    ...p,
+    cpuPercent: Math.round(p.cpuPercent * 10) / 10,
+    memMb: Math.round(p.memMb),
+    memPercent: Math.round(p.memPercent * 10) / 10,
+  }));
+  return { processes: union, fetchedAt: new Date().toISOString() };
+}
+
 export const hardwareRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Reply: HardwareData | { error: string } }>('/', async (_req, reply) => {
     const cached = cache.get();
     if (cached) return reply.send(cached);
     const data = await buildHardwareData();
     cache.set(data, TTL_MS);
+    return reply.send(data);
+  });
+
+  fastify.get<{ Reply: ProcessListData | { error: string } }>('/processes', async (_req, reply) => {
+    const cached = processCache.get();
+    if (cached) return reply.send(cached);
+    const data = await buildProcessList();
+    processCache.set(data, PROCESS_TTL);
     return reply.send(data);
   });
 };

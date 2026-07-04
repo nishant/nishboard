@@ -3,7 +3,19 @@ import { useEffect, useRef, useState } from 'react';
 import { apiClient } from '../../lib/apiClient';
 import { useGatedInterval } from '../../hooks/useGatedInterval';
 import { usePowerStore } from '../../store/powerStore';
-import type { HardwareData } from '@dash/shared';
+import type { HardwareData, ProcessListData } from '@dash/shared';
+
+/** Top processes — polled ONLY while the panel is mounted (the caller unmounts
+ *  it when closed): si.processes() is a PowerShell CIM query on Windows. */
+export function useProcesses() {
+  const interval = useGatedInterval(5000);
+  return useQuery<ProcessListData>({
+    queryKey: ['hardware-processes'],
+    queryFn: () => apiClient.get<ProcessListData>('/api/hardware/processes'),
+    refetchInterval: interval,
+    staleTime: 4000,
+  });
+}
 
 const HISTORY_SIZE = 60; // 60 samples — 1min at the base 1s poll, 4min in low power
 

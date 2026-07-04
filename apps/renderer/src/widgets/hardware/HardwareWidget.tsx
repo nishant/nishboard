@@ -1,10 +1,10 @@
 import { memo } from 'react';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
-import { Cpu, Thermometer, HardDrive, Wifi, Battery, BatteryCharging, BarChart2, Activity, Settings, Loader2 } from 'lucide-react';
-import { useHardware, type HardwareHistory } from './useHardware';
+import { Cpu, Thermometer, HardDrive, Wifi, Battery, BatteryCharging, BarChart2, Activity, Settings, Loader2, ListTree } from 'lucide-react';
+import { useHardware, useProcesses, type HardwareHistory } from './useHardware';
 import { useHardwareStore, type HardwareSection } from '../../store/hardwareStore';
 import { useHardwareUiStore } from '../../store/hardwareUiStore';
-import type { HardwareViewMode } from '../../store/hardwareUiStore';
+import type { HardwareViewMode, ProcessSort } from '../../store/hardwareUiStore';
 import { WidgetSkeleton } from '../../components/Skeleton';
 import { ErrorState } from '../../components/ErrorState';
 import { HeaderAction } from '../../components/HeaderAction';
@@ -394,11 +394,75 @@ function ConfigPanel({
   );
 }
 
+// ── Top processes panel ───────────────────────────────────────────────────
+// Mounted only while open — mounting starts the 5s poll, unmounting stops it,
+// so the (Windows-expensive) /processes route is never queried in the background.
+
+const PROC_ROWS = 12;
+
+function ProcessPanel() {
+  const { data, isLoading, isError } = useProcesses();
+  const procSort = useHardwareUiStore((s) => s.procSort);
+  const setProcSort = useHardwareUiStore((s) => s.setProcSort);
+
+  const rows = [...(data?.processes ?? [])]
+    .sort((a, b) => (procSort === 'cpu' ? b.cpuPercent - a.cpuPercent : b.memMb - a.memMb))
+    .slice(0, PROC_ROWS);
+
+  return (
+    <div className="bg-th-elevated/50 rounded-lg p-3">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1.5">
+          <ListTree size={12} className="text-teal-400" />
+          <span className="text-xs text-th-2 font-medium">Top processes</span>
+        </div>
+        <div className="flex rounded bg-th-elevated p-0.5">
+          {(['cpu', 'ram'] as ProcessSort[]).map((s) => (
+            <button
+              key={s}
+              onClick={() => setProcSort(s)}
+              className={`px-2 py-0.5 rounded text-[10px] uppercase transition-colors ${
+                procSort === s ? 'bg-th-overlay text-th-hi' : 'text-th-ghost hover:text-th-2'
+              }`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center gap-2 py-2 text-th-ghost text-[10px]">
+          <Loader2 size={11} className="animate-spin" /> Sampling processes…
+        </div>
+      ) : isError || !data ? (
+        <span className="text-[10px] text-th-ghost">Process list unavailable</span>
+      ) : (
+        <div className="flex flex-col gap-0.5">
+          {rows.map((p) => (
+            <div key={p.name} className="flex items-center gap-2 text-[10px] leading-relaxed">
+              <span className="text-th-2 truncate flex-1 min-w-0 font-mono">
+                {p.name}{p.count > 1 && <span className="text-th-ghost"> ×{p.count}</span>}
+              </span>
+              <span className={`w-14 text-right tabular-nums shrink-0 ${procSort === 'cpu' ? 'text-th-hi' : 'text-th-3'}`}>
+                {p.cpuPercent.toFixed(1)}%
+              </span>
+              <span className={`w-16 text-right tabular-nums shrink-0 ${procSort === 'ram' ? 'text-th-hi' : 'text-th-3'}`}>
+                {p.memMb >= 1024 ? `${(p.memMb / 1024).toFixed(1)} GB` : `${p.memMb} MB`}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main widget ───────────────────────────────────────────────────────────
 
-/** WidgetShell header actions: sparks/bars view toggle + section config + refresh. */
+/** WidgetShell header actions: sparks/bars view toggle + processes + config + refresh. */
 export function HardwareActions() {
-  const { view, setView, configOpen, toggleConfig } = useHardwareUiStore();
+  const { view, setView, configOpen, toggleConfig, processesOpen, toggleProcesses } = useHardwareUiStore();
   return (
     <>
       <HeaderAction
@@ -415,6 +479,9 @@ export function HardwareActions() {
       >
         <BarChart2 size={11} />
       </HeaderAction>
+      <HeaderAction title="Top processes" active={processesOpen} onClick={toggleProcesses}>
+        <ListTree size={11} />
+      </HeaderAction>
       <HeaderAction title="Visible sections" active={configOpen} onClick={toggleConfig}>
         <Settings size={11} />
       </HeaderAction>
@@ -426,7 +493,7 @@ export function HardwareActions() {
 export function HardwareWidget() {
   const { query, history } = useHardware();
   const { visible, setVisible } = useHardwareStore();
-  const { view, configOpen } = useHardwareUiStore();
+  const { view, configOpen, processesOpen } = useHardwareUiStore();
 
   // Drag-to-scroll (callback ref inside the hook wires up after loading/error resolves)
   const { ref: setScrollEl } = useDragScroll<HTMLDivElement>('y');
@@ -445,6 +512,9 @@ export function HardwareWidget() {
     <div ref={setScrollEl} className="p-3 flex flex-col gap-2 h-full overflow-y-auto scrollbar-none">
       {/* Config panel */}
       {configOpen && <ConfigPanel visible={visible} setVisible={setVisible} />}
+
+      {/* Top processes — lazy: polling starts on mount, stops on unmount */}
+      {processesOpen && <ProcessPanel />}
 
       {/* Cards — always rendered when their section is visible */}
       {visible.cpu && <CpuCard cpu={d.cpu} history={history} view={view} />}
