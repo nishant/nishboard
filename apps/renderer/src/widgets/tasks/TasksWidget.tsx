@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Plus, Check, X } from 'lucide-react';
 import { useTasksStore } from '../../store/tasksStore';
 import { cn } from '../../lib/utils';
+import { EmptyState } from '../../components/EmptyState';
 
 export function TasksWidget() {
   const { tasks, addTask, toggleTask, removeTask, clearCompleted } = useTasksStore();
@@ -38,7 +39,7 @@ export function TasksWidget() {
       {/* List */}
       <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-0.5">
         {tasks.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-th-ghost text-xs">No tasks</div>
+          <EmptyState message="No tasks" />
         ) : (
           tasks.map((t) => (
             <div key={t.id} className="group flex items-center gap-2 px-1.5 py-1 rounded hover:bg-th-elevated/50">

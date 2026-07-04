@@ -16,6 +16,7 @@ import { SpotifySearchDialog } from './SpotifySearchDialog';
 import { fmtMs } from '../../lib/time';
 import { useDeferredSlider } from '../../hooks/useDeferredSlider';
 import { useElementSize } from '../../hooks/useElementSize';
+import { WidgetSkeleton } from '../../components/Skeleton';
 import type { TrackData, SpotifyPlaylist, SpotifyDevice, SpotifyTrackItem } from '@dash/shared';
 
 // ── Size variant ──────────────────────────────────────────────────────────────
@@ -908,11 +909,7 @@ export function SpotifyWidget() {
   }, [authUrlQuery]);
 
   if (status.isLoading) {
-    return (
-      <div className="rounded-lg border border-th-line bg-th-surface h-full flex items-center justify-center">
-        <span className="text-th-ghost text-xs">Connecting…</span>
-      </div>
-    );
+    return <WidgetSkeleton lines={3} />;
   }
 
   if (!status.data?.authenticated) {

@@ -329,6 +329,48 @@ body,
   opacity: 0.5;
 }
 
+/* Preset transitions: RGL's stock CSS already animates transform/size (200ms).
+   Suppress it briefly on mount so tiles don't fly in from the corner on launch;
+   newly mounted tiles (widget toggled on / preset adds it) fade in instead.
+   The fade animates opacity only — transform belongs to RGL. */
+.rgl-no-anim .react-grid-item {
+  transition: none !important;
+}
+.react-grid-item {
+  animation: tile-in 180ms ease;
+}
+@keyframes tile-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Skeleton shimmer (theme-token based) */
+.skeleton {
+  background: rgb(var(--t-elevated));
+  position: relative;
+  overflow: hidden;
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgb(var(--t-overlay) / 0.6), transparent);
+  animation: skeleton-sheen 1.4s infinite;
+}
+@keyframes skeleton-sheen {
+  100% { transform: translateX(100%); }
+}
+
+/* Toast enter */
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-toast-in {
+  animation: toast-in 160ms ease;
+}
+
 /* Notes widget — rendered markdown (Tailwind preflight strips list styles, so set them) */
 .md-render h1 { font-size: 1.15em; font-weight: 600; color: rgb(var(--t-hi)); margin: 0.4em 0 0.2em; }
 .md-render h2 { font-size: 1.05em; font-weight: 600; color: rgb(var(--t-hi)); margin: 0.4em 0 0.2em; }

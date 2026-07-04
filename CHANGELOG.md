@@ -4,6 +4,29 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #64] feat: UI system — skeletons, error/empty states, toasts, widget action rows
+**Branch:** `feat/ui-system` → master
+**Date:** 2026-07-04
+
+### Context
+Feature-slate batch 1 — the shared UI vocabulary every subsequent widget batch builds on: consistent loading/error/empty presentation, an in-app toast channel, a standardized per-widget header action row, and calmer grid animation.
+
+### Added
+- **Skeleton loaders** — `components/Skeleton.tsx` (`Skeleton` + `WidgetSkeleton`) with a theme-token shimmer; replaces the per-widget "Loading…" text in Weather, Stocks (grid + detail chart), Sound, News, Hardware, and Spotify's connect check.
+- **`ErrorState` / `EmptyState`** — unified error presentation with a working **Retry** button (`queryClient.refetchQueries` scoped to the widget's key) and a matching empty-state component. Weather and Stocks surface the server's message (so the first-run "add keys in Settings → Developer" pointer and the weather ZIP hint reach the UI); Tasks/Timer/Alarm/Countdown/World Clock adopt `EmptyState`.
+- **Toast system** — `store/toastStore.ts` + `ToastHost` (bottom-right, max 4, auto-dismiss); `lib/alerts.ts` gains `toast()` and `fireAlert` now does chime + in-app toast + native notification.
+- **Widget header action row** — `WidgetShell`'s actions slot is now a hover-revealed row (also visible while focused, for keyboard users); new `HeaderAction` + `RefreshAction` primitives. `DashboardGrid`'s registry becomes `{ Component, Actions? }` per widget: Weather/News/Sound get refresh; Stocks gets pencil (watchlist) + refresh via a new non-persisted `stocksUiStore`; Hardware's sparks/bars toggle + section config move up via `hardwareUiStore` (its redundant in-body header removed); Spotify keeps its disconnect button.
+- **Stocks route** — missing Alpaca keys now return a 503 with the Settings pointer, and the widget displays the server's message.
+
+### Changed
+- **Grid animation** — RGL's stock transitions are suppressed for ~350ms after mount (`.rgl-no-anim`) so tiles no longer fly in from the corner on launch; newly mounted tiles get an opacity fade-in (transform stays RGL's).
+
+### Notes
+- Verified in headless Chromium against the dev server: skeletons, ErrorState + Retry, EmptyStates, the hover-revealed action row, and the stocks first-run pointer all render.
+- Pre-existing quirk noticed while testing: RGL's north resize handle overlaps a thin strip of the widget header at its horizontal center — harmless, noted for a future pass.
+
+---
+
 ## [PR #63] fix: audit batch — hardening, behavior bugs, dedup refactors, perf, docs
 **Branch:** `fix/full-app-audit` → master
 **Date:** 2026-07-03

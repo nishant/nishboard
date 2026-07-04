@@ -4,6 +4,7 @@ import { useCountdownStore } from '../../store/countdownStore';
 import { fireAlert } from '../../lib/alerts';
 import { cn } from '../../lib/utils';
 import { fmtRemaining } from '../../lib/time';
+import { EmptyState } from '../../components/EmptyState';
 
 function fmtDate(at: number): string {
   return new Date(at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
@@ -69,7 +70,7 @@ export function CountdownWidget() {
 
       <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-1.5">
         {events.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-th-ghost text-xs">No events</div>
+          <EmptyState message="No events" />
         ) : (
           events.map((e) => {
             const remaining = e.at - now;

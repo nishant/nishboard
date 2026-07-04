@@ -1,7 +1,15 @@
 import { Volume2, VolumeX, Volume1, Volume } from 'lucide-react';
 import { useSound, useSetVolume, useSetMute, useSwitchDevice, useSetSessionVolume } from './useSound';
 import { useDeferredSlider } from '../../hooks/useDeferredSlider';
+import { WidgetSkeleton } from '../../components/Skeleton';
+import { ErrorState } from '../../components/ErrorState';
+import { RefreshAction } from '../../components/RefreshAction';
 import type { AudioDevice, AudioSession } from '@dash/shared';
+
+/** WidgetShell header actions for the sound tile. */
+export function SoundActions() {
+  return <RefreshAction queryKey={['sound']} title="Refresh audio state" />;
+}
 
 function VolumeIcon({ vol, muted }: { vol: number; muted: boolean }) {
   if (muted || vol === 0) return <VolumeX size={14} className="shrink-0" />;
@@ -102,19 +110,11 @@ export function SoundWidget() {
   const vol = data?.volumePercent ?? 0;
 
   if (isLoading) {
-    return (
-      <div className="h-full flex items-center justify-center text-th-3 text-sm">
-        Loading…
-      </div>
-    );
+    return <WidgetSkeleton lines={3} />;
   }
 
   if (isError || !data) {
-    return (
-      <div className="h-full flex items-center justify-center text-red-400 text-sm">
-        Sound unavailable
-      </div>
-    );
+    return <ErrorState message="Sound unavailable" queryKey={['sound']} />;
   }
 
   return (

@@ -4,6 +4,7 @@ import { useTimersStore } from '../../store/timersStore';
 import { fireAlert } from '../../lib/alerts';
 import { cn } from '../../lib/utils';
 import { fmtDuration, relTimeUntil } from '../../lib/time';
+import { EmptyState } from '../../components/EmptyState';
 
 type Tab = 'timer' | 'alarm';
 
@@ -115,7 +116,7 @@ export function TimerWidget() {
 
           <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-1.5">
             {timers.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-th-ghost text-xs">No timers</div>
+              <EmptyState message="No timers" />
             ) : (
               timers.map((t) => {
                 const remaining = t.running && t.endsAt != null ? Math.max(0, t.endsAt - now) : t.remainingMs;
@@ -159,7 +160,7 @@ export function TimerWidget() {
 
           <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-1.5">
             {alarms.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-th-ghost text-xs">No alarms</div>
+              <EmptyState message="No alarms" />
             ) : (
               alarms.map((a) => (
                 <div key={a.id} className="group flex items-center gap-2 px-2 py-1.5 rounded-lg bg-th-elevated/40">

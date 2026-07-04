@@ -4,6 +4,9 @@ import { useWeather } from './useWeather';
 import { getWeatherMeta } from './weatherCodes';
 import { WeatherIcon } from './WeatherIcon';
 import { useDragScroll } from '../../hooks/useDragScroll';
+import { WidgetSkeleton } from '../../components/Skeleton';
+import { ErrorState } from '../../components/ErrorState';
+import { RefreshAction } from '../../components/RefreshAction';
 import { cn } from '../../lib/utils';
 
 function formatHour(isoTime: string): string {
@@ -17,6 +20,11 @@ function formatHour(isoTime: string): string {
 function formatDay(dateStr: string): string {
   const date = new Date(dateStr + 'T12:00:00');
   return date.toLocaleDateString('en-US', { weekday: 'short' });
+}
+
+/** WidgetShell header actions for the weather tile. */
+export function WeatherActions() {
+  return <RefreshAction queryKey={['weather']} title="Refresh weather" />;
 }
 
 export function WeatherWidget() {
@@ -41,25 +49,14 @@ export function WeatherWidget() {
   }, [hourlyEl]);
 
   if (isLoading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <span className="text-th-ghost text-sm">Loading…</span>
-      </div>
-    );
+    return <WidgetSkeleton lines={4} />;
   }
 
   if (isError || !data) {
     // Surface the server's message (e.g. the geolocation hint that suggests setting a ZIP)
     // instead of a generic failure string.
     const message = error instanceof Error && error.message ? error.message : 'Failed to load weather';
-    return (
-      <div className="h-full flex items-center justify-center p-4">
-        <p className="text-th-2 text-sm text-center leading-snug max-w-[240px]">
-          <AlertTriangle className="w-4 h-4 text-amber-400 inline-block mr-1.5 -mt-0.5" />
-          {message}
-        </p>
-      </div>
-    );
+    return <ErrorState message={message} queryKey={['weather']} />;
   }
 
   const { current, hourly, daily, location } = data;
