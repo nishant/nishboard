@@ -4,6 +4,24 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #76] feat: tray icon, close-to-tray, global show/hide hotkey
+**Branch:** `feat/tray-lifecycle` → master
+**Date:** 2026-07-04
+
+### Context
+Feature-slate batch 13 (QoL): keep the ambient dashboard reachable without keeping its window in the way.
+
+### Added
+- **Tray icon** (generated 16×16 four-square glyph, macOS template image): Show/Hide, **Spotify Play/Pause** (main-side `fetch` against localhost — works with the window hidden; silent no-op when not authenticated), **Restart server** (pushes `server:restarted` → renderer invalidates all queries), Quit. Single-click toggles the window on Windows/Linux.
+- **Main-side prefs** (`userData/prefs.json`, read pre-renderer — that's why it's not localStorage): `closeAction: 'quit' | 'tray'` and `globalHotkey: boolean`, exposed via `prefs:get`/`prefs:set` IPC. Settings → App gains a **System** section (Close button: Quit / Hide to tray; hotkey toggle) that only renders inside Electron.
+- **Close-to-tray**: `mainWindow.on('close')` intercepts when the pref says tray and it isn't a real quit; `before-quit` sets the `quitting` flag, unregisters shortcuts, destroys the tray, stops the server. The titlebar X (`app:close`) now closes the window instead of `app.quit()` so it follows the pref.
+- **Global hotkey** `Ctrl/Cmd+Shift+D` (off by default; setting-gated): toggles show/hide from anywhere; registration re-syncs on every prefs change and unregisters on quit.
+
+### Notes
+- Verified headless (mocked bridge): System section renders, both prefs round-trip through `prefs:set`, and firing `server:restarted` triggered an immediate burst of 16 API refetches. Tray/hotkey/close-intercept are main-process — need an on-device pass (especially: Quit from tray stops the server exactly once).
+
+---
+
 ## [PR #75] feat: clipboard history widget (text-only, in-memory, gated poller)
 **Branch:** `feat/clipboard-history` → master
 **Date:** 2026-07-04

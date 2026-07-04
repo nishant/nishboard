@@ -1,4 +1,4 @@
-import { app, BrowserWindow, IpcMain, Notification, safeStorage, shell } from 'electron';
+import { BrowserWindow, IpcMain, Notification, safeStorage, shell } from 'electron';
 import { readCredentialStatus, writeCredentials } from '../credentials';
 import { restartServer } from '../server/spawn';
 import {
@@ -8,15 +8,21 @@ import {
 import {
   setClipboardWatch, getClipboardHistory, copyClipboardEntry, clearClipboardHistory,
 } from '../clipboardHistory';
-import type { CredentialKey } from '@dash/shared';
+import { readPrefs, writePrefs } from '../prefs';
+import type { CredentialKey, AppPrefsData } from '@dash/shared';
 
-export function registerIpcHandlers(ipcMain: IpcMain): void {
+export function registerIpcHandlers(
+  ipcMain: IpcMain,
+  hooks: { onPrefsChanged?: () => void } = {},
+): void {
   ipcMain.on('app:minimize', () => {
     BrowserWindow.getFocusedWindow()?.minimize();
   });
 
-  ipcMain.on('app:close', () => {
-    app.quit();
+  ipcMain.on('app:close', (event) => {
+    // Close the window (not app.quit()) so the close-to-tray intercept in
+    // index.ts gets to apply the closeAction pref.
+    BrowserWindow.fromWebContents(event.sender)?.close();
   });
 
   ipcMain.on('app:notify', (_event, title: string, body: string) => {
@@ -55,6 +61,15 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('launcher:reorder', (_event, ids: string[]) =>
     reorderLauncherItems(Array.isArray(ids) ? ids.map(String) : []));
   ipcMain.handle('launcher:launch', (_event, id: string) => launchItem(String(id)));
+
+  // ── App prefs (main-side prefs.json — close action + global hotkey) ─────────
+
+  ipcMain.handle('prefs:get', () => readPrefs());
+  ipcMain.handle('prefs:set', (_event, patch: Partial<AppPrefsData>) => {
+    const next = writePrefs(patch ?? {});
+    hooks.onPrefsChanged?.(); // e.g. re-sync the global-hotkey registration
+    return next;
+  });
 
   // ── Clipboard history (text-only, in-memory, poller gated by the widget) ────
 

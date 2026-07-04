@@ -18,6 +18,15 @@ export interface ClipboardEntryData {
   at: number;
 }
 
+/** Main-side app prefs (userData/prefs.json — NOT renderer localStorage: the
+ *  close intercept and hotkey registration run before the renderer loads). */
+export interface AppPrefsData {
+  /** What the titlebar X does: quit the app, or hide to the tray. */
+  closeAction: 'quit' | 'tray';
+  /** Register the global show/hide hotkey (Ctrl/Cmd+Shift+D). */
+  globalHotkey: boolean;
+}
+
 export type IpcChannels =
   | 'app:minimize'
   | 'app:close'
@@ -40,7 +49,10 @@ export type IpcChannels =
   | 'clipboard:copy'
   | 'clipboard:clear'
   | 'clipboard:set-enabled'
-  | 'clipboard:changed';
+  | 'clipboard:changed'
+  | 'prefs:get'
+  | 'prefs:set'
+  | 'server:restarted';
 
 export interface ElectronAPI {
   /** Host OS, from the main process (`process.platform`): 'win32' | 'darwin' | 'linux' | … */
@@ -57,6 +69,14 @@ export interface ElectronAPI {
   /** Open a Twitch OAuth URL — main process rejects anything not on id.twitch.tv. */
   openTwitchAuth: (url: string) => void;
   onSpotifyTokenStored: (cb: () => void) => () => void;
+  /** Fires after the Fastify child restarted (tray menu / Settings) —
+   *  listeners should refetch queries. Returns unsubscribe. */
+  onServerRestarted: (cb: () => void) => () => void;
+  prefs: {
+    get: () => Promise<AppPrefsData>;
+    /** Partial patch; returns the resulting prefs. */
+    set: (patch: Partial<AppPrefsData>) => Promise<AppPrefsData>;
+  };
   launcher: {
     getItems: () => Promise<LauncherItemData[]>;
     /** Opens the native file picker in the main process; the chosen path stays

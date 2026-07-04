@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webFrame } from 'electron';
-import type { ElectronAPI, IpcChannels, CredentialKey, LauncherItemData, ClipboardEntryData } from '@dash/shared';
+import type { ElectronAPI, IpcChannels, CredentialKey, LauncherItemData, ClipboardEntryData, AppPrefsData } from '@dash/shared';
 
 const electronAPI: ElectronAPI = {
   platform: process.platform,
@@ -14,6 +14,16 @@ const electronAPI: ElectronAPI = {
     const channel: IpcChannels = 'spotify:token-store';
     ipcRenderer.on(channel, cb);
     return () => ipcRenderer.removeListener(channel, cb);
+  },
+  onServerRestarted: (cb: () => void) => {
+    const channel: IpcChannels = 'server:restarted';
+    ipcRenderer.on(channel, cb);
+    return () => ipcRenderer.removeListener(channel, cb);
+  },
+  prefs: {
+    get: () => ipcRenderer.invoke('prefs:get' satisfies IpcChannels) as Promise<AppPrefsData>,
+    set: (patch: Partial<AppPrefsData>) =>
+      ipcRenderer.invoke('prefs:set' satisfies IpcChannels, patch) as Promise<AppPrefsData>,
   },
   launcher: {
     getItems: () =>
