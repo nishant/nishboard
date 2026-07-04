@@ -25,7 +25,7 @@ Personal ambient desktop dashboard for Nish, running all day on a secondary moni
 |---|---|---|---|
 | Weather | Open-Meteo forecast + NWS severe-weather alerts (+ ip-api geolocation, zippopotam.us for ZIP) | none | 15min |
 | Spotify | Spotify Web API (remote control — no Web Playback SDK; stock Electron lacks Widevine) | PKCE OAuth (`SPOTIFY_CLIENT_ID`) | 3s REST |
-| Stocks | Alpaca Markets IEX REST snapshots (+ per-ticker detail: intraday/daily bars + Benzinga news) | ALPACA_API_KEY + ALPACA_API_SECRET | 5s poll |
+| Stocks | Alpaca Markets IEX REST snapshots (+ per-ticker detail: intraday/daily bars + Benzinga news) | ALPACA_API_KEY + ALPACA_API_SECRET | 5min poll |
 | Hardware | systeminformation | none | 1s |
 | Sound | PowerShell/WASAPI (Win) / osascript + SwitchAudioSource (mac) | none | 5s |
 | Calendar | none (pure-JS date rendering) | none | n/a |

@@ -21,7 +21,7 @@ export const CREDENTIAL_DEFS: CredentialDef[] = [
     key: 'SPOTIFY_CLIENT_ID',
     label: 'Client ID',
     service: 'Spotify',
-    hint: 'Create an app at developer.spotify.com → Dashboard. Set redirect URI to http://localhost:7432/api/spotify/callback',
+    hint: 'Create an app at developer.spotify.com → Dashboard. Set redirect URI to http://127.0.0.1:7432/api/spotify/callback',
   },
   { key: 'YOUTUBE_API_KEY',      label: 'API Key',       service: 'YouTube' },
   { key: 'ALPACA_API_KEY',       label: 'API Key',       service: 'Stocks (Alpaca)' },

@@ -262,10 +262,12 @@ export function StocksWidget() {
   const [selected, setSelected] = useState<string | null>(null);
   const session = useMarketSession();
 
+  // No pulse: the dot marks the market session, not a live feed — prices
+  // refresh on a 5-minute poll (deliberate; keeps Alpaca usage minimal).
   const sessionDot: Record<MarketSession, string> = {
-    open:         'bg-emerald-400 animate-pulse',
-    'after-hours': 'bg-amber-400 animate-pulse',
-    'pre-market':  'bg-amber-400 animate-pulse',
+    open:         'bg-emerald-400',
+    'after-hours': 'bg-amber-400',
+    'pre-market':  'bg-amber-400',
     closed:       'bg-red-500',
   };
   const sessionLabel: Record<MarketSession, string> = {
@@ -281,7 +283,10 @@ export function StocksWidget() {
       {selected && <StockDetailPanel ticker={selected} onClose={() => setSelected(null)} />}
 
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-th-line shrink-0">
-        <span className={`text-[10px] flex items-center gap-1.5 ${session === 'closed' ? 'text-th-ghost' : 'text-th-3'}`}>
+        <span
+          className={`text-[10px] flex items-center gap-1.5 ${session === 'closed' ? 'text-th-ghost' : 'text-th-3'}`}
+          title="Prices refresh every 5 minutes"
+        >
           <span className={`h-1.5 w-1.5 rounded-full inline-block shrink-0 ${sessionDot[session]}`} />
           {sessionLabel[session]}
         </span>

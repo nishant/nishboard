@@ -209,6 +209,10 @@ export const stocksRoutes: FastifyPluginAsync = async (fastify) => {
       .slice(0, 50);
 
     if (symbols.length === 0) throw new HttpError(400, 'No symbols provided');
+    if (!cred('ALPACA_API_KEY') || !cred('ALPACA_API_SECRET')) {
+      // First-run pointer: without this the widget surfaces a raw Alpaca 403.
+      throw new HttpError(503, 'Alpaca keys not configured — add them in Settings → Developer');
+    }
 
     const key = cacheKey(symbols);
     const cached = cache.get(key);

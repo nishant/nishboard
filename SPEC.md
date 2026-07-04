@@ -175,7 +175,7 @@ ALPACA_API_KEY=
 ALPACA_API_SECRET=
 ALPACA_BASE_URL=https://data.alpaca.markets/v2
 SPOTIFY_CLIENT_ID=
-SPOTIFY_REDIRECT_URI=http://localhost:7432/api/spotify/callback
+SPOTIFY_REDIRECT_URI=http://127.0.0.1:7432/api/spotify/callback
 YOUTUBE_API_KEY=
 TWITCH_CLIENT_ID=
 TWITCH_CLIENT_SECRET=
@@ -207,8 +207,7 @@ Secrets loaded by Fastify server only. Renderer never sees them.
 
 | Widget | Method | Interval |
 |---|---|---|
-| Stocks (equity) | Alpaca WebSocket IEX | Real-time |
-| Stocks (fallback) | Alpaca REST | 5s |
+| Stocks | Alpaca REST (IEX snapshots) | 5min |
 | Spotify | REST | 3s |
 | Hardware | systeminformation | 1s |
 | Weather | REST | 15min |

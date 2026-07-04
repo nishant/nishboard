@@ -83,7 +83,10 @@ const SCOPES = [
 ].join(' ');
 
 const clientId = () => cred('SPOTIFY_CLIENT_ID');
-const redirectUri = () => cred('SPOTIFY_REDIRECT_URI') || 'http://localhost:7432/api/spotify/callback';
+// 127.0.0.1, not localhost: Spotify matches redirect URIs character-exact and
+// the dashboard app has the 127.0.0.1 form registered. The server binds
+// 127.0.0.1, so the callback resolves either way.
+const redirectUri = () => cred('SPOTIFY_REDIRECT_URI') || 'http://127.0.0.1:7432/api/spotify/callback';
 
 async function exchangeCode(code: string, verifier: string): Promise<StoredTokens> {
   const res = await fetch(`${SPOTIFY_ACCOUNTS}/api/token`, {
