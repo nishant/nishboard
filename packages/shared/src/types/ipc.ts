@@ -1,5 +1,14 @@
 import type { CredentialKey } from './credentials';
 
+/** Quick-launcher item as the renderer sees it. The launch target (file path
+ *  or URL) deliberately never crosses the bridge — the renderer launches by id
+ *  and the main process resolves it. */
+export interface LauncherItemData {
+  id: string;
+  label: string;
+  kind: 'app' | 'url';
+}
+
 export type IpcChannels =
   | 'app:minimize'
   | 'app:close'
@@ -10,7 +19,14 @@ export type IpcChannels =
   | 'twitch:open-auth'
   | 'credentials:get-status'
   | 'credentials:save-all'
-  | 'credentials:encryption-available';
+  | 'credentials:encryption-available'
+  | 'launcher:get-items'
+  | 'launcher:add-app'
+  | 'launcher:add-url'
+  | 'launcher:remove-item'
+  | 'launcher:rename-item'
+  | 'launcher:reorder'
+  | 'launcher:launch';
 
 export interface ElectronAPI {
   /** Host OS, from the main process (`process.platform`): 'win32' | 'darwin' | 'linux' | … */
@@ -27,6 +43,18 @@ export interface ElectronAPI {
   /** Open a Twitch OAuth URL — main process rejects anything not on id.twitch.tv. */
   openTwitchAuth: (url: string) => void;
   onSpotifyTokenStored: (cb: () => void) => () => void;
+  launcher: {
+    getItems: () => Promise<LauncherItemData[]>;
+    /** Opens the native file picker in the main process; the chosen path stays
+     *  there. Resolves null when the user cancels. */
+    addApp: () => Promise<LauncherItemData | null>;
+    addUrl: (label: string, url: string) => Promise<LauncherItemData>;
+    removeItem: (id: string) => Promise<void>;
+    renameItem: (id: string, label: string) => Promise<void>;
+    reorder: (ids: string[]) => Promise<void>;
+    /** Launch by id — shell.openPath / openExternal happen main-side. */
+    launch: (id: string) => Promise<void>;
+  };
   credentials: {
     /** Which keys are set — never the values. The Settings UI is write-only:
      *  stored keys can be replaced or cleared, never viewed ("secrets never

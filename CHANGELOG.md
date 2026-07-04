@@ -4,6 +4,23 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #74] feat: quick launcher widget (apps + links, paths never cross the bridge)
+**Branch:** `feat/quick-launcher` → master
+**Date:** 2026-07-04
+
+### Context
+Feature-slate batch 11: a shortcuts tile for apps and links, designed so the renderer never sees a filesystem path.
+
+### Added
+- `apps/main/src/launcher.ts` — items persist in `userData/launcher.json` as `{ id, label, kind, target }`; the renderer only ever receives sanitized `LauncherItemData` (`id`/`label`/`kind`) and launches **by id**. `shell.openPath`/`openExternal` happen main-side; URLs are validated `http(s)` at add time and re-validated at launch (the JSON on disk is user-editable).
+- Seven typed IPC channels (`launcher:get-items/add-app/add-url/remove-item/rename-item/reorder/launch`) with `ElectronAPI.launcher` wrappers. `launcher:add-app` opens the native file dialog **in the main process** (platform filters: `.exe/.lnk/.bat/.cmd` on Windows, `.app` from /Applications on macOS).
+- **Launcher widget** (`WidgetId 'launcher'`): auto-fill icon grid (app/globe icons + labels), click to launch; pencil header action opens the edit modal — Add app… (native dialog), label+URL adder, double-click rename, hover up/down reorder, remove. Browser (non-Electron) build shows a friendly placeholder.
+
+### Notes
+- Verified headless with a mocked `window.electron.launcher` bridge: grid renders, click launches by id, URL add/rename/reorder round-trip. Electron can't run in this sandbox — the native dialog + real `shell.openPath` need one on-device try.
+
+---
+
 ## [PR #73] feat: twitch — user OAuth + Following tab (shared user-token store)
 **Branch:** `feat/twitch-user-oauth` → master
 **Date:** 2026-07-04

@@ -38,6 +38,7 @@ Personal ambient desktop dashboard for Nish, running all day on a secondary moni
 | World Clock | none (pure-JS timezones, digital/analog) | none | n/a |
 | Timer / Alarm | none (fires via notification IPC + Web Audio chime) | none | n/a |
 | Countdown | none (target datetime, localStorage; fires via notification IPC) | none | n/a |
+| Launcher | none (apps + links via typed IPC; targets stored main-side in `userData/launcher.json`, launch by id) | none | n/a |
 
 ## Secrets & Credentials
 Settings → Developer is **write-only**: the renderer only ever learns *which* keys are set (`credentials:get-status` booleans); stored values can be replaced or cleared but never viewed. Decrypted keys exist only in the main process and the spawned server's env.

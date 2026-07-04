@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webFrame } from 'electron';
-import type { ElectronAPI, IpcChannels, CredentialKey } from '@dash/shared';
+import type { ElectronAPI, IpcChannels, CredentialKey, LauncherItemData } from '@dash/shared';
 
 const electronAPI: ElectronAPI = {
   platform: process.platform,
@@ -14,6 +14,22 @@ const electronAPI: ElectronAPI = {
     const channel: IpcChannels = 'spotify:token-store';
     ipcRenderer.on(channel, cb);
     return () => ipcRenderer.removeListener(channel, cb);
+  },
+  launcher: {
+    getItems: () =>
+      ipcRenderer.invoke('launcher:get-items' satisfies IpcChannels) as Promise<LauncherItemData[]>,
+    addApp: () =>
+      ipcRenderer.invoke('launcher:add-app' satisfies IpcChannels) as Promise<LauncherItemData | null>,
+    addUrl: (label: string, url: string) =>
+      ipcRenderer.invoke('launcher:add-url' satisfies IpcChannels, label, url) as Promise<LauncherItemData>,
+    removeItem: (id: string) =>
+      ipcRenderer.invoke('launcher:remove-item' satisfies IpcChannels, id) as Promise<void>,
+    renameItem: (id: string, label: string) =>
+      ipcRenderer.invoke('launcher:rename-item' satisfies IpcChannels, id, label) as Promise<void>,
+    reorder: (ids: string[]) =>
+      ipcRenderer.invoke('launcher:reorder' satisfies IpcChannels, ids) as Promise<void>,
+    launch: (id: string) =>
+      ipcRenderer.invoke('launcher:launch' satisfies IpcChannels, id) as Promise<void>,
   },
   credentials: {
     getStatus: () =>

@@ -19,6 +19,7 @@ import { TimerWidget } from '../widgets/timer/TimerWidget';
 import { CountdownWidget } from '../widgets/countdown/CountdownWidget';
 import { NewsWidget, NewsActions } from '../widgets/news/NewsWidget';
 import { CryptoWidget, CryptoActions } from '../widgets/crypto/CryptoWidget';
+import { LauncherWidget, LauncherActions } from '../widgets/launcher/LauncherWidget';
 import { TITLEBAR_H } from './Titlebar';
 import { WIDGET_TITLES } from '../lib/layouts';
 import type { WidgetId } from '../lib/layouts';
@@ -48,6 +49,7 @@ const WIDGET_REGISTRY: Record<WidgetId, WidgetEntry> = {
   countdown: { Component: CountdownWidget },
   news: { Component: NewsWidget, Actions: NewsActions },
   crypto: { Component: CryptoWidget, Actions: CryptoActions },
+  launcher: { Component: LauncherWidget, Actions: LauncherActions },
 };
 
 function useRowHeight(layout: Layout[], gap: number): number {
