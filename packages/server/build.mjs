@@ -34,5 +34,6 @@ await esbuild.build({
     'process.env.ALPACA_API_SECRET_BUILTIN':    JSON.stringify(envVars.ALPACA_API_SECRET    ?? ''),
     'process.env.TWITCH_CLIENT_ID_BUILTIN':     JSON.stringify(envVars.TWITCH_CLIENT_ID     ?? ''),
     'process.env.TWITCH_CLIENT_SECRET_BUILTIN': JSON.stringify(envVars.TWITCH_CLIENT_SECRET ?? ''),
+    'process.env.COINGECKO_API_KEY_BUILTIN':    JSON.stringify(envVars.COINGECKO_API_KEY    ?? ''),
   },
 });
