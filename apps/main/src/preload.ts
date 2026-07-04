@@ -15,9 +15,9 @@ const electronAPI: ElectronAPI = {
     return () => ipcRenderer.removeListener(channel, cb);
   },
   credentials: {
-    getAll: () =>
-      ipcRenderer.invoke('credentials:get-all' satisfies IpcChannels) as Promise<
-        Partial<Record<CredentialKey, string>>
+    getStatus: () =>
+      ipcRenderer.invoke('credentials:get-status' satisfies IpcChannels) as Promise<
+        Partial<Record<CredentialKey, boolean>>
       >,
     saveAll: (creds: Partial<Record<CredentialKey, string>>) =>
       ipcRenderer.invoke('credentials:save-all' satisfies IpcChannels, creds) as Promise<void>,
