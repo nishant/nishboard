@@ -4,6 +4,23 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #70] feat: notes — multiple notes with tabs
+**Branch:** `feat/notes-tabs` → master
+**Date:** 2026-07-04
+
+### Context
+Feature-slate batch 7: the single markdown scratchpad becomes a multi-note widget.
+
+### Added
+- `notesStore` v1: `{ notes: [{ id, title, content }], activeId }` with zustand persist `migrate` — a v0 `{ text }` scratchpad becomes one "Notes" tab, content intact.
+- Tab strip: click to switch, `+` to add, double-click to rename inline (Enter/blur commits, Esc cancels), X on the active tab with a two-step confirm (arms for 2.5s, second click deletes). Deleting the last note resets to a fresh empty one.
+- The textarea remounts per note (`key={id}`) so undo history and selection don't leak across tabs.
+
+### Notes
+- Verified headless: seeded v0 payload migrates (old text lands in the first tab), add/rename/two-step delete round-trip, localStorage ends at `version: 1`.
+
+---
+
 ## [PR #69] feat: stocks — holiday-aware market calendar + open/close countdown
 **Branch:** `feat/stocks-calendar` → master
 **Date:** 2026-07-04
