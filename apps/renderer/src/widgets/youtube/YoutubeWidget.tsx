@@ -1,7 +1,8 @@
-import { useYoutubeSearch } from './useYoutube';
+import { useYoutubeSearch, useYoutubeBrowse } from './useYoutube';
 import { embedUrl } from '../../lib/apiClient';
 import { EmbedSearchWidget } from '../embed/EmbedSearchWidget';
 import type { EmbedSearchState, EmbedServiceAdapter } from '../embed/types';
+import type { YoutubeSearchPage } from '@dash/shared';
 
 function YoutubeIcon({ size }: { size: number }) {
   return (
@@ -12,8 +13,11 @@ function YoutubeIcon({ size }: { size: number }) {
   );
 }
 
-function useYoutubeEmbedSearch(query: string): EmbedSearchState {
-  const { data, isFetching, isError } = useYoutubeSearch(query);
+function toEmbedState(
+  data: YoutubeSearchPage | undefined,
+  isFetching: boolean,
+  isError: boolean,
+): EmbedSearchState {
   return {
     items: data?.items.map((v) => ({
       id: v.videoId,
@@ -24,6 +28,16 @@ function useYoutubeEmbedSearch(query: string): EmbedSearchState {
     isFetching,
     isError,
   };
+}
+
+function useYoutubeEmbedSearch(query: string): EmbedSearchState {
+  const { data, isFetching, isError } = useYoutubeSearch(query);
+  return toEmbedState(data, isFetching, isError);
+}
+
+function useYoutubeEmbedBrowse(tabId: string, enabled: boolean): EmbedSearchState {
+  const { data, isFetching, isError } = useYoutubeBrowse(tabId, enabled);
+  return toEmbedState(data, isFetching, isError);
 }
 
 const YOUTUBE_ADAPTER: EmbedServiceAdapter = {
@@ -37,6 +51,14 @@ const YOUTUBE_ADAPTER: EmbedServiceAdapter = {
   closeLabel: 'Close video',
   embedUrl: (item) => embedUrl(`/api/youtube/embed?videoId=${item.id}`),
   useSearch: useYoutubeEmbedSearch,
+  browse: {
+    tabs: [
+      { id: 'trending', label: 'Trending' },
+      { id: 'music', label: 'Music' },
+      { id: 'gaming', label: 'Gaming' },
+    ],
+    useBrowse: useYoutubeEmbedBrowse,
+  },
 };
 
 export function YoutubeWidget() {

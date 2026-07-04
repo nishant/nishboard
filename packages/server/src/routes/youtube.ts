@@ -29,6 +29,16 @@ function takeSearchBudget(): boolean {
   return true;
 }
 
+// Browse tabs use videos.list (chart=mostPopular) — 1 quota unit per call vs
+// 100 for a search. 45-min cache per category → worst case ~96 units/day for
+// all three tabs, so browse never touches the search budget.
+const BROWSE_CACHE = new TtlCache<string, YoutubeSearchPage>(45 * 60 * 1000);
+const BROWSE_CATEGORIES: Record<string, string | null> = {
+  trending: null, // no category filter
+  music: '10',
+  gaming: '20',
+};
+
 export const youtubeRoutes: FastifyPluginAsync = async (fastify) => {
 
   // GET /api/youtube/embed?videoId=...
@@ -52,6 +62,54 @@ export const youtubeRoutes: FastifyPluginAsync = async (fastify) => {
 </body>
 </html>`;
     return reply.header('Content-Type', 'text/html; charset=utf-8').send(html);
+  });
+
+  // GET /api/youtube/browse?category=trending|music|gaming
+  fastify.get<{ Querystring: { category?: string } }>('/browse', async (req, reply) => {
+    const apiKey = cred('YOUTUBE_API_KEY');
+    if (!apiKey) throw new HttpError(503, 'YOUTUBE_API_KEY not configured');
+
+    const category = req.query.category ?? 'trending';
+    if (!(category in BROWSE_CATEGORIES)) throw new HttpError(400, 'Unknown category');
+
+    const cached = BROWSE_CACHE.get(category);
+    if (cached) return reply.send(cached);
+
+    const url = new URL(`${BASE}/videos`);
+    url.searchParams.set('part', 'snippet');
+    url.searchParams.set('chart', 'mostPopular');
+    url.searchParams.set('regionCode', 'US');
+    url.searchParams.set('maxResults', '12');
+    const categoryId = BROWSE_CATEGORIES[category];
+    if (categoryId) url.searchParams.set('videoCategoryId', categoryId);
+    url.searchParams.set('key', apiKey);
+
+    // videos.list returns `id` as a plain string (search.list wraps it in {videoId}).
+    const data = await fetchJson<{
+      items?: Array<{
+        id: string;
+        snippet: {
+          title: string;
+          channelTitle: string;
+          thumbnails: { medium?: { url: string }; default?: { url: string } };
+          publishedAt: string;
+        };
+      }>;
+    }>(url.toString(), undefined, { label: 'YouTube API' });
+
+    const page: YoutubeSearchPage = {
+      nextPageToken: null,
+      items: (data.items ?? []).map((item): YoutubeVideo => ({
+        videoId: item.id,
+        title: decodeHTMLEntities(item.snippet.title),
+        channelTitle: item.snippet.channelTitle,
+        thumbnailUrl: item.snippet.thumbnails.medium?.url ?? item.snippet.thumbnails.default?.url ?? '',
+        publishedAt: item.snippet.publishedAt,
+      })),
+    };
+
+    BROWSE_CACHE.set(category, page);
+    return reply.send(page);
   });
 
   // GET /api/youtube/search?q=...&pageToken=...

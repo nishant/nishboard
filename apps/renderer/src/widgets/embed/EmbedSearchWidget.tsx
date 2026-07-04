@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react';
 import { Search, X, ArrowLeft, ChevronRight } from 'lucide-react';
 import { useElementSize } from '../../hooks/useElementSize';
-import type { EmbedItem, EmbedServiceAdapter } from './types';
+import { cn } from '../../lib/utils';
+import type { EmbedItem, EmbedServiceAdapter, EmbedBrowse } from './types';
 
 type View = 'home' | 'search';
 
@@ -56,6 +57,63 @@ function HomeScreen({
         <Search size={12} />
         {adapter.homeCta}
       </button>
+    </div>
+  );
+}
+
+// ── Browse home (tab strip + rows) ───────────────────────────────────────────
+// Rendered instead of the hero when the adapter has a browse extension and the
+// tile is tall enough for rows to be useful.
+
+function BrowseHome({
+  adapter, browse, onSearch, onPlay,
+}: {
+  adapter: EmbedServiceAdapter;
+  browse: EmbedBrowse;
+  onSearch: () => void;
+  onPlay: (item: EmbedItem) => void;
+}) {
+  const [tabId, setTabId] = useState(browse.tabs[0]?.id ?? '');
+  const { items, isFetching, isError } = browse.useBrowse(tabId, tabId !== '');
+
+  return (
+    <div className="h-full flex flex-col">
+      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-th-line shrink-0 overflow-x-auto scrollbar-none">
+        {browse.HomeHeader && <browse.HomeHeader />}
+        {browse.tabs.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTabId(t.id)}
+            className={cn(
+              'px-2 py-0.5 rounded-full text-[10px] shrink-0 transition-colors',
+              tabId === t.id ? 'bg-th-elevated text-th-hi' : 'text-th-ghost hover:text-th-2',
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+        <button
+          onClick={onSearch}
+          className="ml-auto shrink-0 p-1 rounded text-th-ghost hover:text-th-hi transition-colors"
+          title={adapter.searchPlaceholder}
+        >
+          <Search size={12} />
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto min-h-0">
+        {isFetching && !items && (
+          <p className="text-th-ghost text-xs text-center py-6">Loading…</p>
+        )}
+        {isError && (
+          <p className="text-red-400/70 text-xs text-center py-6 px-4">{adapter.errorHint}</p>
+        )}
+        {items?.map((item) => (
+          <ResultRow key={item.id} item={item} thumbShape={adapter.thumbShape} onPlay={() => onPlay(item)} />
+        ))}
+        {items?.length === 0 && (
+          <p className="text-th-ghost text-xs text-center py-6">Nothing here right now</p>
+        )}
+      </div>
     </div>
   );
 }
@@ -261,9 +319,22 @@ export function EmbedSearchWidget({ adapter }: { adapter: EmbedServiceAdapter })
 
   // ── Home ──────────────────────────────────────────────────────────────────────
   if (view === 'home') {
+    // Browse feed when available and the tile is tall enough for rows;
+    // height === 0 is the pre-measurement first paint — assume browse so a
+    // tall tile doesn't flash the hero (and fetch state lives in the query cache).
+    const showBrowse = adapter.browse && (height === 0 || height >= 120);
     return (
       <div ref={setContainerEl} className="h-full overflow-hidden">
-        <HomeScreen adapter={adapter} onSearch={() => setView('search')} height={height} />
+        {showBrowse && adapter.browse ? (
+          <BrowseHome
+            adapter={adapter}
+            browse={adapter.browse}
+            onSearch={() => setView('search')}
+            onPlay={handlePlay}
+          />
+        ) : (
+          <HomeScreen adapter={adapter} onSearch={() => setView('search')} height={height} />
+        )}
       </div>
     );
   }

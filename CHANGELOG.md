@@ -4,6 +4,23 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #72] feat: youtube — cheap browse tabs (Trending / Music / Gaming)
+**Branch:** `feat/youtube-browse` → master
+**Date:** 2026-07-04
+
+### Context
+Feature-slate batch 9. The YouTube widget's home was an empty hero + search button; each search costs 100 of the 10k/day quota units. Browse gives it a home feed at 1 unit per fetch.
+
+### Added
+- `GET /api/youtube/browse?category=trending|music|gaming` — `videos.list` `chart=mostPopular` (regionCode US; categoryId 10 = Music, 20 = Gaming). **1 quota unit per call vs 100 per search**; 45-min server cache per category (worst case ~96 units/day for all three tabs). Never touches the daily search budget.
+- `EmbedServiceAdapter.browse?` extension: `{ tabs, useBrowse(tabId, enabled), HomeHeader? }`. `EmbedSearchWidget` renders a browse home (tab strip + the existing `ResultRow`s + a search icon) instead of the hero when the adapter has `browse` and the tile is ≥120px tall; short tiles keep the hero. Tabs fetch lazily — only the selected tab ever hits the API.
+- YouTube adapter wires Trending/Music/Gaming. (`HomeHeader` is groundwork for batch 10's Twitch "Connect" button.)
+
+### Notes
+- Verified headless with fixture-intercepted `/browse`: trending rows on mount, per-tab lazy fetch (music never requested until clicked), rows play into the embed, search bar reachable from the strip.
+
+---
+
 ## [PR #71] feat: crypto widget (CoinGecko watchlist + 7d sparklines)
 **Branch:** `feat/crypto-widget` → master
 **Date:** 2026-07-04
