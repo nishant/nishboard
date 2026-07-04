@@ -1,10 +1,11 @@
-import { useLayoutEffect } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useEffect, useLayoutEffect, useRef } from 'react';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Titlebar } from './components/Titlebar';
 import { DashboardGrid } from './components/DashboardGrid';
 import { ToastHost } from './components/ToastHost';
 import { useThemeStore } from './store/themeStore';
 import { useAppSettingsStore } from './store/settingsStore';
+import { usePowerStore } from './store/powerStore';
 import { buildCustomVars, CUSTOM_VAR_KEYS } from './lib/colorUtils';
 
 const queryClient = new QueryClient({
@@ -15,6 +16,23 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+/** Renders nothing — refetches stale queries the moment the window becomes
+ *  visible again. Polling pauses entirely while hidden (useGatedInterval
+ *  returns false), so without this kick widgets would show stale data until
+ *  their next interval after a long minimize. */
+function VisibilityKicker() {
+  const queryClient = useQueryClient();
+  const hidden = usePowerStore((s) => s.hidden);
+  const prevHidden = useRef(hidden);
+  useEffect(() => {
+    if (prevHidden.current && !hidden) {
+      void queryClient.refetchQueries({ type: 'active', stale: true });
+    }
+    prevHidden.current = hidden;
+  }, [hidden, queryClient]);
+  return null;
+}
 
 /** Renders nothing — exists so theme/scale changes re-render THIS component
  *  only, applying everything to <html> via effects. If App itself subscribed,
@@ -63,6 +81,7 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeManager />
+      <VisibilityKicker />
       <div className="app-shell h-screen w-screen bg-th-bg overflow-hidden flex flex-col">
         <Titlebar />
         <div className="flex-1 min-h-0">

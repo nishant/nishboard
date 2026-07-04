@@ -4,6 +4,7 @@ import { persist } from 'zustand/middleware';
 export type Density = 'compact' | 'comfortable';
 export type TempUnit = 'f' | 'c';
 export type WindUnit = 'mph' | 'kmh';
+export type LowPowerMode = 'off' | 'on' | 'auto';
 
 /**
  * App-level user preferences (non-secret, renderer-only).
@@ -28,6 +29,9 @@ interface AppSettingsState {
   windUnit: WindUnit;
   /** 24-hour clock everywhere times are displayed (titlebar, world clock, alarms, …). */
   clock24h: boolean;
+  /** Slow all widget polling ×4: 'on' always, 'auto' only while on battery.
+   *  (Polling always pauses while the window is hidden, regardless of this.) */
+  lowPower: LowPowerMode;
 
   setWeatherZip: (zip: string) => void;
   setShowTempInClock: (show: boolean) => void;
@@ -37,6 +41,7 @@ interface AppSettingsState {
   setTempUnit: (unit: TempUnit) => void;
   setWindUnit: (unit: WindUnit) => void;
   setClock24h: (on: boolean) => void;
+  setLowPower: (mode: LowPowerMode) => void;
 }
 
 export const useAppSettingsStore = create<AppSettingsState>()(
@@ -50,6 +55,7 @@ export const useAppSettingsStore = create<AppSettingsState>()(
       tempUnit: 'f',
       windUnit: 'mph',
       clock24h: false,
+      lowPower: 'off',
 
       setWeatherZip: (weatherZip) => set({ weatherZip }),
       setShowTempInClock: (showTempInClock) => set({ showTempInClock }),
@@ -59,6 +65,7 @@ export const useAppSettingsStore = create<AppSettingsState>()(
       setTempUnit: (tempUnit) => set({ tempUnit }),
       setWindUnit: (windUnit) => set({ windUnit }),
       setClock24h: (clock24h) => set({ clock24h }),
+      setLowPower: (lowPower) => set({ lowPower }),
     }),
     { name: 'dashboard-app-settings' },
   ),

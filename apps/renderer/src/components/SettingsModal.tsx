@@ -3,7 +3,7 @@ import { X, Eye, EyeOff, Check, Loader2, Lock, Minus, Plus, Download, Upload } f
 import { CREDENTIAL_DEFS, CREDENTIAL_KEYS } from '@dash/shared';
 import type { CredentialKey } from '@dash/shared';
 import { useAppSettingsStore } from '../store/settingsStore';
-import type { Density, TempUnit, WindUnit } from '../store/settingsStore';
+import type { Density, TempUnit, WindUnit, LowPowerMode } from '../store/settingsStore';
 import { useQueryClient } from '@tanstack/react-query';
 import { exportSettings, importSettings } from '../lib/backup';
 import { apiClient } from '../lib/apiClient';
@@ -210,9 +210,9 @@ const clampScale = (n: number) => Math.round(Math.min(SCALE_MAX, Math.max(SCALE_
 function AppSettingsPanel() {
   const {
     weatherZip, showTempInClock, uiScale, density, compactTitlebar,
-    tempUnit, windUnit, clock24h,
+    tempUnit, windUnit, clock24h, lowPower,
     setWeatherZip, setShowTempInClock, setUiScale, setDensity, setCompactTitlebar,
-    setTempUnit, setWindUnit, setClock24h,
+    setTempUnit, setWindUnit, setClock24h, setLowPower,
   } = useAppSettingsStore();
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -332,6 +332,26 @@ function AppSettingsPanel() {
           options={[{ value: 'comfortable', label: 'Comfortable' }, { value: 'compact', label: 'Compact' }]}
           onChange={setDensity}
         />
+      </div>
+
+      {/* Power */}
+      <div className="flex flex-col gap-3">
+        <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">Power</span>
+        <SegmentedRow<LowPowerMode>
+          label="Low-power mode"
+          value={lowPower}
+          options={[
+            { value: 'off', label: 'Off' },
+            { value: 'on', label: 'On' },
+            { value: 'auto', label: 'Auto' },
+          ]}
+          onChange={setLowPower}
+        />
+        <p className="text-th-ghost text-[10px] leading-relaxed">
+          Slows all widget refresh rates 4×. Auto engages only while on battery
+          (requires the Hardware widget for battery detection). Polling always
+          pauses while the window is hidden, regardless of this setting.
+        </p>
       </div>
 
       {/* Backup */}
