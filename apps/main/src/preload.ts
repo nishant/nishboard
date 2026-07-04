@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webFrame } from 'electron';
-import type { ElectronAPI, IpcChannels, CredentialKey, LauncherItemData } from '@dash/shared';
+import type { ElectronAPI, IpcChannels, CredentialKey, LauncherItemData, ClipboardEntryData } from '@dash/shared';
 
 const electronAPI: ElectronAPI = {
   platform: process.platform,
@@ -30,6 +30,20 @@ const electronAPI: ElectronAPI = {
       ipcRenderer.invoke('launcher:reorder' satisfies IpcChannels, ids) as Promise<void>,
     launch: (id: string) =>
       ipcRenderer.invoke('launcher:launch' satisfies IpcChannels, id) as Promise<void>,
+  },
+  clipboardHistory: {
+    getHistory: () =>
+      ipcRenderer.invoke('clipboard:get-history' satisfies IpcChannels) as Promise<ClipboardEntryData[]>,
+    copy: (id: string) =>
+      ipcRenderer.invoke('clipboard:copy' satisfies IpcChannels, id) as Promise<void>,
+    clear: () => ipcRenderer.invoke('clipboard:clear' satisfies IpcChannels) as Promise<void>,
+    setEnabled: (enabled: boolean) =>
+      ipcRenderer.invoke('clipboard:set-enabled' satisfies IpcChannels, enabled) as Promise<void>,
+    onChanged: (cb: () => void) => {
+      const channel: IpcChannels = 'clipboard:changed';
+      ipcRenderer.on(channel, cb);
+      return () => ipcRenderer.removeListener(channel, cb);
+    },
   },
   credentials: {
     getStatus: () =>

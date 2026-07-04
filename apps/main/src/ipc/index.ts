@@ -5,6 +5,9 @@ import {
   getLauncherItems, addLauncherApp, addLauncherUrl,
   removeLauncherItem, renameLauncherItem, reorderLauncherItems, launchItem,
 } from '../launcher';
+import {
+  setClipboardWatch, getClipboardHistory, copyClipboardEntry, clearClipboardHistory,
+} from '../clipboardHistory';
 import type { CredentialKey } from '@dash/shared';
 
 export function registerIpcHandlers(ipcMain: IpcMain): void {
@@ -52,6 +55,14 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('launcher:reorder', (_event, ids: string[]) =>
     reorderLauncherItems(Array.isArray(ids) ? ids.map(String) : []));
   ipcMain.handle('launcher:launch', (_event, id: string) => launchItem(String(id)));
+
+  // ── Clipboard history (text-only, in-memory, poller gated by the widget) ────
+
+  ipcMain.handle('clipboard:get-history', () => getClipboardHistory());
+  ipcMain.handle('clipboard:copy', (_event, id: string) => copyClipboardEntry(String(id)));
+  ipcMain.handle('clipboard:clear', () => clearClipboardHistory());
+  ipcMain.handle('clipboard:set-enabled', (event, enabled: boolean) =>
+    setClipboardWatch(enabled === true, event.sender));
 
   // ── Credentials ─────────────────────────────────────────────────────────────
 
