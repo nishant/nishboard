@@ -9,7 +9,7 @@ All changes organized by pull request, newest first. Format is documented under 
 **Date:** 2026-07-03
 
 ### Context
-Waves 1–5 of the full-app audit: two command-injection holes and an XSS in the server, Electron lifecycle gaps, four renderer behavior bugs, the systematic copy-paste cleanup (server route plumbing, renderer hooks, YouTube/Twitch unification, Titlebar extraction), perf hot paths, server resource usage, UX polish, and the docs drift. Still open (decision-gated): stocks poll cadence, credentials write-only UI, Spotify redirect-URI host, ESLint adoption.
+The complete full-app audit: two command-injection holes and an XSS in the server, Electron lifecycle gaps, four renderer behavior bugs, the systematic copy-paste cleanup (server route plumbing, renderer hooks, YouTube/Twitch unification, Titlebar extraction), perf hot paths, server resource usage, UX polish, docs drift — plus the four decision-gated items (resolved by Nish): stocks stays on its 5-min poll (docs/UI made honest), credentials became write-only, Spotify redirect URI standardized on the registered `127.0.0.1` form, and ESLint adopted for real.
 
 ### Fixed
 - **mac command injection in `POST /api/sound/device`** — `SwitchAudioSource`/`osascript` ran through a shell with only `"` escaped, so a crafted `deviceId` (`$(…)`, backticks) executed arbitrary commands. All mac sound calls now use `execFile` (no shell); the PowerShell runner also invokes via `execFile`.
@@ -45,6 +45,12 @@ Waves 1–5 of the full-app audit: two command-injection holes and an XSS in the
 - **Server hardware route** — fsSize cached 60s, battery 30s, graphics 10s on macOS only (Windows keeps 1s for live nvidia-smi GPU util).
 - **Bundle** — vite `manualChunks` splits recharts/react-grid-layout/vendor (app chunk 973kB → 288kB); sourcemaps `'hidden'` (no 4MB map referenced from the packaged bundle). Root `engines: node >=20`.
 - Deliberately skipped: blanket narrow-Zustand-selector conversion — the flagged widgets consume every field of their small stores; per-field selectors would be churn with no re-render benefit.
+
+### Decisions (final batch)
+- **Stocks cadence** — kept at 5-min (deliberate; minimal Alpaca usage). CLAUDE.md/SPEC interval tables corrected from the stale "5s"; the market-session dot no longer pulses (it marks the session, not a live feed) and tooltips the refresh rate. Missing Alpaca keys now yield a 503 pointing at Settings → Developer instead of a raw upstream 403.
+- **Credentials are write-only** — `credentials:get-all` removed; `credentials:get-status` returns booleans and the status check never decrypts. Settings shows stored keys masked with Replace (inline, cancelable) / Clear (undo-able before save); `writeCredentials` merges (`''` clears, absent keeps) so stored values never round-trip through the renderer. Trade-off: keys can't be viewed in the app anymore.
+- **Spotify redirect URI = `http://127.0.0.1:7432/api/spotify/callback`** everywhere (code default was `localhost` — mismatched the URI registered in the Spotify dashboard; exact-match). Verify the Connect flow once on-device.
+- **ESLint adopted** — root flat config (typescript-eslint recommended + react-hooks in the renderer; the React-Compiler-era rules are off with in-config rationale), per-package `lint` scripts make `turbo lint` real, and the codebase lints clean. First pass caught dead code in `colorUtils` and a component-defined-during-render in `SpotifySearchDialog` (hoisted).
 
 ### Notes
 - `winSwitchDevice`'s `''`-escaping was audited and is safe (single-quoted inside a `-File` script, never through cmd.exe) — now documented in-code.
