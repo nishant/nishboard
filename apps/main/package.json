@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "tsc-watch --onSuccess \"cross-env NODE_ENV=development electron .\"",
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src"
   },
   "dependencies": {
     "@dash/shared": "workspace:*"

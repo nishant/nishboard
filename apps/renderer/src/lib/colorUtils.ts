@@ -54,7 +54,6 @@ export function buildCustomVars(
 ): Record<string, string> {
   const p  = hexToArr(primary);
   const s  = hexToArr(secondary);
-  const t  = hexToArr(tertiary);
   const tx = hexToArr(textColor);
 
   return {

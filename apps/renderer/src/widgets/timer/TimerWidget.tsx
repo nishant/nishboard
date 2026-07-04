@@ -63,7 +63,6 @@ export function TimerWidget() {
       setNow(now);
     }, 500);
     return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const now = Date.now();
