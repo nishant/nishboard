@@ -36,6 +36,23 @@ export interface NetworkIo {
   downloadMbps: number;
 }
 
+/** One row in the top-processes panel — grouped by process name. */
+export interface ProcessItemData {
+  name: string;
+  /** Number of OS processes aggregated into this row (e.g. chrome × 14). */
+  count: number;
+  /** Summed CPU % across instances (can exceed 100 on multi-core). */
+  cpuPercent: number;
+  /** Summed resident memory across instances. */
+  memMb: number;
+  memPercent: number;
+}
+
+export interface ProcessListData {
+  processes: ProcessItemData[];
+  fetchedAt: string;
+}
+
 export interface HardwareData {
   cpu: CpuData;
   gpu: GpuData | null;

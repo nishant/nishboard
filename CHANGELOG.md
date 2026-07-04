@@ -4,6 +4,23 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #68] feat: hardware — top-processes panel (lazy, CPU/RAM sort)
+**Branch:** `feat/hardware-processes` → master
+**Date:** 2026-07-04
+
+### Context
+Feature-slate batch 5: top processes in the hardware monitor, behind a toggle so the expensive sampling never runs unasked.
+
+### Added
+- `GET /api/hardware/processes` — `si.processes()` grouped by process name (summed CPU%/RSS, `×n` instance count, Task-Manager style), returning the union of top-20-by-CPU and top-20-by-RAM so the renderer can flip sort keys without a round-trip. 4.5s `SimpleCache` against the 5s renderer poll.
+- Hardware widget: new `ListTree` header action opens a **Top processes** card with a CPU/RAM sort toggle, 12 rows, `name ×count · cpu% · MB/GB`. The panel component mounts only while open — mounting starts the 5s poll (gated by low-power/hidden like everything else), unmounting stops it.
+
+### Notes
+- **Windows**: `si.processes()` shells into PowerShell CIM (hundreds of ms — hence cache + lazy-only polling), and CPU% is delta-based so the very first sample shows 0.0% for every process; it fills in from the second poll.
+- Verified headless: 0 `/processes` requests while closed (before open and again after close, 6s windows), polling only while the panel is mounted, grouped rows render (`chrome ×7 · 722 MB`), sort toggle flips ordering client-side.
+
+---
+
 ## [PR #67] feat: weather+ — AQI, pollen, sun times, radar, multi-location
 **Branch:** `feat/weather-plus` → master
 **Date:** 2026-07-04
