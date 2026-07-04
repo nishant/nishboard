@@ -4,6 +4,25 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #71] feat: crypto widget (CoinGecko watchlist + 7d sparklines)
+**Branch:** `feat/crypto-widget` → master
+**Date:** 2026-07-04
+
+### Context
+Feature-slate batch 8: a crypto price widget in the stocks-widget mold.
+
+### Added
+- `GET /api/crypto?ids=` — CoinGecko `/coins/markets` with `sparkline=true`: price, 24h change, and the 7-day line in **one call**. 4-min `TtlCache` under the 5-min renderer poll; ids validated (`[a-z0-9-]`, max 25); watchlist order preserved; 7d hourly sparkline downsampled 168→42 points. 429 is remapped to a friendly "rate limit — resumes in a minute" message.
+- `COINGECKO_API_KEY` credential (optional): full plumbing — `CREDENTIAL_KEYS`/`DEFS` (Settings → Developer, with a demo-tier hint), `build.mjs` `_BUILTIN` define, `/api/credentials/builtin` list. Sent as `x-cg-demo-api-key`; keyless works but is throttled (demo tier: 30 req/min, 10k/month).
+- **Crypto widget**: 2-col coin cards (icon, name, 24h change, price with sub-dollar precision, 7d sparkline colored by direction), pencil header action → watchlist modal (CoinGecko coin *ids*, e.g. `bitcoin`), refresh action, skeleton/error/empty states. Default watchlist: bitcoin, ethereum, solana, dogecoin.
+- Registered as `WidgetId 'crypto'` — `autoFillLayout` slots it in existing custom layouts automatically; presets place it via the bottom-row fallback.
+
+### Notes
+- CoinGecko is blocked by the sandbox proxy — UI verified with fixture-intercepted responses (cards, DOGE `$0.0842` precision, ±change colors, watchlist add normalizing "Chainlink Token" → `chainlink-token`); the route's upstream error path returns cleanly. Worth one live on-device look.
+- CLAUDE.md widget table gains the Crypto row.
+
+---
+
 ## [PR #70] feat: notes — multiple notes with tabs
 **Branch:** `feat/notes-tabs` → master
 **Date:** 2026-07-04

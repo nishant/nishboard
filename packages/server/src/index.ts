@@ -12,6 +12,7 @@ import { soundRoutes } from './routes/sound';
 import { youtubeRoutes } from './routes/youtube';
 import { twitchRoutes } from './routes/twitch';
 import { newsRoutes } from './routes/news';
+import { cryptoRoutes } from './routes/crypto';
 import { HttpError, UpstreamError } from './lib/http';
 
 // CWD is packages/server when run via Turborepo — walk up to monorepo root
@@ -59,6 +60,7 @@ async function start(): Promise<void> {
   server.register(youtubeRoutes, { prefix: '/api/youtube' });
   server.register(twitchRoutes, { prefix: '/api/twitch' });
   server.register(newsRoutes, { prefix: '/api/news' });
+  server.register(cryptoRoutes, { prefix: '/api/crypto' });
 
   server.get('/health', async () => ({ status: 'ok' }));
 
@@ -72,6 +74,7 @@ async function start(): Promise<void> {
       process.env.ALPACA_API_SECRET_BUILTIN    && 'ALPACA_API_SECRET',
       process.env.TWITCH_CLIENT_ID_BUILTIN     && 'TWITCH_CLIENT_ID',
       process.env.TWITCH_CLIENT_SECRET_BUILTIN && 'TWITCH_CLIENT_SECRET',
+      process.env.COINGECKO_API_KEY_BUILTIN    && 'COINGECKO_API_KEY',
     ].filter(Boolean),
   }));
 

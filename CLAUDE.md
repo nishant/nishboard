@@ -32,7 +32,8 @@ Personal ambient desktop dashboard for Nish, running all day on a secondary moni
 | YouTube | YouTube Data API v3 (search) + localhost embed proxy | YOUTUBE_API_KEY (~100 searches/day free) | on demand |
 | Twitch | Twitch Helix (search) + localhost embed proxy | client-credentials app token (TWITCH_CLIENT_ID + TWITCH_CLIENT_SECRET) | on demand |
 | News | Google News RSS (keyless) | none | 10min |
-| Notes | none (Markdown scratchpad, localStorage) | none | n/a |
+| Crypto | CoinGecko `/coins/markets` (price + 24h change + 7d sparkline, one call) | COINGECKO_API_KEY optional (demo tier 30/min, 10k/mo; keyless = throttled) | 5min poll |
+| Notes | none (Markdown multi-note tabs, localStorage) | none | n/a |
 | Tasks | none (checklist, localStorage) | none | n/a |
 | World Clock | none (pure-JS timezones, digital/analog) | none | n/a |
 | Timer / Alarm | none (fires via notification IPC + Web Audio chime) | none | n/a |
