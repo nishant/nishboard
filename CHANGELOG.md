@@ -4,6 +4,28 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #67] feat: weather+ — AQI, pollen, sun times, radar, multi-location
+**Branch:** `feat/weather-plus` → master
+**Date:** 2026-07-04
+
+### Context
+Feature-slate batch 4: the four weather upgrades Nish picked (AQI + pollen, sunrise/sunset, lazy radar view, multiple locations).
+
+### Added
+- **Air quality**: server fetches Open-Meteo's separate air-quality host (`us_aqi` + six pollen types) in parallel with the forecast, fail-soft like alerts — `WeatherData.airQuality?` is simply absent on failure. Widget shows a color-coded `AQI n · label` chip (EPA breakpoints).
+- **Pollen**: requested everywhere but CAMS covers Europe only — the row (Tree/Grass/Weed gr/m³, tree = max of alder/birch/olive, weed = max of mugwort/ragweed) renders only when at least one type is non-null, so US locations never show an empty row.
+- **Sunrise/sunset**: added to the existing `daily=` param (same API call); today's times render next to "Feels like" with `hourFormat` (24h-aware).
+- **Radar**: `GET /api/weather/radar-embed?lat=&lon=` serves a minimal page wrapping RainViewer's animated radar (localhost-served per the standing embed pattern; vendor swappable server-side). Toggled by a new radar header action; the iframe mounts only while open — zero cost until used.
+- **Multi-location**: `weatherZips: string[]` + `weatherZipIdx` replace `weatherZip` (zustand persist `version: 1` + `migrate` converts old installs). Settings takes comma-separated ZIPs (committed on blur/Enter); with >1 the widget shows a `‹ City, ST 1/n ›` cycler. Per-ZIP responses stay separately cached on both sides.
+
+### Changed
+- `WeatherLocation` gains `lat`/`lon` (renderer needs them for the radar embed URL).
+
+### Notes
+- Verified headless with fixture-intercepted `/api/weather` (real forecast hosts are proxy-blocked in the sandbox): cycler flips New York 1/2 ↔ Chicago 2/2, AQI chip + sun times render, radar iframe mounts on toggle. RainViewer content itself needs real network — worth one on-device look.
+
+---
+
 ## [PR #66] feat: poll gate — hidden-window pause + low-power mode
 **Branch:** `feat/poll-gate-low-power` → master
 **Date:** 2026-07-04

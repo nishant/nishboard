@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { WeatherData, WeatherAlert } from '@dash/shared';
+import type { WeatherData, WeatherAlert, AirQualityData } from '@dash/shared';
 import { fetchJson, HttpError } from '../lib/http';
 import { TtlCache } from '../lib/TtlCache';
 
@@ -83,6 +83,7 @@ function buildUrl(lat: number, lon: number, timezone: string, temp: TempUnit, wi
   ].join(','));
   url.searchParams.set('daily', [
     'weathercode', 'temperature_2m_max', 'temperature_2m_min', 'precipitation_probability_max',
+    'sunrise', 'sunset',
   ].join(','));
   url.searchParams.set('temperature_unit', temp === 'c' ? 'celsius' : 'fahrenheit');
   url.searchParams.set('windspeed_unit', wind === 'kmh' ? 'kmh' : 'mph');
@@ -115,6 +116,8 @@ async function fetchWeather(geo: Geo, temp: TempUnit, wind: WindUnit): Promise<W
       temperature_2m_max: number[];
       temperature_2m_min: number[];
       precipitation_probability_max: number[];
+      sunrise: string[];
+      sunset: string[];
     };
   }>(buildUrl(geo.lat, geo.lon, geo.timezone, temp, wind), undefined, { label: 'Open-Meteo' });
 
@@ -144,11 +147,52 @@ async function fetchWeather(geo: Geo, temp: TempUnit, wind: WindUnit): Promise<W
       tempMin: Math.round(raw.daily.temperature_2m_min[i]),
       precipChance: raw.daily.precipitation_probability_max[i],
       weatherCode: raw.daily.weathercode[i],
+      sunrise: raw.daily.sunrise[i],
+      sunset: raw.daily.sunset[i],
     })),
-    location: { name: geo.name, region: geo.region || undefined },
+    location: { name: geo.name, region: geo.region || undefined, lat: geo.lat, lon: geo.lon },
     alerts: [],
     fetchedAt: new Date().toISOString(),
   };
+}
+
+// Air quality (+ pollen) — separate Open-Meteo host. Fail-soft like alerts:
+// the forecast still renders if this call dies, the widget just omits the row.
+async function fetchAirQuality(lat: number, lon: number): Promise<AirQualityData | undefined> {
+  try {
+    const url = new URL('https://air-quality-api.open-meteo.com/v1/air-quality');
+    url.searchParams.set('latitude', String(lat));
+    url.searchParams.set('longitude', String(lon));
+    url.searchParams.set('current', [
+      'us_aqi',
+      // Pollen is CAMS (Europe-only) — request it everywhere, it's null elsewhere.
+      'alder_pollen', 'birch_pollen', 'olive_pollen',
+      'grass_pollen', 'mugwort_pollen', 'ragweed_pollen',
+    ].join(','));
+    const j = await fetchJson<{
+      current: {
+        us_aqi: number | null;
+        alder_pollen: number | null; birch_pollen: number | null; olive_pollen: number | null;
+        grass_pollen: number | null; mugwort_pollen: number | null; ragweed_pollen: number | null;
+      };
+    }>(url.toString(), undefined, { label: 'Open-Meteo AQ' });
+
+    const c = j.current;
+    const max = (...vals: (number | null)[]) => {
+      const nums = vals.filter((v): v is number => v != null);
+      return nums.length ? Math.max(...nums) : null;
+    };
+    const tree = max(c.alder_pollen, c.birch_pollen, c.olive_pollen);
+    const weed = max(c.mugwort_pollen, c.ragweed_pollen);
+    const grass = c.grass_pollen;
+    const hasPollen = tree != null || weed != null || grass != null;
+    return {
+      usAqi: c.us_aqi,
+      pollen: hasPollen ? { grass, tree, weed } : null,
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 // NWS active alerts for a point — keyless, US only. Returns [] on any failure / non-US.
@@ -206,15 +250,42 @@ export const weatherRoutes: FastifyPluginAsync = async (fastify) => {
         );
       }
 
-      // 2) Fetch the forecast (+ alerts) for the resolved location.
+      // 2) Fetch the forecast (+ alerts + air quality) for the resolved location.
       try {
-        const [data, alerts] = await Promise.all([fetchWeather(geo, temp, wind), fetchAlerts(geo.lat, geo.lon)]);
+        const [data, alerts, airQuality] = await Promise.all([
+          fetchWeather(geo, temp, wind),
+          fetchAlerts(geo.lat, geo.lon),
+          fetchAirQuality(geo.lat, geo.lon),
+        ]);
         data.alerts = alerts;
+        data.airQuality = airQuality;
         weatherCache.set(key, data);
         return reply.send(data);
       } catch {
         throw new HttpError(502, 'Weather service is unavailable, try again shortly.');
       }
+    },
+  );
+
+  // Radar embed — a minimal page wrapping RainViewer's animated radar iframe.
+  // Served from localhost (not iframed directly from file://) per the standing
+  // embed pattern, and so the vendor can be swapped without touching the renderer.
+  fastify.get<{ Querystring: { lat?: string; lon?: string } }>(
+    '/radar-embed',
+    async (req, reply) => {
+      const lat = Number(req.query.lat);
+      const lon = Number(req.query.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+        throw new HttpError(400, 'lat/lon required');
+      }
+      // oCS=1 dark color scheme base map; sm/sn = smooth + snow; loc = lat,lon,zoom
+      const src = `https://www.rainviewer.com/map.html?loc=${lat.toFixed(4)},${lon.toFixed(4)},7&oCS=1&sm=1&sn=1&layer=radar&hu=false`;
+      return reply.type('text/html').send(`<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  html,body{margin:0;height:100%;background:#000;overflow:hidden}
+  iframe{border:0;width:100%;height:100%;display:block}
+</style></head>
+<body><iframe src="${src}" allowfullscreen></iframe></body></html>`);
     },
   );
 };

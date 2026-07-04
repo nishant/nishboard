@@ -4,8 +4,16 @@ import { useAppSettingsStore } from '../../store/settingsStore';
 import { useGatedInterval } from '../../hooks/useGatedInterval';
 import type { WeatherData } from '@dash/shared';
 
+/** The ZIP currently selected by the widget's location cycler ('' = auto by IP). */
+export function useActiveWeatherZip(): string {
+  const zips = useAppSettingsStore((s) => s.weatherZips);
+  const idx = useAppSettingsStore((s) => s.weatherZipIdx);
+  if (zips.length === 0) return '';
+  return (zips[Math.min(idx, zips.length - 1)] ?? '').trim();
+}
+
 export function useWeather(enabled = true) {
-  const zip = useAppSettingsStore((s) => s.weatherZip).trim();
+  const zip = useActiveWeatherZip();
   const tempUnit = useAppSettingsStore((s) => s.tempUnit);
   const windUnit = useAppSettingsStore((s) => s.windUnit);
   const interval = useGatedInterval(15 * 60 * 1000);

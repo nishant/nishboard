@@ -12,8 +12,11 @@ export type LowPowerMode = 'off' | 'on' | 'auto';
  * layout/theme stores. Persisted to localStorage under `dashboard-app-settings`.
  */
 interface AppSettingsState {
-  /** 5-digit US ZIP to override weather location. '' = auto-detect by IP. */
-  weatherZip: string;
+  /** 5-digit US ZIPs for weather locations, cycled with ‹ › in the widget.
+   *  Empty list = auto-detect by IP. */
+  weatherZips: string[];
+  /** Index of the currently shown weather location (clamped by consumers). */
+  weatherZipIdx: number;
   /** Show the current temperature next to the centered titlebar clock. */
   showTempInClock: boolean;
   /** Renderer zoom factor (Electron `webFrame.setZoomFactor`). 1 = 100%. */
@@ -33,7 +36,8 @@ interface AppSettingsState {
    *  (Polling always pauses while the window is hidden, regardless of this.) */
   lowPower: LowPowerMode;
 
-  setWeatherZip: (zip: string) => void;
+  setWeatherZips: (zips: string[]) => void;
+  setWeatherZipIdx: (idx: number) => void;
   setShowTempInClock: (show: boolean) => void;
   setUiScale: (scale: number) => void;
   setDensity: (density: Density) => void;
@@ -47,7 +51,8 @@ interface AppSettingsState {
 export const useAppSettingsStore = create<AppSettingsState>()(
   persist(
     (set) => ({
-      weatherZip: '',
+      weatherZips: [],
+      weatherZipIdx: 0,
       showTempInClock: false,
       uiScale: 1,
       density: 'comfortable',
@@ -57,7 +62,9 @@ export const useAppSettingsStore = create<AppSettingsState>()(
       clock24h: false,
       lowPower: 'off',
 
-      setWeatherZip: (weatherZip) => set({ weatherZip }),
+      // Reset the cycle index too — it may point past the end of the new list.
+      setWeatherZips: (weatherZips) => set({ weatherZips, weatherZipIdx: 0 }),
+      setWeatherZipIdx: (weatherZipIdx) => set({ weatherZipIdx }),
       setShowTempInClock: (showTempInClock) => set({ showTempInClock }),
       setUiScale: (uiScale) => set({ uiScale }),
       setDensity: (density) => set({ density }),
@@ -67,6 +74,18 @@ export const useAppSettingsStore = create<AppSettingsState>()(
       setClock24h: (clock24h) => set({ clock24h }),
       setLowPower: (lowPower) => set({ lowPower }),
     }),
-    { name: 'dashboard-app-settings' },
+    {
+      name: 'dashboard-app-settings',
+      version: 1,
+      // v0 stored a single `weatherZip: string`; v1 is `weatherZips: string[]`.
+      migrate: (persisted) => {
+        const state = persisted as Partial<AppSettingsState> & { weatherZip?: string };
+        if (typeof state.weatherZip === 'string') {
+          state.weatherZips = state.weatherZip ? [state.weatherZip] : [];
+          delete state.weatherZip;
+        }
+        return state;
+      },
+    },
   ),
 );

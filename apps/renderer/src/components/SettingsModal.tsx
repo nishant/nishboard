@@ -209,14 +209,25 @@ const clampScale = (n: number) => Math.round(Math.min(SCALE_MAX, Math.max(SCALE_
 
 function AppSettingsPanel() {
   const {
-    weatherZip, showTempInClock, uiScale, density, compactTitlebar,
+    weatherZips, showTempInClock, uiScale, density, compactTitlebar,
     tempUnit, windUnit, clock24h, lowPower,
-    setWeatherZip, setShowTempInClock, setUiScale, setDensity, setCompactTitlebar,
+    setWeatherZips, setShowTempInClock, setUiScale, setDensity, setCompactTitlebar,
     setTempUnit, setWindUnit, setClock24h, setLowPower,
   } = useAppSettingsStore();
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const [importError, setImportError] = useState<string | null>(null);
+
+  // Free-form text while typing; parsed into the store on blur/Enter so a
+  // half-typed ZIP doesn't thrash the weather query.
+  const [zipsText, setZipsText] = useState(() => weatherZips.join(', '));
+  function commitZips() {
+    const zips = [...new Set(
+      zipsText.split(',').map((z) => z.trim()).filter((z) => /^\d{5}$/.test(z)),
+    )];
+    setWeatherZips(zips);
+    setZipsText(zips.join(', '));
+  }
 
   async function onImportFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -237,19 +248,21 @@ function AppSettingsPanel() {
         <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">Weather</span>
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center gap-3">
-            <span className="text-th-3 text-[11px] w-28 shrink-0">Location (ZIP)</span>
+            <span className="text-th-3 text-[11px] w-28 shrink-0">Locations (ZIP)</span>
             <input
-              value={weatherZip}
-              onChange={(e) => setWeatherZip(e.target.value.replace(/[^0-9]/g, '').slice(0, 5))}
+              value={zipsText}
+              onChange={(e) => setZipsText(e.target.value.replace(/[^0-9,\s]/g, ''))}
+              onBlur={commitZips}
+              onKeyDown={(e) => { if (e.key === 'Enter') commitZips(); }}
               placeholder="Auto (by IP)"
               inputMode="numeric"
-              maxLength={5}
               spellCheck={false}
               className="flex-1 bg-th-elevated border border-th-line rounded-lg px-3 py-1.5 text-th-hi text-[11px] font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-3 transition-colors"
             />
           </div>
           <p className="text-th-ghost text-[10px] leading-relaxed pl-[calc(7rem+0.75rem)]">
-            5-digit US ZIP to override your location. Leave blank to detect automatically.
+            One or more 5-digit US ZIPs, comma-separated — the weather widget's ‹ › cycles
+            between them. Leave blank to detect automatically.
           </p>
         </div>
       </div>

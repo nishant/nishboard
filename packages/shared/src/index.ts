@@ -1,4 +1,4 @@
-export type { WeatherData, WeatherCurrent, WeatherHourly, WeatherDaily, WeatherLocation, WeatherAlert } from './types/weather';
+export type { WeatherData, WeatherCurrent, WeatherHourly, WeatherDaily, WeatherLocation, WeatherAlert, AirQualityData, PollenData } from './types/weather';
 export type {
   TrackData, SpotifyAuthStatus,
   SpotifyPlaylist, SpotifyDevice,
