@@ -2,6 +2,17 @@ import { useQuery } from '@tanstack/react-query';
 import type { YoutubeSearchPage } from '@dash/shared';
 import { apiClient } from '../../lib/apiClient';
 
+/** Browse tabs (videos.list, 1 quota unit) — server caches 45 min per category;
+ *  the long staleTime keeps tab flips free on the client too. */
+export function useYoutubeBrowse(category: string, enabled: boolean) {
+  return useQuery<YoutubeSearchPage>({
+    queryKey: ['youtube-browse', category],
+    queryFn: () => apiClient.get<YoutubeSearchPage>(`/api/youtube/browse?category=${encodeURIComponent(category)}`),
+    enabled,
+    staleTime: 45 * 60 * 1000,
+  });
+}
+
 export function useYoutubeSearch(query: string, pageToken?: string) {
   return useQuery<YoutubeSearchPage>({
     queryKey: ['youtube-search', query, pageToken],

@@ -20,6 +20,23 @@ export interface EmbedSearchState {
   isError: boolean;
 }
 
+export interface EmbedBrowseTab {
+  id: string;
+  label: string;
+}
+
+/** Optional browse extension: a cheap home feed (tab strip + rows) replacing
+ *  the hero home view when the tile is tall enough. */
+export interface EmbedBrowse {
+  tabs: EmbedBrowseTab[];
+  /** Rows for a tab. Must be a real hook (called from the browse home view);
+   *  `enabled` gates fetching. */
+  useBrowse: (tabId: string, enabled: boolean) => EmbedSearchState;
+  /** Optional extra control rendered at the left of the tab strip
+   *  (e.g. a Twitch "Connect" button). */
+  HomeHeader?: () => ReactElement | null;
+}
+
 /** Everything service-specific about an embed-search widget. The generic
  *  component owns the view state machine, measurement, iframe-kept-mounted
  *  trick, search overlay, and control bar. */
@@ -39,4 +56,6 @@ export interface EmbedServiceAdapter {
   closeLabel: string;
   embedUrl: (item: EmbedItem) => string;
   useSearch: (query: string) => EmbedSearchState;
+  /** When present, the home view becomes a browse feed (if the tile is tall enough). */
+  browse?: EmbedBrowse;
 }
