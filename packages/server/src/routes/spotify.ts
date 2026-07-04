@@ -6,40 +6,18 @@ import type {
   SpotifySearchResults,
 } from '@dash/shared';
 import crypto from 'crypto';
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
 import { SimpleCache } from '../cache/SimpleCache';
 import { HttpError, UpstreamError } from '../lib/http';
 import { TtlCache } from '../lib/TtlCache';
 import { cred } from '../lib/env';
+import { UserTokenStore } from '../lib/userTokenStore';
+import type { StoredUserTokens } from '../lib/userTokenStore';
 
 // ── Token persistence ─────────────────────────────────────────────────────────
+// File-backed store with single-flight refresh + clear-on-dead-refresh
+// (see lib/userTokenStore for the race/rotation rationale).
 
-const TOKENS_DIR = path.join(os.homedir(), '.dash');
-const TOKENS_FILE = path.join(TOKENS_DIR, 'spotify_tokens.json');
-
-interface StoredTokens {
-  access_token: string;
-  refresh_token: string;
-  expires_at: number;
-}
-
-function loadTokens(): StoredTokens | null {
-  try {
-    const raw = fs.readFileSync(TOKENS_FILE, 'utf8');
-    return JSON.parse(raw) as StoredTokens;
-  } catch {
-    return null;
-  }
-}
-
-function saveTokens(t: StoredTokens): void {
-  fs.mkdirSync(TOKENS_DIR, { recursive: true });
-  fs.writeFileSync(TOKENS_FILE, JSON.stringify(t), 'utf8');
-}
-
-let tokens: StoredTokens | null = loadTokens();
+const tokenStore = new UserTokenStore('spotify_tokens.json', refreshAccessToken);
 
 // ── PKCE ──────────────────────────────────────────────────────────────────────
 
@@ -88,7 +66,7 @@ const clientId = () => cred('SPOTIFY_CLIENT_ID');
 // 127.0.0.1, so the callback resolves either way.
 const redirectUri = () => cred('SPOTIFY_REDIRECT_URI') || 'http://127.0.0.1:7432/api/spotify/callback';
 
-async function exchangeCode(code: string, verifier: string): Promise<StoredTokens> {
+async function exchangeCode(code: string, verifier: string): Promise<StoredUserTokens> {
   const res = await fetch(`${SPOTIFY_ACCOUNTS}/api/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -105,7 +83,7 @@ async function exchangeCode(code: string, verifier: string): Promise<StoredToken
   return { access_token: d.access_token, refresh_token: d.refresh_token, expires_at: Date.now() + d.expires_in * 1000 };
 }
 
-async function refreshAccessToken(refreshToken: string): Promise<StoredTokens> {
+async function refreshAccessToken(refreshToken: string): Promise<StoredUserTokens> {
   const res = await fetch(`${SPOTIFY_ACCOUNTS}/api/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -124,40 +102,12 @@ async function refreshAccessToken(refreshToken: string): Promise<StoredTokens> {
   };
 }
 
-// Single-flight guard: with 3s now-playing polling plus concurrent device/playlist
-// calls, several requests can hit the expiry window at once. Spotify rotates refresh
-// tokens, so parallel refreshes race to persist different tokens (last-write-wins can
-// store a dead one, forcing a re-auth). All concurrent callers await the same refresh.
-let refreshInFlight: Promise<StoredTokens> | null = null;
-
-async function getValidToken(): Promise<string> {
-  if (!tokens) throw new Error('Not authenticated');
-  if (Date.now() > tokens.expires_at - 60_000) {
-    try {
-      refreshInFlight ??= refreshAccessToken(tokens.refresh_token).finally(() => {
-        refreshInFlight = null;
-      });
-      tokens = await refreshInFlight;
-      saveTokens(tokens);
-    } catch (err) {
-      // Refresh failed — most often because the cached token was minted under a
-      // different client_id (e.g. before the client_id was baked in) and is no
-      // longer valid for this app. Clear it so /auth-status flips to false and
-      // the widget shows "Connect" again, instead of looping 502s forever.
-      tokens = null;
-      try { fs.unlinkSync(TOKENS_FILE); } catch { /* already gone */ }
-      throw err;
-    }
-  }
-  return tokens.access_token;
-}
-
 async function spotifyRequest(
   method: string,
   endpoint: string,
   body?: Record<string, unknown>,
 ): Promise<Response> {
-  const token = await getValidToken();
+  const token = await tokenStore.getValidToken();
   return fetch(`${SPOTIFY_API}${endpoint}`, {
     method,
     headers: {
@@ -316,8 +266,7 @@ export const spotifyRoutes: FastifyPluginAsync = async (fastify) => {
           .send('<html><body><h2>Auth request expired.</h2><p>Try connecting again.</p></body></html>');
       }
       try {
-        tokens = await exchangeCode(code, pendingPkce.verifier);
-        saveTokens(tokens);
+        tokenStore.store(await exchangeCode(code, pendingPkce.verifier));
         pendingPkce = null;
         nowPlayingCache.clear();
         return reply.type('text/html')
@@ -333,13 +282,12 @@ export const spotifyRoutes: FastifyPluginAsync = async (fastify) => {
 
   // GET /api/spotify/auth-status
   fastify.get<{ Reply: SpotifyAuthStatus }>('/auth-status', async (_req, reply) => {
-    return reply.send({ authenticated: tokens !== null });
+    return reply.send({ authenticated: tokenStore.authenticated });
   });
 
   // POST /api/spotify/logout
   fastify.post('/logout', async (_req, reply) => {
-    tokens = null;
-    try { fs.unlinkSync(TOKENS_FILE); } catch { /* already gone */ }
+    tokenStore.clear();
     nowPlayingCache.clear();
     return reply.code(204).send();
   });
@@ -348,7 +296,7 @@ export const spotifyRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Reply: TrackData | { error: string } }>('/now-playing', async (_req, reply) => {
     // Not logged in yet is an expected state, not a server error — return 401 so
     // the client doesn't log a 502 on every poll before the user connects.
-    if (!tokens) return reply.code(401).send({ error: 'Not authenticated' });
+    if (!tokenStore.authenticated) return reply.code(401).send({ error: 'Not authenticated' });
     const cached = nowPlayingCache.get();
     if (cached) return reply.send(cached);
     const data = await fetchNowPlaying();

@@ -9,6 +9,7 @@ const electronAPI: ElectronAPI = {
   notify: (title: string, body: string) => ipcRenderer.send('app:notify' satisfies IpcChannels, title, body),
   openExternal: (url: string) => ipcRenderer.send('app:open-external' satisfies IpcChannels, url),
   openSpotifyAuth: (url: string) => ipcRenderer.send('spotify:open-auth' satisfies IpcChannels, url),
+  openTwitchAuth: (url: string) => ipcRenderer.send('twitch:open-auth' satisfies IpcChannels, url),
   onSpotifyTokenStored: (cb: () => void) => {
     const channel: IpcChannels = 'spotify:token-store';
     ipcRenderer.on(channel, cb);

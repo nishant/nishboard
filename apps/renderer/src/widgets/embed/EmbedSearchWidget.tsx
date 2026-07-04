@@ -74,7 +74,7 @@ function BrowseHome({
   onPlay: (item: EmbedItem) => void;
 }) {
   const [tabId, setTabId] = useState(browse.tabs[0]?.id ?? '');
-  const { items, isFetching, isError } = browse.useBrowse(tabId, tabId !== '');
+  const { items, isFetching, isError, hint } = browse.useBrowse(tabId, tabId !== '');
 
   return (
     <div className="h-full flex flex-col">
@@ -101,6 +101,9 @@ function BrowseHome({
         </button>
       </div>
       <div className="flex-1 overflow-y-auto min-h-0">
+        {!items && !isFetching && !isError && hint && (
+          <p className="text-th-ghost text-xs text-center py-6 px-4">{hint}</p>
+        )}
         {isFetching && !items && (
           <p className="text-th-ghost text-xs text-center py-6">Loading…</p>
         )}

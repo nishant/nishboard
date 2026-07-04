@@ -28,6 +28,11 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     if (url.startsWith('https://accounts.spotify.com/')) shell.openExternal(url);
   });
 
+  ipcMain.on('twitch:open-auth', (_event, url: string) => {
+    // Same guard pattern: only Twitch's identity host is a legitimate target.
+    if (url.startsWith('https://id.twitch.tv/')) shell.openExternal(url);
+  });
+
   // ── Credentials ─────────────────────────────────────────────────────────────
 
   // Write-only credentials: the renderer learns which keys are set, never
