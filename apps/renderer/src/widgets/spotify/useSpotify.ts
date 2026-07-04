@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../lib/apiClient';
+import { useGatedInterval } from '../../hooks/useGatedInterval';
 import type {
   TrackData, SpotifyAuthStatus,
   SpotifyPlaylistsPage, SpotifyTracksPage, SpotifyDevice,
@@ -17,20 +18,22 @@ export function useDebouncedValue<T>(value: T, delayMs: number): T {
 }
 
 export function useSpotifyStatus() {
+  const interval = useGatedInterval(5000);
   return useQuery<SpotifyAuthStatus>({
     queryKey: ['spotify-status'],
     queryFn: () => apiClient.get<SpotifyAuthStatus>('/api/spotify/auth-status'),
-    refetchInterval: 5000,
+    refetchInterval: interval,
     staleTime: 4000,
   });
 }
 
 export function useNowPlaying(enabled = true) {
+  const interval = useGatedInterval(3000);
   return useQuery<TrackData>({
     queryKey: ['spotify-now-playing'],
     queryFn: () => apiClient.get<TrackData>('/api/spotify/now-playing'),
     enabled,
-    refetchInterval: 3000,
+    refetchInterval: interval,
     staleTime: 2500,
   });
 }
@@ -81,11 +84,12 @@ export function usePlaylistTracksInfinite(playlistId: string | null) {
 }
 
 export function useDevices(enabled: boolean) {
+  const interval = useGatedInterval(8_000);
   return useQuery<SpotifyDevice[]>({
     queryKey: ['spotify-devices'],
     queryFn: () => apiClient.get<SpotifyDevice[]>('/api/spotify/devices'),
     enabled,
-    refetchInterval: 8_000,
+    refetchInterval: interval,
     staleTime: 5_000,
   });
 }

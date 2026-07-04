@@ -4,6 +4,28 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #66] feat: poll gate — hidden-window pause + low-power mode
+**Branch:** `feat/poll-gate-low-power` → master
+**Date:** 2026-07-04
+
+### Context
+Feature-slate batch 3. The dashboard polls constantly (hardware every 1s, Spotify every 3s, …) even minimized to nothing — wasted CPU/network and needless API traffic on battery.
+
+### Added
+- `useGatedInterval(baseMs)` hook — single gate for every `refetchInterval`: returns `false` while the window is hidden (polling pauses entirely), `base × 4` while low-power is engaged, else the base interval.
+- `usePowerStore` (non-persisted): `hidden` from a single module-level `visibilitychange` listener; `onBattery` fed by the hardware poll (`battery != null && !charging`).
+- **Settings → App → Power → Low-power mode**: Off / On / Auto. Auto engages only on battery and needs the Hardware widget running for battery telemetry.
+- `VisibilityKicker` in App — on hidden→visible, refetches active stale queries immediately, so widgets recover the moment the window returns instead of waiting out their (possibly 15-min) interval.
+
+### Changed
+- All polling hooks migrated to the gate: hardware 1s→4s in low power, Spotify now-playing 3s→12s, auth-status 5s→20s, devices 8s→32s, sound 5s→20s, stocks 5m→20m, news 10m→40m, weather 15m→60m.
+
+### Notes
+- Hardware history is 60 samples — 1 min of sparkline at base rate, 4 min in low power.
+- Verified headless against dev servers: hardware polls measured 6/6s (off) → 1/6s (low power via the Settings UI) → 0/6s (hidden) → immediate kick refetch on return. Local UI ticks (world clock, timers) are untouched — pure JS, and Chromium already throttles hidden timers.
+
+---
+
 ## [PR #65] feat: settings — temperature/wind units & 24-hour clock
 **Branch:** `feat/settings-units-clock` → master
 **Date:** 2026-07-04

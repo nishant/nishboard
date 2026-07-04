@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { apiClient } from '../../lib/apiClient';
+import { useGatedInterval } from '../../hooks/useGatedInterval';
+import { usePowerStore } from '../../store/powerStore';
 import type { HardwareData } from '@dash/shared';
 
-const HISTORY_SIZE = 60; // 60 seconds at 1s poll
+const HISTORY_SIZE = 60; // 60 samples — 1min at the base 1s poll, 4min in low power
 
 export interface HardwareHistory {
   cpuUsage: number[];
@@ -32,10 +34,11 @@ export function useHardware() {
   });
   const [history, setHistory] = useState<HardwareHistory>(histRef.current);
 
+  const interval = useGatedInterval(1000);
   const query = useQuery<HardwareData>({
     queryKey: ['hardware'],
     queryFn: () => apiClient.get<HardwareData>('/api/hardware'),
-    refetchInterval: 1000,
+    refetchInterval: interval,
     staleTime: 900,
     // system_profiler (graphics) can take 3-5s on cold start — retry generously
     retry: 8,
@@ -46,6 +49,9 @@ export function useHardware() {
     if (!query.data) return;
     const d = query.data;
     const h = histRef.current;
+
+    // Feed the poll gate's battery signal (lowPower 'auto' engages on battery).
+    usePowerStore.getState().setOnBattery(d.battery != null && !d.battery.charging);
 
     push(h.cpuUsage, d.cpu.usagePercent);
     push(h.gpuUsage, d.gpu?.usagePercent ?? 0);

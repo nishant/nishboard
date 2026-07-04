@@ -1,12 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../lib/apiClient';
+import { useGatedInterval } from '../../hooks/useGatedInterval';
 import type { SoundData } from '@dash/shared';
 
 export function useSound() {
+  const interval = useGatedInterval(5000);
   return useQuery<SoundData>({
     queryKey: ['sound'],
     queryFn: () => apiClient.get<SoundData>('/api/sound'),
-    refetchInterval: 5000,
+    refetchInterval: interval,
     staleTime: 4000,
     // osascript can be slow on first cold-boot of a freshly spawned child process
     retry: 5,
