@@ -4,7 +4,7 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
-## [PR #62] fix: audit batch — hardening, behavior bugs, dedup refactors, perf, docs
+## [PR #63] fix: audit batch — hardening, behavior bugs, dedup refactors, perf, docs
 **Branch:** `fix/full-app-audit` → master
 **Date:** 2026-07-03
 
