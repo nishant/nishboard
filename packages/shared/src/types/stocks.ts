@@ -29,6 +29,16 @@ export interface StockNewsItem {
   createdAt: string; // ISO timestamp
 }
 
+/** Market session state derived from Alpaca's trading calendar (holiday-aware). */
+export interface MarketCalendarData {
+  isOpen: boolean;
+  /** ISO instant of the next regular-session open; null while the market is open. */
+  nextOpen: string | null;
+  /** ISO instant of today's close while open; null while closed. */
+  nextClose: string | null;
+  source: 'alpaca';
+}
+
 export interface StockDetail {
   ticker: string;
   bars: StockBar[];

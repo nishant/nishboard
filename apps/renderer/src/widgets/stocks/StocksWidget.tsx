@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect, type KeyboardEvent } from 'react';
 import { TrendingUp, TrendingDown, Pencil, X, Plus, ArrowLeft, ExternalLink } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer, YAxis, Tooltip } from 'recharts';
-import { useStocks, useStockDetail } from './useStocks';
+import { useStocks, useStockDetail, useMarketCalendar } from './useStocks';
 import { useStocksStore } from '../../store/stocksStore';
 import { useStocksUiStore } from '../../store/stocksUiStore';
 import { useAppSettingsStore } from '../../store/settingsStore';
-import { relTimeAgo, hourFormat } from '../../lib/time';
+import { relTimeAgo, relTimeUntil, hourFormat } from '../../lib/time';
 import { WidgetSkeleton, Skeleton } from '../../components/Skeleton';
 import { ErrorState } from '../../components/ErrorState';
 import { HeaderAction } from '../../components/HeaderAction';
@@ -281,6 +281,15 @@ export function StocksWidget() {
   const { editing, setEditing } = useStocksUiStore();
   const [selected, setSelected] = useState<string | null>(null);
   const session = useMarketSession();
+  const calendar = useMarketCalendar().data;
+
+  // Dedicated tick for the countdown text — useMarketSession's setState bails
+  // out when the session label hasn't changed, so it can't drive re-renders.
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   // No pulse: the dot marks the market session, not a live feed — prices
   // refresh on a 5-minute poll (deliberate; keeps Alpaca usage minimal).
@@ -297,6 +306,18 @@ export function StocksWidget() {
     closed:       'Market Closed · Last close',
   };
 
+  // Holiday-aware countdown from the Alpaca calendar; the Intl heuristic above
+  // stays as the fallback (and drives the pre/after-hours dot color either way).
+  let badge = sessionLabel[session];
+  if (calendar) {
+    if (calendar.isOpen && calendar.nextClose) {
+      badge = `Market Open · closes ${relTimeUntil(new Date(calendar.nextClose).getTime(), now)}`;
+    } else if (!calendar.isOpen && calendar.nextOpen) {
+      const state = session === 'closed' ? 'Market Closed' : sessionLabel[session];
+      badge = `${state} · opens ${relTimeUntil(new Date(calendar.nextOpen).getTime(), now)}`;
+    }
+  }
+
   return (
     <div className="relative h-full flex flex-col overflow-hidden">
       {editing && <WatchlistModal onClose={() => setEditing(false)} />}
@@ -308,7 +329,7 @@ export function StocksWidget() {
           title="Prices refresh every 5 minutes"
         >
           <span className={`h-1.5 w-1.5 rounded-full inline-block shrink-0 ${sessionDot[session]}`} />
-          {sessionLabel[session]}
+          {badge}
         </span>
       </div>
 

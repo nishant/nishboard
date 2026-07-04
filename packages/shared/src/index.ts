@@ -5,7 +5,7 @@ export type {
   SpotifyTrackItem, SpotifyPlaylistsPage, SpotifyTracksPage,
   SpotifySearchResults,
 } from './types/spotify';
-export type { StocksData, StockQuote, StockBar, StockNewsItem, StockDetail } from './types/stocks';
+export type { StocksData, StockQuote, StockBar, StockNewsItem, StockDetail, MarketCalendarData } from './types/stocks';
 export type { HardwareData, CpuData, GpuData, DiskIo, DiskUsage, NetworkIo, ProcessItemData, ProcessListData } from './types/hardware';
 export type { SoundData, AudioDevice, AudioSession } from './types/sound';
 export type { YoutubeVideo, YoutubeSearchPage } from './types/youtube';

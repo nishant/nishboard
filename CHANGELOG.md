@@ -4,6 +4,24 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #69] feat: stocks — holiday-aware market calendar + open/close countdown
+**Branch:** `feat/stocks-calendar` → master
+**Date:** 2026-07-04
+
+### Context
+Feature-slate batch 6. The session badge was a hardcoded ET-hours heuristic — wrong on market holidays and early closes.
+
+### Added
+- `GET /api/stocks/calendar` — Alpaca `/v2/calendar` (**trading** host, not the data host; paper-only keys 401/403 on live, so live→paper fallback with the working host remembered for the process). Day list cached 12h; `isOpen`/`nextOpen`/`nextClose` computed per request. ET↔UTC conversion is DST-safe via `Intl` `longOffset` (no timezone lib).
+- Stocks badge is now a countdown: `Market Closed · opens in 2h 14m` / `Market Open · closes in 3h 5m`, ticking on a 30s interval. Early closes and holidays come straight from the calendar.
+
+### Notes
+- The Intl heuristic stays as the badge fallback when the calendar query has no data (missing keys / upstream error — the query fails silently) and still drives the pre-market/after-hours dot colors, which the calendar doesn't model.
+- Countdown needed its own tick: `useMarketSession`'s 60s setState bails out when the label is unchanged, so it can't drive re-renders.
+- Verified headless with fixture-intercepted `/calendar` (both states); ET offset math checked for EDT (July → -04:00) and EST (Jan → -05:00). Real Alpaca calendar needs keys + network — on-device sanity check worthwhile.
+
+---
+
 ## [PR #68] feat: hardware — top-processes panel (lazy, CPU/RAM sort)
 **Branch:** `feat/hardware-processes` → master
 **Date:** 2026-07-04
