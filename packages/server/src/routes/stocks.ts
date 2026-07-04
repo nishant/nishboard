@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { StocksData, StockQuote, StockDetail, StockBar, StockNewsItem } from '@dash/shared';
+import type { StocksData, StockQuote, StockDetail, StockBar, StockNewsItem, MarketCalendarData } from '@dash/shared';
 import { fetchJson, HttpError } from '../lib/http';
 import { TtlCache } from '../lib/TtlCache';
 import { cred } from '../lib/env';
@@ -196,6 +196,66 @@ async function fetchSymbolNews(symbol: string): Promise<StockNewsItem[]> {
 const DETAIL_TTL = 2 * 60 * 1000;
 const detailCache = new TtlCache<string, StockDetail>(DETAIL_TTL);
 
+// ── Market calendar (Alpaca /v2/calendar — TRADING host, not the data host) ──
+// Paper-only keys 401/403 against the live host, so try live first and fall
+// back to paper once, remembering whichever worked for the process lifetime.
+
+interface AlpacaCalendarDay { date: string; open: string; close: string; }
+
+const TRADING_HOSTS = ['https://api.alpaca.markets', 'https://paper-api.alpaca.markets'];
+let tradingHost: string | null = null;
+
+const CALENDAR_TTL = 12 * 60 * 60 * 1000; // trading days change ~never intra-day
+const calendarCache = new TtlCache<string, AlpacaCalendarDay[]>(CALENDAR_TTL);
+
+async function fetchCalendarDays(): Promise<AlpacaCalendarDay[]> {
+  const cached = calendarCache.get('days');
+  if (cached) return cached;
+  const start = new Date().toISOString().slice(0, 10);
+  const end = new Date(Date.now() + 10 * 86_400_000).toISOString().slice(0, 10);
+  const path = `/v2/calendar?start=${start}&end=${end}`;
+  const hosts = tradingHost ? [tradingHost] : TRADING_HOSTS;
+  let lastErr: unknown;
+  for (const host of hosts) {
+    try {
+      const days = await fetchJson<AlpacaCalendarDay[]>(
+        `${host}${path}`,
+        { headers: authHeaders() },
+        { label: 'Alpaca calendar' },
+      );
+      tradingHost = host;
+      calendarCache.set('days', days);
+      return days;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr;
+}
+
+/** UTC offset suffix (e.g. "-04:00") for New York on the given date — DST-safe
+ *  without a timezone lib. */
+function etOffset(date: string): string {
+  const probe = new Date(`${date}T12:00:00Z`);
+  const name = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', timeZoneName: 'longOffset' })
+    .formatToParts(probe)
+    .find((p) => p.type === 'timeZoneName')?.value ?? 'GMT-05:00';
+  return name.replace('GMT', '') || '-05:00';
+}
+
+function buildCalendar(days: AlpacaCalendarDay[]): MarketCalendarData {
+  const now = Date.now();
+  for (const d of days) {
+    const offset = etOffset(d.date);
+    const open = new Date(`${d.date}T${d.open}:00${offset}`).getTime();
+    const close = new Date(`${d.date}T${d.close}:00${offset}`).getTime();
+    if (now < open) return { isOpen: false, nextOpen: new Date(open).toISOString(), nextClose: null, source: 'alpaca' };
+    if (now < close) return { isOpen: true, nextOpen: null, nextClose: new Date(close).toISOString(), source: 'alpaca' };
+  }
+  // 10-day window exhausted (shouldn't happen) — unknown but well-typed.
+  return { isOpen: false, nextOpen: null, nextClose: null, source: 'alpaca' };
+}
+
 export const stocksRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{
     Querystring: { symbols?: string };
@@ -222,6 +282,16 @@ export const stocksRoutes: FastifyPluginAsync = async (fastify) => {
     const data = buildData(symbols, snapshots, bars);
     cache.set(key, data);
     return reply.send(data);
+  });
+
+  fastify.get<{ Reply: MarketCalendarData | { error: string } }>('/calendar', async (_req, reply) => {
+    if (!cred('ALPACA_API_KEY') || !cred('ALPACA_API_SECRET')) {
+      throw new HttpError(503, 'Alpaca keys not configured — add them in Settings → Developer');
+    }
+    const days = await fetchCalendarDays();
+    // Computed per request from the 12h-cached day list — the countdown target
+    // (nextOpen/nextClose) flips as time passes even between cache refreshes.
+    return reply.send(buildCalendar(days));
   });
 
   fastify.get<{ Querystring: { symbol?: string }; Reply: StockDetail | { error: string } }>(
