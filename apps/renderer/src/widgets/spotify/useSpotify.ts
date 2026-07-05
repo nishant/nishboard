@@ -232,6 +232,36 @@ export function useSpotifySearch(query: string, enabled: boolean) {
   });
 }
 
+/** Is this track in Liked Songs? Disabled for episodes / empty ids. 403 (old
+ *  token missing the new scope) surfaces as isError — the heart hides. */
+export function useTrackSaved(trackId: string, enabled: boolean) {
+  return useQuery<{ saved: boolean }>({
+    queryKey: ['spotify-track-saved', trackId],
+    queryFn: () => apiClient.get<{ saved: boolean }>(`/api/spotify/track-saved?trackId=${trackId}`),
+    enabled: enabled && trackId.length > 0,
+    staleTime: 5 * 60_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useSaveTrack() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { trackId: string; saved: boolean }) =>
+      apiClient.post('/api/spotify/save-track', args),
+    onMutate: ({ trackId, saved }) => {
+      qc.setQueryData<{ saved: boolean }>(['spotify-track-saved', trackId], { saved });
+    },
+    onSettled: (_data, _err, { trackId }) => {
+      void qc.invalidateQueries({ queryKey: ['spotify-track-saved', trackId] });
+      // Liked Songs list + count badge changed
+      void qc.invalidateQueries({ queryKey: ['spotify-playlist-tracks', 'liked-songs'] });
+      void qc.invalidateQueries({ queryKey: ['spotify-playlists'] });
+    },
+  });
+}
+
 export function useQueueTrack() {
   return useMutation({
     mutationFn: (args: { uri: string; deviceId?: string }) =>

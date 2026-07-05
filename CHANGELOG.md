@@ -4,6 +4,28 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #83] feat: Twitch followed-all + go-live alerts, Spotify ♥ + Recently Played
+**Branch:** `feat/twitch-spotify-extras` → master
+**Date:** 2026-07-05
+
+### Context
+Quick wins on the two already-connected accounts (Batch A of the accounts roadmap): Twitch user OAuth existed but only surfaced live channels; Spotify had playback/playlists but no way to like a track or see history.
+
+### Added
+- **Twitch — All tab**: the widget's browse strip is now `Live | All`. New `/api/twitch/followed-all` merges `channels/followed` (full follow list, ≤100) + `users` (profile avatars, batched) + the existing 60s live cache → every followed channel, live first (with game/title), then offline alphabetical. Follow/avatar set cached 5 min (`followsCache`), merged page 60s; both cleared on connect/logout. `/followed` refactored to share `fetchFollowedLive()`.
+- **Twitch — go-live notifications**: new headless `TwitchLiveNotifier` (WeatherAlertNotifier pattern) diffs the live set from the same 60s `/followed` query the widget uses (shared query key → deduped) and fires chime + toast + native notification for channels that GO live. Seeds silently on first payload (already-live at launch = ambient, not news); a channel that goes offline re-notifies on its next live. Settings → App → Twitch: **Go-live alerts** toggle (`twitchLiveNotify`, default on; no-op unless connected).
+- **Spotify — ♥ on now-playing**: heart in the action row saves/unsaves the current track (`/track-saved` + `/save-track` → `me/tracks`), optimistic toggle, invalidates Liked Songs list + count. Hidden for podcast episodes and when the saved-check 403s (see scope note).
+- **Spotify — Recently Played**: synthetic playlist (History icon) pinned after Liked Songs; `/playlist-tracks?playlistId=recently-played` maps `me/player/recently-played` (50 events, deduped by track, newest first). No playable Spotify context exists for history, so its `uri` is `''` — rows play as bare tracks and whole-list Play/Shuffle buttons are hidden (row + header guards).
+
+### Changed
+- **Spotify scopes** now include `user-library-modify` + `user-read-recently-played`. ⚠️ **Existing tokens don't gain scopes** — the new endpoints 403 with "Disconnect → Connect to grant the new permission" until you re-consent (once, per machine). Everything pre-existing keeps working on old tokens.
+
+### Notes
+- Verified against live data: `/followed-all` → 37 channels (3 live-first, avatars resolved); All tab renders the full list; Settings toggle present (default on); unauthenticated Spotify endpoints return clean 401/400s.
+- The notifier polls `/followed` only while the toggle is on AND Twitch is connected; `twitch-auth` status polling (15s, localhost) runs regardless — negligible.
+
+---
+
 ## [PR #81] feat: launcher groups + icons
 **Branch:** `feat/launcher-groups-icons` → master
 **Date:** 2026-07-05

@@ -51,6 +51,9 @@ function generatePkce(): { verifier: string; challenge: string; state: string } 
 const SPOTIFY_ACCOUNTS = 'https://accounts.spotify.com';
 const SPOTIFY_API = 'https://api.spotify.com/v1';
 
+// NOTE: adding a scope does NOT upgrade existing tokens — a token minted under
+// the old scope list 403s on the new endpoints until Disconnect → Connect
+// re-consents. The new endpoints below remap that 403 to a clear message.
 const SCOPES = [
   'user-read-playback-state',
   'user-modify-playback-state',
@@ -58,7 +61,18 @@ const SCOPES = [
   'playlist-read-private',
   'playlist-read-collaborative',
   'user-library-read',
+  'user-library-modify',       // ♥ save/unsave the now-playing track
+  'user-read-recently-played', // Recently Played pseudo-playlist
 ].join(' ');
+
+/** Remap a scope-shortfall 403 to an actionable message; rethrow anything else.
+ *  (Old tokens lack the newer scopes — see the NOTE on SCOPES.) */
+function rethrowScoped(err: unknown, feature: string): never {
+  if (err instanceof UpstreamError && err.status === 403) {
+    throw new HttpError(403, `Spotify denied ${feature} — Disconnect → Connect to grant the new permission`);
+  }
+  throw err;
+}
 
 const clientId = () => cred('SPOTIFY_CLIENT_ID');
 // 127.0.0.1, not localhost: Spotify matches redirect URIs character-exact and
@@ -362,6 +376,41 @@ export const spotifyRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.code(204).send();
   });
 
+  // GET /api/spotify/track-saved?trackId=... — is this track in Liked Songs?
+  fastify.get<{
+    Querystring: { trackId?: string };
+    Reply: { saved: boolean } | { error: string };
+  }>('/track-saved', async (req, reply) => {
+    const trackId = (req.query.trackId ?? '').trim();
+    if (!/^[A-Za-z0-9]{8,40}$/.test(trackId)) throw new HttpError(400, 'trackId required');
+    try {
+      const d = await spotifyJson<boolean[]>('GET', `/me/tracks/contains?ids=${trackId}`, 'Spotify saved-check API');
+      return reply.send({ saved: d[0] === true });
+    } catch (err) {
+      rethrowScoped(err, 'the Liked check');
+    }
+  });
+
+  // POST /api/spotify/save-track { trackId, saved } — add/remove from Liked Songs.
+  fastify.post<{ Body: { trackId?: string; saved?: boolean } }>('/save-track', async (req, reply) => {
+    const trackId = (req.body?.trackId ?? '').trim();
+    const saved = req.body?.saved === true;
+    if (!/^[A-Za-z0-9]{8,40}$/.test(trackId)) throw new HttpError(400, 'trackId required');
+    const res = await spotifyRequest(saved ? 'PUT' : 'DELETE', `/me/tracks?ids=${trackId}`);
+    if (!res.ok) {
+      try {
+        throw new UpstreamError(res.status, `Spotify save-track API ${res.status}`);
+      } catch (err) {
+        rethrowScoped(err, saved ? 'saving the track' : 'removing the track');
+      }
+    }
+    // Liked Songs list + its count badge changed — drop the caches so the next
+    // fetch reflects it (page cache keys are "playlistId|offset").
+    trackPageCache.clear();
+    playlistPageCache.clear();
+    return reply.code(204).send();
+  });
+
   // GET /api/spotify/playlists?offset=0&limit=20
   // Always prepends Liked Songs at offset=0
   fastify.get<{
@@ -420,8 +469,18 @@ export const spotifyRoutes: FastifyPluginAsync = async (fastify) => {
       uri: 'spotify:collection:tracks',
     };
 
+    // Synthetic like Liked Songs. No context uri — Spotify has no playable
+    // "recently played" context, so rows play as bare tracks (uri stays '').
+    const recentlyPlayed: SpotifyPlaylist = {
+      id: 'recently-played',
+      name: 'Recently Played',
+      imageUrl: null,
+      trackCount: -1,
+      uri: '',
+    };
+
     const page: SpotifyPlaylistsPage = {
-      items: offset === 0 ? [likedSongs, ...playlists] : playlists,
+      items: offset === 0 ? [likedSongs, recentlyPlayed, ...playlists] : playlists,
       total: d.total,
       offset,
       limit,
@@ -449,7 +508,41 @@ export const spotifyRoutes: FastifyPluginAsync = async (fastify) => {
 
     let page: SpotifyTracksPage;
 
-    if (playlistId === 'liked-songs') {
+    if (playlistId === 'recently-played') {
+      // Play *events*, newest first — the same track can appear many times, so
+      // dedupe by id keeping the most recent. Single page (limit 50, no offset).
+      let d: {
+        items: { track: {
+          id: string; name: string; duration_ms: number; uri: string; is_local?: boolean;
+          artists: { name: string }[];
+          album: { images: { url: string }[] };
+        } }[];
+      };
+      try {
+        d = await spotifyJson('GET', '/me/player/recently-played?limit=50', 'Spotify recently-played API');
+      } catch (err) {
+        rethrowScoped(err, 'Recently Played');
+      }
+      const seen = new Set<string>();
+      const items: SpotifyTrackItem[] = (d.items ?? [])
+        .map((i) => i.track)
+        .filter((t) => {
+          if (!t?.id || seen.has(t.id)) return false;
+          seen.add(t.id);
+          return true;
+        })
+        .map((t) => ({
+          trackId: t.id,
+          trackName: t.name,
+          artistName: t.artists.map((a) => a.name).join(', '),
+          durationMs: t.duration_ms,
+          uri: t.uri,
+          type: 'track' as const,
+          imageUrl: t.album.images[0]?.url ?? null,
+          isLocal: t.is_local ?? false,
+        }));
+      page = { items, total: items.length, offset: 0, limit: 50 };
+    } else if (playlistId === 'liked-songs') {
       const d = await spotifyJson<{
         total: number;
         offset: number;
