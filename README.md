@@ -238,7 +238,7 @@ Two GitHub Actions workflows (`.github/workflows/`):
 | Workflow | Trigger | What it does |
 |---|---|---|
 | **CI** (`ci.yml`) | every PR + push to master | `pnpm typecheck` + `lint` + full `turbo build` |
-| **Release** (`release.yml`) | every merge to master | derives the semver bump from the PR title, commits the version, tags `vX.Y.Z`, builds the macOS DMG + Windows EXE, publishes a GitHub Release |
+| **Release** (`release.yml`) | every merge to master | derives the semver bump from the PR title, tags `vX.Y.Z` (tag-only — master is protected; the tag, not package.json, is the version source of truth), builds the macOS DMG + Windows EXE, publishes a GitHub Release |
 
 **Versioning is fully automated — never bump by hand.** The squash-commit subject (= PR title) picks the bump:
 

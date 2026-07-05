@@ -10,9 +10,9 @@ name: Release
 #   fix: / chore: / docs: / refactor: / anything → patch
 #   "[skip release]" in subject or body          → no release
 #
-# The version-bump commit is pushed with GITHUB_TOKEN, which never re-triggers
-# workflows (GitHub anti-recursion) — the [skip release] marker on it is
-# belt-and-braces for human cherry-picks.
+# TAG-ONLY: master is branch-protected, so CI never commits version bumps.
+# The latest v* tag is the version source of truth; the build job injects the
+# version into its workspace's package.json files right before packaging.
 #
 # NOTE ON KEYS: CI has no .env, so these builds contain NO baked-in _BUILTIN API
 # keys. Installed builds work by entering keys once in Settings → Developer.
@@ -70,17 +70,18 @@ jobs:
             kind=patch
           fi
 
-          next="$(node scripts/bump-version.mjs "$kind")"
-          echo "bump: $kind → v$next"
+          # Latest v* tag is the current version (package.json is NOT authoritative).
+          current="$(git tag -l 'v*' --sort=-v:refname | head -1)"
+          current="${current#v}"
+          [ -z "$current" ] && current="0.1.0"
+
+          next="$(node scripts/bump-version.mjs next "$kind" "$current")"
+          echo "bump: $kind ($current → v$next)"
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git commit -am "chore(release): v$next [skip release]"
           git tag "v$next"
-          # A merge landing between checkout and here would reject the push;
-          # rebase once (the bump commit only touches the two package.json files).
-          git pull --rebase origin master
-          git push --follow-tags origin master
+          git push origin "v$next"
 
           echo "released=true" >> "$GITHUB_OUTPUT"
           echo "tag=v$next" >> "$GITHUB_OUTPUT"
@@ -111,6 +112,16 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+
+      # Inject the release version into THIS workspace's package.json files
+      # (uncommitted) — electron-builder names artifacts from root, and
+      # app.getVersion() reads apps/main. The repo files stay at their
+      # placeholder version; the tag is the source of truth.
+      - name: Set version from tag
+        shell: bash
+        run: node scripts/bump-version.mjs set "${TAG#v}"
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
 
       # pnpm package = turbo build + electron-builder with
       # CSC_IDENTITY_AUTO_DISCOVERY=false already set (unsigned builds — macOS
