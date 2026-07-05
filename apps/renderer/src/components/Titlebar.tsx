@@ -7,6 +7,7 @@ import { LayoutsMenu } from './menus/LayoutsMenu';
 import { PinnedLayoutsMenu, InlinePinnedPresets } from './menus/PinnedLayouts';
 import { menuBtn, dragStyle, noDragStyle } from './menus/primitives';
 import { useAppSettingsStore } from '../store/settingsStore';
+import { useOverlayStore } from '../store/overlayStore';
 import { useWeather } from '../widgets/weather/useWeather';
 import { hourFormat } from '../lib/time';
 
@@ -69,7 +70,9 @@ export function Titlebar() {
   const compact = forceCompact || narrow;
   const weather = useWeather(showTempInClock);
   const temp = weather.data?.current.temp;
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  // Store, not local state — the command palette's "Open Settings" needs it too.
+  const settingsOpen = useOverlayStore((s) => s.settingsOpen);
+  const setSettingsOpen = useOverlayStore((s) => s.setSettingsOpen);
 
   return (
     <div

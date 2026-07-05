@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/reac
 import { Titlebar } from './components/Titlebar';
 import { DashboardGrid } from './components/DashboardGrid';
 import { ToastHost } from './components/ToastHost';
+import { CommandPalette } from './components/CommandPalette';
 import { useThemeStore } from './store/themeStore';
 import { useAppSettingsStore } from './store/settingsStore';
 import { usePowerStore } from './store/powerStore';
@@ -106,6 +107,7 @@ export function App() {
           <DashboardGrid />
         </div>
         <ToastHost />
+        <CommandPalette />
       </div>
     </QueryClientProvider>
   );
