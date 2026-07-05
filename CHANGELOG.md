@@ -40,6 +40,28 @@ README had drifted badly (three widgets missing, "future user OAuth" for a shipp
 
 ---
 
+---
+
+## [PR #86] chore: fully automated releases — semver bump from PR titles
+**Branch:** `chore/auto-release` → master
+**Date:** 2026-07-05
+
+### Context
+#84 required a manual `git tag vX.Y.Z && git push` to cut a release. Nish doesn't want to think about versioning at all — the app is written entirely by AI, so the release pipeline should be too.
+
+### Added
+- **`scripts/bump-version.mjs`** — bumps root + `apps/main` `package.json` in lockstep (they must never drift: electron-builder names artifacts from root; `app.getVersion()` reads apps/main) and prints the new version. Verified for patch/minor/patch + bad-arg rejection.
+- **CLAUDE.md → "Versioning & Releases"** — the standing rules: PR titles are load-bearing (`<type>:` picks the bump), never hand-edit versions or push tags.
+
+### Changed
+- **`release.yml` rewritten** — trigger is now **every push to master** (was: `v*` tags). A `version` job reads the squash-commit subject (= PR title): `<type>!:`/`BREAKING CHANGE` → major, `feat:` → minor, else patch, `[skip release]` → no release; commits `chore(release): vX.Y.Z [skip release]`, tags, pushes (GITHUB_TOKEN pushes can't re-trigger workflows — the marker is belt-and-braces), then the existing mac/win matrix builds from that tag and attaches DMG + EXE to the Release. `workflow_dispatch` with a bump choice covers manual/off-cycle releases; a `release` concurrency group serializes racing merges.
+
+### Notes
+- Manual `git tag` pushes no longer trigger anything — use Actions → Release → Run workflow instead.
+- First post-merge release will be v0.2.0 (this PR's own merge is `chore:` → …actually patch → v0.1.1; the first `feat:` merge after lands v0.2.0).
+
+---
+
 ## [PR #85] feat: YouTube account — OAuth + Subs feed + Playlists/Liked + channel drill-in
 **Branch:** `feat/youtube-account` → master
 **Date:** 2026-07-05
@@ -62,7 +84,6 @@ Batch B of the accounts roadmap. YouTube was public-data only (API key: search/b
 ### Notes
 - Verified live: auth-url builds the correct Google URL; unauthed personal endpoints return clean 401s; `channel-videos` returned 30 real uploads via API key; UI: all 6 tabs render, Connect shows signed-out, channel-click on a Trending row opened the channel's uploads with working back navigation. **OAuth round-trip needs Nish's Google account** — left for manual testing before merge.
 - Signed-out account tabs show "Connect your Google account to see this" — everything public keeps working with just the API key.
-
 ---
 
 ## [PR #84] chore: CI + tag-triggered releases + in-app download link
