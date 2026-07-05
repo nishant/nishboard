@@ -54,7 +54,10 @@ jobs:
           subject="$(git log -1 --format=%s)"
           body="$(git log -1 --format=%b)"
 
-          if printf '%s %s' "$subject" "$body" | grep -qF '[skip release]'; then
+          # The [skip release] marker only governs merge-triggered releases —
+          # a manual dispatch is an explicit "release now" and must ignore it
+          # (HEAD's commit often carries the marker from a skipped merge).
+          if [ "$EVENT" != "workflow_dispatch" ] && printf '%s %s' "$subject" "$body" | grep -qF '[skip release]'; then
             echo "released=false" >> "$GITHUB_OUTPUT"
             echo "skipping: [skip release] marker"
             exit 0
