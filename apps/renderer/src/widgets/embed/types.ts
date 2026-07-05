@@ -57,9 +57,6 @@ export interface EmbedBrowse {
   /** Rows for a tab. Must be a real hook (called from the browse home view);
    *  `enabled` gates fetching. */
   useBrowse: (tabId: string, enabled: boolean) => EmbedSearchState;
-  /** Optional extra control rendered at the left of the tab strip
-   *  (e.g. a Twitch "Connect" button). */
-  HomeHeader?: () => ReactElement | null;
   /** Folder rows for a kind:'folders' tab (e.g. "your playlists"). Must be a
    *  real hook; `enabled` gates fetching. */
   useFolders?: (tabId: string, enabled: boolean) => EmbedFoldersState;

@@ -31,6 +31,7 @@
 - [⚙️ Configuration](#️-configuration)
 - [📜 Scripts](#-scripts)
 - [📦 Building & Distributing](#-building--distributing)
+- [🤖 CI & Releases](#-ci--releases)
 - [🧭 Conventions](#-conventions)
 - [⚠️ Gotchas](#️-gotchas)
 - [📁 Project Structure](#-project-structure)
@@ -43,19 +44,22 @@
 | Widget | What it shows | Data source |
 |---|---|---|
 | 🌤️ **Weather** | Current conditions, hourly strip, 5-day forecast, severe-weather alerts | Open-Meteo + NWS alerts (location via IP, or a ZIP override) |
-| 🎧 **Spotify** | Now playing, full transport controls, playlists, search, devices | Spotify Web API (PKCE OAuth) — *remote control*¹ |
+| 🎧 **Spotify** | Now playing, transport controls, ♥ save/unsave, playlists + Liked Songs + Recently Played, search, devices | Spotify Web API (PKCE OAuth) — *remote control*¹ |
 | 📈 **Stocks** | Editable watchlist, % change, sparklines, market session; click a ticker for an intraday/daily chart + headlines | Alpaca Markets IEX (REST snapshots + Benzinga news) |
 | 🧮 **Hardware** | CPU / GPU / RAM / disk / network as bars or live sparklines | `systeminformation` (nvidia-smi / WASAPI under the hood) |
 | 🔊 **Sound** | Master volume, mute, output switching, per-app mixer (Windows) | `osascript` (mac) / PowerShell + WASAPI (Windows) |
 | 📅 **Calendar** | Month grid, today highlighted, multi-month at larger sizes | Pure JS — no API |
-| ▶️ **YouTube** | Search and watch inline | YouTube Data API v3 + localhost embed proxy |
-| 🟣 **Twitch** | Search channels, watch live streams inline | Twitch Helix + localhost embed proxy |
+| ▶️ **YouTube** | Search, Trending/Music/Gaming, and — signed in — your Subs feed, Playlists, Liked; click any channel name for its uploads; watch inline | YouTube Data API v3 + Google OAuth + localhost embed proxy |
+| 🟣 **Twitch** | Search channels; signed in: Live + All followed channels, go-live notifications; watch inline | Twitch Helix (app token + user OAuth) + localhost embed proxy |
 | 📰 **News** | Rotating headline ticker, click to open the article | Google News RSS — no key |
 | 📝 **Notes** | Markdown scratchpad, edit ↔ rendered toggle | Local (localStorage) |
 | ✅ **Tasks** | Quick checklist — add, check off, clear completed | Local (localStorage) |
 | 🕐 **World Clock** | Multiple timezones, digital or analog faces | Pure JS — no API |
 | ⏱️ **Timer & Alarm** | Countdown timers + wall-clock alarms with a native notification | Local + notification IPC |
 | 🎯 **Countdown** | Days/hours remaining to a target datetime | Local (localStorage) |
+| 🪙 **Crypto** | Coin watchlist — price, 24h change, 7-day sparkline | CoinGecko (optional key) |
+| 🚀 **Launcher** | App + link launcher with groups, launch-all, real icons | Local (typed IPC, targets stored main-side) |
+| 📋 **Clipboard** | Rolling text-clipboard history (in-memory, never persisted) | Electron clipboard poller (only while visible) |
 
 Everything lives on a **draggable, resizable grid** (react-grid-layout) with built-in presets, saveable custom layouts, and 15 themes plus a custom theme editor.
 
@@ -121,10 +125,10 @@ Four workspaces, each with a single responsibility:
 
 **Where secrets live** (checked in this order at runtime):
 1. **safeStorage** — user-entered keys are encrypted with Electron `safeStorage` in `userData/credentials.json`, decrypted on launch, and injected as env vars into the spawned server. Saving in Settings restarts the server.
-2. **Build-time baked values** — `packages/server/build.mjs` bakes `.env` values into the server bundle at package time via esbuild `--define` as `*_BUILTIN`. The *value* lands in the compiled bundle only — never in source or git. This is what lets a distributed DMG/EXE "just work".
+2. **Build-time baked values** — `packages/server/build.mjs` bakes `.env` values into the server bundle at package time as a single esbuild-defined JSON blob (`BUILTINS_JSON`). The *values* land in the compiled bundle only — never in source or git. This is what lets a distributed DMG/EXE "just work".
 3. **`.env`** — loaded only in local `pnpm dev`. Gitignored.
 
-**Spotify OAuth tokens** are stored separately as plain JSON at `~/.dash/spotify_tokens.json` (home dir, survives reinstalls).
+**User OAuth tokens** (Spotify, Twitch, YouTube) are stored separately as plain JSON at `~/.dash/<service>_tokens.json` (home dir, survives reinstalls).
 
 **Embed proxy** — the packaged app loads from `file://`, which breaks origin checks. YouTube/Twitch players are served from `http://localhost:7432/api/<svc>/embed`, giving the iframe a valid HTTP parent origin.
 
@@ -164,16 +168,20 @@ All keys are optional to *start* the app — each widget degrades gracefully if 
 | `SPOTIFY_REDIRECT_URI` | Spotify | yes (exact match) | set to `http://127.0.0.1:7432/api/spotify/callback` **and** register that exact URI in the Spotify app |
 | `ALPACA_API_KEY` / `ALPACA_API_SECRET` | Stocks | for Stocks | [alpaca.markets](https://alpaca.markets/) → free IEX data keys |
 | `ALPACA_BASE_URL` | Stocks | preset | `https://data.alpaca.markets/v2` |
-| `YOUTUBE_API_KEY` | YouTube | for YouTube | Google Cloud Console → YouTube Data API v3 |
-| `TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET` | Twitch | for Twitch | [dev.twitch.tv/console](https://dev.twitch.tv/console) → register an app |
-| `TWITCH_REDIRECT_URI` | Twitch | unused¹ | `http://localhost:7432/api/twitch/callback` |
+| `YOUTUBE_API_KEY` | YouTube | for search/browse | Google Cloud Console → YouTube Data API v3 |
+| `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` | YouTube | for the signed-in tabs | Google Cloud Console → OAuth client (Web application), redirect `http://localhost:7432/api/youtube/callback`¹ |
+| `TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET` | Twitch | for Twitch | [dev.twitch.tv/console](https://dev.twitch.tv/console) → register an app, redirect `http://localhost:7432/api/twitch/callback`² |
+| `COINGECKO_API_KEY` | Crypto | optional | [coingecko.com](https://www.coingecko.com/en/developers/dashboard) demo key — keyless works but throttled |
+| `GITHUB_TOKEN` | update check | optional | fine-grained PAT, read-only Contents — only needed while the repo is private |
 | `SERVER_PORT` | server | preset | `7432` |
 
 > **Spotify redirect URI is exact-match.** Spotify's form rejects `localhost` for some apps, so this project uses the `127.0.0.1` form — whatever you put in `.env` must match the dashboard registration character-for-character.
 >
-> ¹ Twitch search/playback use an app-token (client-credentials) flow, so the redirect URI is unused today — kept for future user OAuth. Twitch only permits `http` for the literal host `localhost` (not `127.0.0.1`).
+> ¹ Publish the Google OAuth consent screen to **In production** (unverified is fine for personal use) — apps left in *Testing* get refresh tokens that expire every 7 days.
+>
+> ² Twitch search uses an app token; the Following tabs use user OAuth via that redirect. Twitch only permits `http` for the literal host `localhost` (not `127.0.0.1`).
 
-**Two ways to supply keys:** enter them in **Settings → Dev** at runtime (encrypted via `safeStorage`), or bake them at package time from `.env` so a distributed build needs no setup. See [Architecture](#️-architecture).
+**Two ways to supply keys:** enter them in **Settings → Developer** at runtime (encrypted via `safeStorage`), or bake them at package time from `.env` so a distributed build needs no setup. See [Architecture](#️-architecture).
 
 ---
 
@@ -223,12 +231,37 @@ Artifacts land in `release/`. Both targets are **unsigned** (no code-signing cer
 
 ---
 
+## 🤖 CI & Releases
+
+Two GitHub Actions workflows (`.github/workflows/`):
+
+| Workflow | Trigger | What it does |
+|---|---|---|
+| **CI** (`ci.yml`) | every PR + push to master | `pnpm typecheck` + `lint` + full `turbo build` |
+| **Release** (`release.yml`) | every merge to master | derives the semver bump from the PR title, commits the version, tags `vX.Y.Z`, builds the macOS DMG + Windows EXE, publishes a GitHub Release |
+
+**Versioning is fully automated — never bump by hand.** The squash-commit subject (= PR title) picks the bump:
+
+| PR title | Bump |
+|---|---|
+| `feat!: …` / any `<type>!:` / `BREAKING CHANGE` in body | major |
+| `feat: …` | minor |
+| `fix:` / `chore:` / `docs:` / `refactor:` / anything else | patch |
+| contains `[skip release]` | no release |
+
+Manual/off-cycle release: **Actions → Release → Run workflow** (choose the bump). Hand-pushed tags no longer trigger anything.
+
+CI-built installers carry **no baked API keys** (there's no `.env` in CI) — enter keys once in Settings → Developer. Locally-built (`pnpm package`) installers bake whatever is in your `.env`. The in-app update check (Settings → About) polls the latest GitHub Release and offers a direct download of the right installer for your platform.
+
+---
+
 ## 🧭 Conventions
 
 - **Branch first.** `git checkout -b <branch>` before touching any files — never edit `master` then branch.
 - **Naming:** `feat/<slug>` · `fix/<slug>` · `chore/<slug>` · `docs/<slug>`.
 - **Update `CHANGELOG.md` before every PR.** One section per PR, newest first, following the canonical `## [PR #N] type: description` format (see [CLAUDE.md](./CLAUDE.md) → *Changelog Format*).
 - **No auto-merge.** Open the PR and stop — wait for an explicit "merge".
+- **PR titles are load-bearing** — they pick the release bump (see [CI & Releases](#-ci--releases)). Keep the `<type>: description` format exact.
 - **Strict TypeScript**, named exports, `PascalCase` components, `use*` hooks, `*Store` stores, `*Data` API types, kebab API routes.
 
 ---
@@ -259,7 +292,7 @@ nishboard/
 │   └── renderer/          # React UI
 │       └── src/
 │           ├── components/       # Titlebar, DashboardGrid, WidgetShell, SettingsModal
-│           ├── widgets/          # weather, spotify, stocks, hardware, sound, calendar, youtube, twitch, news, notes, tasks, worldclock, timer, countdown
+│           ├── widgets/          # weather, spotify, stocks, hardware, sound, calendar, youtube, twitch, news, notes, tasks, worldclock, timer, countdown, crypto, launcher, clipboard, embed (shared search+player frame)
 │           ├── store/            # Zustand stores (layout, theme, …)
 │           ├── lib/              # layouts.ts (grid engine), apiClient, utils
 │           └── index.css         # theme tokens + global styles
@@ -268,8 +301,9 @@ nishboard/
 │   │   ├── src/routes/           # one file per widget
 │   │   └── build.mjs             # esbuild bundle + build-time key baking
 │   └── shared/            # shared TypeScript types
+├── .github/workflows/     # ci.yml (checks) + release.yml (auto semver + installers)
 ├── build/                 # app icons
-├── scripts/               # prepare-wincodesign.cjs
+├── scripts/               # prepare-wincodesign.cjs, bump-version.mjs
 ├── electron-builder.yml   # packaging config (DMG + NSIS)
 ├── turbo.json             # build pipeline
 ├── CLAUDE.md              # project + workflow instructions

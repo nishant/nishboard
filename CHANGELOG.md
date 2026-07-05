@@ -4,6 +4,22 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #88] docs: README refresh + uniform widget header actions
+**Branch:** `feat/uniform-header-actions` → master
+**Date:** 2026-07-05
+
+### Context
+README had drifted badly (three widgets missing, "future user OAuth" for a shipped feature, no CI story), and widget-level actions were inconsistent: Spotify's logout lived in the widget header while YouTube/Twitch put Connect/logout inside the browse tab strip.
+
+### Changed
+- **README** — features table gains Crypto/Launcher/Clipboard and updates Spotify (♥, Recently Played), YouTube (account tabs, channel drill-in), Twitch (Live/All, go-live alerts); new **CI & Releases** section (workflows table, PR-title→semver rules, no-baked-keys note, in-app update check); config table adds `YOUTUBE_CLIENT_ID/_SECRET`, `COINGECKO_API_KEY`, `GITHUB_TOKEN` and fixes the stale "Twitch user OAuth is future work" footnote; secrets section reflects the `BUILTINS_JSON` bake and the three `~/.dash/*_tokens.json` files; conventions note load-bearing PR titles.
+- **Uniform header actions** — widget-level actions (connect, logout, edit, refresh, …) all live in the WidgetShell top bar now: YouTube and Twitch Connect/disconnect moved from the browse tab strip to registry `Actions` (`YoutubeActions`, `TwitchActions` — LogIn/LogOut icons via `HeaderAction`); `SpotifyLogoutButton` became `SpotifyActions` and gains a Connect state for symmetry (the big in-widget Connect CTA stays). Signed-out browse hints now point at the widget header. The YouTube search icon stays in the tab strip by design.
+
+### Removed
+- `EmbedBrowse.HomeHeader` — the tab-strip control slot is unused now that both consumers moved to header actions.
+
+---
+
 ## [PR #85] feat: YouTube account — OAuth + Subs feed + Playlists/Liked + channel drill-in
 **Branch:** `feat/youtube-account` → master
 **Date:** 2026-07-05

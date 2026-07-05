@@ -3,7 +3,7 @@ import {
   Play, Pause, SkipForward, SkipBack,
   Shuffle, Repeat, Repeat1, Volume2, VolumeX,
   Music, ListMusic, ArrowLeft, Monitor, Smartphone, Speaker,
-  Heart, History, RotateCcw, RotateCw, Mic2, Search, LogOut, AlertTriangle,
+  Heart, History, RotateCcw, RotateCw, Mic2, Search, LogIn, LogOut, AlertTriangle,
 } from 'lucide-react';
 import {
   useSpotifyStatus, useNowPlaying, useSpotifyAuthUrl,
@@ -18,6 +18,7 @@ import { fmtMs } from '../../lib/time';
 import { useDeferredSlider } from '../../hooks/useDeferredSlider';
 import { useElementSize } from '../../hooks/useElementSize';
 import { WidgetSkeleton } from '../../components/Skeleton';
+import { HeaderAction } from '../../components/HeaderAction';
 import type { TrackData, SpotifyPlaylist, SpotifyDevice, SpotifyTrackItem } from '@dash/shared';
 
 // ── Size variant ──────────────────────────────────────────────────────────────
@@ -833,24 +834,34 @@ function NotPlayingView({
   );
 }
 
-// ── Logout button (rendered in WidgetShell header via DashboardGrid) ──────────
+// ── Account header action (rendered in WidgetShell header via DashboardGrid) ──
 
-export function SpotifyLogoutButton() {
+export function SpotifyActions() {
   const { data: status } = useSpotifyStatus();
+  const authUrlQuery = useSpotifyAuthUrl();
   const logout = useSpotifyLogout();
   const [confirming, setConfirming] = useState(false);
 
-  if (!status?.authenticated) return null;
+  if (!status?.authenticated) {
+    return (
+      <HeaderAction
+        title="Connect Spotify"
+        onClick={() => {
+          void authUrlQuery.refetch().then((result) => {
+            if (result.data?.url) window.electron?.openSpotifyAuth(result.data.url);
+          });
+        }}
+      >
+        <LogIn size={12} />
+      </HeaderAction>
+    );
+  }
 
   return (
     <>
-      <button
-        onClick={() => setConfirming(true)}
-        title="Disconnect Spotify"
-        className="p-1 rounded text-th-ghost hover:text-red-400 hover:bg-red-400/10 transition-colors"
-      >
-        <LogOut size={11} />
-      </button>
+      <HeaderAction title="Disconnect Spotify" danger onClick={() => setConfirming(true)}>
+        <LogOut size={12} />
+      </HeaderAction>
 
       {confirming && (
         <div
