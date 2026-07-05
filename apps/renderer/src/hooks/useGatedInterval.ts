@@ -19,3 +19,18 @@ export function useGatedInterval(baseMs: number): number | false {
   const low = lowPower === 'on' || (lowPower === 'auto' && onBattery);
   return low ? baseMs * LOW_POWER_SLOWDOWN : baseMs;
 }
+
+/**
+ * Poll gate for alert evaluation: unlike `useGatedInterval`, a hidden window
+ * SLOWS polling (×4) instead of stopping it — alerts exist precisely for when
+ * the dashboard is minimized/behind the tray, where `fireAlert`'s native
+ * notification is the payoff. Low-power applies the same ×4 (not stacked ×16;
+ * hidden and low-power both mean "be gentle", not "be gentler twice").
+ */
+export function useAlertGatedInterval(baseMs: number): number {
+  const hidden = usePowerStore((s) => s.hidden);
+  const onBattery = usePowerStore((s) => s.onBattery);
+  const lowPower = useAppSettingsStore((s) => s.lowPower);
+  const low = lowPower === 'on' || (lowPower === 'auto' && onBattery);
+  return hidden || low ? baseMs * LOW_POWER_SLOWDOWN : baseMs;
+}

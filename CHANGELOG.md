@@ -4,6 +4,32 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #79] feat: unified alerts engine
+**Branch:** `feat/alerts-engine` → master
+**Date:** 2026-07-05
+
+### Context
+First of three post-slate batches Nish picked from the widget-improvement brainstorm. User-defined alert rules ("AAPL above $250", "BTC moves ±5% in 24h", "CPU >90% for 5 min") evaluated against the data the widgets already poll, firing through the existing `fireAlert` path (chime + toast + native notification). Renderer-only — no server or IPC changes.
+
+### Added
+- `store/alertsStore.ts` — persisted (`dashboard-alerts`, rides the backup/auto-export via the `dashboard-*` prefix) discriminated-union rules: `stock-price` above/below, `crypto-price` above/below, `crypto-change` (|24h| ≥ N%), `cpu-sustained` (>N% for M min); per-rule cooldown (default 30 min). `describeRule()` powers the settings rows, palette titles, and alert titles.
+- `lib/alertEval.ts` — pure edge-triggered state machine (in-memory, deliberately not persisted): first evaluable sample **seeds silently** (no launch-time fires), `armed` → fire on false→true (cooldown-suppressed fires are dropped, not queued) → `held` → re-arm when false again. `undefined` conditions (symbol missing, malformed payload) cause **no transition** — missing data is never treated as false, and malformed payloads degrade instead of crashing the shell (guarded `Array.isArray`/`typeof` checks; caught by smoke testing). CPU-sustained uses wall-clock tracking with a 60s **gap rule**: a sampling gap (sleep, hidden, server restart) restarts the run rather than firing spuriously on return.
+- `components/AlertsEvaluator.tsx` — headless, mounted in App. Observes the *same* queries the widgets use (identical keys → TanStack dedupes); each observer is enabled only while a rule of its kind exists, so **zero rules of a kind forces zero polling** (verified: 0 `/api/hardware` requests with no CPU rule; ~1/s with one).
+- `useAlertGatedInterval()` in `hooks/useGatedInterval.ts` — unlike the widget gate, a hidden window **slows polling ×4 instead of stopping it**: alerts are for when the dashboard is minimized/in the tray, where the native notification is the payoff. Consequence: an enabled CPU rule keeps `/api/hardware` polling at 4s while hidden.
+- Settings → **Alerts** tab (third tab): rule list (enable toggle, summary, hover-delete, amber "not in watchlist — won't fire" note for stranded stock rules) + add-rule form (kind select → per-kind fields + cooldown).
+- `components/settings/controls.tsx` — `ToggleRow`/`SegmentedRow` extracted from SettingsModal for reuse by panels in other files.
+- Palette group **Alerts**: per-rule enable/disable + "Open alert settings" (opens Settings directly on the Alerts tab via new `overlayStore.openSettings(tab)`).
+
+### Changed
+- `useStocks`/`useCrypto` accept `(enabled, interval?)`; `useHardware` splits out `useHardwareQuery(enabled, interval?)` (widget wrapper unchanged — history + battery feed intact).
+- Stock-rule form auto-adds the ticker to the Stocks watchlist on save — rules only evaluate watchlist symbols, so an off-watchlist rule would silently never fire. Crypto rules select from the crypto watchlist only (free-text CoinGecko ids are a typo trap).
+
+### Notes
+- AudioContext gesture policy: the chime may be silent before the first post-launch interaction; the toast + native notification still land.
+- Verified headless (Playwright + fake clock): gating on/off, silent seed, exactly-once edge fire, held-no-refire, cooldown suppression, post-cooldown re-fire, CPU sustained + dip-reset, palette toggle, add-rule round-trip (18/18).
+
+---
+
 ## [PR #78] feat: command palette (Ctrl/Cmd+K · double-Shift)
 **Branch:** `feat/command-palette` → master
 **Date:** 2026-07-05

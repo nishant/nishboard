@@ -19,15 +19,17 @@ export function useMarketCalendar() {
   });
 }
 
-export function useStocks() {
+/** `enabled=false` observers (e.g. the alerts evaluator with no stock rules)
+ *  read cache but never fetch or schedule refetches. */
+export function useStocks(enabled = true, interval?: number | false) {
   const watchlist = useStocksStore((s) => s.watchlist);
-  const interval = useGatedInterval(5 * 60 * 1000);
+  const gated = useGatedInterval(5 * 60 * 1000);
   return useQuery<StocksData>({
     queryKey: ['stocks', watchlist],
     queryFn: () => apiClient.get<StocksData>(`/api/stocks?symbols=${watchlist.join(',')}`),
-    refetchInterval: interval,
+    refetchInterval: interval ?? gated,
     staleTime: 4 * 60 * 1000,
-    enabled: watchlist.length > 0,
+    enabled: enabled && watchlist.length > 0,
   });
 }
 
