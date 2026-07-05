@@ -4,6 +4,15 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #92] fix: electron-builder must never self-publish (--publish never)
+**Branch:** `fix/eb-publish-never` → master
+**Date:** 2026-07-05
+
+### Fixed
+- **`package.json` package script** — electron-builder's default publish policy kicks in when CI builds from a tag: it tried to publish the release itself and died on a missing `GH_TOKEN` — *after* successfully building both installers. The workflow's `action-gh-release` step is the one publisher; `--publish never` pins electron-builder to build-only everywhere (local packaging is unaffected — it never published there anyway).
+
+---
+
 ## [PR #91] fix: manual release dispatch must ignore the [skip release] marker
 **Branch:** `fix/release-dispatch-skip` → master
 **Date:** 2026-07-05
