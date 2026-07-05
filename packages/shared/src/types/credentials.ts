@@ -6,6 +6,7 @@ export const CREDENTIAL_KEYS = [
   'TWITCH_CLIENT_ID',
   'TWITCH_CLIENT_SECRET',
   'COINGECKO_API_KEY',
+  'GITHUB_TOKEN',
 ] as const;
 
 export type CredentialKey = typeof CREDENTIAL_KEYS[number];
@@ -34,5 +35,11 @@ export const CREDENTIAL_DEFS: CredentialDef[] = [
     label: 'API Key',
     service: 'Crypto (CoinGecko)',
     hint: 'Optional — works keyless but heavily rate-limited. Free demo key: coingecko.com → Developer Dashboard (30 req/min, 10k/month).',
+  },
+  {
+    key: 'GITHUB_TOKEN',
+    label: 'Token',
+    service: 'Updates (GitHub)',
+    hint: 'Optional — only needed for the update check while the repo is private. Fine-grained PAT with read-only Contents access.',
   },
 ];

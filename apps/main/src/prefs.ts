@@ -10,6 +10,7 @@ import type { AppPrefsData } from '@dash/shared';
 const DEFAULTS: AppPrefsData = {
   closeAction: 'quit',
   globalHotkey: false,
+  backupDir: null,
 };
 
 function prefsPath(): string {
@@ -26,6 +27,7 @@ export function readPrefs(): AppPrefsData {
       cached = {
         closeAction: raw.closeAction === 'tray' ? 'tray' : 'quit',
         globalHotkey: raw.globalHotkey === true,
+        backupDir: typeof raw.backupDir === 'string' && raw.backupDir ? raw.backupDir : null,
       };
       return cached;
     }
@@ -39,6 +41,9 @@ export function writePrefs(patch: Partial<AppPrefsData>): AppPrefsData {
     ...readPrefs(),
     ...(patch.closeAction === 'tray' || patch.closeAction === 'quit' ? { closeAction: patch.closeAction } : {}),
     ...(typeof patch.globalHotkey === 'boolean' ? { globalHotkey: patch.globalHotkey } : {}),
+    ...(patch.backupDir === null || typeof patch.backupDir === 'string'
+      ? { backupDir: patch.backupDir || null }
+      : {}),
   };
   cached = next;
   writeFileSync(prefsPath(), JSON.stringify(next, null, 2), 'utf8');

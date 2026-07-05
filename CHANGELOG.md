@@ -4,6 +4,24 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #77] feat: QoL — About/update check, synced-folder auto-export, server logs
+**Branch:** `feat/qol-updates-logs` → master
+**Date:** 2026-07-05
+
+### Context
+Feature-slate batch 14 — the remaining QoL trio Nish picked: update check, auto-export to a synced folder, log viewer + restart button.
+
+### Added
+- **About + update check** (Settings → App): app version via `app:get-version`; "Check for updates" hits GitHub `releases/latest` main-side (`app:check-updates`) with a 24h memo. No releases yet → friendly "No releases yet / development build" message; keyless 404 on a private repo → hint to add a token. Optional **`GITHUB_TOKEN`** credential (Settings → Developer, fine-grained read-only; deliberately no `_BUILTIN` bake). When an update exists the result is a clickable release-page link.
+- **Auto-export**: `buildBackupPayload()` split out of `lib/backup.ts` (manual Export now shares it); new `lib/autoExport.ts` subscribes every persisted zustand store, debounces 2s, and sends the secret-free payload over `backup:write` — the main process **atomically** (tmp+rename, JSON-validated, 5 MB cap) writes `nishboard-settings.json` into the folder chosen via `backup:choose-folder` (a native directory picker; path persisted in main `prefs.json` as `backupDir`). Point it at a Drive-for-Desktop/OneDrive/Dropbox folder and the OS client does the syncing. Settings → Backup gains the Auto-export row (choose/change/disable + current path).
+- **Server logs**: `spawn.ts` tees the Fastify child's stdout/stderr to `userData/logs/server.log` (5 MB cap, one rotation to `server.log.1`, spawn markers, best-effort — logging failures never block the server). Settings → Developer gains **Open logs folder** (`logs:open-folder`) and **Restart server** (`server:restart` — resolves when healthy, then emits the existing `server:restarted` push so all queries refetch).
+
+### Notes
+- `AppPrefsData` gains `backupDir: string | null`; six new IPC channels, all with typed wrappers.
+- Verified headless (mocked bridge): About shows version + "No releases yet" result, folder choose displays the path, a settings change produced the debounced `backup:write` with a valid payload, logs/restart buttons call through, GITHUB_TOKEN row renders in Developer. Log tee + real GitHub check + native folder picker are main-process — on-device pass.
+
+---
+
 ## [PR #76] feat: tray icon, close-to-tray, global show/hide hotkey
 **Branch:** `feat/tray-lifecycle` → master
 **Date:** 2026-07-04

@@ -7,6 +7,7 @@ import { useThemeStore } from './store/themeStore';
 import { useAppSettingsStore } from './store/settingsStore';
 import { usePowerStore } from './store/powerStore';
 import { buildCustomVars, CUSTOM_VAR_KEYS } from './lib/colorUtils';
+import { initAutoExport } from './lib/autoExport';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -44,6 +45,9 @@ function ServerRestartListener() {
       void queryClient.invalidateQueries();
     });
   }, [queryClient]);
+  useEffect(() => {
+    initAutoExport(); // idempotent; no-op outside Electron
+  }, []);
   return null;
 }
 

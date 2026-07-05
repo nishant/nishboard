@@ -25,6 +25,21 @@ export interface AppPrefsData {
   closeAction: 'quit' | 'tray';
   /** Register the global show/hide hotkey (Ctrl/Cmd+Shift+D). */
   globalHotkey: boolean;
+  /** Auto-export target folder (a Drive-for-Desktop/OneDrive/Dropbox folder
+   *  makes it a synced backup). null = auto-export off. */
+  backupDir: string | null;
+}
+
+/** Result of a manual update check against GitHub releases. */
+export interface UpdateCheckData {
+  currentVersion: string;
+  /** Tag of the latest release (leading "v" stripped); null when none exist. */
+  latestVersion: string | null;
+  /** Release page URL to open when an update exists. */
+  url: string | null;
+  hasUpdate: boolean;
+  /** Human-readable status ("No releases yet…", rate-limit/auth errors, …). */
+  message?: string;
 }
 
 export type IpcChannels =
@@ -52,7 +67,13 @@ export type IpcChannels =
   | 'clipboard:changed'
   | 'prefs:get'
   | 'prefs:set'
-  | 'server:restarted';
+  | 'server:restarted'
+  | 'server:restart'
+  | 'app:get-version'
+  | 'app:check-updates'
+  | 'backup:choose-folder'
+  | 'backup:write'
+  | 'logs:open-folder';
 
 export interface ElectronAPI {
   /** Host OS, from the main process (`process.platform`): 'win32' | 'darwin' | 'linux' | … */
@@ -77,6 +98,24 @@ export interface ElectronAPI {
     /** Partial patch; returns the resulting prefs. */
     set: (patch: Partial<AppPrefsData>) => Promise<AppPrefsData>;
   };
+  app: {
+    getVersion: () => Promise<string>;
+    /** Manual GitHub latest-release check (24h memo main-side). */
+    checkUpdates: () => Promise<UpdateCheckData>;
+  };
+  backup: {
+    /** Native directory picker; persists the choice in main prefs and returns
+     *  the path for display (null = cancelled). */
+    chooseFolder: () => Promise<string | null>;
+    /** Atomically write the settings payload into the chosen folder.
+     *  No-ops when no folder is configured. */
+    write: (payloadJson: string) => Promise<void>;
+  };
+  /** Open userData/logs in the OS file manager. */
+  openLogsFolder: () => void;
+  /** Restart the Fastify child; resolves once it's healthy again
+   *  (also emits server:restarted). */
+  restartServer: () => Promise<void>;
   launcher: {
     getItems: () => Promise<LauncherItemData[]>;
     /** Opens the native file picker in the main process; the chosen path stays

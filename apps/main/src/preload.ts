@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webFrame } from 'electron';
-import type { ElectronAPI, IpcChannels, CredentialKey, LauncherItemData, ClipboardEntryData, AppPrefsData } from '@dash/shared';
+import type { ElectronAPI, IpcChannels, CredentialKey, LauncherItemData, ClipboardEntryData, AppPrefsData, UpdateCheckData } from '@dash/shared';
 
 const electronAPI: ElectronAPI = {
   platform: process.platform,
@@ -25,6 +25,19 @@ const electronAPI: ElectronAPI = {
     set: (patch: Partial<AppPrefsData>) =>
       ipcRenderer.invoke('prefs:set' satisfies IpcChannels, patch) as Promise<AppPrefsData>,
   },
+  app: {
+    getVersion: () => ipcRenderer.invoke('app:get-version' satisfies IpcChannels) as Promise<string>,
+    checkUpdates: () =>
+      ipcRenderer.invoke('app:check-updates' satisfies IpcChannels) as Promise<UpdateCheckData>,
+  },
+  backup: {
+    chooseFolder: () =>
+      ipcRenderer.invoke('backup:choose-folder' satisfies IpcChannels) as Promise<string | null>,
+    write: (payloadJson: string) =>
+      ipcRenderer.invoke('backup:write' satisfies IpcChannels, payloadJson) as Promise<void>,
+  },
+  openLogsFolder: () => ipcRenderer.send('logs:open-folder' satisfies IpcChannels),
+  restartServer: () => ipcRenderer.invoke('server:restart' satisfies IpcChannels) as Promise<void>,
   launcher: {
     getItems: () =>
       ipcRenderer.invoke('launcher:get-items' satisfies IpcChannels) as Promise<LauncherItemData[]>,

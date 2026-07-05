@@ -1,6 +1,8 @@
-import { BrowserWindow, IpcMain, Notification, safeStorage, shell } from 'electron';
+import { app, BrowserWindow, IpcMain, Notification, safeStorage, shell } from 'electron';
 import { readCredentialStatus, writeCredentials } from '../credentials';
-import { restartServer } from '../server/spawn';
+import { restartServer, logsDir } from '../server/spawn';
+import { checkUpdates } from '../updates';
+import { chooseBackupFolder, writeBackup } from '../backup';
 import {
   getLauncherItems, addLauncherApp, addLauncherUrl,
   removeLauncherItem, renameLauncherItem, reorderLauncherItems, launchItem,
@@ -61,6 +63,24 @@ export function registerIpcHandlers(
   ipcMain.handle('launcher:reorder', (_event, ids: string[]) =>
     reorderLauncherItems(Array.isArray(ids) ? ids.map(String) : []));
   ipcMain.handle('launcher:launch', (_event, id: string) => launchItem(String(id)));
+
+  // ── About / updates / backup / logs ──────────────────────────────────────────
+
+  ipcMain.handle('app:get-version', () => app.getVersion());
+  ipcMain.handle('app:check-updates', () => checkUpdates());
+
+  ipcMain.handle('backup:choose-folder', (event) =>
+    chooseBackupFolder(BrowserWindow.fromWebContents(event.sender)));
+  ipcMain.handle('backup:write', (_event, payloadJson: string) => writeBackup(payloadJson));
+
+  ipcMain.on('logs:open-folder', () => {
+    void shell.openPath(logsDir());
+  });
+
+  ipcMain.handle('server:restart', async (event) => {
+    await restartServer();
+    event.sender.send('server:restarted');
+  });
 
   // ── App prefs (main-side prefs.json — close action + global hotkey) ─────────
 
