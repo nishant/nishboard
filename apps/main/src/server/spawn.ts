@@ -1,7 +1,59 @@
 import { ChildProcess, spawn, execSync } from 'child_process';
 import { app } from 'electron';
 import path from 'path';
+import fs from 'fs';
 import { readCredentials } from '../credentials';
+
+// ── Server log tee ────────────────────────────────────────────────────────────
+// Child stdout/stderr also land in userData/logs/server.log so "why is a
+// widget erroring" is debuggable after the fact. 5 MB cap with one rotation
+// (server.log → server.log.1).
+
+const LOG_MAX_BYTES = 5 * 1024 * 1024;
+let logStream: fs.WriteStream | null = null;
+let logBytes = 0;
+
+export function logsDir(): string {
+  return path.join(app.getPath('userData'), 'logs');
+}
+
+function logFile(): string {
+  return path.join(logsDir(), 'server.log');
+}
+
+function openLogStream(): void {
+  try {
+    fs.mkdirSync(logsDir(), { recursive: true });
+    logBytes = fs.existsSync(logFile()) ? fs.statSync(logFile()).size : 0;
+    if (logBytes > LOG_MAX_BYTES) rotateLog();
+    logStream = fs.createWriteStream(logFile(), { flags: 'a' });
+  } catch {
+    logStream = null; // logging is best-effort — never block the server on it
+  }
+}
+
+function rotateLog(): void {
+  try {
+    fs.renameSync(logFile(), `${logFile()}.1`); // replaces any previous .1
+    logBytes = 0;
+  } catch { /* best-effort */ }
+}
+
+function teeToLog(chunk: Buffer | string): void {
+  if (!logStream) return;
+  if (logBytes > LOG_MAX_BYTES) {
+    logStream.end();
+    rotateLog();
+    logStream = fs.createWriteStream(logFile(), { flags: 'a' });
+  }
+  logStream.write(chunk);
+  logBytes += typeof chunk === 'string' ? Buffer.byteLength(chunk) : chunk.length;
+}
+
+function closeLogStream(): void {
+  logStream?.end();
+  logStream = null;
+}
 
 let serverProcess: ChildProcess | null = null;
 // Distinguishes our own kill (quit, credential-save restart) from a crash, so the
@@ -67,13 +119,18 @@ function startChild(): void {
     },
     stdio: 'pipe',
   });
+  openLogStream();
+  teeToLog(`\n--- server spawned ${new Date().toISOString()} ---\n`);
   serverProcess.stdout?.pipe(process.stdout);
   serverProcess.stderr?.pipe(process.stderr);
+  serverProcess.stdout?.on('data', teeToLog);
+  serverProcess.stderr?.on('data', teeToLog);
   serverProcess.on('error', (err) => console.error('[server] spawn error:', err));
 
   const startedAt = Date.now();
   serverProcess.on('exit', (code, signal) => {
     serverProcess = null;
+    closeLogStream();
     if (intentionalStop) return;
     // A crash after a healthy stretch is a fresh incident, not a crash loop.
     if (Date.now() - startedAt > HEALTHY_RESET_MS) restartAttempts = 0;

@@ -27,7 +27,9 @@ interface BackupFile {
   data: Record<string, unknown>;
 }
 
-export function exportSettings(): void {
+/** Snapshot every backup-relevant localStorage key into a BackupFile payload.
+ *  Shared by manual Export and the synced-folder auto-export. */
+export function buildBackupPayload(): BackupFile {
   const data: Record<string, unknown> = {};
   for (const k of backupKeys()) {
     const raw = localStorage.getItem(k);
@@ -38,12 +40,16 @@ export function exportSettings(): void {
       data[k] = raw;
     }
   }
-  const payload: BackupFile = {
+  return {
     app: 'nishboard',
     version: 1,
     exportedAt: new Date().toISOString(),
     data,
   };
+}
+
+export function exportSettings(): void {
+  const payload = buildBackupPayload();
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

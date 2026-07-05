@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Eye, EyeOff, Check, Loader2, Lock, Minus, Plus, Download, Upload } from 'lucide-react';
+import { X, Eye, EyeOff, Check, Loader2, Lock, Minus, Plus, Download, Upload, FolderOpen, RotateCw, FolderSync } from 'lucide-react';
 import { CREDENTIAL_DEFS, CREDENTIAL_KEYS } from '@dash/shared';
-import type { CredentialKey, AppPrefsData } from '@dash/shared';
+import type { CredentialKey, AppPrefsData, UpdateCheckData } from '@dash/shared';
 import { useAppSettingsStore } from '../store/settingsStore';
 import type { Density, TempUnit, WindUnit, LowPowerMode } from '../store/settingsStore';
 import { useQueryClient } from '@tanstack/react-query';
@@ -197,6 +197,115 @@ function SegmentedRow<T extends string>({
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ── About + update check (Electron only) ──────────────────────────────────────
+
+function AboutSection() {
+  const [version, setVersion] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [result, setResult] = useState<UpdateCheckData | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void window.electron?.app?.getVersion().then((v) => { if (!cancelled) setVersion(v); });
+    return () => { cancelled = true; };
+  }, []);
+
+  if (!window.electron?.app) return null;
+
+  async function check() {
+    setChecking(true);
+    try {
+      setResult(await window.electron!.app.checkUpdates());
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">About</span>
+      <div className="flex items-center gap-3">
+        <span className="text-th-3 text-[11px] w-28 shrink-0">Version</span>
+        <span className="text-th-hi text-[11px] font-mono">{version ?? '…'}</span>
+        <button
+          onClick={() => void check()}
+          disabled={checking}
+          className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-th-elevated hover:bg-th-overlay text-th-hi text-[11px] disabled:opacity-50 transition-colors"
+        >
+          {checking && <Loader2 size={12} className="animate-spin" />}
+          Check for updates
+        </button>
+      </div>
+      {result && (
+        <p className="text-[10px] leading-relaxed pl-[calc(7rem+0.75rem)]">
+          {result.hasUpdate && result.latestVersion ? (
+            <button
+              onClick={() => result.url && window.electron?.openExternal(result.url)}
+              className="text-th-accent underline"
+            >
+              v{result.latestVersion} is available — open release page
+            </button>
+          ) : (
+            <span className="text-th-ghost">{result.message ?? 'You are up to date.'}</span>
+          )}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── Auto-export to a synced folder (Electron only) ────────────────────────────
+
+function AutoExportRow() {
+  const [dir, setDir] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void window.electron?.prefs?.get().then((p) => {
+      if (!cancelled) { setDir(p.backupDir); setLoaded(true); }
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  if (!window.electron?.backup || !loaded) return null;
+
+  async function choose() {
+    const chosen = await window.electron!.backup.chooseFolder();
+    if (chosen) setDir(chosen);
+  }
+  async function disable() {
+    await window.electron!.prefs.set({ backupDir: null });
+    setDir(null);
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => void choose()}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-th-elevated hover:bg-th-overlay text-th-hi text-[11px] transition-colors"
+        >
+          <FolderSync size={13} /> {dir ? 'Change folder' : 'Auto-export…'}
+        </button>
+        {dir && (
+          <>
+            <span className="text-th-3 text-[10px] font-mono truncate flex-1 min-w-0" title={dir}>{dir}</span>
+            <button onClick={() => void disable()} className="text-th-ghost hover:text-red-400 text-[10px] underline shrink-0 transition-colors">
+              Disable
+            </button>
+          </>
+        )}
+      </div>
+      <p className="text-th-ghost text-[10px] leading-relaxed">
+        {dir
+          ? 'Settings auto-save to this folder on every change (2s debounce, atomic write).'
+          : 'Pick a Google Drive / OneDrive / Dropbox folder to keep a continuously synced settings backup.'}
+      </p>
     </div>
   );
 }
@@ -434,7 +543,48 @@ function AppSettingsPanel() {
         <p className="text-th-ghost text-[10px] leading-relaxed">
           Layout, theme &amp; preferences (not API keys). Import replaces local settings and reloads — handy for syncing two machines.
         </p>
+        <AutoExportRow />
       </div>
+
+      {/* About + updates (Electron only) */}
+      <AboutSection />
+    </div>
+  );
+}
+
+// ── Developer tools row (Electron only) ───────────────────────────────────────
+
+function DevToolsRow() {
+  const [restarting, setRestarting] = useState(false);
+  if (!window.electron?.restartServer) return null;
+
+  async function restart() {
+    setRestarting(true);
+    try {
+      // Resolves when the child is healthy again; the server:restarted push
+      // makes App invalidate all queries.
+      await window.electron!.restartServer();
+    } finally {
+      setRestarting(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2 border-t border-th-line pt-4">
+      <button
+        onClick={() => window.electron?.openLogsFolder()}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-th-elevated hover:bg-th-overlay text-th-hi text-[11px] transition-colors"
+      >
+        <FolderOpen size={13} /> Open logs folder
+      </button>
+      <button
+        onClick={() => void restart()}
+        disabled={restarting}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-th-elevated hover:bg-th-overlay text-th-hi text-[11px] disabled:opacity-50 transition-colors"
+      >
+        {restarting ? <Loader2 size={13} className="animate-spin" /> : <RotateCw size={13} />}
+        {restarting ? 'Restarting…' : 'Restart server'}
+      </button>
     </div>
   );
 }
@@ -599,6 +749,8 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                   </div>
                 );
               })}
+
+              <DevToolsRow />
 
               {/* Info note */}
               {!encryptionAvailable && (
