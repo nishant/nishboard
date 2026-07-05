@@ -4,6 +4,35 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #94] refactor: server buildServer factory + integration test suite
+**Branch:** `test/integration` → master
+**Date:** 2026-07-05
+
+### Context
+Follow-up to #93's unit suite: route-level integration tests need an injectable app, but `packages/server/src/index.ts` was a module singleton that registered routes and called `listen()` in one shot. This splits construction from process concerns and adds 34 integration tests over the wired app. Deliberately released (no `[skip release]`) so the resulting patch release exercises the new test gate end-to-end.
+
+### Changed
+- **`packages/server/src/app.ts` (new)** — `buildServer()`: CORS, the central error handler, all 9 route registrations, `/health`, `/api/credentials/builtin`. No listen, no dotenv, no warmup.
+- **`packages/server/src/index.ts`** — now just process bootstrap: dotenv, `await buildServer()`, `listen`, the systeminformation warmup. Behavior-identical; `build.mjs` entry unchanged.
+
+### Added
+- **Server integration tests (24)** — `buildServer()` + `app.inject()` with a URL-routed `fetch` stub (`src/test/fetchStub.ts`; unmatched URLs throw so tests can never hit real upstreams):
+  - *weather*: full `WeatherData` shape from zippopotam + Open-Meteo + NWS fixtures; FNV-1a fallback id when NWS omits `properties.id`; NWS-down → `alerts: []` fail-soft; unknown ZIP → 422; dead forecast upstream → 502; TTL-cache hit makes zero upstream calls; radar-embed validation + HTML.
+  - *crypto*: watchlist order preserved over CoinGecko's market-cap order; sparkline downsampling; nulls → 0; 429 → friendly rate-limit message; invalid ids → 400.
+  - *stocks*: snapshot→quote mapping with env-cred auth headers asserted; missing keys → 503 Settings pointer; Alpaca 403 passthrough; detail daily-bars fallback + fail-soft news.
+  - *news*: RSS parsing (CDATA, double-encoded entities, source-suffix strip, bad dates); upstream failure → 502.
+  - *app*: `/health`, builtin keys (names only), 404, and the full error-handler matrix (401/403/404 pass through; 500/503/418 → 502; `HttpError` verbatim).
+- **Renderer component regression tests (10, RTL + jsdom)** — `@testing-library/react`/`jest-dom`/`user-event` devDeps:
+  - *Titlebar*: survives a malformed shared weather cache (the `data?.current?.temp` crash regression) and renders the temp from a healthy one.
+  - *AlertsPanel*: adding a stock rule auto-adds the ticker to the stocks watchlist; invalid drafts stay disabled; stranded-rule warning.
+  - *LauncherWidget*: groups render with counts + data:-URI icons, collapse hides members and persists, launch/launch-group go through the id-only bridge, non-Electron empty state.
+
+### Notes
+- Totals: **152 tests** (renderer 89, server 52, main 11) — all gating CI and releases per #93.
+- Verified beyond the suite: the esbuild-bundled server (`dist/index.js`) boots, listens, warms up, and serves `/health`, `/api/credentials/builtin`, and the stocks 503 first-run pointer unchanged.
+
+---
+
 ## [PR #93] chore: unit tests across all packages + test-gated releases
 **Branch:** `chore/unit-tests` → master
 **Date:** 2026-07-05
