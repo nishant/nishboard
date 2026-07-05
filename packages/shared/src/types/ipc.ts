@@ -54,6 +54,11 @@ export interface UpdateCheckData {
   /** Release page URL to open when an update exists. */
   url: string | null;
   hasUpdate: boolean;
+  /** Direct-download URL of this platform's installer asset (mac .dmg /
+   *  win .exe) on the latest release; null when no matching asset or no update. */
+  assetUrl: string | null;
+  /** Filename of that asset, for the download-button label. */
+  assetName: string | null;
   /** Human-readable status ("No releases yet…", rate-limit/auth errors, …). */
   message?: string;
 }

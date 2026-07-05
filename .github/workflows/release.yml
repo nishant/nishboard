@@ -1,0 +1,54 @@
+name: Release
+
+# Push a tag like v0.2.0 → build the macOS DMG + Windows EXE and attach both to
+# a GitHub Release for that tag. The in-app update check (Settings → About)
+# polls releases/latest, so publishing here is what lights it up.
+#
+# NOTE ON KEYS: CI has no .env, so packaged builds from this workflow contain NO
+# baked-in _BUILTIN API keys (packages/server/build.mjs bakes from .env only).
+# Installed builds still work by entering keys once in Settings → Developer
+# (safeStorage). Locally-run `pnpm package` with a .env keeps baking as before.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write # create the release + upload assets
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14 # arm64 → Nishboard-x.y.z-arm64.dmg
+            artifact: release/*.dmg
+          - os: windows-latest # x64 NSIS → Nishboard Setup x.y.z.exe
+            artifact: release/*.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        # version comes from packageManager in the root package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # pnpm package = turbo build + electron-builder with
+      # CSC_IDENTITY_AUTO_DISCOVERY=false already set (unsigned builds — macOS
+      # users right-click → Open past Gatekeeper; signing needs paid certs).
+      - run: pnpm package
+
+      - name: Attach artifacts to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.artifact }}
+          # Both matrix jobs target the same tag → same release; the second job
+          # just adds its asset.
+          draft: false
+          generate_release_notes: true
