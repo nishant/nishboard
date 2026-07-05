@@ -4,6 +4,15 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #91] fix: manual release dispatch must ignore the [skip release] marker
+**Branch:** `fix/release-dispatch-skip` → master
+**Date:** 2026-07-05
+
+### Fixed
+- **`release.yml`** — the `[skip release]` guard reads HEAD's commit message, so a `workflow_dispatch` fired while HEAD is a skipped merge (exactly the bootstrap case: #90 merged with the marker, then the first manual release) skipped too. The marker now only governs push-triggered releases; a manual dispatch is an explicit "release now".
+
+---
+
 ## [PR #90] fix: tag-only releases — master branch protection rejected the version commit
 **Branch:** `fix/release-tag-only` → master
 **Date:** 2026-07-05
