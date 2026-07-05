@@ -4,6 +4,25 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #84] chore: CI + tag-triggered releases + in-app download link
+**Branch:** `chore/release-ci` → master
+**Date:** 2026-07-05
+
+### Context
+The repo had zero CI, and the Settings → About update check polls `releases/latest` on a repo that never had a release — it could only ever say "No releases yet". This wires the publishing side and improves the check's payoff.
+
+### Added
+- **`.github/workflows/ci.yml`** — every PR/push to master runs `pnpm typecheck` + `lint` + full `turbo build` on ubuntu (pnpm from `packageManager`, Node 22, frozen lockfile).
+- **`.github/workflows/release.yml`** — pushing a `v*` tag builds unsigned installers on a 2-OS matrix (macos-14 → arm64 DMG, windows-latest → NSIS EXE) via the existing `pnpm package` script and attaches both to a GitHub Release (`softprops/action-gh-release`, auto release notes). Both matrix jobs target the same tag → one release, two assets.
+- **Direct download button** — `UpdateCheckData` gains `assetUrl`/`assetName`; `updates.ts` picks this platform's installer from the release assets (mac: prefer the current arch's `.dmg`; win: the `.exe`). Settings → About shows **Download vX.Y.Z (DMG/EXE)** next to the release-page link when an update exists.
+
+### Notes
+- **CI builds bake NO API keys**: `_BUILTIN` values come from the local `.env` at package time, and CI has none. CI-built installers work by entering keys once in Settings → Developer (safeStorage). Locally-built (`pnpm package`) installers keep baking from `.env` as before.
+- Builds stay **unsigned** (`CSC_IDENTITY_AUTO_DISCOVERY=false` already in the package script) — macOS Gatekeeper needs right-click → Open on first launch. In-app auto-install (electron-updater) deliberately out of scope until code signing exists.
+- Release flow: `git tag v0.2.0 && git push origin v0.2.0` → ~10 min → release with both installers → the in-app check lights up (24h memo per check).
+
+---
+
 ## [PR #83] feat: Twitch followed-all + go-live alerts, Spotify ♥ + Recently Played
 **Branch:** `feat/twitch-spotify-extras` → master
 **Date:** 2026-07-05
@@ -23,7 +42,6 @@ Quick wins on the two already-connected accounts (Batch A of the accounts roadma
 ### Notes
 - Verified against live data: `/followed-all` → 37 channels (3 live-first, avatars resolved); All tab renders the full list; Settings toggle present (default on); unauthenticated Spotify endpoints return clean 401/400s.
 - The notifier polls `/followed` only while the toggle is on AND Twitch is connected; `twitch-auth` status polling (15s, localhost) runs regardless — negligible.
-
 ---
 
 ## [PR #81] feat: launcher groups + icons
