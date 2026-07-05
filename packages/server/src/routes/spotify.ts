@@ -7,15 +7,15 @@ import type {
 } from '@dash/shared';
 import crypto from 'crypto';
 import { SimpleCache } from '../cache/SimpleCache';
-import { HttpError, UpstreamError } from '../lib/http';
+import { fetchJson, HttpError, UpstreamError } from '../lib/http';
 import { TtlCache } from '../lib/TtlCache';
 import { cred } from '../lib/env';
-import { UserTokenStore } from '../lib/userTokenStore';
+import { UserTokenStore, rethrowRefreshFailure } from '../lib/userTokenStore';
 import type { StoredUserTokens } from '../lib/userTokenStore';
 
 // ── Token persistence ─────────────────────────────────────────────────────────
-// File-backed store with single-flight refresh + clear-on-dead-refresh
-// (see lib/userTokenStore for the race/rotation rationale).
+// File-backed store with single-flight refresh + clear-on-definitive-auth-
+// rejection (see lib/userTokenStore for the race/rotation rationale).
 
 const tokenStore = new UserTokenStore('spotify_tokens.json', refreshAccessToken);
 
@@ -98,22 +98,34 @@ async function exchangeCode(code: string, verifier: string): Promise<StoredUserT
 }
 
 async function refreshAccessToken(refreshToken: string): Promise<StoredUserTokens> {
-  const res = await fetch(`${SPOTIFY_ACCOUNTS}/api/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'refresh_token',
-      refresh_token: refreshToken,
-      client_id: clientId(),
-    }),
-  });
-  if (!res.ok) throw new Error(`Token refresh failed ${res.status}: ${await res.text()}`);
-  const d = await res.json() as { access_token: string; refresh_token?: string; expires_in: number };
-  return {
-    access_token: d.access_token,
-    refresh_token: d.refresh_token ?? refreshToken,
-    expires_at: Date.now() + d.expires_in * 1000,
-  };
+  // Without a client_id the token endpoint would 4xx and look like a dead
+  // grant — refuse to even try, so the stored session survives until the
+  // credential is configured again.
+  if (!clientId()) {
+    throw new HttpError(503, 'SPOTIFY_CLIENT_ID not configured — cannot refresh token');
+  }
+  try {
+    const d = await fetchJson<{ access_token: string; refresh_token?: string; expires_in: number }>(
+      `${SPOTIFY_ACCOUNTS}/api/token`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken,
+          client_id: clientId(),
+        }),
+      },
+      { label: 'Spotify token refresh' },
+    );
+    return {
+      access_token: d.access_token,
+      refresh_token: d.refresh_token ?? refreshToken,
+      expires_at: Date.now() + d.expires_in * 1000,
+    };
+  } catch (err) {
+    rethrowRefreshFailure(err);
+  }
 }
 
 async function spotifyRequest(

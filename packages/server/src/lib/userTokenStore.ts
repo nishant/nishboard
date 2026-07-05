@@ -1,6 +1,34 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { UpstreamError } from './http';
+
+/** The token endpoint definitively rejected the refresh (400/401/403 with
+ *  client credentials present) — the refresh token is dead and the store
+ *  clears itself. Anything else (network error, timeout, 5xx, missing
+ *  credentials) must NOT be this class, so a transient failure never wipes
+ *  a valid session. Extends UpstreamError so the central error handler's
+ *  status mapping applies unchanged. */
+export class RefreshAuthError extends UpstreamError {
+  constructor(status: number, message: string) {
+    super(status, message);
+    this.name = 'RefreshAuthError';
+  }
+}
+
+/** Statuses where the token endpoint itself judged the grant invalid. */
+const DEFINITIVE_AUTH_STATUSES = new Set([400, 401, 403]);
+
+/** Rethrow a token-refresh failure with the right type: a definitive auth
+ *  rejection from the token endpoint becomes RefreshAuthError (clears the
+ *  store); everything else — timeouts, network errors, 429/5xx — rethrows
+ *  unchanged so the session survives. Call from a refresh fn's catch block. */
+export function rethrowRefreshFailure(err: unknown): never {
+  if (err instanceof UpstreamError && DEFINITIVE_AUTH_STATUSES.has(err.status)) {
+    throw new RefreshAuthError(err.status, err.message);
+  }
+  throw err;
+}
 
 /** Persisted OAuth user tokens (plain JSON under ~/.dash — home dir so they
  *  survive reinstalls; these are user-session tokens, not app secrets). */
@@ -19,9 +47,13 @@ export interface StoredUserTokens {
  * to persist different token pairs, and last-write-wins can store a dead one
  * (forcing a re-auth). All concurrent callers therefore await the same refresh.
  *
- * A failed refresh clears the store — most often the token was minted under a
- * different client_id and will never work again; clearing flips auth-status to
- * disconnected so the widget shows "Connect" instead of looping errors.
+ * Only a RefreshAuthError clears the store — the token endpoint definitively
+ * rejected the grant (typically minted under a different client_id), so it
+ * will never work again; clearing flips auth-status to disconnected so the
+ * widget shows "Connect" instead of looping errors. Transient failures
+ * (network down, timeout, 5xx, missing client credentials) keep the tokens:
+ * a packaged build once shipped with empty client credentials, refreshed with
+ * an empty client_id, got a 4xx, and wiped a perfectly valid Twitch session.
  */
 export class UserTokenStore {
   private tokens: StoredUserTokens | null;
@@ -82,7 +114,7 @@ export class UserTokenStore {
         this.tokens = { ...fresh, meta: fresh.meta ?? this.tokens.meta };
         this.save(this.tokens);
       } catch (err) {
-        this.clear();
+        if (err instanceof RefreshAuthError) this.clear();
         throw err;
       }
     }
