@@ -166,7 +166,6 @@ function BrowseHome({
   return (
     <div className="h-full flex flex-col">
       <div className="flex items-center gap-1 px-2 py-1.5 border-b border-th-line shrink-0 overflow-x-auto scrollbar-none">
-        {browse.HomeHeader && <browse.HomeHeader />}
         {browse.tabs.map((t) => (
           <button
             key={t.id}

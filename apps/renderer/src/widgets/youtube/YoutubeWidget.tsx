@@ -1,4 +1,4 @@
-import { LogOut } from 'lucide-react';
+import { LogIn, LogOut } from 'lucide-react';
 import {
   useYoutubeSearch, useYoutubeBrowse,
   useYoutubeAuthStatus, useYoutubeConnect, useYoutubeLogout,
@@ -6,6 +6,7 @@ import {
 } from './useYoutube';
 import { embedUrl } from '../../lib/apiClient';
 import { EmbedSearchWidget } from '../embed/EmbedSearchWidget';
+import { HeaderAction } from '../../components/HeaderAction';
 import type {
   EmbedSearchState, EmbedFoldersState, EmbedFolder, EmbedServiceAdapter,
 } from '../embed/types';
@@ -20,7 +21,7 @@ function YoutubeIcon({ size }: { size: number }) {
   );
 }
 
-const CONNECT_HINT = 'Connect your Google account to see this';
+const CONNECT_HINT = 'Connect your Google account from the widget header to see this';
 
 function toEmbedState(
   data: YoutubeSearchPage | undefined,
@@ -86,30 +87,23 @@ function useYoutubeEmbedFolderItems(folder: EmbedFolder | null): EmbedSearchStat
   return toEmbedState(data, isFetching, isError);
 }
 
-/** Tab-strip control: Connect when signed out, a small disconnect when in. */
-function YoutubeConnectHeader() {
+/** WidgetShell header action (via DashboardGrid): Connect when signed out,
+ *  disconnect when in — widget-level actions live in the top bar. */
+export function YoutubeActions() {
   const { data } = useYoutubeAuthStatus();
   const connect = useYoutubeConnect();
   const logout = useYoutubeLogout();
   if (data?.authenticated) {
     return (
-      <button
-        onClick={() => logout.mutate()}
-        title="Disconnect YouTube"
-        className="p-1 rounded text-th-ghost hover:text-red-400 transition-colors shrink-0"
-      >
-        <LogOut size={11} />
-      </button>
+      <HeaderAction title="Disconnect YouTube" danger onClick={() => logout.mutate()}>
+        <LogOut size={12} />
+      </HeaderAction>
     );
   }
   return (
-    <button
-      onClick={() => connect.mutate()}
-      disabled={connect.isPending}
-      className="px-2 py-0.5 rounded-full text-[10px] shrink-0 transition-colors bg-red-500/20 text-red-300 hover:bg-red-500/35 disabled:opacity-50"
-    >
-      Connect
-    </button>
+    <HeaderAction title="Connect YouTube (Google account)" onClick={() => connect.mutate()}>
+      <LogIn size={12} />
+    </HeaderAction>
   );
 }
 
@@ -136,7 +130,6 @@ const YOUTUBE_ADAPTER: EmbedServiceAdapter = {
     useBrowse: useYoutubeEmbedBrowse,
     useFolders: useYoutubeEmbedFolders,
     useFolderItems: useYoutubeEmbedFolderItems,
-    HomeHeader: YoutubeConnectHeader,
   },
 };
 

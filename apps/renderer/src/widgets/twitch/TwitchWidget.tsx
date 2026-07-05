@@ -1,10 +1,11 @@
-import { LogOut } from 'lucide-react';
+import { LogIn, LogOut } from 'lucide-react';
 import {
   useTwitchSearch, useTwitchAuthStatus, useTwitchConnect, useTwitchLogout,
   useTwitchFollowed, useTwitchFollowedAll,
 } from './useTwitch';
 import { embedUrl } from '../../lib/apiClient';
 import { EmbedSearchWidget } from '../embed/EmbedSearchWidget';
+import { HeaderAction } from '../../components/HeaderAction';
 import type { EmbedSearchState, EmbedServiceAdapter } from '../embed/types';
 import type { TwitchSearchPage } from '@dash/shared';
 
@@ -42,37 +43,30 @@ function useTwitchEmbedBrowse(tabId: string, enabled: boolean): EmbedSearchState
   if (!authed) {
     return {
       items: undefined, isFetching: false, isError: false,
-      hint: "Connect your Twitch account to see who's live",
+      hint: "Connect your Twitch account from the widget header to see who's live",
     };
   }
   const q = tabId === 'all' ? all : live;
   return { items: toItems(q.data), isFetching: q.isFetching, isError: q.isError };
 }
 
-/** Tab-strip control: Connect when signed out, a small disconnect when in. */
-function TwitchConnectHeader() {
+/** WidgetShell header action (via DashboardGrid): Connect when signed out,
+ *  disconnect when in — widget-level actions live in the top bar. */
+export function TwitchActions() {
   const { data } = useTwitchAuthStatus();
   const connect = useTwitchConnect();
   const logout = useTwitchLogout();
   if (data?.authenticated) {
     return (
-      <button
-        onClick={() => logout.mutate()}
-        title="Disconnect Twitch"
-        className="p-1 rounded text-th-ghost hover:text-red-400 transition-colors shrink-0"
-      >
-        <LogOut size={11} />
-      </button>
+      <HeaderAction title="Disconnect Twitch" danger onClick={() => logout.mutate()}>
+        <LogOut size={12} />
+      </HeaderAction>
     );
   }
   return (
-    <button
-      onClick={() => connect.mutate()}
-      disabled={connect.isPending}
-      className="px-2 py-0.5 rounded-full text-[10px] shrink-0 transition-colors bg-[#9146FF]/20 text-[#c39aff] hover:bg-[#9146FF]/35 disabled:opacity-50"
-    >
-      Connect
-    </button>
+    <HeaderAction title="Connect Twitch" onClick={() => connect.mutate()}>
+      <LogIn size={12} />
+    </HeaderAction>
   );
 }
 
@@ -93,7 +87,6 @@ const TWITCH_ADAPTER: EmbedServiceAdapter = {
       { id: 'all', label: 'All' },
     ],
     useBrowse: useTwitchEmbedBrowse,
-    HomeHeader: TwitchConnectHeader,
   },
 };
 

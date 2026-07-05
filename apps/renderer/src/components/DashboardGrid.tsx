@@ -5,13 +5,13 @@ import { useLayoutStore } from '../store/layoutStore';
 import { useAppSettingsStore } from '../store/settingsStore';
 import { WidgetShell } from './WidgetShell';
 import { WeatherWidget, WeatherActions } from '../widgets/weather/WeatherWidget';
-import { SpotifyWidget, SpotifyLogoutButton } from '../widgets/spotify/SpotifyWidget';
+import { SpotifyWidget, SpotifyActions } from '../widgets/spotify/SpotifyWidget';
 import { StocksWidget, StocksActions } from '../widgets/stocks/StocksWidget';
 import { HardwareWidget, HardwareActions } from '../widgets/hardware/HardwareWidget';
 import { SoundWidget, SoundActions } from '../widgets/sound/SoundWidget';
 import { CalendarWidget } from '../widgets/calendar/CalendarWidget';
-import { YoutubeWidget } from '../widgets/youtube/YoutubeWidget';
-import { TwitchWidget } from '../widgets/twitch/TwitchWidget';
+import { YoutubeWidget, YoutubeActions } from '../widgets/youtube/YoutubeWidget';
+import { TwitchWidget, TwitchActions } from '../widgets/twitch/TwitchWidget';
 import { TasksWidget } from '../widgets/tasks/TasksWidget';
 import { WorldClockWidget } from '../widgets/worldclock/WorldClockWidget';
 import { NotesWidget } from '../widgets/notes/NotesWidget';
@@ -36,13 +36,13 @@ interface WidgetEntry {
 
 const WIDGET_REGISTRY: Record<WidgetId, WidgetEntry> = {
   weather: { Component: WeatherWidget, Actions: WeatherActions },
-  spotify: { Component: SpotifyWidget, Actions: SpotifyLogoutButton },
+  spotify: { Component: SpotifyWidget, Actions: SpotifyActions },
   stocks: { Component: StocksWidget, Actions: StocksActions },
   hardware: { Component: HardwareWidget, Actions: HardwareActions },
   sound: { Component: SoundWidget, Actions: SoundActions },
   calendar: { Component: CalendarWidget },
-  youtube: { Component: YoutubeWidget },
-  twitch: { Component: TwitchWidget },
+  youtube: { Component: YoutubeWidget, Actions: YoutubeActions },
+  twitch: { Component: TwitchWidget, Actions: TwitchActions },
   tasks: { Component: TasksWidget },
   worldclock: { Component: WorldClockWidget },
   notes: { Component: NotesWidget },
