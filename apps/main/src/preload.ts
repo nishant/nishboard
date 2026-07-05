@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webFrame } from 'electron';
-import type { ElectronAPI, IpcChannels, CredentialKey, LauncherItemData, ClipboardEntryData, AppPrefsData, UpdateCheckData } from '@dash/shared';
+import type { ElectronAPI, IpcChannels, CredentialKey, LauncherItemData, LauncherGroupData, LauncherStateData, ClipboardEntryData, AppPrefsData, UpdateCheckData } from '@dash/shared';
 
 const electronAPI: ElectronAPI = {
   platform: process.platform,
@@ -40,7 +40,7 @@ const electronAPI: ElectronAPI = {
   restartServer: () => ipcRenderer.invoke('server:restart' satisfies IpcChannels) as Promise<void>,
   launcher: {
     getItems: () =>
-      ipcRenderer.invoke('launcher:get-items' satisfies IpcChannels) as Promise<LauncherItemData[]>,
+      ipcRenderer.invoke('launcher:get-items' satisfies IpcChannels) as Promise<LauncherStateData>,
     addApp: () =>
       ipcRenderer.invoke('launcher:add-app' satisfies IpcChannels) as Promise<LauncherItemData | null>,
     addUrl: (label: string, url: string) =>
@@ -53,6 +53,18 @@ const electronAPI: ElectronAPI = {
       ipcRenderer.invoke('launcher:reorder' satisfies IpcChannels, ids) as Promise<void>,
     launch: (id: string) =>
       ipcRenderer.invoke('launcher:launch' satisfies IpcChannels, id) as Promise<void>,
+    addGroup: (label: string) =>
+      ipcRenderer.invoke('launcher:add-group' satisfies IpcChannels, label) as Promise<LauncherGroupData>,
+    renameGroup: (id: string, label: string) =>
+      ipcRenderer.invoke('launcher:rename-group' satisfies IpcChannels, id, label) as Promise<void>,
+    removeGroup: (id: string) =>
+      ipcRenderer.invoke('launcher:remove-group' satisfies IpcChannels, id) as Promise<void>,
+    assignGroup: (itemId: string, groupId: string | null) =>
+      ipcRenderer.invoke('launcher:assign-group' satisfies IpcChannels, itemId, groupId) as Promise<void>,
+    launchGroup: (id: string) =>
+      ipcRenderer.invoke('launcher:launch-group' satisfies IpcChannels, id) as Promise<void>,
+    refreshIcons: () =>
+      ipcRenderer.invoke('launcher:refresh-icons' satisfies IpcChannels) as Promise<void>,
   },
   clipboardHistory: {
     getHistory: () =>

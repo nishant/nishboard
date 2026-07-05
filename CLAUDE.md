@@ -38,7 +38,7 @@ Personal ambient desktop dashboard for Nish, running all day on a secondary moni
 | World Clock | none (pure-JS timezones, digital/analog) | none | n/a |
 | Timer / Alarm | none (fires via notification IPC + Web Audio chime) | none | n/a |
 | Countdown | none (target datetime, localStorage; fires via notification IPC) | none | n/a |
-| Launcher | none (apps + links via typed IPC; targets stored main-side in `userData/launcher.json`, launch by id) | none | n/a |
+| Launcher | none (apps + links via typed IPC; targets stored main-side in `userData/launcher.json`, launch by id; groups with launch-all; icons resolved main-side — `app.getFileIcon` / google s2 favicon — and sent as data URIs only) | none | n/a |
 | Clipboard | none (main-process 1s `clipboard.readText` poller, ONLY while widget mounted+unpaused; text-only, in-memory, cap 50, never persisted) | none | 1s while active |
 
 ## Secrets & Credentials

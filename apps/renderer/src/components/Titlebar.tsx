@@ -69,7 +69,7 @@ export function Titlebar() {
   const narrow = useIsNarrow(COMPACT_BREAKPOINT);
   const compact = forceCompact || narrow;
   const weather = useWeather(showTempInClock);
-  const temp = weather.data?.current.temp;
+  const temp = weather.data?.current?.temp;
   // Store, not local state — the command palette's "Open Settings" needs it too.
   const settingsOpen = useOverlayStore((s) => s.settingsOpen);
   const setSettingsOpen = useOverlayStore((s) => s.setSettingsOpen);

@@ -4,6 +4,29 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #81] feat: launcher groups + icons
+**Branch:** `feat/launcher-groups-icons` → master
+**Date:** 2026-07-05
+
+### Context
+Third post-slate batch. Launcher items were a flat lucide-icon grid; now they group into named folders with launch-all, and get real icons — all without ever letting a target (path/URL) or even a hostname cross the IPC bridge.
+
+### Added
+- **Groups**: `launcher.json` v2 (`{ version: 2, groups, items }`) with a pure exported `migrateLauncherFile()` — v1 flat arrays wrap one-way on first mutation, dangling group refs drop, garbage → empty. New IPC: `launcher:add-group / rename-group / remove-group / assign-group / launch-group / refresh-icons`. Deleting a group ungroups members (items never deleted); launch-all runs sequentially main-side with a 100ms stagger so apps don't fight over focus.
+- **Icons, resolved main-side only**: apps via `app.getFileIcon(…, { size: 'normal' })` (32px; win32 `.lnk` resolves `shell.readShortcutLink().target` for the icon source while launching keeps the `.lnk` for args/cwd); URLs via google s2 favicon fetched with `net.fetch` + **3s AbortSignal timeout** (offline add must not hang the IPC) + content-type/64KB checks, inlined as a data: URI. `toData()` stays the single sanitizer: icon bytes pass, `target` never — a favicon *URL* would leak the hostname. The migration validator rejects any non-`data:` icon on disk. "Icons" refresh button in the edit modal doubles as the backfill for v1-migrated items.
+- **Widget**: ungrouped grid first, then per-group sections — header with collapse chevron, member count, hover launch-all. Collapse state persists (`dashboard-launcher-ui`, `partialize` keeps `editing` ephemeral). `<img>` data-URI icons with the lucide Globe/AppWindow fallback.
+- **Edit modal**: per-item group `<select>`, group list with double-click rename + delete ("items are kept"), "New group…" input. Flat reorder unchanged — group membership is a property, within-group order = flat order filtered.
+
+### Changed
+- `launcher:get-items` now returns `LauncherStateData { groups, items }` (internal version-locked contract; preload/renderer updated in the same commit).
+- `Titlebar` temp read hardened to `data?.current?.temp` — with the weather query now shared by the Batch B notifier, a malformed cached payload must not unmount the shell.
+
+### Notes
+- `launcher.json` grows ~1–4KB per icon and is main-side — icons/groups don't ride the settings backup (pre-existing limitation, now more visible).
+- `app.getFileIcon`, `.lnk` resolution, the native add-app dialog, and the favicon fetch only run in a real Electron main process — on-device items. Verified in-sandbox: 5/5 migration unit tests (electron stubbed), 14/14 renderer smokes (grouped render, collapse persistence across reload, launch/launch-all by id, data-URI icons + fallback, all modal flows).
+
+---
+
 ## [PR #80] feat: weather alert push + hourly precip bars
 **Branch:** `feat/weather-push-precip` → master
 **Date:** 2026-07-05

@@ -7,6 +7,22 @@ export interface LauncherItemData {
   id: string;
   label: string;
   kind: 'app' | 'url';
+  /** Group membership (LauncherGroupData id); absent = ungrouped. */
+  group?: string;
+  /** `data:` URI icon, resolved MAIN-SIDE (exe icon / favicon bytes). Never a
+   *  remote URL — even a favicon URL would leak the target's hostname. */
+  icon?: string;
+}
+
+export interface LauncherGroupData {
+  id: string;
+  label: string;
+}
+
+/** Full launcher state as the renderer sees it (targets stripped). */
+export interface LauncherStateData {
+  groups: LauncherGroupData[];
+  items: LauncherItemData[];
 }
 
 /** One clipboard-history entry. Text-only and in-memory only (main process) —
@@ -60,6 +76,12 @@ export type IpcChannels =
   | 'launcher:rename-item'
   | 'launcher:reorder'
   | 'launcher:launch'
+  | 'launcher:add-group'
+  | 'launcher:rename-group'
+  | 'launcher:remove-group'
+  | 'launcher:assign-group'
+  | 'launcher:launch-group'
+  | 'launcher:refresh-icons'
   | 'clipboard:get-history'
   | 'clipboard:copy'
   | 'clipboard:clear'
@@ -117,7 +139,7 @@ export interface ElectronAPI {
    *  (also emits server:restarted). */
   restartServer: () => Promise<void>;
   launcher: {
-    getItems: () => Promise<LauncherItemData[]>;
+    getItems: () => Promise<LauncherStateData>;
     /** Opens the native file picker in the main process; the chosen path stays
      *  there. Resolves null when the user cancels. */
     addApp: () => Promise<LauncherItemData | null>;
@@ -127,6 +149,16 @@ export interface ElectronAPI {
     reorder: (ids: string[]) => Promise<void>;
     /** Launch by id — shell.openPath / openExternal happen main-side. */
     launch: (id: string) => Promise<void>;
+    addGroup: (label: string) => Promise<LauncherGroupData>;
+    renameGroup: (id: string, label: string) => Promise<void>;
+    /** Removing a group ungroups its members — items are never deleted. */
+    removeGroup: (id: string) => Promise<void>;
+    /** Move an item into a group (null = ungroup). */
+    assignGroup: (itemId: string, groupId: string | null) => Promise<void>;
+    /** Launch every member of a group, sequentially main-side. */
+    launchGroup: (id: string) => Promise<void>;
+    /** Re-derive icons for all items (exe icons + favicons, main-side). */
+    refreshIcons: () => Promise<void>;
   };
   clipboardHistory: {
     getHistory: () => Promise<ClipboardEntryData[]>;
