@@ -1,22 +1,93 @@
 name: Release
 
-# Push a tag like v0.2.0 → build the macOS DMG + Windows EXE and attach both to
-# a GitHub Release for that tag. The in-app update check (Settings → About)
-# polls releases/latest, so publishing here is what lights it up.
+# Fully automated releases — no human versioning:
+# every merge to master derives the semver bump from the squash-commit subject
+# (= the PR title), commits the bump + tag back to master, builds the installers,
+# and publishes a GitHub Release.
 #
-# NOTE ON KEYS: CI has no .env, so packaged builds from this workflow contain NO
-# baked-in _BUILTIN API keys (packages/server/build.mjs bakes from .env only).
-# Installed builds still work by entering keys once in Settings → Developer
-# (safeStorage). Locally-run `pnpm package` with a .env keeps baking as before.
+#   feat!: / fix!: / "BREAKING CHANGE" in body  → major
+#   feat:                                        → minor
+#   fix: / chore: / docs: / refactor: / anything → patch
+#   "[skip release]" in subject or body          → no release
+#
+# The version-bump commit is pushed with GITHUB_TOKEN, which never re-triggers
+# workflows (GitHub anti-recursion) — the [skip release] marker on it is
+# belt-and-braces for human cherry-picks.
+#
+# NOTE ON KEYS: CI has no .env, so these builds contain NO baked-in _BUILTIN API
+# keys. Installed builds work by entering keys once in Settings → Developer.
 on:
   push:
-    tags: ['v*']
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Semver bump for a manual release
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+
+# Serialize releases — two quick merges must not race the version commit.
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 permissions:
-  contents: write # create the release + upload assets
+  contents: write # push the version commit + tag, create the release
 
 jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      released: ${{ steps.bump.outputs.released }}
+      tag: ${{ steps.bump.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: bump
+        env:
+          EVENT: ${{ github.event_name }}
+          MANUAL_BUMP: ${{ inputs.bump }}
+        run: |
+          subject="$(git log -1 --format=%s)"
+          body="$(git log -1 --format=%b)"
+
+          if printf '%s %s' "$subject" "$body" | grep -qF '[skip release]'; then
+            echo "released=false" >> "$GITHUB_OUTPUT"
+            echo "skipping: [skip release] marker"
+            exit 0
+          fi
+
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            kind="$MANUAL_BUMP"
+          elif printf '%s' "$subject" | grep -qE '^[a-z]+(\([^)]*\))?!:' || printf '%s' "$body" | grep -qF 'BREAKING CHANGE'; then
+            kind=major
+          elif printf '%s' "$subject" | grep -qE '^feat'; then
+            kind=minor
+          else
+            kind=patch
+          fi
+
+          next="$(node scripts/bump-version.mjs "$kind")"
+          echo "bump: $kind → v$next"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore(release): v$next [skip release]"
+          git tag "v$next"
+          # A merge landing between checkout and here would reject the push;
+          # rebase once (the bump commit only touches the two package.json files).
+          git pull --rebase origin master
+          git push --follow-tags origin master
+
+          echo "released=true" >> "$GITHUB_OUTPUT"
+          echo "tag=v$next" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: version
+    if: needs.version.outputs.released == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -28,6 +99,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.tag }}
 
       - uses: pnpm/action-setup@v4
         # version comes from packageManager in the root package.json
@@ -47,6 +120,7 @@ jobs:
       - name: Attach artifacts to the release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.version.outputs.tag }}
           files: ${{ matrix.artifact }}
           # Both matrix jobs target the same tag → same release; the second job
           # just adds its asset.

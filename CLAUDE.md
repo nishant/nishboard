@@ -88,6 +88,20 @@ Three places a key can live — checked in this order at runtime:
 4. Branch naming: `feat/<slug>` features · `fix/<slug>` fixes · `chore/<slug>` tooling/deps · `docs/<slug>` docs-only.
 5. Commit message footer: `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
 
+## Versioning & Releases (automated — never bump versions by hand)
+Every merge to master triggers `.github/workflows/release.yml`: it derives the semver bump from the **squash-commit subject (= the PR title)**, commits the bump to root + `apps/main` `package.json` (lockstep via `scripts/bump-version.mjs` — electron-builder names artifacts from root, `app.getVersion()` reads apps/main), tags `vX.Y.Z`, builds the DMG + EXE, and publishes a GitHub Release.
+
+**Bump rules (PR title):**
+- `feat!:` / `fix!:` (any `<type>!:`) or `BREAKING CHANGE` in the body → **major**
+- `feat:` → **minor**
+- everything else (`fix|chore|docs|refactor`) → **patch**
+- `[skip release]` anywhere in the title → merge without releasing (docs-only tweaks)
+
+Consequences for Claude:
+- **PR titles are load-bearing** — they choose the version bump. Keep the `<type>: description` convention exact.
+- Never edit the `version` field in any package.json; never `git tag` or push tags by hand. Manual/off-cycle release: GitHub → Actions → Release → Run workflow (pick bump).
+- CI builds bake no `_BUILTIN` keys (no `.env` in CI) — released installers need keys entered once in Settings → Developer.
+
 ### Changelog Format
 One section per merged PR, newest first. Canonical structure:
 ```
