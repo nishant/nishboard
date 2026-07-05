@@ -4,6 +4,24 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #90] fix: tag-only releases — master branch protection rejected the version commit
+**Branch:** `fix/release-tag-only` → master
+**Date:** 2026-07-05
+
+### Context
+The first live run of #86's auto-release computed `minor → v0.2.0` correctly, then died pushing the version commit: `GH006: Protected branch update failed` — master's branch protection (rightly) refuses direct pushes, even from the Actions bot. Rather than weakening protection, releases are now **tag-only**.
+
+### Changed
+- **`release.yml` version job** — computes the current version from the **latest `v*` tag** (fallback 0.1.0) instead of package.json, and pushes **only the new tag** — no commits to master, no protection conflict, no rebase race.
+- **`scripts/bump-version.mjs`** — split into `next <kind> <current>` (pure computation, prints the next version) and `set <version>` (writes root + apps/main package.json). The build jobs run `set` in their **CI workspace only** (uncommitted) right before `pnpm package`, so artifacts are named correctly and `app.getVersion()` reports the release version.
+- **Version source of truth is the tag.** The repo's `package.json` `version` fields are placeholders now — never hand-edit them (CLAUDE.md + README updated).
+
+### Notes
+- Local `pnpm package` builds keep the placeholder version (0.1.0) in artifact names — dev builds, by design.
+- The failed v0.2.0 run left nothing behind (no tag, no commit) — clean retry.
+
+---
+
 ## [PR #89] feat: pop-out widgets — float any widget in its own window
 **Branch:** `feat/popout-widgets` → master
 **Date:** 2026-07-05

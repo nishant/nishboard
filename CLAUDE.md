@@ -89,7 +89,7 @@ Three places a key can live — checked in this order at runtime:
 5. Commit message footer: `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
 
 ## Versioning & Releases (automated — never bump versions by hand)
-Every merge to master triggers `.github/workflows/release.yml`: it derives the semver bump from the **squash-commit subject (= the PR title)**, commits the bump to root + `apps/main` `package.json` (lockstep via `scripts/bump-version.mjs` — electron-builder names artifacts from root, `app.getVersion()` reads apps/main), tags `vX.Y.Z`, builds the DMG + EXE, and publishes a GitHub Release.
+Every merge to master triggers `.github/workflows/release.yml`: it derives the semver bump from the **squash-commit subject (= the PR title)**, computes the next version from the **latest `v*` tag** (master is branch-protected — CI pushes only a tag, never commits; the repo's package.json version fields are placeholders, the tag is the source of truth), then the build jobs inject the version into their workspace via `scripts/bump-version.mjs set` before `pnpm package`, and publish the DMG + EXE on a GitHub Release.
 
 **Bump rules (PR title):**
 - `feat!:` / `fix!:` (any `<type>!:`) or `BREAKING CHANGE` in the body → **major**
