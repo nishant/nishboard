@@ -431,3 +431,7 @@ body,
   border-radius: 10px;
   overflow: hidden;
 }
+
+/* Frameless-window drag regions (popout micro-titlebar) */
+.app-region-drag { -webkit-app-region: drag; }
+.app-region-no-drag { -webkit-app-region: no-drag; }

@@ -11,6 +11,17 @@ const electronAPI: ElectronAPI = {
   openSpotifyAuth: (url: string) => ipcRenderer.send('spotify:open-auth' satisfies IpcChannels, url),
   openTwitchAuth: (url: string) => ipcRenderer.send('twitch:open-auth' satisfies IpcChannels, url),
   openYoutubeAuth: (url: string) => ipcRenderer.send('youtube:open-auth' satisfies IpcChannels, url),
+  popout: {
+    open: (widgetId: string) => ipcRenderer.send('popout:open' satisfies IpcChannels, widgetId),
+    close: (widgetId: string) => ipcRenderer.send('popout:close' satisfies IpcChannels, widgetId),
+    list: () => ipcRenderer.invoke('popout:list' satisfies IpcChannels) as Promise<string[]>,
+    onChanged: (cb: (ids: string[]) => void) => {
+      const channel: IpcChannels = 'popout:changed';
+      const listener = (_event: Electron.IpcRendererEvent, ids: string[]) => cb(ids);
+      ipcRenderer.on(channel, listener);
+      return () => ipcRenderer.removeListener(channel, listener);
+    },
+  },
   onSpotifyTokenStored: (cb: () => void) => {
     const channel: IpcChannels = 'spotify:token-store';
     ipcRenderer.on(channel, cb);
