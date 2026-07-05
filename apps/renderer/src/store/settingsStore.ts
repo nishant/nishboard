@@ -5,6 +5,7 @@ export type Density = 'compact' | 'comfortable';
 export type TempUnit = 'f' | 'c';
 export type WindUnit = 'mph' | 'kmh';
 export type LowPowerMode = 'off' | 'on' | 'auto';
+export type WeatherAlertNotify = 'off' | 'severe' | 'all';
 
 /**
  * App-level user preferences (non-secret, renderer-only).
@@ -35,6 +36,9 @@ interface AppSettingsState {
   /** Slow all widget polling ×4: 'on' always, 'auto' only while on battery.
    *  (Polling always pauses while the window is hidden, regardless of this.) */
   lowPower: LowPowerMode;
+  /** Push NEW NWS alerts as chime+toast+native notification: Extreme/Severe
+   *  only, everything, or off. */
+  weatherAlertNotify: WeatherAlertNotify;
 
   setWeatherZips: (zips: string[]) => void;
   setWeatherZipIdx: (idx: number) => void;
@@ -46,6 +50,7 @@ interface AppSettingsState {
   setWindUnit: (unit: WindUnit) => void;
   setClock24h: (on: boolean) => void;
   setLowPower: (mode: LowPowerMode) => void;
+  setWeatherAlertNotify: (mode: WeatherAlertNotify) => void;
 }
 
 export const useAppSettingsStore = create<AppSettingsState>()(
@@ -61,6 +66,8 @@ export const useAppSettingsStore = create<AppSettingsState>()(
       windUnit: 'mph',
       clock24h: false,
       lowPower: 'off',
+      // New keys shallow-merge into persisted state — no version bump needed.
+      weatherAlertNotify: 'severe',
 
       // Reset the cycle index too — it may point past the end of the new list.
       setWeatherZips: (weatherZips) => set({ weatherZips, weatherZipIdx: 0 }),
@@ -73,6 +80,7 @@ export const useAppSettingsStore = create<AppSettingsState>()(
       setWindUnit: (windUnit) => set({ windUnit }),
       setClock24h: (clock24h) => set({ clock24h }),
       setLowPower: (lowPower) => set({ lowPower }),
+      setWeatherAlertNotify: (weatherAlertNotify) => set({ weatherAlertNotify }),
     }),
     {
       name: 'dashboard-app-settings',
