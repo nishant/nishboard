@@ -287,9 +287,9 @@ const clampScale = (n: number) => Math.round(Math.min(SCALE_MAX, Math.max(SCALE_
 function AppSettingsPanel() {
   const {
     weatherZips, showTempInClock, uiScale, density, compactTitlebar,
-    tempUnit, windUnit, clock24h, lowPower, weatherAlertNotify,
+    tempUnit, windUnit, clock24h, lowPower, weatherAlertNotify, twitchLiveNotify,
     setWeatherZips, setShowTempInClock, setUiScale, setDensity, setCompactTitlebar,
-    setTempUnit, setWindUnit, setClock24h, setLowPower, setWeatherAlertNotify,
+    setTempUnit, setWindUnit, setClock24h, setLowPower, setWeatherAlertNotify, setTwitchLiveNotify,
   } = useAppSettingsStore();
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -356,6 +356,17 @@ function AppSettingsPanel() {
           New NWS weather alerts chime, toast, and send a native notification.
           Severe = Extreme/Severe alerts only.
         </p>
+      </div>
+
+      {/* Twitch */}
+      <div className="flex flex-col gap-3">
+        <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">Twitch</span>
+        <ToggleRow
+          label="Go-live alerts"
+          description="Chime, toast, and native notification when a followed channel goes live. Needs a connected Twitch account (widget → Connect)."
+          checked={twitchLiveNotify}
+          onChange={setTwitchLiveNotify}
+        />
       </div>
 
       {/* Units & time */}

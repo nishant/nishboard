@@ -32,6 +32,7 @@ export function useTwitchLogout() {
     onSuccess: () => {
       qc.setQueryData<TwitchAuthStatus>(['twitch-auth'], { authenticated: false });
       void qc.invalidateQueries({ queryKey: ['twitch-followed'] });
+      void qc.invalidateQueries({ queryKey: ['twitch-followed-all'] });
     },
   });
 }
@@ -41,6 +42,21 @@ export function useTwitchFollowed(enabled: boolean) {
   return useQuery<TwitchSearchPage>({
     queryKey: ['twitch-followed'],
     queryFn: () => apiClient.get<TwitchSearchPage>('/api/twitch/followed'),
+    enabled,
+    refetchInterval: enabled ? interval : false,
+    staleTime: 55_000,
+    retry: 1,
+  });
+}
+
+/** Every followed channel (live first, then alphabetical offline). Same 60s
+ *  poll as the live list — the server refreshes live flags at that cadence
+ *  while the follow/avatar set is cached for 5 min upstream. */
+export function useTwitchFollowedAll(enabled: boolean) {
+  const interval = useGatedInterval(60_000);
+  return useQuery<TwitchSearchPage>({
+    queryKey: ['twitch-followed-all'],
+    queryFn: () => apiClient.get<TwitchSearchPage>('/api/twitch/followed-all'),
     enabled,
     refetchInterval: enabled ? interval : false,
     staleTime: 55_000,

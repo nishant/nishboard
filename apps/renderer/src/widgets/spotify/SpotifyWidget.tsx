@@ -3,7 +3,7 @@ import {
   Play, Pause, SkipForward, SkipBack,
   Shuffle, Repeat, Repeat1, Volume2, VolumeX,
   Music, ListMusic, ArrowLeft, Monitor, Smartphone, Speaker,
-  Heart, RotateCcw, RotateCw, Mic2, Search, LogOut, AlertTriangle,
+  Heart, History, RotateCcw, RotateCw, Mic2, Search, LogOut, AlertTriangle,
 } from 'lucide-react';
 import {
   useSpotifyStatus, useNowPlaying, useSpotifyAuthUrl,
@@ -11,6 +11,7 @@ import {
   useSeek, useSpotifyVolume, useShuffle, useRepeat,
   usePlaylistsInfinite, usePlaylistTracksInfinite,
   useDevices, usePlayContext, usePlayTrack, useSpotifyLogout,
+  useTrackSaved, useSaveTrack,
 } from './useSpotify';
 import { SpotifySearchDialog } from './SpotifySearchDialog';
 import { fmtMs } from '../../lib/time';
@@ -286,6 +287,10 @@ function PlaylistRow({
   onShuffle: () => void;
 }) {
   const isLiked = playlist.id === 'liked-songs';
+  const isRecent = playlist.id === 'recently-played';
+  // Recently Played has no playable Spotify context (uri '') — rows play as
+  // bare tracks; whole-list play/shuffle can't work, so hide those buttons.
+  const playable = playlist.uri !== '';
 
   return (
     <div className="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-th-elevated group transition-colors">
@@ -294,6 +299,10 @@ function PlaylistRow({
         {isLiked ? (
           <div className="w-10 h-10 rounded flex items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600">
             <Heart size={16} className="text-white fill-white" />
+          </div>
+        ) : isRecent ? (
+          <div className="w-10 h-10 rounded flex items-center justify-center bg-gradient-to-br from-emerald-600 to-teal-700">
+            <History size={16} className="text-white" />
           </div>
         ) : playlist.imageUrl ? (
           <img src={playlist.imageUrl} alt={playlist.name} className="w-10 h-10 object-cover" />
@@ -312,23 +321,25 @@ function PlaylistRow({
         </p>
       </button>
 
-      {/* Action buttons — always visible */}
-      <div className="flex items-center gap-1 shrink-0">
-        <button
-          onClick={(e) => { e.stopPropagation(); onShuffle(); }}
-          className="p-1 rounded text-th-3 hover:text-[#1DB954] hover:bg-th-overlay transition-colors"
-          title="Shuffle play"
-        >
-          <Shuffle size={11} />
-        </button>
-        <button
-          onClick={(e) => { e.stopPropagation(); onPlay(); }}
-          className="p-1 rounded text-th-3 hover:text-[#1DB954] hover:bg-th-overlay transition-colors"
-          title="Play"
-        >
-          <Play size={11} />
-        </button>
-      </div>
+      {/* Action buttons — always visible (hidden for context-less pseudo-playlists) */}
+      {playable && (
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={(e) => { e.stopPropagation(); onShuffle(); }}
+            className="p-1 rounded text-th-3 hover:text-[#1DB954] hover:bg-th-overlay transition-colors"
+            title="Shuffle play"
+          >
+            <Shuffle size={11} />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onPlay(); }}
+            className="p-1 rounded text-th-3 hover:text-[#1DB954] hover:bg-th-overlay transition-colors"
+            title="Play"
+          >
+            <Play size={11} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -444,7 +455,7 @@ function PlaylistPanel({
         <span className="text-th-2 text-xs font-medium truncate">
           {showingTracks ? selectedPlaylist!.name : 'Your Playlists'}
         </span>
-        {showingTracks && (
+        {showingTracks && selectedPlaylist!.uri !== '' && (
           <div className="ml-auto flex items-center gap-1 shrink-0">
             <button
               onClick={() => handlePlayContext(selectedPlaylist!, true)}
@@ -544,6 +555,27 @@ function nextRepeatState(current: TrackData['repeatState']): TrackData['repeatSt
 
 // ── Now playing ───────────────────────────────────────────────────────────────
 
+/** ♥ save/unsave the now-playing track. Hidden for podcast episodes (not
+ *  likeable via this API) and when the saved-check errors — a pre-rescope
+ *  token 403s here until Disconnect → Connect grants user-library-modify. */
+function LikeButton({ trackId, type, size }: { trackId: string; type: TrackData['type']; size: number }) {
+  const isTrack = type === 'track';
+  const saved = useTrackSaved(trackId, isTrack);
+  const save = useSaveTrack();
+  if (!isTrack || trackId === '' || saved.isError) return null;
+  const isSaved = saved.data?.saved === true;
+  return (
+    <button
+      onClick={() => save.mutate({ trackId, saved: !isSaved })}
+      disabled={saved.isPending}
+      className={`transition-colors p-0.5 ${isSaved ? 'text-[#1DB954]' : 'text-th-3 hover:text-th-hi'}`}
+      title={isSaved ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
+    >
+      <Heart size={size} fill={isSaved ? 'currentColor' : 'none'} />
+    </button>
+  );
+}
+
 function NowPlayingView({
   data,
   size,
@@ -601,6 +633,7 @@ function NowPlayingView({
   // ── Shared action icons ───────────────────────────────────────────────────────
   const actionIcons = (
     <div className="flex items-center gap-1 shrink-0">
+      <LikeButton trackId={data.trackId} type={data.type} size={13} />
       <button onClick={onOpenPlaylists}
         className="text-th-3 hover:text-th-hi transition-colors p-0.5" title="Browse playlists">
         <ListMusic size={14} />
