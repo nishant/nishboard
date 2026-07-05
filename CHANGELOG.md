@@ -4,6 +4,25 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #78] feat: command palette (Ctrl/Cmd+K · double-Shift)
+**Branch:** `feat/command-palette` → master
+**Date:** 2026-07-05
+
+### Context
+Feature-slate batch 15 (the finale) — the Spotlight/IntelliJ-style palette Nish asked for. Deliberately last so its actions cover everything the previous 14 batches added. In-app only per scope (no global OS shortcut — that's the tray hotkey's job).
+
+### Added
+- `lib/fuzzy.ts` — dependency-free subsequence scorer (consecutive-run + word-start bonuses, light length normalization) so `mkt` ranks *Apply preset: Markets* first.
+- `lib/commandRegistry.ts` — `PaletteAction { id, title, group, keywords?, run }` + `registerActionSource()`. Sources are re-evaluated on every palette open, so titles reflect live state (`Hide` vs `Show widget: X`); they call `useXStore.getState()` imperatively and are wired by a side-effect import in `main.tsx` — no import cycles.
+- `lib/paletteActions.ts` — built-in sources: apply preset/saved layout, show/hide every widget, all themes + saved custom themes, Spotify transport (play/pause/next/prev via the local API, toast on failure), quick timers (5/10/25 min — added *and started*), Open Settings, low-power mode switch.
+- `components/CommandPalette.tsx` — overlay on **Ctrl/Cmd+K** or **double-Shift** (<300 ms; any other key between the two Shifts breaks the chord, so Shift+letter typing never triggers it). Arrows/Enter/Esc, mouse hover tracks selection, section headers, footer hint. **Recents** (MRU, cap 8, localStorage) float on an empty query under a "Recent" header.
+- `store/overlayStore.ts` — `settingsOpen` lifted out of Titlebar local state (the palette needs to open Settings) + `paletteOpen`.
+
+### Notes
+- Verified headless end-to-end: Ctrl+K opens; `mkt` → *Apply preset: Markets* top hit; Enter applies it (activePreset flips, palette closes); double-Shift reopens with Markets under "Recent"; "open settings" opens the Settings modal. No console/page errors.
+
+---
+
 ## [PR #77] feat: QoL — About/update check, synced-folder auto-export, server logs
 **Branch:** `feat/qol-updates-logs` → master
 **Date:** 2026-07-05
