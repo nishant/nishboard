@@ -13,6 +13,7 @@ import {
   setClipboardWatch, getClipboardHistory, copyClipboardEntry, clearClipboardHistory,
 } from '../clipboardHistory';
 import { readPrefs, writePrefs } from '../prefs';
+import { openPopout, closePopout, openPopoutIds } from '../popout';
 import type { CredentialKey, AppPrefsData } from '@dash/shared';
 
 export function registerIpcHandlers(
@@ -54,6 +55,16 @@ export function registerIpcHandlers(
     if (typeof url !== 'string') return;
     if (url.startsWith('https://accounts.google.com/')) shell.openExternal(url);
   });
+
+  // ── Pop-out widget windows ──────────────────────────────────────────────────
+  ipcMain.on('popout:open', (_event, widgetId: string) => {
+    // Ids are renderer WidgetIds (lowercase slugs) — reject anything else.
+    if (typeof widgetId === 'string' && /^[a-z]{2,20}$/.test(widgetId)) openPopout(widgetId);
+  });
+  ipcMain.on('popout:close', (_event, widgetId: string) => {
+    if (typeof widgetId === 'string') closePopout(widgetId);
+  });
+  ipcMain.handle('popout:list', () => openPopoutIds());
 
   // ── Quick launcher ──────────────────────────────────────────────────────────
   // Targets (paths/URLs) live only in main — the renderer gets sanitized items

@@ -1,8 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
+import { ExternalLink } from 'lucide-react';
 import ReactGridLayout, { WidthProvider } from 'react-grid-layout';
 import type { Layout } from 'react-grid-layout';
 import { useLayoutStore } from '../store/layoutStore';
 import { useAppSettingsStore } from '../store/settingsStore';
+import { usePopoutStore } from '../store/popoutStore';
 import { WidgetShell } from './WidgetShell';
 import { WeatherWidget, WeatherActions } from '../widgets/weather/WeatherWidget';
 import { SpotifyWidget, SpotifyActions } from '../widgets/spotify/SpotifyWidget';
@@ -25,6 +27,7 @@ import { TITLEBAR_H } from './Titlebar';
 import { WIDGET_TITLES } from '../lib/layouts';
 import type { WidgetId } from '../lib/layouts';
 import { cn } from '../lib/utils';
+import { HeaderAction } from './HeaderAction';
 
 const GridLayout = WidthProvider(ReactGridLayout);
 
@@ -34,7 +37,7 @@ interface WidgetEntry {
   Actions?: React.ComponentType;
 }
 
-const WIDGET_REGISTRY: Record<WidgetId, WidgetEntry> = {
+export const WIDGET_REGISTRY: Record<WidgetId, WidgetEntry> = {
   weather: { Component: WeatherWidget, Actions: WeatherActions },
   spotify: { Component: SpotifyWidget, Actions: SpotifyActions },
   stocks: { Component: StocksWidget, Actions: StocksActions },
@@ -53,6 +56,34 @@ const WIDGET_REGISTRY: Record<WidgetId, WidgetEntry> = {
   launcher: { Component: LauncherWidget, Actions: LauncherActions },
   clipboard: { Component: ClipboardWidget, Actions: ClipboardActions },
 };
+
+/** Rightmost header action on EVERY widget: float it in its own window.
+ *  Hidden in the plain browser (no Electron popout API). */
+function PopoutAction({ id }: { id: WidgetId }) {
+  if (!window.electron?.popout) return null;
+  return (
+    <HeaderAction title="Pop out" onClick={() => window.electron!.popout.open(id)}>
+      <ExternalLink size={12} />
+    </HeaderAction>
+  );
+}
+
+/** Body shown in the grid tile while its widget lives in a popout window —
+ *  the real widget renders only there (no double polling / double chimes). */
+function PoppedPlaceholder({ id }: { id: WidgetId }) {
+  return (
+    <div className="h-full flex flex-col items-center justify-center gap-3 p-4">
+      <ExternalLink size={18} className="text-th-ghost" />
+      <p className="text-th-ghost text-xs">Popped out</p>
+      <button
+        onClick={() => window.electron?.popout?.close(id)}
+        className="px-3 py-1.5 rounded-full bg-th-elevated hover:bg-th-overlay text-th-hi text-[11px] transition-colors"
+      >
+        Bring back
+      </button>
+    </div>
+  );
+}
 
 function useRowHeight(layout: Layout[], gap: number): number {
   const [windowHeight, setWindowHeight] = useState(window.innerHeight);
@@ -76,6 +107,7 @@ function useRowHeight(layout: Layout[], gap: number): number {
 export function DashboardGrid() {
   const { layout, syncLayout, markUserEdited, visibleWidgets } = useLayoutStore();
   const density = useAppSettingsStore((s) => s.density);
+  const popped = usePopoutStore((s) => s.popped);
   const gap = density === 'compact' ? 4 : 8;
 
   // RGL's stock CSS animates every position change — including the initial
@@ -125,13 +157,19 @@ export function DashboardGrid() {
       {visibleLayout.map((item) => {
         const id = item.i as WidgetId;
         const { Component, Actions } = WIDGET_REGISTRY[id];
+        const isPopped = popped.includes(id);
         return (
           <div key={id}>
             <WidgetShell
               title={WIDGET_TITLES[id]}
-              actions={Actions ? <Actions /> : undefined}
+              actions={
+                <>
+                  {Actions && <Actions />}
+                  <PopoutAction id={id} />
+                </>
+              }
             >
-              <Component />
+              {isPopped ? <PoppedPlaceholder id={id} /> : <Component />}
             </WidgetShell>
           </div>
         );

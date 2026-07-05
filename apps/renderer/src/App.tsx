@@ -10,6 +10,7 @@ import { TwitchLiveNotifier } from './components/TwitchLiveNotifier';
 import { useThemeStore } from './store/themeStore';
 import { useAppSettingsStore } from './store/settingsStore';
 import { usePowerStore } from './store/powerStore';
+import { usePopoutStore } from './store/popoutStore';
 import { buildCustomVars, CUSTOM_VAR_KEYS } from './lib/colorUtils';
 import { initAutoExport } from './lib/autoExport';
 
@@ -55,12 +56,23 @@ function ServerRestartListener() {
   return null;
 }
 
+/** Renders nothing — mirrors the main process's open-popout list into
+ *  popoutStore so the grid can swap popped tiles for placeholders. */
+function PopoutSync() {
+  const setPopped = usePopoutStore((s) => s.setPopped);
+  useEffect(() => {
+    void window.electron?.popout?.list().then(setPopped);
+    return window.electron?.popout?.onChanged(setPopped);
+  }, [setPopped]);
+  return null;
+}
+
 /** Renders nothing — exists so theme/scale changes re-render THIS component
  *  only, applying everything to <html> via effects. If App itself subscribed,
  *  every theme tweak (live color-picker drags included) would re-render the
  *  whole tree, grid and all widgets. The `[data-theme="x"]` CSS-var blocks
  *  match the attribute on <html> and cascade identically. */
-function ThemeManager() {
+export function ThemeManager() {
   const theme = useThemeStore((s) => s.theme);
   const customColors = useThemeStore((s) => s.customColors);
   const uiScale = useAppSettingsStore((s) => s.uiScale);
@@ -103,6 +115,7 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeManager />
       <VisibilityKicker />
+      <PopoutSync />
       <ServerRestartListener />
       <AlertsEvaluator />
       <WeatherAlertNotifier />

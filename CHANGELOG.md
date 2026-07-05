@@ -4,6 +4,25 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #89] feat: pop-out widgets — float any widget in its own window
+**Branch:** `feat/popout-widgets` → master
+**Date:** 2026-07-05
+
+### Context
+Phase 1 of the pop-out plan: every widget header gets a Pop out action (rightmost, uniform with #88's header actions) that floats the widget in a small frameless always-available window — pop out the YouTube/Twitch player and keep it playing while the grid does something else.
+
+### Added
+- **`apps/main/src/popout.ts`** — per-widget `BrowserWindow` manager: frameless, per-widget default sizes (fallback 360×320, min 220×160), position/size persisted per widget in `userData/popouts.json` and restored on reopen; re-opening an already-popped widget focuses it; same embed-hosting guards as the main window (deny window.open, will-navigate allowlist); Windows gets the transparent+rounded treatment, macOS opaque — matching `createWindow`. All popouts close when the main window truly closes (no orphaned floaters); hide-to-tray leaves them up by design.
+- **IPC** — `popout:open / close / list / changed` channels + `ElectronAPI.popout` (send/send/invoke/subscribe). Ids validated main-side (`/^[a-z]{2,20}$/`).
+- **Renderer entry branch** — `main.tsx` reads `?widget=<id>`: valid `WidgetId` → `PopoutShell` (micro-titlebar: drag region, the widget's own header `Actions`, close button — no grid, no command palette, **no alert notifiers** so notifications can't double-fire), anything else → the normal `App`.
+- **Grid integration** — `PopoutAction` (ExternalLink icon) appended after each widget's own actions in `DashboardGrid` (hidden in a plain browser); while popped, the grid tile renders a `PoppedPlaceholder` ("Popped out · Bring back") instead of the live widget — no double polling, no double alarm chimes, no two competing players. `popoutStore` mirrors the main process's open list via `PopoutSync` (initial `list()` + `changed` broadcasts).
+
+### Notes
+- Verified in the browser preview: `?widget=weather` renders the micro-shell with live data + the widget's own header actions; invalid ids fall back to the full dashboard; main dashboard unaffected. Electron-side behavior (windows, persistence, placeholder swap) needs a `run`/`package` test.
+- Known phase-2 items (planned): always-on-top pin, reopen-popouts-at-launch, cross-window live theme sync (zustand persist doesn't propagate between windows — a popout picks up theme changes on reopen).
+
+---
+
 ## [PR #88] docs: README refresh + uniform widget header actions
 **Branch:** `feat/uniform-header-actions` → master
 **Date:** 2026-07-05

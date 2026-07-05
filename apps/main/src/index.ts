@@ -4,6 +4,7 @@ import { spawnServer, stopServer } from './server/spawn';
 import { registerIpcHandlers } from './ipc';
 import { createTray, destroyTray } from './tray';
 import { readPrefs } from './prefs';
+import { closeAllPopouts } from './popout';
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -105,6 +106,8 @@ function createWindow(): void {
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+    // No main window → no way to manage floaters; don't leave orphans.
+    closeAllPopouts();
   });
 }
 
