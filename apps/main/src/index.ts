@@ -114,13 +114,17 @@ app.whenReady().then(async () => {
   const ua = session.defaultSession.getUserAgent().replace(/\s*Electron\/[\d.]+/, '');
   session.defaultSession.setUserAgent(ua);
 
-  // The Twitch player document sends `frame-ancestors http://localhost:*` in its
-  // CSP. frame-ancestors validates the ENTIRE ancestor chain, so the top-level
-  // renderer (file:// in prod) violates it even though the embed proxy is on
-  // localhost. Strip CSP only from the player document responses — the video CDN
-  // (*.ttvnw.net) is untouched, so playback/auth are unaffected.
+  // Some embedded documents send a `frame-ancestors` CSP that validates the ENTIRE
+  // ancestor chain — so the top-level renderer (file:// in prod) violates it even
+  // though our embed proxy is on localhost:
+  //   • player.twitch.tv → `frame-ancestors http://localhost:*`
+  //   • www.rainviewer.com/map.html (weather radar) → `frame-ancestors *`, and `*`
+  //     matches only network schemes, not file://.
+  // Strip CSP only from these framed document responses — media/tile CDNs
+  // (*.ttvnw.net, rainviewer tile hosts) are untouched, so playback/tiles/auth are
+  // unaffected. Radar works in dev (renderer is http://localhost:5173) regardless.
   session.defaultSession.webRequest.onHeadersReceived(
-    { urls: ['*://player.twitch.tv/*'] },
+    { urls: ['*://player.twitch.tv/*', '*://www.rainviewer.com/*'] },
     (details, callback) => {
       const responseHeaders = { ...details.responseHeaders };
       for (const key of Object.keys(responseHeaders)) {

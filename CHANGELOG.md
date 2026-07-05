@@ -44,6 +44,31 @@ Quick wins on the two already-connected accounts (Batch A of the accounts roadma
 - The notifier polls `/followed` only while the toggle is on AND Twitch is connected; `twitch-auth` status polling (15s, localhost) runs regardless — negligible.
 ---
 
+---
+
+## [PR #82] fix: packaged-app fixes — missing @dash/shared, circular recharts chunk, radar CSP
+**Branch:** `fix/package-missing-shared-module` → master
+**Date:** 2026-07-05
+
+### Context
+Three prod-only defects surfaced while testing the packaged DMG (dev mode masked all three — no bundling in dev, and the dev renderer is served over `http://localhost` rather than `file://`).
+
+1. **Main process** crashed on launch with `Cannot find module '@dash/shared'` (require stack: `credentials.js` → `server/spawn.js` → `index.js`). `apps/main` is compiled with plain `tsc` (no bundler), so **type-only** imports from `@dash/shared` are erased but **value** imports survive as a runtime `require('@dash/shared')`. PR #63 flipped `credentials.ts` from `import type { CredentialKey }` to `import { CREDENTIAL_KEYS }` — the first value import — but the workspace package was never shipped into the packaged app.
+2. **Renderer** white-screened with `Cannot read properties of undefined (reading '__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED')` at `recharts-*.js`. The `manualChunks` config split `recharts` and `react`/`react-dom` into separate chunks, producing a `recharts ↔ vendor` **circular chunk** (Rollup warned about it). Under `file://` the circular init order left React uninitialized when recharts' top-level code reached into React internals → the whole app failed to mount.
+3. **Weather radar** refused to frame: `Refused to frame 'https://www.rainviewer.com/' because an ancestor violates … frame-ancestors *`. `frame-ancestors` validates the entire ancestor chain; the localhost embed proxy fixes the immediate parent, but the top-level renderer is `file://` and `*` matches only network schemes, so RainViewer blocks the frame.
+
+### Fixed
+- **`electron-builder.yml`** — ship the compiled `@dash/shared` into the packaged app under `node_modules/@dash/shared` (its `dist/` + `package.json`, whose `main` points at `dist/index.js`). Node module resolution walks up from `app/dist/*.js` to `app/node_modules/@dash/shared`, so the runtime `require('@dash/shared')` now resolves. Verified: packaged app launches without the main-process error dialog; `CREDENTIAL_KEYS` loads (8 keys).
+- **`apps/renderer/vite.config.ts`** — replace the object-form `manualChunks` with a function that keeps **all** of `node_modules` in one `vendor` chunk (only `react-grid-layout`/`react-resizable` split off, which depend on vendor one-directionally). React and recharts now co-locate, so Rollup orders their init topologically. The "Circular chunk" build warning is gone. Verified against a `vite preview` of the built bundle: full dashboard renders (incl. the recharts-backed Stocks widget), importing the vendor chunk — running recharts' exact previously-throwing init line — raises zero errors.
+- **`apps/main/src/index.ts`** — extend the existing `onHeadersReceived` CSP strip (already applied to `player.twitch.tv` for the same reason) to also cover `*://www.rainviewer.com/*`, removing the `frame-ancestors` header from the framed radar document so it loads under `file://`. Scoped to the map document host only — RainViewer's tile CDNs are untouched.
+
+### Notes
+- The server (`packages/server`) is esbuild-bundled with all deps inlined, so it was never affected by the module/chunk bugs. Only the tsc-compiled main process can leak a bare workspace `require`; `credentials.js` is currently its sole runtime importer of `@dash/shared`.
+- Trade-off: `vendor` is now a single ~780 kB (gzip ~225 kB) chunk instead of three. Fine for a desktop app loaded from local disk; the win is a correct init order over marginally smaller parallel chunks.
+- The radar CSP strip only runs inside Electron's session, so it can't be exercised by a browser-based preview — it mirrors the proven Twitch fix exactly. Radar already worked in `pnpm dev` (renderer is `http://localhost:5173`).
+
+---
+
 ## [PR #81] feat: launcher groups + icons
 **Branch:** `feat/launcher-groups-icons` → master
 **Date:** 2026-07-05
