@@ -25,6 +25,70 @@ Batch B of the accounts roadmap. YouTube was public-data only (API key: search/b
 
 ---
 
+## [PR #84] chore: CI + tag-triggered releases + in-app download link
+**Branch:** `chore/release-ci` → master
+**Date:** 2026-07-05
+
+### Context
+The repo had zero CI, and the Settings → About update check polls `releases/latest` on a repo that never had a release — it could only ever say "No releases yet". This wires the publishing side and improves the check's payoff.
+
+### Added
+- **`.github/workflows/ci.yml`** — every PR/push to master runs `pnpm typecheck` + `lint` + full `turbo build` on ubuntu (pnpm from `packageManager`, Node 22, frozen lockfile).
+- **`.github/workflows/release.yml`** — pushing a `v*` tag builds unsigned installers on a 2-OS matrix (macos-14 → arm64 DMG, windows-latest → NSIS EXE) via the existing `pnpm package` script and attaches both to a GitHub Release (`softprops/action-gh-release`, auto release notes). Both matrix jobs target the same tag → one release, two assets.
+- **Direct download button** — `UpdateCheckData` gains `assetUrl`/`assetName`; `updates.ts` picks this platform's installer from the release assets (mac: prefer the current arch's `.dmg`; win: the `.exe`). Settings → About shows **Download vX.Y.Z (DMG/EXE)** next to the release-page link when an update exists.
+
+### Notes
+- **CI builds bake NO API keys**: `_BUILTIN` values come from the local `.env` at package time, and CI has none. CI-built installers work by entering keys once in Settings → Developer (safeStorage). Locally-built (`pnpm package`) installers keep baking from `.env` as before.
+- Builds stay **unsigned** (`CSC_IDENTITY_AUTO_DISCOVERY=false` already in the package script) — macOS Gatekeeper needs right-click → Open on first launch. In-app auto-install (electron-updater) deliberately out of scope until code signing exists.
+- Release flow: `git tag v0.2.0 && git push origin v0.2.0` → ~10 min → release with both installers → the in-app check lights up (24h memo per check).
+
+---
+
+## [PR #83] feat: Twitch followed-all + go-live alerts, Spotify ♥ + Recently Played
+**Branch:** `feat/twitch-spotify-extras` → master
+**Date:** 2026-07-05
+
+### Context
+Quick wins on the two already-connected accounts (Batch A of the accounts roadmap): Twitch user OAuth existed but only surfaced live channels; Spotify had playback/playlists but no way to like a track or see history.
+
+### Added
+- **Twitch — All tab**: the widget's browse strip is now `Live | All`. New `/api/twitch/followed-all` merges `channels/followed` (full follow list, ≤100) + `users` (profile avatars, batched) + the existing 60s live cache → every followed channel, live first (with game/title), then offline alphabetical. Follow/avatar set cached 5 min (`followsCache`), merged page 60s; both cleared on connect/logout. `/followed` refactored to share `fetchFollowedLive()`.
+- **Twitch — go-live notifications**: new headless `TwitchLiveNotifier` (WeatherAlertNotifier pattern) diffs the live set from the same 60s `/followed` query the widget uses (shared query key → deduped) and fires chime + toast + native notification for channels that GO live. Seeds silently on first payload (already-live at launch = ambient, not news); a channel that goes offline re-notifies on its next live. Settings → App → Twitch: **Go-live alerts** toggle (`twitchLiveNotify`, default on; no-op unless connected).
+- **Spotify — ♥ on now-playing**: heart in the action row saves/unsaves the current track (`/track-saved` + `/save-track` → `me/tracks`), optimistic toggle, invalidates Liked Songs list + count. Hidden for podcast episodes and when the saved-check 403s (see scope note).
+- **Spotify — Recently Played**: synthetic playlist (History icon) pinned after Liked Songs; `/playlist-tracks?playlistId=recently-played` maps `me/player/recently-played` (50 events, deduped by track, newest first). No playable Spotify context exists for history, so its `uri` is `''` — rows play as bare tracks and whole-list Play/Shuffle buttons are hidden (row + header guards).
+
+### Changed
+- **Spotify scopes** now include `user-library-modify` + `user-read-recently-played`. ⚠️ **Existing tokens don't gain scopes** — the new endpoints 403 with "Disconnect → Connect to grant the new permission" until you re-consent (once, per machine). Everything pre-existing keeps working on old tokens.
+
+### Notes
+- Verified against live data: `/followed-all` → 37 channels (3 live-first, avatars resolved); All tab renders the full list; Settings toggle present (default on); unauthenticated Spotify endpoints return clean 401/400s.
+- The notifier polls `/followed` only while the toggle is on AND Twitch is connected; `twitch-auth` status polling (15s, localhost) runs regardless — negligible.
+---
+
+---
+
+## [PR #82] fix: packaged-app fixes — missing @dash/shared, circular recharts chunk, radar CSP
+**Branch:** `fix/package-missing-shared-module` → master
+**Date:** 2026-07-05
+
+### Context
+Three prod-only defects surfaced while testing the packaged DMG (dev mode masked all three — no bundling in dev, and the dev renderer is served over `http://localhost` rather than `file://`).
+
+1. **Main process** crashed on launch with `Cannot find module '@dash/shared'` (require stack: `credentials.js` → `server/spawn.js` → `index.js`). `apps/main` is compiled with plain `tsc` (no bundler), so **type-only** imports from `@dash/shared` are erased but **value** imports survive as a runtime `require('@dash/shared')`. PR #63 flipped `credentials.ts` from `import type { CredentialKey }` to `import { CREDENTIAL_KEYS }` — the first value import — but the workspace package was never shipped into the packaged app.
+2. **Renderer** white-screened with `Cannot read properties of undefined (reading '__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED')` at `recharts-*.js`. The `manualChunks` config split `recharts` and `react`/`react-dom` into separate chunks, producing a `recharts ↔ vendor` **circular chunk** (Rollup warned about it). Under `file://` the circular init order left React uninitialized when recharts' top-level code reached into React internals → the whole app failed to mount.
+3. **Weather radar** refused to frame: `Refused to frame 'https://www.rainviewer.com/' because an ancestor violates … frame-ancestors *`. `frame-ancestors` validates the entire ancestor chain; the localhost embed proxy fixes the immediate parent, but the top-level renderer is `file://` and `*` matches only network schemes, so RainViewer blocks the frame.
+
+### Fixed
+- **`electron-builder.yml`** — ship the compiled `@dash/shared` into the packaged app under `node_modules/@dash/shared` (its `dist/` + `package.json`, whose `main` points at `dist/index.js`). Node module resolution walks up from `app/dist/*.js` to `app/node_modules/@dash/shared`, so the runtime `require('@dash/shared')` now resolves. Verified: packaged app launches without the main-process error dialog; `CREDENTIAL_KEYS` loads (8 keys).
+- **`apps/renderer/vite.config.ts`** — replace the object-form `manualChunks` with a function that keeps **all** of `node_modules` in one `vendor` chunk (only `react-grid-layout`/`react-resizable` split off, which depend on vendor one-directionally). React and recharts now co-locate, so Rollup orders their init topologically. The "Circular chunk" build warning is gone. Verified against a `vite preview` of the built bundle: full dashboard renders (incl. the recharts-backed Stocks widget), importing the vendor chunk — running recharts' exact previously-throwing init line — raises zero errors.
+- **`apps/main/src/index.ts`** — extend the existing `onHeadersReceived` CSP strip (already applied to `player.twitch.tv` for the same reason) to also cover `*://www.rainviewer.com/*`, removing the `frame-ancestors` header from the framed radar document so it loads under `file://`. Scoped to the map document host only — RainViewer's tile CDNs are untouched.
+
+### Notes
+- The server (`packages/server`) is esbuild-bundled with all deps inlined, so it was never affected by the module/chunk bugs. Only the tsc-compiled main process can leak a bare workspace `require`; `credentials.js` is currently its sole runtime importer of `@dash/shared`.
+- Trade-off: `vendor` is now a single ~780 kB (gzip ~225 kB) chunk instead of three. Fine for a desktop app loaded from local disk; the win is a correct init order over marginally smaller parallel chunks.
+- The radar CSP strip only runs inside Electron's session, so it can't be exercised by a browser-based preview — it mirrors the proven Twitch fix exactly. Radar already worked in `pnpm dev` (renderer is `http://localhost:5173`).
+---
+
 ## [PR #81] feat: launcher groups + icons
 **Branch:** `feat/launcher-groups-icons` → master
 **Date:** 2026-07-05

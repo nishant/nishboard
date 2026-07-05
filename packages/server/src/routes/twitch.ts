@@ -82,6 +82,99 @@ async function getAppToken(clientId: string, clientSecret: string): Promise<stri
 // on tab focus stays cheap.
 const followedCache = new TtlCache<string, TwitchSearchPage>(60_000);
 
+// Follow list + avatars move much slower than live status: 5 min for the
+// follow/avatar set, while the merged all-channels page still refreshes its
+// live flags from the 60s live cache on every miss.
+interface FollowedChannelMeta {
+  id: string;
+  login: string;
+  displayName: string;
+  avatarUrl: string;
+}
+const followsCache = new TtlCache<string, FollowedChannelMeta[]>(5 * 60_000);
+const followedAllCache = new TtlCache<string, TwitchSearchPage>(60_000);
+
+/** Live streams the user follows (helix streams/followed), 60s-cached.
+ *  Shared by /followed (the Live tab) and /followed-all (live-flag merge). */
+async function fetchFollowedLive(token: string, userId: string): Promise<TwitchSearchPage> {
+  const cached = followedCache.get('followed');
+  if (cached) return cached;
+
+  const url = new URL(`${HELIX}/streams/followed`);
+  url.searchParams.set('user_id', userId);
+  url.searchParams.set('first', '20');
+  const data = await fetchJson<{
+    data: Array<{
+      user_id: string;
+      user_login: string;
+      user_name: string;
+      title: string;
+      game_name: string;
+      thumbnail_url: string;
+      started_at: string;
+    }>;
+  }>(
+    url.toString(),
+    { headers: { 'Client-Id': cred('TWITCH_CLIENT_ID'), Authorization: `Bearer ${token}` } },
+    { label: 'Twitch followed' },
+  );
+
+  const page: TwitchSearchPage = {
+    nextCursor: null,
+    items: data.data.map((s): TwitchChannel => ({
+      id: s.user_id,
+      login: s.user_login,
+      displayName: s.user_name,
+      // Stream thumbnails are templated: ...-{width}x{height}.jpg
+      thumbnailUrl: s.thumbnail_url.replace('{width}', '320').replace('{height}', '180'),
+      isLive: true,
+      title: s.title,
+      gameName: s.game_name,
+      startedAt: s.started_at || null,
+    })),
+  };
+  followedCache.set('followed', page);
+  return page;
+}
+
+/** Everyone the user follows (helix channels/followed) with profile avatars
+ *  (helix users, batched — both endpoints page at 100, one page covers a
+ *  personal follow list). 5 min cache. */
+async function fetchFollows(token: string, userId: string): Promise<FollowedChannelMeta[]> {
+  const cached = followsCache.get(userId);
+  if (cached) return cached;
+
+  const headers = { 'Client-Id': cred('TWITCH_CLIENT_ID'), Authorization: `Bearer ${token}` };
+  const url = new URL(`${HELIX}/channels/followed`);
+  url.searchParams.set('user_id', userId);
+  url.searchParams.set('first', '100');
+  const data = await fetchJson<{
+    data: Array<{ broadcaster_id: string; broadcaster_login: string; broadcaster_name: string }>;
+  }>(url.toString(), { headers }, { label: 'Twitch follows' });
+
+  // channels/followed carries no images — resolve avatars via /users (≤100 ids/call).
+  let avatars = new Map<string, string>();
+  if (data.data.length > 0) {
+    const usersUrl = new URL(`${HELIX}/users`);
+    for (const f of data.data) usersUrl.searchParams.append('id', f.broadcaster_id);
+    const users = await fetchJson<{ data: Array<{ id: string; profile_image_url: string }> }>(
+      usersUrl.toString(),
+      { headers },
+      { label: 'Twitch users' },
+    );
+    avatars = new Map(users.data.map((u) => [u.id, u.profile_image_url]));
+  }
+
+  const follows: FollowedChannelMeta[] = data.data.map((f) => ({
+    id: f.broadcaster_id,
+    login: f.broadcaster_login,
+    displayName: f.broadcaster_name,
+    avatarUrl: avatars.get(f.broadcaster_id) ?? '',
+  }));
+  followsCache.set(userId, follows);
+  return follows;
+}
+
 export const twitchRoutes: FastifyPluginAsync = async (fastify) => {
 
   // ── User OAuth ────────────────────────────────────────────────────────────
@@ -151,6 +244,8 @@ export const twitchRoutes: FastifyPluginAsync = async (fastify) => {
         });
         pendingAuth = null;
         followedCache.clear();
+        followsCache.clear();
+        followedAllCache.clear();
         return reply.type('text/html')
           .send('<html><body><h2>Connected to Twitch!</h2><p>You can close this tab.</p></body></html>');
       } catch (err) {
@@ -171,6 +266,8 @@ export const twitchRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/logout', async (_req, reply) => {
     userTokens.clear();
     followedCache.clear();
+    followsCache.clear();
+    followedAllCache.clear();
     return reply.code(204).send();
   });
 
@@ -180,7 +277,23 @@ export const twitchRoutes: FastifyPluginAsync = async (fastify) => {
     // 401, not 5xx, so the client poll doesn't read as a server failure.
     if (!userTokens.authenticated) return reply.code(401).send({ error: 'Not connected to Twitch' });
 
-    const cached = followedCache.get('followed');
+    const token = await userTokens.getValidToken();
+    const userId = userTokens.meta?.userId;
+    if (!userId) {
+      userTokens.clear();
+      return reply.code(401).send({ error: 'Twitch session incomplete — reconnect' });
+    }
+
+    return reply.send(await fetchFollowedLive(token, userId));
+  });
+
+  // GET /api/twitch/followed-all — every channel the user follows, live first
+  // (then alphabetical). Live entries carry the stream title/game; offline rows
+  // show the profile avatar and empty stream fields.
+  fastify.get<{ Reply: TwitchSearchPage | { error: string } }>('/followed-all', async (_req, reply) => {
+    if (!userTokens.authenticated) return reply.code(401).send({ error: 'Not connected to Twitch' });
+
+    const cached = followedAllCache.get('all');
     if (cached) return reply.send(cached);
 
     const token = await userTokens.getValidToken();
@@ -190,40 +303,36 @@ export const twitchRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.code(401).send({ error: 'Twitch session incomplete — reconnect' });
     }
 
-    const url = new URL(`${HELIX}/streams/followed`);
-    url.searchParams.set('user_id', userId);
-    url.searchParams.set('first', '20');
-    const data = await fetchJson<{
-      data: Array<{
-        user_id: string;
-        user_login: string;
-        user_name: string;
-        title: string;
-        game_name: string;
-        thumbnail_url: string;
-        started_at: string;
-      }>;
-    }>(
-      url.toString(),
-      { headers: { 'Client-Id': cred('TWITCH_CLIENT_ID'), Authorization: `Bearer ${token}` } },
-      { label: 'Twitch followed' },
-    );
+    const [follows, live] = await Promise.all([
+      fetchFollows(token, userId),
+      fetchFollowedLive(token, userId),
+    ]);
+    const liveById = new Map(live.items.map((s) => [s.id, s]));
 
-    const page: TwitchSearchPage = {
-      nextCursor: null,
-      items: data.data.map((s): TwitchChannel => ({
-        id: s.user_id,
-        login: s.user_login,
-        displayName: s.user_name,
-        // Stream thumbnails are templated: ...-{width}x{height}.jpg
-        thumbnailUrl: s.thumbnail_url.replace('{width}', '320').replace('{height}', '180'),
-        isLive: true,
-        title: s.title,
-        gameName: s.game_name,
-        startedAt: s.started_at || null,
-      })),
-    };
-    followedCache.set('followed', page);
+    const items = follows
+      .map((f): TwitchChannel => {
+        const s = liveById.get(f.id);
+        return {
+          id: f.id,
+          login: f.login,
+          displayName: f.displayName,
+          // Avatar (not stream still) for every row — the All list is a channel
+          // directory, and the round thumb shape expects a profile image.
+          thumbnailUrl: f.avatarUrl,
+          isLive: s !== undefined,
+          title: s?.title ?? '',
+          gameName: s?.gameName ?? '',
+          startedAt: s?.startedAt ?? null,
+        };
+      })
+      .sort((a, b) =>
+        a.isLive === b.isLive
+          ? a.displayName.localeCompare(b.displayName)
+          : (a.isLive ? -1 : 1),
+      );
+
+    const page: TwitchSearchPage = { nextCursor: null, items };
+    followedAllCache.set('all', page);
     return reply.send(page);
   });
 

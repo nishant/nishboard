@@ -1,5 +1,8 @@
 import { LogOut } from 'lucide-react';
-import { useTwitchSearch, useTwitchAuthStatus, useTwitchConnect, useTwitchLogout, useTwitchFollowed } from './useTwitch';
+import {
+  useTwitchSearch, useTwitchAuthStatus, useTwitchConnect, useTwitchLogout,
+  useTwitchFollowed, useTwitchFollowedAll,
+} from './useTwitch';
 import { embedUrl } from '../../lib/apiClient';
 import { EmbedSearchWidget } from '../embed/EmbedSearchWidget';
 import type { EmbedSearchState, EmbedServiceAdapter } from '../embed/types';
@@ -30,16 +33,20 @@ function useTwitchEmbedSearch(query: string): EmbedSearchState {
   return { items: toItems(data), isFetching, isError };
 }
 
-function useTwitchEmbedBrowse(_tabId: string, enabled: boolean): EmbedSearchState {
+function useTwitchEmbedBrowse(tabId: string, enabled: boolean): EmbedSearchState {
   const authed = useTwitchAuthStatus().data?.authenticated === true;
-  const { data, isFetching, isError } = useTwitchFollowed(enabled && authed);
+  // Both hooks run unconditionally (rules of hooks); `enabled` gates fetching
+  // so only the visible tab polls.
+  const live = useTwitchFollowed(enabled && authed && tabId === 'live');
+  const all = useTwitchFollowedAll(enabled && authed && tabId === 'all');
   if (!authed) {
     return {
       items: undefined, isFetching: false, isError: false,
       hint: "Connect your Twitch account to see who's live",
     };
   }
-  return { items: toItems(data), isFetching, isError };
+  const q = tabId === 'all' ? all : live;
+  return { items: toItems(q.data), isFetching: q.isFetching, isError: q.isError };
 }
 
 /** Tab-strip control: Connect when signed out, a small disconnect when in. */
@@ -81,7 +88,10 @@ const TWITCH_ADAPTER: EmbedServiceAdapter = {
   embedUrl: (item) => embedUrl(`/api/twitch/embed?channel=${item.id}`),
   useSearch: useTwitchEmbedSearch,
   browse: {
-    tabs: [{ id: 'following', label: 'Following' }],
+    tabs: [
+      { id: 'live', label: 'Live' },
+      { id: 'all', label: 'All' },
+    ],
     useBrowse: useTwitchEmbedBrowse,
     HomeHeader: TwitchConnectHeader,
   },

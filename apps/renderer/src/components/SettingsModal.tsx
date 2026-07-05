@@ -169,18 +169,29 @@ function AboutSection() {
         </button>
       </div>
       {result && (
-        <p className="text-[10px] leading-relaxed pl-[calc(7rem+0.75rem)]">
+        <div className="text-[10px] leading-relaxed pl-[calc(7rem+0.75rem)] flex flex-col gap-1">
           {result.hasUpdate && result.latestVersion ? (
-            <button
-              onClick={() => result.url && window.electron?.openExternal(result.url)}
-              className="text-th-accent underline"
-            >
-              v{result.latestVersion} is available — open release page
-            </button>
+            <>
+              <button
+                onClick={() => result.url && window.electron?.openExternal(result.url)}
+                className="text-th-accent underline text-left"
+              >
+                v{result.latestVersion} is available — open release page
+              </button>
+              {result.assetUrl && (
+                <button
+                  onClick={() => window.electron?.openExternal(result.assetUrl!)}
+                  className="self-start flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-th-elevated hover:bg-th-overlay text-th-hi text-[11px] transition-colors"
+                  title={result.assetName ?? undefined}
+                >
+                  Download v{result.latestVersion} ({result.assetName?.endsWith('.dmg') ? 'DMG' : 'EXE'})
+                </button>
+              )}
+            </>
           ) : (
             <span className="text-th-ghost">{result.message ?? 'You are up to date.'}</span>
           )}
-        </p>
+        </div>
       )}
     </div>
   );
@@ -287,9 +298,9 @@ const clampScale = (n: number) => Math.round(Math.min(SCALE_MAX, Math.max(SCALE_
 function AppSettingsPanel() {
   const {
     weatherZips, showTempInClock, uiScale, density, compactTitlebar,
-    tempUnit, windUnit, clock24h, lowPower, weatherAlertNotify,
+    tempUnit, windUnit, clock24h, lowPower, weatherAlertNotify, twitchLiveNotify,
     setWeatherZips, setShowTempInClock, setUiScale, setDensity, setCompactTitlebar,
-    setTempUnit, setWindUnit, setClock24h, setLowPower, setWeatherAlertNotify,
+    setTempUnit, setWindUnit, setClock24h, setLowPower, setWeatherAlertNotify, setTwitchLiveNotify,
   } = useAppSettingsStore();
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -356,6 +367,17 @@ function AppSettingsPanel() {
           New NWS weather alerts chime, toast, and send a native notification.
           Severe = Extreme/Severe alerts only.
         </p>
+      </div>
+
+      {/* Twitch */}
+      <div className="flex flex-col gap-3">
+        <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">Twitch</span>
+        <ToggleRow
+          label="Go-live alerts"
+          description="Chime, toast, and native notification when a followed channel goes live. Needs a connected Twitch account (widget → Connect)."
+          checked={twitchLiveNotify}
+          onChange={setTwitchLiveNotify}
+        />
       </div>
 
       {/* Units & time */}

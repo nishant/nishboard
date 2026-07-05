@@ -53,8 +53,11 @@ Three places a key can live — checked in this order at runtime:
 
 ## Embedding & Platform Gotchas
 - **`file://` null origin** — the packaged renderer loads from `file://`, so `window.location.hostname` is empty. YouTube/Twitch embeds and Spotify's redirect validation all break under `file://`. Fix pattern: serve the embed HTML from `http://localhost:7432/api/<svc>/embed`, where the iframe parent is a valid HTTP origin (`localhost`).
+- **`frame-ancestors` checks the WHOLE chain** — the localhost embed proxy fixes the *immediate* parent, but a framed doc whose CSP sends `frame-ancestors` (e.g. Twitch `player.twitch.tv`, RainViewer radar `www.rainviewer.com`) still sees `file://` at the top of the ancestor chain and blocks. Fix: strip the CSP header from *those document responses only* in the main process via `session…onHeadersReceived` (see `apps/main/src/index.ts`) — leave media/tile CDNs untouched. These only break under `file://`, so `pnpm dev` (renderer on `http://localhost:5173`) won't reproduce them.
 - **Electron UA** — YouTube returns Error 153 for the Electron UA; the main process strips `Electron/x.x.x` from the session user-agent.
 - **Spotify Dev Mode** — caps at 25 allowlisted users; a non-allowlisted account gets 403 on the API.
+- **`apps/main` is `tsc`-compiled, NOT bundled** — so `import type … from '@dash/shared'` is safe (erased), but a **value** import (e.g. `import { CREDENTIAL_KEYS }`) survives as a runtime `require('@dash/shared')`. The packaged app has no `node_modules`, so that require crashes launch unless the module is shipped. `electron-builder.yml` ships `@dash/shared` into `node_modules/@dash/shared`; keep it there, and prefer `import type` from shared in main whenever possible. (The server is esbuild-bundled, so it's immune.) Bugs like this never show in `pnpm dev` — only in the packaged/built app.
+- **Renderer `manualChunks` — don't hand-split React out of its consumers.** recharts reads React internals (`__SECRET_INTERNALS…`) at module-init; putting `recharts` and `react` in separate chunks creates a circular chunk and a bad init order → white screen under `file://`. Keep all `node_modules` in one `vendor` chunk (see `vite.config.ts`). If Rollup logs "Circular chunk", the build is broken even though dev works.
 - Always label Windows-only vs macOS-only branches explicitly.
 
 ## Code Conventions
