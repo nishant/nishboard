@@ -34,6 +34,23 @@ function push(arr: number[], val: number): void {
   if (arr.length > HISTORY_SIZE) arr.shift();
 }
 
+/** The bare ['hardware'] query. Extracted so the alerts evaluator can observe
+ *  it with its own enabled/interval without duplicating the query config —
+ *  TanStack dedupes observers on the shared key. */
+export function useHardwareQuery(enabled = true, interval?: number | false) {
+  const gated = useGatedInterval(1000);
+  return useQuery<HardwareData>({
+    queryKey: ['hardware'],
+    queryFn: () => apiClient.get<HardwareData>('/api/hardware'),
+    refetchInterval: interval ?? gated,
+    staleTime: 900,
+    // system_profiler (graphics) can take 3-5s on cold start — retry generously
+    retry: 8,
+    retryDelay: 1000,
+    enabled,
+  });
+}
+
 export function useHardware() {
   const histRef = useRef<HardwareHistory>({
     cpuUsage: [],
@@ -46,16 +63,7 @@ export function useHardware() {
   });
   const [history, setHistory] = useState<HardwareHistory>(histRef.current);
 
-  const interval = useGatedInterval(1000);
-  const query = useQuery<HardwareData>({
-    queryKey: ['hardware'],
-    queryFn: () => apiClient.get<HardwareData>('/api/hardware'),
-    refetchInterval: interval,
-    staleTime: 900,
-    // system_profiler (graphics) can take 3-5s on cold start — retry generously
-    retry: 8,
-    retryDelay: 1000,
-  });
+  const query = useHardwareQuery();
 
   useEffect(() => {
     if (!query.data) return;

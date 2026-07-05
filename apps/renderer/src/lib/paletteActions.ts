@@ -12,6 +12,7 @@ import { useThemeStore } from '../store/themeStore';
 import { useAppSettingsStore } from '../store/settingsStore';
 import { useTimersStore } from '../store/timersStore';
 import { useOverlayStore } from '../store/overlayStore';
+import { useAlertsStore, describeRule } from '../store/alertsStore';
 import type { LowPowerMode } from '../store/settingsStore';
 
 // ── Layouts ───────────────────────────────────────────────────────────────────
@@ -102,6 +103,27 @@ registerActionSource(() =>
     },
   })),
 );
+
+// ── Alerts ────────────────────────────────────────────────────────────────────
+registerActionSource(() => {
+  const s = useAlertsStore.getState();
+  return [
+    {
+      id: 'alert:settings',
+      title: 'Open alert settings',
+      group: 'Alerts',
+      keywords: 'rules notify threshold',
+      run: () => useOverlayStore.getState().openSettings('alerts'),
+    },
+    ...s.rules.map((r) => ({
+      id: `alert:toggle:${r.id}`,
+      title: `${r.enabled ? 'Disable' : 'Enable'} alert: ${describeRule(r)}`,
+      group: 'Alerts',
+      keywords: 'rule notify',
+      run: () => useAlertsStore.getState().toggleRule(r.id),
+    })),
+  ];
+});
 
 // ── App ───────────────────────────────────────────────────────────────────────
 registerActionSource(() => {

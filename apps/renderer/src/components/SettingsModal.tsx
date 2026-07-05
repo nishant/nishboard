@@ -8,6 +8,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { exportSettings, importSettings } from '../lib/backup';
 import { apiClient } from '../lib/apiClient';
 import { cn } from '../lib/utils';
+import { ToggleRow, SegmentedRow } from './settings/controls';
+import { AlertsPanel } from './settings/AlertsPanel';
+import { useOverlayStore } from '../store/overlayStore';
 
 // Group defs by service
 const SERVICES = Array.from(new Set(CREDENTIAL_DEFS.map((d) => d.service)));
@@ -121,81 +124,6 @@ function BuiltinRow({ label }: { label: string }) {
       <div className="flex items-center gap-1.5 text-th-ghost text-[11px]">
         <Lock size={11} className="shrink-0" />
         <span>Pre-configured</span>
-      </div>
-    </div>
-  );
-}
-
-// ── Toggle switch row ─────────────────────────────────────────────────────────
-
-function ToggleRow({
-  label,
-  description,
-  checked,
-  onChange,
-}: {
-  label: string;
-  description?: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <div className="flex items-start gap-3">
-      <button
-        role="switch"
-        aria-checked={checked}
-        onClick={() => onChange(!checked)}
-        className={cn(
-          'relative w-9 h-5 rounded-full transition-colors shrink-0 mt-0.5',
-          checked ? 'bg-th-accent' : 'bg-th-overlay',
-        )}
-      >
-        <span
-          className={cn(
-            'absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform',
-            checked && 'translate-x-4',
-          )}
-        />
-      </button>
-      <div className="flex flex-col">
-        <span className="text-th-hi text-[11px]">{label}</span>
-        {description && (
-          <span className="text-th-ghost text-[10px] leading-relaxed">{description}</span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Segmented picker row ──────────────────────────────────────────────────────
-
-function SegmentedRow<T extends string>({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: T;
-  options: { value: T; label: string }[];
-  onChange: (v: T) => void;
-}) {
-  return (
-    <div className="flex items-center gap-3">
-      <span className="text-th-3 text-[11px] w-28 shrink-0">{label}</span>
-      <div className="flex rounded-lg bg-th-elevated p-0.5">
-        {options.map((o) => (
-          <button
-            key={o.value}
-            onClick={() => onChange(o.value)}
-            className={cn(
-              'px-2.5 py-1 rounded text-[10px] transition-colors',
-              value === o.value ? 'bg-th-overlay text-th-hi' : 'text-th-ghost hover:text-th-2',
-            )}
-          >
-            {o.label}
-          </button>
-        ))}
       </div>
     </div>
   );
@@ -592,10 +520,11 @@ function DevToolsRow() {
 // ── Modal ─────────────────────────────────────────────────────────────────────
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
-type Tab = 'app' | 'dev';
+type Tab = 'app' | 'alerts' | 'dev';
 
 export function SettingsModal({ onClose }: { onClose: () => void }) {
-  const [tab, setTab] = useState<Tab>('app');
+  // Openers (palette "Open alert settings") can request a starting tab.
+  const [tab, setTab] = useState<Tab>(() => useOverlayStore.getState().settingsTab);
   // Which keys have a stored value (booleans only — values never come over).
   const [status, setStatus] = useState<Partial<Record<CredentialKey, boolean>>>({});
   // Pending changes keyed by credential; absent = untouched.
@@ -712,6 +641,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         {/* Tabs */}
         <div className="flex items-center gap-1 px-5 border-b border-th-line shrink-0">
           {tabBtn('app', 'App')}
+          {tabBtn('alerts', 'Alerts')}
           {tabBtn('dev', 'Developer')}
         </div>
 
@@ -719,6 +649,8 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-6">
           {tab === 'app' ? (
             <AppSettingsPanel />
+          ) : tab === 'alerts' ? (
+            <AlertsPanel />
           ) : loading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 size={18} className="text-th-ghost animate-spin" />
