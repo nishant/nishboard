@@ -1,8 +1,15 @@
 import { useState, useRef } from 'react';
-import { Search, X, ArrowLeft, ChevronRight } from 'lucide-react';
+import { Search, X, ArrowLeft, ChevronRight, ListVideo } from 'lucide-react';
 import { useElementSize } from '../../hooks/useElementSize';
 import { cn } from '../../lib/utils';
-import type { EmbedItem, EmbedServiceAdapter, EmbedBrowse } from './types';
+import type { EmbedItem, EmbedFolder, EmbedFoldersState, EmbedServiceAdapter, EmbedBrowse, EmbedSearchState } from './types';
+
+// Stable no-op hooks so BrowseHome can call the (optional) folder hooks
+// unconditionally — the selection is fixed per adapter, so hook order is stable.
+const NO_FOLDERS: EmbedFoldersState = { folders: undefined, isFetching: false, isError: false };
+const NO_ITEMS: EmbedSearchState = { items: undefined, isFetching: false, isError: false };
+function useNoFolders(_tabId: string, _enabled: boolean): EmbedFoldersState { return NO_FOLDERS; }
+function useNoFolderItems(_folder: EmbedFolder | null): EmbedSearchState { return NO_ITEMS; }
 
 type View = 'home' | 'search';
 
@@ -65,16 +72,96 @@ function HomeScreen({
 // Rendered instead of the hero when the adapter has a browse extension and the
 // tile is tall enough for rows to be useful.
 
+function FolderRow({ folder, onOpen }: { folder: EmbedFolder; onOpen: () => void }) {
+  return (
+    <button
+      onClick={onOpen}
+      className="flex items-center gap-2.5 w-full px-3 py-2 hover:bg-th-elevated/60 transition-colors text-left"
+    >
+      {folder.thumbnailUrl ? (
+        <img
+          src={folder.thumbnailUrl}
+          alt={folder.title}
+          className="w-16 h-9 object-cover rounded shrink-0 bg-th-elevated"
+          loading="lazy"
+        />
+      ) : (
+        <div className="w-16 h-9 rounded shrink-0 bg-th-elevated flex items-center justify-center">
+          <ListVideo size={14} className="text-th-3" />
+        </div>
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="text-th-hi text-[11px] leading-snug line-clamp-2 font-medium">{folder.title}</p>
+        {folder.subtitle && <p className="text-th-3 text-[10px] mt-0.5 truncate">{folder.subtitle}</p>}
+      </div>
+      <ChevronRight size={13} className="text-th-ghost shrink-0" />
+    </button>
+  );
+}
+
 function BrowseHome({
-  adapter, browse, onSearch, onPlay,
+  adapter, browse, onSearch, onPlay, folder, onOpenFolder,
 }: {
   adapter: EmbedServiceAdapter;
   browse: EmbedBrowse;
   onSearch: () => void;
   onPlay: (item: EmbedItem) => void;
+  folder: EmbedFolder | null;
+  onOpenFolder: (folder: EmbedFolder | null) => void;
 }) {
   const [tabId, setTabId] = useState(browse.tabs[0]?.id ?? '');
-  const { items, isFetching, isError, hint } = browse.useBrowse(tabId, tabId !== '');
+  const activeTab = browse.tabs.find((t) => t.id === tabId);
+  const isFolderTab = activeTab?.kind === 'folders';
+
+  // Optional hooks resolved to stable no-ops — selection never changes for a
+  // given adapter, so this preserves hook order.
+  const useFolders = browse.useFolders ?? useNoFolders;
+  const useFolderItems = browse.useFolderItems ?? useNoFolderItems;
+
+  const videoState = browse.useBrowse(tabId, tabId !== '' && !isFolderTab && folder === null);
+  const foldersState = useFolders(tabId, isFolderTab && folder === null);
+  const folderItems = useFolderItems(folder);
+
+  // ── Open folder: back header + its items ──────────────────────────────────
+  if (folder !== null) {
+    const { items, isFetching, isError } = folderItems;
+    return (
+      <div className="h-full flex flex-col">
+        <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-th-line shrink-0">
+          <button
+            onClick={() => onOpenFolder(null)}
+            className="text-th-ghost hover:text-th-2 transition-colors shrink-0"
+            title="Back"
+          >
+            <ArrowLeft size={12} />
+          </button>
+          <span className="text-th-2 text-[11px] font-medium truncate">{folder.title}</span>
+          <button
+            onClick={onSearch}
+            className="ml-auto shrink-0 p-1 rounded text-th-ghost hover:text-th-hi transition-colors"
+            title={adapter.searchPlaceholder}
+          >
+            <Search size={12} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {isFetching && !items && <p className="text-th-ghost text-xs text-center py-6">Loading…</p>}
+          {isError && <p className="text-red-400/70 text-xs text-center py-6 px-4">{adapter.errorHint}</p>}
+          {items?.map((item) => (
+            <ResultRow key={item.id} item={item} thumbShape={adapter.thumbShape} onPlay={() => onPlay(item)} />
+          ))}
+          {items?.length === 0 && <p className="text-th-ghost text-xs text-center py-6">Nothing here</p>}
+        </div>
+      </div>
+    );
+  }
+
+  const items = isFolderTab ? undefined : videoState.items;
+  const folders = isFolderTab ? foldersState.folders : undefined;
+  const isFetching = isFolderTab ? foldersState.isFetching : videoState.isFetching;
+  const isError = isFolderTab ? foldersState.isError : videoState.isError;
+  const hint = isFolderTab ? foldersState.hint : videoState.hint;
+  const empty = isFolderTab ? folders?.length === 0 : items?.length === 0;
 
   return (
     <div className="h-full flex flex-col">
@@ -101,19 +188,28 @@ function BrowseHome({
         </button>
       </div>
       <div className="flex-1 overflow-y-auto min-h-0">
-        {!items && !isFetching && !isError && hint && (
+        {!items && !folders && !isFetching && !isError && hint && (
           <p className="text-th-ghost text-xs text-center py-6 px-4">{hint}</p>
         )}
-        {isFetching && !items && (
+        {isFetching && !items && !folders && (
           <p className="text-th-ghost text-xs text-center py-6">Loading…</p>
         )}
         {isError && (
           <p className="text-red-400/70 text-xs text-center py-6 px-4">{adapter.errorHint}</p>
         )}
-        {items?.map((item) => (
-          <ResultRow key={item.id} item={item} thumbShape={adapter.thumbShape} onPlay={() => onPlay(item)} />
+        {folders?.map((f) => (
+          <FolderRow key={f.id} folder={f} onOpen={() => onOpenFolder(f)} />
         ))}
-        {items?.length === 0 && (
+        {items?.map((item) => (
+          <ResultRow
+            key={item.id}
+            item={item}
+            thumbShape={adapter.thumbShape}
+            onPlay={() => onPlay(item)}
+            onOpenChannel={browse.useFolderItems ? onOpenFolder : undefined}
+          />
+        ))}
+        {empty && (
           <p className="text-th-ghost text-xs text-center py-6">Nothing here right now</p>
         )}
       </div>
@@ -166,12 +262,16 @@ function SearchBar({
 // ── Result row ────────────────────────────────────────────────────────────────
 
 function ResultRow({
-  item, thumbShape, onPlay,
+  item, thumbShape, onPlay, onOpenChannel,
 }: {
   item: EmbedItem;
   thumbShape: 'wide' | 'round';
   onPlay: () => void;
+  /** When set and the item carries a channel, the subtitle opens the channel's
+   *  uploads folder instead of playing the row. */
+  onOpenChannel?: (folder: EmbedFolder) => void;
 }) {
+  const channelClickable = onOpenChannel !== undefined && item.channel !== undefined;
   return (
     <button
       onClick={onPlay}
@@ -192,7 +292,28 @@ function ResultRow({
           {item.isLive && <LiveDot />}
           <p className="text-th-hi text-[11px] leading-snug line-clamp-2 font-medium">{item.title}</p>
         </div>
-        <p className="text-th-3 text-[10px] mt-0.5 truncate">{item.subtitle}</p>
+        {channelClickable ? (
+          <span
+            role="link"
+            tabIndex={0}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenChannel!({ id: `channel:${item.channel!.id}`, title: item.channel!.title });
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.stopPropagation();
+                onOpenChannel!({ id: `channel:${item.channel!.id}`, title: item.channel!.title });
+              }
+            }}
+            className="inline-block text-th-3 text-[10px] mt-0.5 truncate max-w-full hover:text-th-hi hover:underline"
+            title={`${item.channel!.title} — videos`}
+          >
+            {item.subtitle}
+          </span>
+        ) : (
+          <p className="text-th-3 text-[10px] mt-0.5 truncate">{item.subtitle}</p>
+        )}
       </div>
     </button>
   );
@@ -208,6 +329,7 @@ export function EmbedSearchWidget({ adapter }: { adapter: EmbedServiceAdapter })
   const [inputValue, setInputValue] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
   const [selectedItem, setSelectedItem] = useState<EmbedItem | null>(null);
+  const [folder, setFolder] = useState<EmbedFolder | null>(null);
   const { ref: setContainerEl, height } = useElementSize<HTMLDivElement>();
   const resultsRef = useRef<HTMLDivElement>(null);
 
@@ -215,6 +337,13 @@ export function EmbedSearchWidget({ adapter }: { adapter: EmbedServiceAdapter })
 
   const goHome = () => { setSelectedItem(null); setView('home'); };
   const handlePlay = (item: EmbedItem) => { setSelectedItem(item); setView('home'); };
+  // Opening a folder (channel uploads / playlist) always lands on the browse
+  // home — including from search results or the playing overlay (closes player).
+  const openFolder = (f: EmbedFolder | null) => {
+    setFolder(f);
+    if (f !== null) { setSelectedItem(null); setView('home'); }
+  };
+  const channelClicks = adapter.browse?.useFolderItems ? openFolder : undefined;
 
   const handleSubmit = () => {
     const q = inputValue.trim();
@@ -243,6 +372,7 @@ export function EmbedSearchWidget({ adapter }: { adapter: EmbedServiceAdapter })
           item={item}
           thumbShape={adapter.thumbShape}
           onPlay={() => handlePlay(item)}
+          onOpenChannel={channelClicks}
         />
       ))}
       {items?.length === 0 && (
@@ -334,6 +464,8 @@ export function EmbedSearchWidget({ adapter }: { adapter: EmbedServiceAdapter })
             browse={adapter.browse}
             onSearch={() => setView('search')}
             onPlay={handlePlay}
+            folder={folder}
+            onOpenFolder={openFolder}
           />
         ) : (
           <HomeScreen adapter={adapter} onSearch={() => setView('search')} height={height} />

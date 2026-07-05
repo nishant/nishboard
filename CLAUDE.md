@@ -29,7 +29,7 @@ Personal ambient desktop dashboard for Nish, running all day on a secondary moni
 | Hardware | systeminformation | none | 1s |
 | Sound | PowerShell/WASAPI (Win) / osascript + SwitchAudioSource (mac) | none | 5s |
 | Calendar | none (pure-JS date rendering) | none | n/a |
-| YouTube | YouTube Data API v3 (search) + localhost embed proxy | YOUTUBE_API_KEY (~100 searches/day free) | on demand |
+| YouTube | YouTube Data API v3 (search/browse) + localhost embed proxy; user OAuth (auth-code, `youtube.readonly`) for Subs feed / Playlists / Liked + channel drill-in — register redirect `http://localhost:7432/api/youtube/callback` | YOUTUBE_API_KEY (~100 searches/day free) + optional YOUTUBE_CLIENT_ID/_SECRET | on demand / subs 45min cache |
 | Twitch | Twitch Helix (search + followed-live) + localhost embed proxy | app token for search; user OAuth (auth-code, `user:read:follows`) for Following — register redirect `http://localhost:7432/api/twitch/callback` | on demand / 60s followed |
 | News | Google News RSS (keyless) | none | 10min |
 | Crypto | CoinGecko `/coins/markets` (price + 24h change + 7d sparkline, one call) | COINGECKO_API_KEY optional (demo tier 30/min, 10k/mo; keyless = throttled) | 5min poll |

@@ -50,6 +50,11 @@ export function registerIpcHandlers(
     if (url.startsWith('https://id.twitch.tv/')) shell.openExternal(url);
   });
 
+  ipcMain.on('youtube:open-auth', (_event, url: string) => {
+    if (typeof url !== 'string') return;
+    if (url.startsWith('https://accounts.google.com/')) shell.openExternal(url);
+  });
+
   // ── Quick launcher ──────────────────────────────────────────────────────────
   // Targets (paths/URLs) live only in main — the renderer gets sanitized items
   // and launches by id.

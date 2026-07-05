@@ -30,6 +30,8 @@ await esbuild.build({
     'process.env.SPOTIFY_CLIENT_ID_BUILTIN':    JSON.stringify(envVars.SPOTIFY_CLIENT_ID    ?? ''),
     'process.env.SPOTIFY_REDIRECT_URI_BUILTIN': JSON.stringify(envVars.SPOTIFY_REDIRECT_URI ?? 'http://localhost:7432/api/spotify/callback'),
     'process.env.YOUTUBE_API_KEY_BUILTIN':      JSON.stringify(envVars.YOUTUBE_API_KEY      ?? ''),
+    'process.env.YOUTUBE_CLIENT_ID_BUILTIN':     JSON.stringify(envVars.YOUTUBE_CLIENT_ID     ?? ''),
+    'process.env.YOUTUBE_CLIENT_SECRET_BUILTIN': JSON.stringify(envVars.YOUTUBE_CLIENT_SECRET ?? ''),
     'process.env.ALPACA_API_KEY_BUILTIN':       JSON.stringify(envVars.ALPACA_API_KEY       ?? ''),
     'process.env.ALPACA_API_SECRET_BUILTIN':    JSON.stringify(envVars.ALPACA_API_SECRET    ?? ''),
     'process.env.TWITCH_CLIENT_ID_BUILTIN':     JSON.stringify(envVars.TWITCH_CLIENT_ID     ?? ''),

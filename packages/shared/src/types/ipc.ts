@@ -66,6 +66,7 @@ export type IpcChannels =
   | 'spotify:open-auth'
   | 'spotify:token-store'
   | 'twitch:open-auth'
+  | 'youtube:open-auth'
   | 'credentials:get-status'
   | 'credentials:save-all'
   | 'credentials:encryption-available'
@@ -111,6 +112,7 @@ export interface ElectronAPI {
   openSpotifyAuth: (url: string) => void;
   /** Open a Twitch OAuth URL — main process rejects anything not on id.twitch.tv. */
   openTwitchAuth: (url: string) => void;
+  openYoutubeAuth: (url: string) => void;
   onSpotifyTokenStored: (cb: () => void) => () => void;
   /** Fires after the Fastify child restarted (tray menu / Settings) —
    *  listeners should refetch queries. Returns unsubscribe. */
