@@ -30,6 +30,8 @@ jobs:
 
       - run: pnpm lint
 
+      - run: pnpm test
+
       # Full build (shared → server bundle → renderer → main). No .env in CI, so
       # the server bundle simply bakes no _BUILTIN keys — that's fine for a check.
       - run: pnpm build

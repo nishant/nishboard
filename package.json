@@ -13,7 +13,8 @@
     "build": "turbo build",
     "package": "pnpm build && node scripts/prepare-wincodesign.cjs && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --config electron-builder.yml --publish never",
     "typecheck": "turbo typecheck",
-    "lint": "turbo lint"
+    "lint": "turbo lint",
+    "test": "turbo test"
   },
   "devDependencies": {
     "concurrently": "^9.1.0",

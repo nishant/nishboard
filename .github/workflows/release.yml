@@ -36,7 +36,28 @@ permissions:
   contents: write # push the version commit + tag, create the release
 
 jobs:
+  # Release gate: `version` (which creates the tag) depends on this job, so a
+  # red suite means no tag, no build, no release — for merge-triggered AND
+  # manual workflow_dispatch releases alike.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        # version comes from packageManager in the root package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm test
+
   version:
+    needs: test
     runs-on: ubuntu-latest
     outputs:
       released: ${{ steps.bump.outputs.released }}

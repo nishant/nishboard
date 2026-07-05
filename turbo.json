@@ -13,6 +13,9 @@
     "typecheck": {
       "dependsOn": ["^build"]
     },
+    "test": {
+      "dependsOn": ["^build"]
+    },
     "lint": {
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/eslint.config.mjs"]
     }

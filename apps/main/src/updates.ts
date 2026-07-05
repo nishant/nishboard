@@ -11,18 +11,20 @@ const MEMO_MS = 24 * 60 * 60 * 1000;
 
 let memo: { data: UpdateCheckData; at: number } | null = null;
 
-function normalize(tag: string): string {
+/** Exported for tests. */
+export function normalize(tag: string): string {
   return tag.replace(/^v/i, '').trim();
 }
 
-interface ReleaseAsset {
+export interface ReleaseAsset {
   name: string;
   browser_download_url: string;
 }
 
 /** The installer asset for THIS platform, or null. macOS: prefer the current
- *  arch's DMG (…-arm64.dmg) over any other .dmg; Windows: the NSIS .exe. */
-function pickAsset(assets: ReleaseAsset[]): ReleaseAsset | null {
+ *  arch's DMG (…-arm64.dmg) over any other .dmg; Windows: the NSIS .exe.
+ *  Exported for tests. */
+export function pickAsset(assets: ReleaseAsset[]): ReleaseAsset | null {
   if (process.platform === 'darwin') {
     const dmgs = assets.filter((a) => a.name.endsWith('.dmg'));
     return dmgs.find((a) => a.name.includes(`-${process.arch}`)) ?? dmgs[0] ?? null;
