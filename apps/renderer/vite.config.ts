@@ -22,12 +22,16 @@ export default defineConfig({
     sourcemap: 'hidden',
     rollupOptions: {
       output: {
-        // Split the heavyweights so the initial parse/execute on cold start is
-        // smaller and vendor code caches independently of app code.
-        manualChunks: {
-          recharts: ['recharts'],
-          'grid-layout': ['react-grid-layout'],
-          vendor: ['react', 'react-dom', '@tanstack/react-query', 'lucide-react'],
+        // Keep node_modules in ONE vendor chunk (caches independently of app code).
+        // Do NOT hand-split react/recharts into separate chunks: recharts reaches into
+        // React internals (`__SECRET_INTERNALS…`) at module-init, and a recharts↔vendor
+        // circular chunk left React uninitialized when recharts ran → blank screen in the
+        // packaged build. A single vendor chunk lets Rollup order init topologically.
+        // grid-layout stays separate (leaf: depends on vendor one-way, never back).
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return;
+          if (id.includes('react-grid-layout') || id.includes('react-resizable')) return 'grid-layout';
+          return 'vendor';
         },
       },
     },

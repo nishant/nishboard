@@ -36,6 +36,16 @@ files:
   - from: packages/server/dist
     to: server
     filter: ["index.js"]
+  # apps/main is tsc-compiled (NOT bundled), so value imports from @dash/shared survive as a
+  # runtime `require('@dash/shared')` (e.g. CREDENTIAL_KEYS in credentials.ts — added in #63).
+  # Ship the compiled workspace package as a resolvable node_module: Node resolution walks up
+  # from app/dist/*.js to app/node_modules/@dash/shared, whose package.json "main" is dist/index.js.
+  - from: packages/shared/dist
+    to: node_modules/@dash/shared/dist
+    filter: ["**/*"]
+  - from: packages/shared
+    to: node_modules/@dash/shared
+    filter: ["package.json"]
 
 win:
   target: nsis
