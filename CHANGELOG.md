@@ -4,6 +4,32 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #93] chore: unit tests across all packages + test-gated releases
+**Branch:** `chore/unit-tests` → master
+**Date:** 2026-07-05
+
+### Context
+~90 merged PRs, multiple concurrent dev sessions, auto-merge everywhere — and until now no release was gated on any behavioral check (CI ran typecheck/lint/build only, and the release workflow tagged before validating anything). This adds the first automated test suite: 118 vitest unit tests over the pure logic where regressions actually hurt, wired into CI and blocking releases.
+
+### Added
+- **vitest across the monorepo** — per-package `vitest.config.ts` (renderer: jsdom + the vite aliases; main: node + an `electron` → `test/electron-stub.ts` alias so main-process modules import cleanly; server: node), `test` scripts in all three packages, a turbo `test` task (`dependsOn ^build`), and root `pnpm test`.
+- **Renderer suite (79 tests, 9 files)** — `alertEval` (silent seeding, exactly-once edge fires, cooldown drop + re-fire, CPU sustain/gap/dip, malformed-payload guards, prune), `layouts` (every static preset and BSP-generated layout proven gap-free/overlap-free; hide-reflow; bottom-row fallback), `backup` import whitelisting (crafted files can't write arbitrary localStorage), `settingsStore`/`notesStore` persisted-state migrations, `alertsStore` describeRule/CRUD, `colorUtils`, `fuzzy`, `time`.
+- **Server suite (28 tests, 5 files)** — `TtlCache` (TTL + FIFO eviction), `http` (`fetchJson` error mapping, timeout signal), `env` `cred()` precedence (runtime env → baked → ''), `rethrowRefreshFailure` classification (the #87 session-wipe bug class), route helpers `fnv1a`/`downsample`/`isMarketOpen`.
+- **Main suite (11 tests, 2 files)** — `migrateLauncherFile` (v1 wrap, validation, dangling-group pruning, non-`data:` icon rejection), `updates` `normalize`/`pickAsset`.
+
+### Changed
+- **`ci.yml`** — `pnpm test` runs between lint and build.
+- **`release.yml`** — new `test` job; `version` (the job that creates the tag) now `needs: test`, so a red suite means no tag, no build, no release — for merge-triggered and manual `workflow_dispatch` releases alike.
+- **Test-only exports** (marked `/** Exported for tests. */`): `fnv1a` (weather), `downsample` (crypto), `isMarketOpen` (stocks), `normalize`/`pickAsset` (main updates).
+- **`apps/main/tsconfig.json`** excludes `*.test.ts` + `test/` so the tsc build never emits tests into the packaged `dist/`.
+
+### Notes
+- vitest is pinned to v3 — v4 requires vite 6 and the renderer pins vite 5.
+- Known limitation: these tests can't catch packaged-app-only failures (`file://` origin, chunk ordering, electron-builder file lists) — the gate stops logic regressions, not packaging regressions.
+- Latent quirk found while testing (not fixed here, self-heals with one rule): with 2+ `cpu-sustained` rules, `evaluateCpuRules`'s seed/gap branches `return` instead of `continue`, skipping the remaining rules for that sample.
+
+---
+
 ## [PR #92] fix: electron-builder must never self-publish (--publish never)
 **Branch:** `fix/eb-publish-never` → master
 **Date:** 2026-07-05

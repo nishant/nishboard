@@ -197,7 +197,8 @@ async function fetchAirQuality(lat: number, lon: number): Promise<AirQualityData
 
 // Tiny FNV-1a — stable fallback id when NWS omits properties.id, so the
 // renderer's new-alert dedupe still works on content identity.
-function fnv1a(s: string): string {
+/** Exported for tests. */
+export function fnv1a(s: string): string {
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) {
     h ^= s.charCodeAt(i);

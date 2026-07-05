@@ -24,8 +24,9 @@ interface GeckoMarket {
   sparkline_in_7d?: { price?: number[] };
 }
 
-/** 7d hourly sparkline is ~168 points — every 4th is plenty for a tile chart. */
-function downsample(points: number[], step = 4): number[] {
+/** 7d hourly sparkline is ~168 points — every 4th is plenty for a tile chart.
+ *  Exported for tests. */
+export function downsample(points: number[], step = 4): number[] {
   return points.filter((_, i) => i % step === 0);
 }
 

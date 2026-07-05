@@ -69,6 +69,16 @@ Three places a key can live — checked in this order at runtime:
 - API response types: `Data` suffix — e.g. `WeatherData`, `TrackData`
 - API routes: lowercase kebab — `/api/spotify/now-playing`
 
+## Testing
+- `pnpm test` = turbo → per-package `vitest run`. Tests are colocated `*.test.ts` next to their source (renderer allows `.test.tsx`).
+- **vitest is pinned to v3** — v4 needs vite 6; the renderer pins vite 5.
+- Renderer tests run in **jsdom** with the same aliases as vite.config.ts; zustand persist stores are tested by seeding localStorage (`{state, version}` envelope) then `vi.resetModules()` + dynamic import.
+- Main-process tests alias `electron` → `apps/main/test/electron-stub.ts` (module-scope `import { app } from 'electron'` would otherwise crash under node). Keep the stub's exports in sync with what main modules destructure. `apps/main/tsconfig.json` excludes tests from the build so they never reach the packaged `dist/`.
+- Server upstreams all go through global `fetch` → stub with `vi.stubGlobal('fetch', …)`. `lib/env.ts` parses `BUILTINS_JSON` at module load — set the env var **before** a fresh `vi.resetModules()` import.
+- Helpers exported solely for tests are marked `/** Exported for tests. */`.
+- **Releases are test-gated**: `release.yml`'s `version` job (tag creation) `needs: test` — a red suite means no tag/build/release, including manual dispatches. CI also runs `pnpm test` on every PR.
+- Unit tests don't cover packaged-app-only failures (`file://`, chunking, electron-builder file lists) — see **Embedding & Platform Gotchas**; verify those in a real packaged build.
+
 ## Working With Nish
 - Senior software engineer (7 years), TypeScript/Angular/Node expert — no hand-holding
 - Generate complete working files, not snippets

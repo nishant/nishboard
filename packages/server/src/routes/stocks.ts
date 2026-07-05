@@ -42,7 +42,8 @@ interface AlpacaSnapshot {
   prevDailyBar?: AlpacaBar;
 }
 
-function isMarketOpen(): boolean {
+/** Exported for tests. */
+export function isMarketOpen(): boolean {
   const now = new Date();
   const fmt = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York',
