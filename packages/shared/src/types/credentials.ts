@@ -1,6 +1,8 @@
 export const CREDENTIAL_KEYS = [
   'SPOTIFY_CLIENT_ID',
   'YOUTUBE_API_KEY',
+  'YOUTUBE_CLIENT_ID',
+  'YOUTUBE_CLIENT_SECRET',
   'ALPACA_API_KEY',
   'ALPACA_API_SECRET',
   'TWITCH_CLIENT_ID',
@@ -26,6 +28,13 @@ export const CREDENTIAL_DEFS: CredentialDef[] = [
     hint: 'Create an app at developer.spotify.com → Dashboard. Set redirect URI to http://127.0.0.1:7432/api/spotify/callback',
   },
   { key: 'YOUTUBE_API_KEY',      label: 'API Key',       service: 'YouTube' },
+  {
+    key: 'YOUTUBE_CLIENT_ID',
+    label: 'OAuth Client ID',
+    service: 'YouTube',
+    hint: 'Optional — enables the signed-in Subs/Playlists/Liked tabs. Google Cloud console → OAuth client (Web application) with redirect URI http://localhost:7432/api/youtube/callback',
+  },
+  { key: 'YOUTUBE_CLIENT_SECRET', label: 'OAuth Client Secret', service: 'YouTube' },
   { key: 'ALPACA_API_KEY',       label: 'API Key',       service: 'Stocks (Alpaca)' },
   { key: 'ALPACA_API_SECRET',    label: 'API Secret',    service: 'Stocks (Alpaca)' },
   { key: 'TWITCH_CLIENT_ID',     label: 'Client ID',     service: 'Twitch' },

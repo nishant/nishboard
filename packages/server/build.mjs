@@ -15,10 +15,28 @@ if (fs.existsSync(envFile)) {
   }
 }
 
-// Keys baked in at package time from .env.
-// _BUILTIN vars are replaced with string literals by esbuild — they never
-// appear in source or version control. Runtime env (from safeStorage/Settings)
-// takes priority over these in every route.
+// Keys baked in at package time from .env, injected as ONE static define:
+// esbuild replaces the literal `process.env.BUILTINS_JSON` reference in
+// lib/env.ts with a JSON string of this map. (Per-key `<KEY>_BUILTIN` defines
+// can't work — cred() accesses process.env dynamically, and define only
+// rewrites static member expressions.) Values land in the compiled bundle
+// only — never in source or git.
+const BUILTIN_KEYS = [
+  'SPOTIFY_CLIENT_ID',
+  'SPOTIFY_REDIRECT_URI',
+  'YOUTUBE_API_KEY',
+  'YOUTUBE_CLIENT_ID',
+  'YOUTUBE_CLIENT_SECRET',
+  'ALPACA_API_KEY',
+  'ALPACA_API_SECRET',
+  'TWITCH_CLIENT_ID',
+  'TWITCH_CLIENT_SECRET',
+  'COINGECKO_API_KEY',
+];
+const builtins = Object.fromEntries(
+  BUILTIN_KEYS.map((k) => [k, envVars[k] ?? '']).filter(([, v]) => v !== ''),
+);
+
 await esbuild.build({
   entryPoints: ['src/index.ts'],
   bundle: true,
@@ -27,13 +45,8 @@ await esbuild.build({
   format: 'cjs',
   outfile: 'dist/index.js',
   define: {
-    'process.env.SPOTIFY_CLIENT_ID_BUILTIN':    JSON.stringify(envVars.SPOTIFY_CLIENT_ID    ?? ''),
-    'process.env.SPOTIFY_REDIRECT_URI_BUILTIN': JSON.stringify(envVars.SPOTIFY_REDIRECT_URI ?? 'http://localhost:7432/api/spotify/callback'),
-    'process.env.YOUTUBE_API_KEY_BUILTIN':      JSON.stringify(envVars.YOUTUBE_API_KEY      ?? ''),
-    'process.env.ALPACA_API_KEY_BUILTIN':       JSON.stringify(envVars.ALPACA_API_KEY       ?? ''),
-    'process.env.ALPACA_API_SECRET_BUILTIN':    JSON.stringify(envVars.ALPACA_API_SECRET    ?? ''),
-    'process.env.TWITCH_CLIENT_ID_BUILTIN':     JSON.stringify(envVars.TWITCH_CLIENT_ID     ?? ''),
-    'process.env.TWITCH_CLIENT_SECRET_BUILTIN': JSON.stringify(envVars.TWITCH_CLIENT_SECRET ?? ''),
-    'process.env.COINGECKO_API_KEY_BUILTIN':    JSON.stringify(envVars.COINGECKO_API_KEY    ?? ''),
+    // Double-stringify: the define value must be a JS expression — here, a
+    // string literal whose contents are the JSON map.
+    'process.env.BUILTINS_JSON': JSON.stringify(JSON.stringify(builtins)),
   },
 });

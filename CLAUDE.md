@@ -29,7 +29,7 @@ Personal ambient desktop dashboard for Nish, running all day on a secondary moni
 | Hardware | systeminformation | none | 1s |
 | Sound | PowerShell/WASAPI (Win) / osascript + SwitchAudioSource (mac) | none | 5s |
 | Calendar | none (pure-JS date rendering) | none | n/a |
-| YouTube | YouTube Data API v3 (search) + localhost embed proxy | YOUTUBE_API_KEY (~100 searches/day free) | on demand |
+| YouTube | YouTube Data API v3 (search/browse) + localhost embed proxy; user OAuth (auth-code, `youtube.readonly`) for Subs feed / Playlists / Liked + channel drill-in — register redirect `http://localhost:7432/api/youtube/callback` | YOUTUBE_API_KEY (~100 searches/day free) + optional YOUTUBE_CLIENT_ID/_SECRET | on demand / subs 45min cache |
 | Twitch | Twitch Helix (search + followed-live) + localhost embed proxy | app token for search; user OAuth (auth-code, `user:read:follows`) for Following — register redirect `http://localhost:7432/api/twitch/callback` | on demand / 60s followed |
 | News | Google News RSS (keyless) | none | 10min |
 | Crypto | CoinGecko `/coins/markets` (price + 24h change + 7d sparkline, one call) | COINGECKO_API_KEY optional (demo tier 30/min, 10k/mo; keyless = throttled) | 5min poll |
@@ -46,7 +46,7 @@ Settings → Developer is **write-only**: the renderer only ever learns *which* 
 
 Three places a key can live — checked in this order at runtime:
 1. **Runtime env from safeStorage** — user-entered keys are encrypted with Electron `safeStorage` in `userData/credentials.json`, decrypted on launch, and injected as env vars into the spawned Fastify process. Saving in Settings restarts the server.
-2. **Build-time baked values** — `packages/server/build.mjs` reads the root `.env` at package time and bakes each key into the server bundle via esbuild `--define` as `process.env.<KEY>_BUILTIN`. The *value* lands in the compiled bundle only — never in source or git (`.env` is gitignored). This is what lets a distributed DMG/EXE "just work". Each route reads runtime env first, then falls back to the `_BUILTIN` value.
+2. **Build-time baked values** — `packages/server/build.mjs` reads the root `.env` at package time and bakes ALL keys into the server bundle as ONE esbuild define: a JSON blob replacing the static `process.env.BUILTINS_JSON` reference in `lib/env.ts`. ⚠️ It must stay a single static reference — esbuild `define` cannot rewrite dynamic `process.env[computed]` access, which is why the original per-key `<KEY>_BUILTIN` defines silently never worked. Values land in the compiled bundle only — never in source or git (`.env` is gitignored). This is what lets a distributed DMG/EXE "just work". `cred()` reads runtime env first, then the baked map.
 3. **`.env`** — only loaded in local `pnpm dev` (dotenv). Never committed.
 
 **Spotify OAuth tokens** are *not* in safeStorage — they're plain JSON at `~/.dash/spotify_tokens.json` (home dir, survives reinstalls). A refresh token is bound to the `client_id` that minted it; if the client_id changes, stale tokens fail refresh → Disconnect→Connect to reset.

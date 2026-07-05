@@ -4,6 +4,31 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #85] feat: YouTube account — OAuth + Subs feed + Playlists/Liked + channel drill-in
+**Branch:** `feat/youtube-account` → master
+**Date:** 2026-07-05
+
+### Context
+Batch B of the accounts roadmap. YouTube was public-data only (API key: search/browse/embed). This adds Google sign-in and the personal surfaces the Data API actually exposes — subscriptions, playlists, liked videos — plus "click a channel → see its uploads" everywhere. (No watch history / home-feed recs: Google doesn't expose them; Watch Later API access was killed in 2016.)
+
+### Added
+- **Google OAuth (server)** — mirror of the Twitch flow: `/api/youtube/auth-url | callback | auth-status | logout`, auth-code grant with `access_type=offline&prompt=consent` (guarantees a refresh_token), scope `youtube.readonly`, `UserTokenStore('youtube_tokens.json')` (Google doesn't rotate refresh tokens). New credentials `YOUTUBE_CLIENT_ID`/`YOUTUBE_CLIENT_SECRET` (safeStorage + `_BUILTIN` bake + Settings → Developer rows). Guarded `youtube:open-auth` IPC (accounts.google.com only).
+- **Subs feed** — `/api/youtube/subscriptions-feed`: subscriptions (≤100 channels) → uploads playlists (batched channels.list) → newest 5 per channel (concurrency 8, per-channel failures skipped) → merged newest-first (60). Quota ≈ N+3 units per cold refresh, 45-min cache.
+- **Playlists + Liked** — `/api/youtube/my-playlists` + `/playlist-videos?playlistId=` (15-min caches); `/liked` via `videos.list?myRating=like` (the supported path — playlistItems on `LL` is dead).
+- **Channel drill-in** — `/api/youtube/channel-videos?channelId=`: uploads playlist resolved properly, newest 30, 30-min cache. Public data: works with the plain API key, falls back to the user token when only OAuth is configured.
+- **Embed framework: folders** — `EmbedSearchWidget` grows a generic drillable layer: `EmbedFolder`, `kind:'folders'` browse tabs (`useFolders`), `useFolderItems`, `FolderRow`, back-header view, and channel-clickable row subtitles (`EmbedItem.channel`, stop-propagation span). Optional hooks resolve to stable no-op hooks so hook order is preserved; Twitch is untouched.
+- **Widget** — tabs now `Subs · Playlists · Liked · Trending · Music · Gaming` + Connect/disconnect header (Twitch pattern, 15s auth poll). `channelId` added to `YoutubeVideo` and populated by every mapper (search, browse, playlistItems via `videoOwnerChannel*`), so any row's channel name opens that channel's uploads.
+
+### Fixed
+- **Build-time key baking never worked** (pre-existing, found packaging this branch): `cred()` reads `process.env[key + '_BUILTIN']` *dynamically*, but esbuild `define` only rewrites *static* member expressions — so every `<KEY>_BUILTIN` define since the feature shipped was dead code and no packaged build ever carried baked keys (unnoticed: dev loads `.env`, and the only static `_BUILTIN` refs — the startup key list — got constant-folded). Rework: `build.mjs` injects ONE static define, a JSON blob replacing `process.env.BUILTINS_JSON` in `lib/env.ts`; `cred()` falls back to the parsed map; `/api/credentials/builtin` reads `builtinKeys()`. Verified: the bundled server with a **zero env** serves the correct Google auth-url and reports all 9 baked keys.
+- **Turbo cache poisoning** (`turbo.json`): build outputs now include `*.tsbuildinfo` alongside `dist/**` — restoring dist without the matching incremental state makes the next tsc no-op-emit ("up to date") and turbo then caches that stale dist under the new input hash, corrupting every downstream typecheck until caches are hand-nuked. Hit while merging master into this branch.
+
+### Notes
+- Verified live: auth-url builds the correct Google URL; unauthed personal endpoints return clean 401s; `channel-videos` returned 30 real uploads via API key; UI: all 6 tabs render, Connect shows signed-out, channel-click on a Trending row opened the channel's uploads with working back navigation. **OAuth round-trip needs Nish's Google account** — left for manual testing before merge.
+- Signed-out account tabs show "Connect your Google account to see this" — everything public keeps working with just the API key.
+
+---
+
 ## [PR #84] chore: CI + tag-triggered releases + in-app download link
 **Branch:** `chore/release-ci` → master
 **Date:** 2026-07-05
@@ -66,7 +91,6 @@ Three prod-only defects surfaced while testing the packaged DMG (dev mode masked
 - The server (`packages/server`) is esbuild-bundled with all deps inlined, so it was never affected by the module/chunk bugs. Only the tsc-compiled main process can leak a bare workspace `require`; `credentials.js` is currently its sole runtime importer of `@dash/shared`.
 - Trade-off: `vendor` is now a single ~780 kB (gzip ~225 kB) chunk instead of three. Fine for a desktop app loaded from local disk; the win is a correct init order over marginally smaller parallel chunks.
 - The radar CSP strip only runs inside Electron's session, so it can't be exercised by a browser-based preview — it mirrors the proven Twitch fix exactly. Radar already worked in `pnpm dev` (renderer is `http://localhost:5173`).
-
 ---
 
 ## [PR #81] feat: launcher groups + icons

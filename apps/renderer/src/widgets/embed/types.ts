@@ -9,6 +9,25 @@ export interface EmbedItem {
   thumbnailUrl: string;
   /** Renders the pulsing live dot in rows and the control bar when true. */
   isLive?: boolean;
+  /** When set (and the adapter has useFolderItems), the row subtitle becomes a
+   *  click target that opens this channel's uploads as a folder view. */
+  channel?: { id: string; title: string };
+}
+
+/** A drillable container of items (a playlist, or a channel's uploads). */
+export interface EmbedFolder {
+  /** Adapter-interpreted key, e.g. 'PLxyz…' or 'channel:UCxyz…'. */
+  id: string;
+  title: string;
+  subtitle?: string;
+  thumbnailUrl?: string | null;
+}
+
+export interface EmbedFoldersState {
+  folders: EmbedFolder[] | undefined;
+  isFetching: boolean;
+  isError: boolean;
+  hint?: string;
 }
 
 /** What EmbedSearchWidget needs from a search — decoupled from TanStack types
@@ -26,6 +45,9 @@ export interface EmbedSearchState {
 export interface EmbedBrowseTab {
   id: string;
   label: string;
+  /** 'folders' renders the tab as a drillable list (needs useFolders +
+   *  useFolderItems on the browse extension). Default: 'videos'. */
+  kind?: 'videos' | 'folders';
 }
 
 /** Optional browse extension: a cheap home feed (tab strip + rows) replacing
@@ -38,6 +60,12 @@ export interface EmbedBrowse {
   /** Optional extra control rendered at the left of the tab strip
    *  (e.g. a Twitch "Connect" button). */
   HomeHeader?: () => ReactElement | null;
+  /** Folder rows for a kind:'folders' tab (e.g. "your playlists"). Must be a
+   *  real hook; `enabled` gates fetching. */
+  useFolders?: (tabId: string, enabled: boolean) => EmbedFoldersState;
+  /** Items inside an open folder (also serves channel-uploads folders opened
+   *  from a row's channel click). Must be a real hook; null folder = disabled. */
+  useFolderItems?: (folder: EmbedFolder | null) => EmbedSearchState;
 }
 
 /** Everything service-specific about an embed-search widget. The generic
