@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import { fetchJson, HttpError } from '../lib/http';
 import { TtlCache } from '../lib/TtlCache';
 import { cred } from '../lib/env';
-import { UserTokenStore } from '../lib/userTokenStore';
+import { UserTokenStore, rethrowRefreshFailure } from '../lib/userTokenStore';
 import type { StoredUserTokens } from '../lib/userTokenStore';
 
 const BASE = 'https://www.googleapis.com/youtube/v3';
@@ -20,25 +20,35 @@ const YT_REDIRECT_URI = 'http://localhost:7432/api/youtube/callback';
 const YT_USER_SCOPES = 'https://www.googleapis.com/auth/youtube.readonly';
 
 async function refreshYoutubeToken(refreshToken: string): Promise<StoredUserTokens> {
-  const data = await fetchJson<{ access_token: string; expires_in: number }>(
-    GOOGLE_TOKEN,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: refreshToken,
-        client_id: cred('YOUTUBE_CLIENT_ID'),
-        client_secret: cred('YOUTUBE_CLIENT_SECRET'),
-      }),
-    },
-    { label: 'YouTube token refresh' },
-  );
-  return {
-    access_token: data.access_token,
-    refresh_token: refreshToken, // Google does not rotate refresh tokens
-    expires_at: Date.now() + data.expires_in * 1000,
-  };
+  // Without client credentials the token endpoint would 4xx and look like a
+  // dead grant — refuse to even try, so the stored session survives until
+  // credentials are configured again.
+  if (!cred('YOUTUBE_CLIENT_ID') || !cred('YOUTUBE_CLIENT_SECRET')) {
+    throw new HttpError(503, 'YouTube client credentials not configured — cannot refresh token');
+  }
+  try {
+    const data = await fetchJson<{ access_token: string; expires_in: number }>(
+      GOOGLE_TOKEN,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken,
+          client_id: cred('YOUTUBE_CLIENT_ID'),
+          client_secret: cred('YOUTUBE_CLIENT_SECRET'),
+        }),
+      },
+      { label: 'YouTube token refresh' },
+    );
+    return {
+      access_token: data.access_token,
+      refresh_token: refreshToken, // Google does not rotate refresh tokens
+      expires_at: Date.now() + data.expires_in * 1000,
+    };
+  } catch (err) {
+    rethrowRefreshFailure(err);
+  }
 }
 
 const userTokens = new UserTokenStore('youtube_tokens.json', refreshYoutubeToken);

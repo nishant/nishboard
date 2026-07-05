@@ -20,6 +20,26 @@ README had drifted badly (three widgets missing, "future user OAuth" for a shipp
 
 ---
 
+## [PR #87] fix: token store no longer wipes sessions on transient refresh failures
+**Branch:** `fix/token-refresh-clear` → master
+**Date:** 2026-07-05
+
+### Context
+`UserTokenStore.getValidToken` cleared the persisted tokens (`~/.dash/<service>_tokens.json`) on **any** refresh error — including network failures, timeouts, and misconfiguration. This destroyed a valid Twitch session on 2026-07-05: a packaged build with missing client credentials (the then-broken `_BUILTIN` bake, fixed in PR #85) attempted a refresh with an empty `client_id`, got a 4xx from the token endpoint, and wiped the token file. The session was fine; only the credentials were missing.
+
+### Fixed
+- **`lib/userTokenStore.ts`** — the store now clears only on a new typed `RefreshAuthError` (extends `UpstreamError`, so the central error handler's status mapping applies unchanged). All other refresh failures — network errors, timeouts, 429/5xx, missing credentials — propagate without touching the stored tokens, so the session survives and the next call retries.
+- **Refresh functions** (`spotify.ts refreshAccessToken`, `twitch.ts refreshUserToken`, `youtube.ts refreshYoutubeToken`) — each now (1) throws `HttpError(503)` **before** hitting the token endpoint when its client credential(s) are empty (an empty `client_id` guarantees a 4xx that would masquerade as a dead grant), and (2) maps a definitive token-endpoint rejection (`UpstreamError` 400/401/403) to `RefreshAuthError` via the shared `rethrowRefreshFailure` helper.
+
+### Changed
+- **Spotify refresh** switched from raw `fetch` (no timeout, generic `Error`) to the shared `fetchJson` — gains the standard 10s timeout and `UpstreamError` semantics the other two services already had.
+
+### Notes
+- The "definitive" statuses are 400/401/403 *from the token endpoint with credentials present* — the missing-credential guard runs first, so a 4xx can no longer be caused by empty client credentials.
+- Behavior on a genuinely dead grant (e.g. token minted under a different `client_id`) is unchanged: store clears, widget flips to "Connect".
+
+---
+
 ## [PR #85] feat: YouTube account — OAuth + Subs feed + Playlists/Liked + channel drill-in
 **Branch:** `feat/youtube-account` → master
 **Date:** 2026-07-05

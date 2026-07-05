@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import { fetchJson, HttpError, UpstreamError } from '../lib/http';
 import { TtlCache } from '../lib/TtlCache';
 import { cred } from '../lib/env';
-import { UserTokenStore } from '../lib/userTokenStore';
+import { UserTokenStore, rethrowRefreshFailure } from '../lib/userTokenStore';
 import type { StoredUserTokens } from '../lib/userTokenStore';
 
 const TOKEN_URL = 'https://id.twitch.tv/oauth2/token';
@@ -18,26 +18,36 @@ const REDIRECT_URI = 'http://localhost:7432/api/twitch/callback';
 const USER_SCOPES = 'user:read:follows';
 
 async function refreshUserToken(refreshToken: string): Promise<StoredUserTokens> {
-  const data = await fetchJson<{ access_token: string; refresh_token?: string; expires_in: number }>(
-    TOKEN_URL,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: refreshToken,
-        client_id: cred('TWITCH_CLIENT_ID'),
-        client_secret: cred('TWITCH_CLIENT_SECRET'),
-      }),
-    },
-    { label: 'Twitch token refresh' },
-  );
-  return {
-    access_token: data.access_token,
-    // Twitch rotates refresh tokens — fall back defensively.
-    refresh_token: data.refresh_token ?? refreshToken,
-    expires_at: Date.now() + data.expires_in * 1000,
-  };
+  // Without client credentials the token endpoint would 4xx and look like a
+  // dead grant — refuse to even try, so the stored session survives until
+  // credentials are configured again.
+  if (!cred('TWITCH_CLIENT_ID') || !cred('TWITCH_CLIENT_SECRET')) {
+    throw new HttpError(503, 'Twitch client credentials not configured — cannot refresh token');
+  }
+  try {
+    const data = await fetchJson<{ access_token: string; refresh_token?: string; expires_in: number }>(
+      TOKEN_URL,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken,
+          client_id: cred('TWITCH_CLIENT_ID'),
+          client_secret: cred('TWITCH_CLIENT_SECRET'),
+        }),
+      },
+      { label: 'Twitch token refresh' },
+    );
+    return {
+      access_token: data.access_token,
+      // Twitch rotates refresh tokens — fall back defensively.
+      refresh_token: data.refresh_token ?? refreshToken,
+      expires_at: Date.now() + data.expires_in * 1000,
+    };
+  } catch (err) {
+    rethrowRefreshFailure(err);
+  }
 }
 
 // Twitch user tokens are short (~4h) and refresh-rotated → the shared store's
