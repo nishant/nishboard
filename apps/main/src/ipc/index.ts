@@ -4,8 +4,10 @@ import { restartServer, logsDir } from '../server/spawn';
 import { checkUpdates } from '../updates';
 import { chooseBackupFolder, writeBackup } from '../backup';
 import {
-  getLauncherItems, addLauncherApp, addLauncherUrl,
+  getLauncherState, addLauncherApp, addLauncherUrl,
   removeLauncherItem, renameLauncherItem, reorderLauncherItems, launchItem,
+  addLauncherGroup, renameLauncherGroup, removeLauncherGroup,
+  assignLauncherGroup, launchGroup, refreshLauncherIcons,
 } from '../launcher';
 import {
   setClipboardWatch, getClipboardHistory, copyClipboardEntry, clearClipboardHistory,
@@ -52,7 +54,7 @@ export function registerIpcHandlers(
   // Targets (paths/URLs) live only in main — the renderer gets sanitized items
   // and launches by id.
 
-  ipcMain.handle('launcher:get-items', () => getLauncherItems());
+  ipcMain.handle('launcher:get-items', () => getLauncherState());
   ipcMain.handle('launcher:add-app', (event) =>
     addLauncherApp(BrowserWindow.fromWebContents(event.sender)));
   ipcMain.handle('launcher:add-url', (_event, label: string, url: string) =>
@@ -63,6 +65,16 @@ export function registerIpcHandlers(
   ipcMain.handle('launcher:reorder', (_event, ids: string[]) =>
     reorderLauncherItems(Array.isArray(ids) ? ids.map(String) : []));
   ipcMain.handle('launcher:launch', (_event, id: string) => launchItem(String(id)));
+  ipcMain.handle('launcher:add-group', (_event, label: string) =>
+    addLauncherGroup(String(label ?? '')));
+  ipcMain.handle('launcher:rename-group', (_event, id: string, label: string) =>
+    renameLauncherGroup(String(id), String(label ?? '')));
+  ipcMain.handle('launcher:remove-group', (_event, id: string) =>
+    removeLauncherGroup(String(id)));
+  ipcMain.handle('launcher:assign-group', (_event, itemId: string, groupId: string | null) =>
+    assignLauncherGroup(String(itemId), groupId === null ? null : String(groupId)));
+  ipcMain.handle('launcher:launch-group', (_event, id: string) => launchGroup(String(id)));
+  ipcMain.handle('launcher:refresh-icons', () => refreshLauncherIcons());
 
   // ── About / updates / backup / logs ──────────────────────────────────────────
 
