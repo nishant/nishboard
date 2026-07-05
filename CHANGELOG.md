@@ -4,6 +4,25 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #80] feat: weather alert push + hourly precip bars
+**Branch:** `feat/weather-push-precip` → master
+**Date:** 2026-07-05
+
+### Context
+Second post-slate batch. NWS severe-weather alerts were fetched and displayed passively in the widget banner; now NEW alerts push through the `fireAlert` path (chime + toast + native notification). Plus the hourly strip gets an always-present precipitation bar per hour.
+
+### Added
+- `WeatherAlert.id` (shared type) — NWS `properties.id` kept server-side, with an FNV-1a content-hash fallback (`nws-<hash>`) when NWS omits it, so the renderer's new-alert dedupe always has a stable key. Alerts fetch stays fail-soft.
+- `components/WeatherAlertNotifier.tsx` — headless, in App, deliberately separate from `AlertsEvaluator` (seen-set model + settings gate, not user rules). Module-level `seenIds` (cap 300, insertion-order prune) + `seededZips`: a zip's **first payload seeds silently** — pre-existing alerts at launch, or on first visit to a newly cycled zip, are ambient state, not news. Id-less alerts from a warm pre-upgrade cache dedupe via an `event|headline` fallback key. Observes the same weather query as the widget (deduped); `off` forces no polling.
+- Setting **Weather → Alert push**: `off / severe-only / all`, default severe-only (Extreme|Severe, matching the widget banner's threshold). No persist version bump needed — new keys shallow-merge.
+- Hourly strip: constant-height vertical precip track per hour (`h-6 w-1`, blue fill at `precipChance%`), mirroring the 5-day bar idiom. The conditional `>20%` text is gone (it caused column-height jitter); the exact number moved to the column tooltip.
+
+### Notes
+- Server NWS parse verified by review only (api.weather.gov is proxy-blocked in the sandbox); renderer covered by fixtures including the id-less shape. On-device: needs a real active alert (or `all` mode + a minor advisory) to see a live push.
+- Verified headless (11/11): silent seed, new-severe fires once with event/headline, seen-id no-refire, minor suppressed in severe-only, id-less fallback fires once then dedupes, 12 tracks with fill heights matching fixture, shell survives malformed payloads.
+
+---
+
 ## [PR #79] feat: unified alerts engine
 **Branch:** `feat/alerts-engine` → master
 **Date:** 2026-07-05

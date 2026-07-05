@@ -3,7 +3,7 @@ import { X, Eye, EyeOff, Check, Loader2, Lock, Minus, Plus, Download, Upload, Fo
 import { CREDENTIAL_DEFS, CREDENTIAL_KEYS } from '@dash/shared';
 import type { CredentialKey, AppPrefsData, UpdateCheckData } from '@dash/shared';
 import { useAppSettingsStore } from '../store/settingsStore';
-import type { Density, TempUnit, WindUnit, LowPowerMode } from '../store/settingsStore';
+import type { Density, TempUnit, WindUnit, LowPowerMode, WeatherAlertNotify } from '../store/settingsStore';
 import { useQueryClient } from '@tanstack/react-query';
 import { exportSettings, importSettings } from '../lib/backup';
 import { apiClient } from '../lib/apiClient';
@@ -287,9 +287,9 @@ const clampScale = (n: number) => Math.round(Math.min(SCALE_MAX, Math.max(SCALE_
 function AppSettingsPanel() {
   const {
     weatherZips, showTempInClock, uiScale, density, compactTitlebar,
-    tempUnit, windUnit, clock24h, lowPower,
+    tempUnit, windUnit, clock24h, lowPower, weatherAlertNotify,
     setWeatherZips, setShowTempInClock, setUiScale, setDensity, setCompactTitlebar,
-    setTempUnit, setWindUnit, setClock24h, setLowPower,
+    setTempUnit, setWindUnit, setClock24h, setLowPower, setWeatherAlertNotify,
   } = useAppSettingsStore();
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -342,6 +342,20 @@ function AppSettingsPanel() {
             between them. Leave blank to detect automatically.
           </p>
         </div>
+        <SegmentedRow<WeatherAlertNotify>
+          label="Alert push"
+          value={weatherAlertNotify}
+          options={[
+            { value: 'off', label: 'Off' },
+            { value: 'severe', label: 'Severe only' },
+            { value: 'all', label: 'All' },
+          ]}
+          onChange={setWeatherAlertNotify}
+        />
+        <p className="text-th-ghost text-[10px] leading-relaxed">
+          New NWS weather alerts chime, toast, and send a native notification.
+          Severe = Extreme/Severe alerts only.
+        </p>
       </div>
 
       {/* Units & time */}

@@ -236,13 +236,23 @@ export function WeatherWidget() {
           {hourly.map((h) => {
             const hMeta = getWeatherMeta(h.weatherCode);
             return (
-              <div key={h.time} className="flex flex-col items-center gap-1 shrink-0 min-w-[44px]">
+              <div
+                key={h.time}
+                className="flex flex-col items-center gap-1 shrink-0 min-w-[44px]"
+                title={`${h.precipChance}% chance of precipitation`}
+              >
                 <span className="text-th-3 text-xs">{formatHour(h.time, clock24h)}</span>
                 <WeatherIcon icon={hMeta.icon} className="w-4 h-4 text-th-2" />
                 <span className="text-th-hi text-xs font-medium">{h.temp}°</span>
-                {h.precipChance > 20 && (
-                  <span className="text-blue-400 text-xs">{h.precipChance}%</span>
-                )}
+                {/* Constant-height precip track (mirrors the 5-day bar) — an
+                    always-present bar kills the column-height jitter the old
+                    conditional >20% text caused. */}
+                <span
+                  className="h-6 w-1 rounded-full bg-th-elevated overflow-hidden flex flex-col justify-end"
+                  data-precip={h.precipChance}
+                >
+                  <span className="w-full bg-blue-500/40" style={{ height: `${h.precipChance}%` }} />
+                </span>
               </div>
             );
           })}

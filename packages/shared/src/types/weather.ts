@@ -49,6 +49,9 @@ export interface AirQualityData {
 }
 
 export interface WeatherAlert {
+  /** NWS alert id (stable across polls) — used to notify only on NEW alerts.
+   *  Falls back to a content hash server-side when NWS omits it. */
+  id: string;
   event: string; // e.g. "Severe Thunderstorm Warning"
   severity: string; // "Extreme" | "Severe" | "Moderate" | "Minor" | "Unknown"
   headline: string;

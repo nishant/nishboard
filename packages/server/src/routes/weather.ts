@@ -195,17 +195,29 @@ async function fetchAirQuality(lat: number, lon: number): Promise<AirQualityData
   }
 }
 
+// Tiny FNV-1a — stable fallback id when NWS omits properties.id, so the
+// renderer's new-alert dedupe still works on content identity.
+function fnv1a(s: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16);
+}
+
 // NWS active alerts for a point — keyless, US only. Returns [] on any failure / non-US.
 async function fetchAlerts(lat: number, lon: number): Promise<WeatherAlert[]> {
   try {
     const j = await fetchJson<{
-      features?: { properties: { event: string; severity: string; headline: string } }[];
+      features?: { properties: { id?: string; event: string; severity: string; headline: string } }[];
     }>(
       `https://api.weather.gov/alerts/active?point=${lat.toFixed(4)},${lon.toFixed(4)}`,
       { headers: { 'User-Agent': '(Nishboard, personal desktop dashboard)', Accept: 'application/geo+json' } },
       { label: 'NWS alerts' },
     );
     return (j.features ?? []).slice(0, 5).map((f) => ({
+      id: f.properties.id ?? `nws-${fnv1a(`${f.properties.event}|${f.properties.headline}`)}`,
       event: f.properties.event,
       severity: f.properties.severity,
       headline: f.properties.headline,

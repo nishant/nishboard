@@ -5,6 +5,7 @@ import { DashboardGrid } from './components/DashboardGrid';
 import { ToastHost } from './components/ToastHost';
 import { CommandPalette } from './components/CommandPalette';
 import { AlertsEvaluator } from './components/AlertsEvaluator';
+import { WeatherAlertNotifier } from './components/WeatherAlertNotifier';
 import { useThemeStore } from './store/themeStore';
 import { useAppSettingsStore } from './store/settingsStore';
 import { usePowerStore } from './store/powerStore';
@@ -103,6 +104,7 @@ export function App() {
       <VisibilityKicker />
       <ServerRestartListener />
       <AlertsEvaluator />
+      <WeatherAlertNotifier />
       <div className="app-shell h-screen w-screen bg-th-bg overflow-hidden flex flex-col">
         <Titlebar />
         <div className="flex-1 min-h-0">
