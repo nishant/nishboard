@@ -68,21 +68,23 @@ function escapeHtml(s: string): string {
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** YYYY-MM-DD → local midnight Date (RFC3339 timeMin/timeMax come from
- *  .toISOString() on these — the Calendar API rejects bare dates there). */
-function parseLocalDate(iso: string): Date {
+ *  .toISOString() on these — the Calendar API rejects bare dates there).
+ *  Exported for tests. */
+export function parseLocalDate(iso: string): Date {
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(y, m - 1, d);
 }
 
-/** Local Date → YYYY-MM-DD (all-day insert bodies). */
-function toIsoDate(d: Date): string {
+/** Local Date → YYYY-MM-DD (all-day insert bodies). Exported for tests. */
+export function toIsoDate(d: Date): string {
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const dd = String(d.getDate()).padStart(2, '0');
   return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
 // Google Calendar v3 event resource — only the fields we read.
-interface GoogleEventItem {
+// Exported for tests.
+export interface GoogleEventItem {
   id: string;
   summary?: string;
   location?: string;
@@ -90,7 +92,8 @@ interface GoogleEventItem {
   end?: { date?: string; dateTime?: string };
 }
 
-function mapEvent(item: GoogleEventItem): CalendarEventData {
+/** Exported for tests. */
+export function mapEvent(item: GoogleEventItem): CalendarEventData {
   // All-day events carry start.date (no dateTime); timed events the reverse.
   const allDay = Boolean(item.start?.date);
   const ev: CalendarEventData = {
