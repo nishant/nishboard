@@ -4,7 +4,7 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
-## [PR #NN] feat: command palette v2 — typed argument commands
+## [PR #98] feat: command palette v2 — typed argument commands
 **Branch:** `feat/palette-v2` → `master`
 **Date:** 2026-07-06
 
