@@ -19,6 +19,9 @@ interface NotesState {
   setRendered: (rendered: boolean) => void;
   setActive: (id: string) => void;
   addNote: () => void;
+  /** One-shot create (command palette): content = text, title from the first
+   *  ~30 chars (word-boundary truncated), activated immediately. */
+  addNoteWithText: (text: string) => void;
   renameNote: (id: string, title: string) => void;
   /** Deleting the last remaining note resets it to a fresh empty one. */
   removeNote: (id: string) => void;
@@ -42,6 +45,18 @@ export const useNotesStore = create<NotesState>()(
       addNote: () =>
         set((s) => {
           const note = newNote();
+          return { notes: [...s.notes, note], activeId: note.id };
+        }),
+      addNoteWithText: (text) =>
+        set((s) => {
+          const content = text.trim();
+          let title = content.split('\n')[0];
+          if (title.length > 30) {
+            const cut = title.slice(0, 30);
+            const space = cut.lastIndexOf(' ');
+            title = `${(space > 0 ? cut.slice(0, space) : cut).trimEnd()}…`;
+          }
+          const note = newNote(title || 'Untitled', content);
           return { notes: [...s.notes, note], activeId: note.id };
         }),
       renameNote: (id, title) =>

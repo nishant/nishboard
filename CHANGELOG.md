@@ -4,6 +4,27 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #NN] feat: command palette v2 — typed argument commands
+**Branch:** `feat/palette-v2` → `master`
+**Date:** 2026-07-06
+
+### Context
+The palette could only run fixed actions ("Start 5-minute timer"). Anything needing an argument — an arbitrary timer length, a task, a volume level — meant opening the widget. This adds a parameterized-command layer beside the fuzzy list: type `timer 25m tea`, see a live-parsed preview pinned at the top, hit Enter. Renderer-only; no server or main-process changes, no new dependencies.
+
+### Added
+- **`lib/parse.ts`** — pure dep-free parsers with JSDoc grammars: `parseDuration` (compound `1h5m3s`/`1h 5m`, `90m`, `1.5h`, word units `25 min`, colon `1:30:00` h:m:s / `1:30` m:s, bare number = minutes; <1s or garbage → null), `parseTimeOfDay` (`7`, `7am`, `7:30pm`, `19:05`) + `nextOccurrence(h,m)` (today, or +1 day if past), `parseDateArg` (`12/25`, `12/25/2027`, `2026-12-25`, optional trailing time; MM/DD without year rolls to next occurrence; impossible dates like 2/30 or 2/29 in a non-leap year reject). 64 table-driven vitest cases in `parse.test.ts` (fake timers pin the clock for date/rollover tests).
+- **Registry v2 (`lib/commandRegistry.ts`)** — `ParameterizedCommand` (`triggers`, `argHint`, `parse(args) → ParsedInvocation | null`), `registerParamCommands`, `matchParamCommand` (first-token match, case-insensitive: exact trigger always; unique trigger *prefix* only when followed by a space, so a bare "time" still fuzzy-matches "Start 5-minute timer"). Plus `registerSourceRefresher`/`refreshSources` for async-backed sources, and an optional `fill` on `PaletteAction` (prefills the input instead of running).
+- **Param commands (`lib/paletteActions.ts`)** — `timer`/`t` (duration + optional label → add + start, longest-parsing token prefix wins so `1h 5m tea` splits right), `alarm` (time + label, preview shows the resolved wall clock + "(tomorrow)" when rolled), `countdown`/`cd` (date [time] [label]), `task`, `note`, `volume`/`vol` (0–100 → `/api/sound/volume`), `spotify volume|shuffle|repeat`, `ticker [remove] SYM` (`^[A-Za-z.]{1,6}$`), `coin <id>`, `zone <query>` (fuzzy over `Intl.supportedValuesOf('timeZone')`, guarded for older runtimes), `scale <80–150>` (stored as a factor, clamped to the Settings modal's 80–140%), `>`/`settings <tab>`. Each also registers a discoverability fill row ("Start a timer…" → prefills `timer `), sharing the command's id so executions surface it under Recent.
+- **New plain actions** — Launcher items/groups (`Launch: X`, `Launch group: Y`) via a module-level snapshot of the async `launcher.getItems()` IPC, refreshed on palette open; `Tasks: Clear completed`; `Widgets: Reset layout`; World clock digital/analog view; settings one-shots (temp F/C, wind mph/km/h, 12/24h clock, density, compact titlebar) with stable ids + state-dependent titles.
+- **`notesStore.addNoteWithText(text)`** — one atomic create: title word-boundary-truncated from the first ~30 chars, content = text, activated.
+
+### Notes
+- Palette UI: a matched command pins a `Command` group row at index 0 — parse success shows the preview and Enter runs it (+MRU); while args don't parse it's a non-selectable `argHint` ghost row and selection starts below it. Fill rows keep the palette open and refocus the input. Empty-query browse now orders sections by a stable `GROUP_ORDER` (Recent, Command, Layouts, Widgets, Timers, Tasks & Notes, Media, System, Appearance, Alerts, App) — the Spotify transport group was renamed to `Media` to fit it.
+- Recents holding param-command ids rely on the existing "silently drop unknown ids" behavior; since fill rows reuse those ids, they resolve instead of dropping.
+- `fuzzy.ts` scoring untouched; every existing palette behavior (fuzzy ranking, recents MRU, Esc/Enter, double-Shift) preserved.
+
+---
+
 ## [PR #96] feat: Google Calendar events — day drill-in + quick add
 **Branch:** `feat/calendar-events` → master
 **Date:** 2026-07-06
