@@ -4,6 +4,31 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #97] feat: Claude chat widget (Max-subscription via installed Claude Code CLI)
+**Branch:** `feat/claude-widget` → master
+**Date:** 2026-07-06
+
+### Context
+A chat widget on the ambient dashboard, powered by the `claude` CLI already installed and logged in on the machine — no SDK, no new npm dependencies, no API-key billing. The server spawns `claude -p --output-format stream-json --include-partial-messages --verbose` (`--verbose` is mandatory with `-p` + stream-json), writes the prompt to stdin (never argv), parses the CLI's stream-json stdout, and relays it to the renderer as SSE.
+
+### Added
+- **`packages/shared/src/types/claude.ts`** — `ClaudeStatusData`, `ClaudeStreamEvent` (discriminated union: `init` / `delta` / `message` / `done` / `error`), `ClaudeChatRequestBody`.
+- **`packages/server/src/lib/claudeCli.ts`** — CLI discovery (Windows: `where.exe`, prefer `.exe` over `.cmd`; macOS: `which` + launchd-PATH fallbacks `~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, `~/.claude/local`), cached path+version with re-probe on spawn failure. `.cmd` shims spawn via `cmd.exe /c` (Node ≥18.17 EINVAL guard) — injection-safe because no user data ever lands in argv. Buffered line-splitter + pure `parseStreamJsonLine` mapper (unknown event types ignored, forward-compatible). Windows kill uses `taskkill /T` so the real CLI process behind a `cmd.exe` wrapper dies too.
+- **`packages/server/src/routes/claude.ts`** — `GET /api/claude/status` (60s TtlCache) and `POST /api/claude/chat`: single-flight (409 while a chat child is active), `reply.hijack()` + manual SSE headers with the CORS origin mirrored from app.ts's allowed set (hijacked replies bypass `@fastify/cors`), one `data:` frame per event, child killed on client disconnect. A `--resume` pointing at a session the CLI doesn't know retries once as a fresh conversation (client picks up the new session id from the fresh `init` frame).
+- **`packages/server/src/lib/claudeCli.test.ts`** — 15 vitest cases: chunk-boundary splitting, every stream-json mapping row, unknown-type ignore, auth-error classification, resume-failure detection. No real spawns.
+- **`apps/renderer/src/lib/streamClient.ts`** — `postEventStream<T>()`: POST + `ReadableStream` reader, `\n\n`-framed SSE parse, abortable. apiClient untouched.
+- **`apps/renderer/src/store/claudeStore.ts`** — persisted `dashboard-claude` (messages / sessionId / model only — `isStreaming` deliberately not persisted).
+- **`apps/renderer/src/widgets/claude/`** — `useClaude.ts` (status query + send/stop with abort) and `ClaudeWidget.tsx`: markdown-rendered assistant messages (`.md-render` styles shared with Notes), right-aligned user bubbles, pulsing cursor while streaming, auto-scroll with scroll-up suspend, Enter=send / Shift+Enter=newline, Stop while streaming, model chip footer, install hint when the CLI is missing. Header actions: New chat, Stop.
+- **`claude` registered** in `WidgetId` / `ALL_WIDGET_IDS` / titles / constraints (`minW 4, minH 3`) and the DashboardGrid registry — preset trees untouched, so it lands via the bottom-row auto-fill.
+
+### Notes
+- **Billing:** chats bill the claude.ai **Max plan** through the CLI's own OAuth login — never API keys. `ANTHROPIC_API_KEY` is **stripped from the child env** (load-bearing: if it leaked through, the CLI would silently bill API credits instead of the subscription).
+- `CLAUDE_CODE_OAUTH_TOKEN` is supported as a fallback (new optional credential in Settings → Developer, generated with `claude setup-token`) and is **intentionally NOT baked by `build.mjs`** — a personal token must never end up inside distributed installers.
+- Chat child runs with `cwd=~/.dash`; CLI session history lives there, and `sessionId` + `--resume` keep multi-turn context across widget messages.
+- Windows-only vs macOS-only branches are labeled inline in `claudeCli.ts` (discovery, `.cmd` spawn shape, process-tree kill).
+
+---
+
 ## [PR #96] feat: Google Calendar events — day drill-in + quick add
 **Branch:** `feat/calendar-events` → master
 **Date:** 2026-07-06
