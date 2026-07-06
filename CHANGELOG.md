@@ -4,7 +4,7 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
-## [PR #NN] feat: Claude chat widget (Max-subscription via installed Claude Code CLI)
+## [PR #97] feat: Claude chat widget (Max-subscription via installed Claude Code CLI)
 **Branch:** `feat/claude-widget` → master
 **Date:** 2026-07-06
 
