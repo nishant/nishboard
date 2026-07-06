@@ -12,6 +12,7 @@ import { calendarRoutes } from './routes/calendar';
 import { twitchRoutes } from './routes/twitch';
 import { newsRoutes } from './routes/news';
 import { cryptoRoutes } from './routes/crypto';
+import { networkRoutes } from './routes/network';
 import { HttpError, UpstreamError } from './lib/http';
 
 // Upstream statuses worth passing through — they tell the user something
@@ -62,6 +63,7 @@ export async function buildServer(opts: { logger?: boolean } = {}): Promise<Fast
   server.register(twitchRoutes, { prefix: '/api/twitch' });
   server.register(newsRoutes, { prefix: '/api/news' });
   server.register(cryptoRoutes, { prefix: '/api/crypto' });
+  server.register(networkRoutes, { prefix: '/api/network' });
 
   server.get('/health', async () => ({ status: 'ok' }));
 
