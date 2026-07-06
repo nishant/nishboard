@@ -11,6 +11,7 @@ import { youtubeRoutes } from './routes/youtube';
 import { twitchRoutes } from './routes/twitch';
 import { newsRoutes } from './routes/news';
 import { cryptoRoutes } from './routes/crypto';
+import { claudeRoutes } from './routes/claude';
 import { HttpError, UpstreamError } from './lib/http';
 
 // Upstream statuses worth passing through — they tell the user something
@@ -60,6 +61,9 @@ export async function buildServer(opts: { logger?: boolean } = {}): Promise<Fast
   server.register(twitchRoutes, { prefix: '/api/twitch' });
   server.register(newsRoutes, { prefix: '/api/news' });
   server.register(cryptoRoutes, { prefix: '/api/crypto' });
+  // NOTE: /api/claude/chat hijacks the reply for SSE — it mirrors the CORS
+  // origin list above manually (keep the two lists in sync).
+  server.register(claudeRoutes, { prefix: '/api/claude' });
 
   server.get('/health', async () => ({ status: 'ok' }));
 

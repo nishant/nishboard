@@ -11,6 +11,7 @@ export type { SoundData, AudioDevice, AudioSession } from './types/sound';
 export type { YoutubeVideo, YoutubeSearchPage, YoutubeAuthStatus, YoutubePlaylist } from './types/youtube';
 export type { TwitchChannel, TwitchSearchPage, TwitchAuthStatus } from './types/twitch';
 export type { NewsItem, NewsData } from './types/news';
+export type { ClaudeStatusData, ClaudeStreamEvent, ClaudeChatRequestBody } from './types/claude';
 export type { CryptoCoinData, CryptoData } from './types/crypto';
 export type { IpcChannels, ElectronAPI, LauncherItemData, LauncherGroupData, LauncherStateData, ClipboardEntryData, AppPrefsData, UpdateCheckData } from './types/ipc';
 export type { CredentialKey, CredentialDef } from './types/credentials';
