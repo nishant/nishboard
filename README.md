@@ -48,7 +48,7 @@
 | 📈 **Stocks** | Editable watchlist, % change, sparklines, market session; click a ticker for an intraday/daily chart + headlines | Alpaca Markets IEX (REST snapshots + Benzinga news) |
 | 🧮 **Hardware** | CPU / GPU / RAM / disk / network as bars or live sparklines | `systeminformation` (nvidia-smi / WASAPI under the hood) |
 | 🔊 **Sound** | Master volume, mute, output switching, per-app mixer (Windows) | `osascript` (mac) / PowerShell + WASAPI (Windows) |
-| 📅 **Calendar** | Month grid, today highlighted, multi-month at larger sizes | Pure JS — no API |
+| 📅 **Calendar** | Month grid + Google Calendar: event dots, click a day for its events, inline quick-add | Google Calendar API (shares the YouTube OAuth client) |
 | ▶️ **YouTube** | Search, Trending/Music/Gaming, and — signed in — your Subs feed, Playlists, Liked; click any channel name for its uploads; watch inline | YouTube Data API v3 + Google OAuth + localhost embed proxy |
 | 🟣 **Twitch** | Search channels; signed in: Live + All followed channels, go-live notifications; watch inline | Twitch Helix (app token + user OAuth) + localhost embed proxy |
 | 📰 **News** | Rotating headline ticker, click to open the article | Google News RSS — no key |
@@ -60,8 +60,10 @@
 | 🪙 **Crypto** | Coin watchlist — price, 24h change, 7-day sparkline | CoinGecko (optional key) |
 | 🚀 **Launcher** | App + link launcher with groups, launch-all, real icons | Local (typed IPC, targets stored main-side) |
 | 📋 **Clipboard** | Rolling text-clipboard history (in-memory, never persisted) | Electron clipboard poller (only while visible) |
+| 📶 **Net Monitor** | Per-host latency / jitter / packet-loss + up/down throughput sparklines | System `ping` via a server-side sampler + `systeminformation` |
+| 🤖 **Claude** | Chat with Claude — streaming replies, markdown, multi-turn context | Your installed **Claude Code CLI** (bills your claude.ai plan, not API keys) |
 
-Everything lives on a **draggable, resizable grid** (react-grid-layout) with built-in presets, saveable custom layouts, and 15 themes plus a custom theme editor.
+Everything lives on a **draggable, resizable grid** (react-grid-layout) with built-in presets, saveable custom layouts, and 15 themes plus a custom theme editor. The **Ctrl/Cmd+K command palette** understands typed commands with arguments — `timer 1h5m3s tea`, `alarm 7:30am`, `task buy milk`, `volume 40`, `ticker AAPL`, `zone tokyo` — alongside fuzzy search over every action.
 
 > ¹ Spotify is a **remote control**, not a player — stock Electron has no Widevine CDM, so it can't decode DRM audio. It drives playback on a device you already have open (phone, desktop app, etc.).
 
@@ -169,10 +171,11 @@ All keys are optional to *start* the app — each widget degrades gracefully if 
 | `ALPACA_API_KEY` / `ALPACA_API_SECRET` | Stocks | for Stocks | [alpaca.markets](https://alpaca.markets/) → free IEX data keys |
 | `ALPACA_BASE_URL` | Stocks | preset | `https://data.alpaca.markets/v2` |
 | `YOUTUBE_API_KEY` | YouTube | for search/browse | Google Cloud Console → YouTube Data API v3 |
-| `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` | YouTube | for the signed-in tabs | Google Cloud Console → OAuth client (Web application), redirect `http://localhost:7432/api/youtube/callback`¹ |
+| `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` | YouTube + Calendar | for the signed-in tabs / calendar events | Google Cloud Console → OAuth client (Web application), redirects `http://localhost:7432/api/youtube/callback` **and** `http://localhost:7432/api/calendar/callback`; enable the YouTube Data + Google Calendar APIs¹ |
 | `TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET` | Twitch | for Twitch | [dev.twitch.tv/console](https://dev.twitch.tv/console) → register an app, redirect `http://localhost:7432/api/twitch/callback`² |
 | `COINGECKO_API_KEY` | Crypto | optional | [coingecko.com](https://www.coingecko.com/en/developers/dashboard) demo key — keyless works but throttled |
 | `GITHUB_TOKEN` | update check | optional | fine-grained PAT, read-only Contents — only needed while the repo is private |
+| `CLAUDE_CODE_OAUTH_TOKEN` | Claude | optional | only if Claude Code isn't logged in on the machine — `claude setup-token`. **Never baked into builds** (personal account token); the widget otherwise just uses your local `claude /login` session |
 | `SERVER_PORT` | server | preset | `7432` |
 
 > **Spotify redirect URI is exact-match.** Spotify's form rejects `localhost` for some apps, so this project uses the `127.0.0.1` form — whatever you put in `.env` must match the dashboard registration character-for-character.
