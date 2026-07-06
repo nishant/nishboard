@@ -4,7 +4,7 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
-## [PR #NN] feat: Google Calendar events — day drill-in + quick add
+## [PR #96] feat: Google Calendar events — day drill-in + quick add
 **Branch:** `feat/calendar-events` → master
 **Date:** 2026-07-06
 
