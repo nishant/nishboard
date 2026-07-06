@@ -4,6 +4,29 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #95] feat: network monitor widget (latency/jitter/loss + throughput)
+**Branch:** `feat/network-monitor` → `master`
+**Date:** 2026-07-06
+
+### Context
+The Hardware widget's network card shows raw Mbps but says nothing about connection *quality* — a saturated-yet-healthy link and a lossy Wi-Fi hop look identical. This adds a dedicated Net Monitor widget: per-host latency/jitter/loss from a server-side background ping sampler, plus the familiar interface throughput sparks.
+
+### Added
+- **`packages/server/src/routes/network.ts`** — `GET /api/network?hosts=a,b` (default `1.1.1.1,8.8.8.8`, max 4 hosts). Pings run in a module-level background `Sampler` on a 2s tick with a 30-sample ring buffer per host — NOT per request, so the renderer's 1s poll costs zero extra child processes. Lazy lifecycle: the first GET starts the sampler; it self-stops and clears buffers after 60s without a request; a changed `?hosts=` set swaps the buffers. Pings go through `execFile` (no shell) with a 1s ping timeout + 1.5s exec kill; non-zero exit / unparseable output → `null` sample (that IS the loss signal). Interface Mbps math mirrors `hardware.ts` exactly.
+  - **Windows-only:** `ping -n 1 -w 1000` — output is *localized* (`Zeit=14ms` on German systems), so the parser matches the `=Nms`/`<Nms` token shape, never the word "time"; `<1ms` → 0.5.
+  - **macOS-only:** BSD `ping -c 1 -W 1000` (`-W` in ms), parsed via `time=([\d.]+) ms`.
+  - Host validation before argv: `^[a-zA-Z0-9]([a-zA-Z0-9.-]{0,251}[a-zA-Z0-9])?$` plus an explicit leading-`-` rejection (flag injection), 400 on violation.
+- **`packages/server/src/routes/network.test.ts`** — 33 vitest cases: `computeStats` window math (avg/jitter over successes only, loss over the whole window, nulls, rounding), the host accept/reject table (incl. `-t`, overlong, underscore, trailing hyphen), and output-parsing fixtures for both platforms including the German `Antwort von 1.1.1.1: Bytes=32 Zeit=14ms TTL=57` and `Zeit<1ms` lines. No real spawns.
+- **`packages/shared/src/types/network.ts`** — `PingHostStats` (latest/avg/jitter/loss/samples; jitter = mean |successive diff|, null under 2 successes) and `NetworkMonitorData` (hosts + totals + `NetworkIo[]` ifaces).
+- **`apps/renderer/src/widgets/netmon/`** — `NetworkMonitorWidget` mirrors the Hardware widget's visual language (local copies of Spark/UsageBar/Card — hardware deliberately untouched): per-host latency cards (big latest ms colored <30 emerald / <80 amber / else red, ghost avg, spark or 200ms-scaled bar, "Sampling…" under 3 samples, em-dash on a lost latest), a Quality card (jitter + loss bar, red ≥5%), and a Throughput card (↑/↓ Mbps + twin sparks `#38bdf8`/`#34d399`, iface ghost row). All-pings-lost with live throughput (ICMP blocked) renders degraded per-host — never a widget-level error. `useNetwork` polls 1s gated with a 60-sample client history that skips lost samples (Loss carries the truth). Header actions: sparks/bars toggle, ping-targets config (client-side validation mirroring the server regex), refresh.
+- **`apps/renderer/src/store/netmonStore.ts`** — persisted `dashboard-netmon` (hosts + view; `configOpen` excluded via partialize).
+
+### Notes
+- Widget registration only touches `layouts.ts` (id/title/constraints `minW 6, minH 2`) and the `DashboardGrid` registry — preset trees are untouched; the auto-append fallback rows it in.
+- The sampler never holds the server process open (`timer.unref()`), and a slow ping batch can't overlap the next tick.
+
+---
+
 ## [PR #94] refactor: server buildServer factory + integration test suite
 **Branch:** `test/integration` → master
 **Date:** 2026-07-05

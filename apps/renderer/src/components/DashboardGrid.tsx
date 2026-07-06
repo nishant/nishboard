@@ -23,6 +23,7 @@ import { NewsWidget, NewsActions } from '../widgets/news/NewsWidget';
 import { CryptoWidget, CryptoActions } from '../widgets/crypto/CryptoWidget';
 import { LauncherWidget, LauncherActions } from '../widgets/launcher/LauncherWidget';
 import { ClipboardWidget, ClipboardActions } from '../widgets/clipboard/ClipboardWidget';
+import { NetworkMonitorWidget, NetworkMonitorActions } from '../widgets/netmon/NetworkMonitorWidget';
 import { TITLEBAR_H } from './Titlebar';
 import { WIDGET_TITLES } from '../lib/layouts';
 import type { WidgetId } from '../lib/layouts';
@@ -55,6 +56,7 @@ export const WIDGET_REGISTRY: Record<WidgetId, WidgetEntry> = {
   crypto: { Component: CryptoWidget, Actions: CryptoActions },
   launcher: { Component: LauncherWidget, Actions: LauncherActions },
   clipboard: { Component: ClipboardWidget, Actions: ClipboardActions },
+  netmon: { Component: NetworkMonitorWidget, Actions: NetworkMonitorActions },
 };
 
 /** Rightmost header action on EVERY widget: float it in its own window.
