@@ -4,6 +4,20 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #99] docs: catch README + CLAUDE.md up to the 4-feature batch
+**Branch:** `docs/batch3-features` → `master`
+**Date:** 2026-07-06
+
+### Changed
+- **Widget tables** (README + CLAUDE.md) — Calendar row now documents the Google Calendar integration (shared Google OAuth client, own token file, `calendar.events` scope, second redirect URI); new rows for **Net Monitor** (server-side ping sampler + throughput) and **Claude** (installed Claude Code CLI, Max-subscription billing, API key stripped from child env).
+- **README config table** — `YOUTUBE_CLIENT_ID`/`SECRET` now serves YouTube + Calendar (both redirect URIs, both APIs); added `CLAUDE_CODE_OAUTH_TOKEN` (optional, never baked into builds).
+- **CLAUDE.md Secrets** — generalized the `~/.dash` token-file note to all user-OAuth services; documented why `CLAUDE_CODE_OAUTH_TOKEN` is excluded from `BUILTIN_KEYS`.
+- **CLAUDE.md Gotchas** — new entry: SSE routes (`reply.hijack()`) bypass @fastify/cors; mirror the origin list manually.
+- **CLAUDE.md Git Workflow** — new rule 6: feature PRs include unit tests for warranting logic and keep the README/CLAUDE.md tables current (per Nish, 2026-07-06).
+- README feature blurb now mentions the palette's typed argument commands.
+
+---
+
 ## [PR #98] feat: command palette v2 — typed argument commands
 **Branch:** `feat/palette-v2` → `master`
 **Date:** 2026-07-06
