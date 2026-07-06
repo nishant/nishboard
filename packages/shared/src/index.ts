@@ -7,8 +7,10 @@ export type {
 } from './types/spotify';
 export type { StocksData, StockQuote, StockBar, StockNewsItem, StockDetail, MarketCalendarData } from './types/stocks';
 export type { HardwareData, CpuData, GpuData, DiskIo, DiskUsage, NetworkIo, ProcessItemData, ProcessListData } from './types/hardware';
+export type { PingHostStats, NetworkMonitorData } from './types/network';
 export type { SoundData, AudioDevice, AudioSession } from './types/sound';
 export type { YoutubeVideo, YoutubeSearchPage, YoutubeAuthStatus, YoutubePlaylist } from './types/youtube';
+export type { CalendarAuthStatus, CalendarEventData, CalendarEventsData } from './types/calendar';
 export type { TwitchChannel, TwitchSearchPage, TwitchAuthStatus } from './types/twitch';
 export type { NewsItem, NewsData } from './types/news';
 export type { ClaudeStatusData, ClaudeStreamEvent, ClaudeChatRequestBody } from './types/claude';

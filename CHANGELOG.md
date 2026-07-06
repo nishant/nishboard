@@ -29,6 +29,51 @@ A chat widget on the ambient dashboard, powered by the `claude` CLI already inst
 
 ---
 
+## [PR #96] feat: Google Calendar events — day drill-in + quick add
+**Branch:** `feat/calendar-events` → master
+**Date:** 2026-07-06
+
+### Context
+The Calendar widget was pure date rendering — no way to see what a day actually holds without alt-tabbing to Google Calendar. This adds Google Calendar (primary calendar) on top of the existing month grid: event dots, a per-day drill-in overlay, and inline quick-add. The month-grid rendering itself is unchanged when signed out with no day selected.
+
+### Added
+- **`packages/server/src/routes/calendar.ts`** — Google OAuth (auth-code grant, `calendar.events` scope) cloned from the YouTube flow: `GET /auth-url` (CSRF state, 10-min expiry, `access_type=offline&prompt=consent`), `GET /callback` (code exchange + friendly HTML pages), `GET /auth-status`, `POST /logout`. Reuses the SAME Google Cloud OAuth client (`YOUTUBE_CLIENT_ID`/`YOUTUBE_CLIENT_SECRET`) but stores tokens in its own `~/.dash/google_calendar_tokens.json` — disconnecting Calendar never touches the YouTube session (and vice versa). Refresh via `rethrowRefreshFailure` so transient failures never wipe a valid session.
+- **`GET /api/calendar/events?start&end`** — Calendar v3 `calendars/primary/events` with `singleEvents=true&orderBy=startTime&maxResults=250` (orderBy=startTime *requires* singleEvents), RFC3339 `timeMin`/`timeMax` built from local midnights (end + 1 day), mapped to `CalendarEventData`, 5-min `TtlCache` keyed on the range.
+- **`POST /api/calendar/events`** — quick add with a Fastify runtime schema (summary 1–200, `date` YYYY-MM-DD, optional `time` HH:mm, optional `durationMinutes` 1–1440, default 60). All-day inserts use Google's EXCLUSIVE `end.date` (date + 1); clears the events cache and returns the created event.
+- **`packages/shared/src/types/calendar.ts`** — `CalendarAuthStatus`, `CalendarEventData` (ISO dateTime, or YYYY-MM-DD for all-day; all-day end exclusive), `CalendarEventsData`.
+- **`apps/renderer/src/widgets/calendar/useCalendarEvents.ts`** — `useCalendarAuthStatus` (15 s gated poll), `useCalendarConnect`/`useCalendarLogout`, `useCalendarEvents` (one query for the whole visible month range, 5-min staleTime + gated refetch, enabled only when signed in), `useAddCalendarEvent`.
+- **CalendarWidget day drill-in** — day cells become clickable with a 3 px event dot (inverted on today's cell); `DayPanel` overlay (`absolute inset-0`, blurred surface) shows all-day chips then the timed list (HH:mm + title + location) with an inline title/time/Add form; signed-out it shows a Connect hint instead — and never fires the events query. `CalendarActions` header action (Connect/Disconnect) wired into `DashboardGrid`.
+- **IPC `google:open-auth`** — new generic guarded channel (`typeof` check + `https://accounts.google.com/` prefix, mirrors `youtube:open-auth` which stays untouched) exposed as `openGoogleAuth` on the bridge.
+
+### Notes
+- Requires enabling the **Google Calendar API** in the Google Cloud project and adding a second redirect URI `http://localhost:7432/api/calendar/callback` to the existing Google OAuth client (the YouTube one) — the `YOUTUBE_CLIENT_ID` Settings hint now mentions both URIs.
+- Calendar consent is separate from YouTube's: connecting YouTube does not sign in Calendar (different scope, different token file), so each widget shows its own Connect action.
+
+---
+
+## [PR #95] feat: network monitor widget (latency/jitter/loss + throughput)
+**Branch:** `feat/network-monitor` → `master`
+**Date:** 2026-07-06
+
+### Context
+The Hardware widget's network card shows raw Mbps but says nothing about connection *quality* — a saturated-yet-healthy link and a lossy Wi-Fi hop look identical. This adds a dedicated Net Monitor widget: per-host latency/jitter/loss from a server-side background ping sampler, plus the familiar interface throughput sparks.
+
+### Added
+- **`packages/server/src/routes/network.ts`** — `GET /api/network?hosts=a,b` (default `1.1.1.1,8.8.8.8`, max 4 hosts). Pings run in a module-level background `Sampler` on a 2s tick with a 30-sample ring buffer per host — NOT per request, so the renderer's 1s poll costs zero extra child processes. Lazy lifecycle: the first GET starts the sampler; it self-stops and clears buffers after 60s without a request; a changed `?hosts=` set swaps the buffers. Pings go through `execFile` (no shell) with a 1s ping timeout + 1.5s exec kill; non-zero exit / unparseable output → `null` sample (that IS the loss signal). Interface Mbps math mirrors `hardware.ts` exactly.
+  - **Windows-only:** `ping -n 1 -w 1000` — output is *localized* (`Zeit=14ms` on German systems), so the parser matches the `=Nms`/`<Nms` token shape, never the word "time"; `<1ms` → 0.5.
+  - **macOS-only:** BSD `ping -c 1 -W 1000` (`-W` in ms), parsed via `time=([\d.]+) ms`.
+  - Host validation before argv: `^[a-zA-Z0-9]([a-zA-Z0-9.-]{0,251}[a-zA-Z0-9])?$` plus an explicit leading-`-` rejection (flag injection), 400 on violation.
+- **`packages/server/src/routes/network.test.ts`** — 33 vitest cases: `computeStats` window math (avg/jitter over successes only, loss over the whole window, nulls, rounding), the host accept/reject table (incl. `-t`, overlong, underscore, trailing hyphen), and output-parsing fixtures for both platforms including the German `Antwort von 1.1.1.1: Bytes=32 Zeit=14ms TTL=57` and `Zeit<1ms` lines. No real spawns.
+- **`packages/shared/src/types/network.ts`** — `PingHostStats` (latest/avg/jitter/loss/samples; jitter = mean |successive diff|, null under 2 successes) and `NetworkMonitorData` (hosts + totals + `NetworkIo[]` ifaces).
+- **`apps/renderer/src/widgets/netmon/`** — `NetworkMonitorWidget` mirrors the Hardware widget's visual language (local copies of Spark/UsageBar/Card — hardware deliberately untouched): per-host latency cards (big latest ms colored <30 emerald / <80 amber / else red, ghost avg, spark or 200ms-scaled bar, "Sampling…" under 3 samples, em-dash on a lost latest), a Quality card (jitter + loss bar, red ≥5%), and a Throughput card (↑/↓ Mbps + twin sparks `#38bdf8`/`#34d399`, iface ghost row). All-pings-lost with live throughput (ICMP blocked) renders degraded per-host — never a widget-level error. `useNetwork` polls 1s gated with a 60-sample client history that skips lost samples (Loss carries the truth). Header actions: sparks/bars toggle, ping-targets config (client-side validation mirroring the server regex), refresh.
+- **`apps/renderer/src/store/netmonStore.ts`** — persisted `dashboard-netmon` (hosts + view; `configOpen` excluded via partialize).
+
+### Notes
+- Widget registration only touches `layouts.ts` (id/title/constraints `minW 6, minH 2`) and the `DashboardGrid` registry — preset trees are untouched; the auto-append fallback rows it in.
+- The sampler never holds the server process open (`timer.unref()`), and a slow ping batch can't overlap the next tick.
+
+---
+
 ## [PR #94] refactor: server buildServer factory + integration test suite
 **Branch:** `test/integration` → master
 **Date:** 2026-07-05

@@ -72,6 +72,7 @@ export type IpcChannels =
   | 'spotify:token-store'
   | 'twitch:open-auth'
   | 'youtube:open-auth'
+  | 'google:open-auth'
   | 'popout:open'
   | 'popout:close'
   | 'popout:list'
@@ -122,6 +123,9 @@ export interface ElectronAPI {
   /** Open a Twitch OAuth URL — main process rejects anything not on id.twitch.tv. */
   openTwitchAuth: (url: string) => void;
   openYoutubeAuth: (url: string) => void;
+  /** Open a Google OAuth URL (generic — Calendar etc.); main process rejects
+   *  anything not on accounts.google.com. */
+  openGoogleAuth: (url: string) => void;
   /** Pop-out widget windows (each loads the renderer with ?widget=<id>). */
   popout: {
     open: (widgetId: string) => void;

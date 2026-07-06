@@ -56,6 +56,12 @@ export function registerIpcHandlers(
     if (url.startsWith('https://accounts.google.com/')) shell.openExternal(url);
   });
 
+  ipcMain.on('google:open-auth', (_event, url: string) => {
+    // Generic Google OAuth opener (Calendar, …) — same accounts.google.com guard.
+    if (typeof url !== 'string') return;
+    if (url.startsWith('https://accounts.google.com/')) shell.openExternal(url);
+  });
+
   // ── Pop-out widget windows ──────────────────────────────────────────────────
   ipcMain.on('popout:open', (_event, widgetId: string) => {
     // Ids are renderer WidgetIds (lowercase slugs) — reject anything else.

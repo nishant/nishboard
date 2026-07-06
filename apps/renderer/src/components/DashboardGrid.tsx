@@ -11,7 +11,7 @@ import { SpotifyWidget, SpotifyActions } from '../widgets/spotify/SpotifyWidget'
 import { StocksWidget, StocksActions } from '../widgets/stocks/StocksWidget';
 import { HardwareWidget, HardwareActions } from '../widgets/hardware/HardwareWidget';
 import { SoundWidget, SoundActions } from '../widgets/sound/SoundWidget';
-import { CalendarWidget } from '../widgets/calendar/CalendarWidget';
+import { CalendarWidget, CalendarActions } from '../widgets/calendar/CalendarWidget';
 import { YoutubeWidget, YoutubeActions } from '../widgets/youtube/YoutubeWidget';
 import { TwitchWidget, TwitchActions } from '../widgets/twitch/TwitchWidget';
 import { TasksWidget } from '../widgets/tasks/TasksWidget';
@@ -24,6 +24,7 @@ import { CryptoWidget, CryptoActions } from '../widgets/crypto/CryptoWidget';
 import { LauncherWidget, LauncherActions } from '../widgets/launcher/LauncherWidget';
 import { ClipboardWidget, ClipboardActions } from '../widgets/clipboard/ClipboardWidget';
 import { ClaudeWidget, ClaudeActions } from '../widgets/claude/ClaudeWidget';
+import { NetworkMonitorWidget, NetworkMonitorActions } from '../widgets/netmon/NetworkMonitorWidget';
 import { TITLEBAR_H } from './Titlebar';
 import { WIDGET_TITLES } from '../lib/layouts';
 import type { WidgetId } from '../lib/layouts';
@@ -44,7 +45,7 @@ export const WIDGET_REGISTRY: Record<WidgetId, WidgetEntry> = {
   stocks: { Component: StocksWidget, Actions: StocksActions },
   hardware: { Component: HardwareWidget, Actions: HardwareActions },
   sound: { Component: SoundWidget, Actions: SoundActions },
-  calendar: { Component: CalendarWidget },
+  calendar: { Component: CalendarWidget, Actions: CalendarActions },
   youtube: { Component: YoutubeWidget, Actions: YoutubeActions },
   twitch: { Component: TwitchWidget, Actions: TwitchActions },
   tasks: { Component: TasksWidget },
@@ -57,6 +58,7 @@ export const WIDGET_REGISTRY: Record<WidgetId, WidgetEntry> = {
   launcher: { Component: LauncherWidget, Actions: LauncherActions },
   clipboard: { Component: ClipboardWidget, Actions: ClipboardActions },
   claude: { Component: ClaudeWidget, Actions: ClaudeActions },
+  netmon: { Component: NetworkMonitorWidget, Actions: NetworkMonitorActions },
 };
 
 /** Rightmost header action on EVERY widget: float it in its own window.
