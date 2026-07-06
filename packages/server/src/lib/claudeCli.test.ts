@@ -93,6 +93,27 @@ describe('parseStreamJsonLine — mapping table', () => {
     expect(parseStreamJsonLine(line)).toEqual({ type: 'message', text: 'Hello world' });
   });
 
+  it('not-logged-in assistant event (error: authentication_failed) → friendly login hint', () => {
+    // Real shape observed from claude v2.1.201 with no login: the auth failure
+    // arrives as a synthetic assistant message, NOT on stderr.
+    const line = JSON.stringify({
+      type: 'assistant',
+      message: {
+        id: '7c1871e5',
+        model: '<synthetic>',
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Not logged in · Please run /login' }],
+      },
+      session_id: 'b5251c90',
+      error: 'authentication_failed',
+    });
+    const mapped = parseStreamJsonLine(line);
+    expect(mapped?.type).toBe('error');
+    if (mapped?.type === 'error') {
+      expect(mapped.message).toMatch(/claude \/login/);
+    }
+  });
+
   it('result → done with is_error and duration_ms', () => {
     const line = JSON.stringify({
       type: 'result',

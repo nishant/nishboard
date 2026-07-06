@@ -204,6 +204,13 @@ export function parseStreamJsonLine(line: string): ClaudeStreamEvent | null {
       // authoritative final text; concat text blocks, skip tool_use etc.
       const message = asRecord(obj.message);
       if (!message || !Array.isArray(message.content)) return null;
+      // Observed on v2.1.201: a not-logged-in CLI reports auth failure as a
+      // synthetic assistant message ("Not logged in · Please run /login") with
+      // error:'authentication_failed' on the EVENT — not on stderr. Surface
+      // the friendly hint instead of the raw CLI text.
+      if (obj.error === 'authentication_failed') {
+        return { type: 'error', message: LOGIN_HINT };
+      }
       let text = '';
       for (const block of message.content) {
         const b = asRecord(block);
