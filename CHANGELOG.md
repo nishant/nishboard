@@ -4,7 +4,7 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
-## [PR #NN] docs: catch README + CLAUDE.md up to the 4-feature batch
+## [PR #99] docs: catch README + CLAUDE.md up to the 4-feature batch
 **Branch:** `docs/batch3-features` → `master`
 **Date:** 2026-07-06
 
