@@ -4,7 +4,7 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
-## [PR #NN] feat: network monitor widget (latency/jitter/loss + throughput)
+## [PR #95] feat: network monitor widget (latency/jitter/loss + throughput)
 **Branch:** `feat/network-monitor` → `master`
 **Date:** 2026-07-06
 
