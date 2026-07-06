@@ -32,7 +32,7 @@ export const CREDENTIAL_DEFS: CredentialDef[] = [
     key: 'YOUTUBE_CLIENT_ID',
     label: 'OAuth Client ID',
     service: 'YouTube',
-    hint: 'Optional — enables the signed-in Subs/Playlists/Liked tabs. Google Cloud console → OAuth client (Web application) with redirect URI http://localhost:7432/api/youtube/callback',
+    hint: 'Optional — enables the signed-in Subs/Playlists/Liked tabs and Google Calendar events in the Calendar widget. Google Cloud console → OAuth client (Web application) with redirect URIs http://localhost:7432/api/youtube/callback and http://localhost:7432/api/calendar/callback',
   },
   { key: 'YOUTUBE_CLIENT_SECRET', label: 'OAuth Client Secret', service: 'YouTube' },
   { key: 'ALPACA_API_KEY',       label: 'API Key',       service: 'Stocks (Alpaca)' },

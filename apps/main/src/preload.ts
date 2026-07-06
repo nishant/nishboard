@@ -11,6 +11,7 @@ const electronAPI: ElectronAPI = {
   openSpotifyAuth: (url: string) => ipcRenderer.send('spotify:open-auth' satisfies IpcChannels, url),
   openTwitchAuth: (url: string) => ipcRenderer.send('twitch:open-auth' satisfies IpcChannels, url),
   openYoutubeAuth: (url: string) => ipcRenderer.send('youtube:open-auth' satisfies IpcChannels, url),
+  openGoogleAuth: (url: string) => ipcRenderer.send('google:open-auth' satisfies IpcChannels, url),
   popout: {
     open: (widgetId: string) => ipcRenderer.send('popout:open' satisfies IpcChannels, widgetId),
     close: (widgetId: string) => ipcRenderer.send('popout:close' satisfies IpcChannels, widgetId),
