@@ -4,6 +4,28 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #96] feat: Google Calendar events — day drill-in + quick add
+**Branch:** `feat/calendar-events` → master
+**Date:** 2026-07-06
+
+### Context
+The Calendar widget was pure date rendering — no way to see what a day actually holds without alt-tabbing to Google Calendar. This adds Google Calendar (primary calendar) on top of the existing month grid: event dots, a per-day drill-in overlay, and inline quick-add. The month-grid rendering itself is unchanged when signed out with no day selected.
+
+### Added
+- **`packages/server/src/routes/calendar.ts`** — Google OAuth (auth-code grant, `calendar.events` scope) cloned from the YouTube flow: `GET /auth-url` (CSRF state, 10-min expiry, `access_type=offline&prompt=consent`), `GET /callback` (code exchange + friendly HTML pages), `GET /auth-status`, `POST /logout`. Reuses the SAME Google Cloud OAuth client (`YOUTUBE_CLIENT_ID`/`YOUTUBE_CLIENT_SECRET`) but stores tokens in its own `~/.dash/google_calendar_tokens.json` — disconnecting Calendar never touches the YouTube session (and vice versa). Refresh via `rethrowRefreshFailure` so transient failures never wipe a valid session.
+- **`GET /api/calendar/events?start&end`** — Calendar v3 `calendars/primary/events` with `singleEvents=true&orderBy=startTime&maxResults=250` (orderBy=startTime *requires* singleEvents), RFC3339 `timeMin`/`timeMax` built from local midnights (end + 1 day), mapped to `CalendarEventData`, 5-min `TtlCache` keyed on the range.
+- **`POST /api/calendar/events`** — quick add with a Fastify runtime schema (summary 1–200, `date` YYYY-MM-DD, optional `time` HH:mm, optional `durationMinutes` 1–1440, default 60). All-day inserts use Google's EXCLUSIVE `end.date` (date + 1); clears the events cache and returns the created event.
+- **`packages/shared/src/types/calendar.ts`** — `CalendarAuthStatus`, `CalendarEventData` (ISO dateTime, or YYYY-MM-DD for all-day; all-day end exclusive), `CalendarEventsData`.
+- **`apps/renderer/src/widgets/calendar/useCalendarEvents.ts`** — `useCalendarAuthStatus` (15 s gated poll), `useCalendarConnect`/`useCalendarLogout`, `useCalendarEvents` (one query for the whole visible month range, 5-min staleTime + gated refetch, enabled only when signed in), `useAddCalendarEvent`.
+- **CalendarWidget day drill-in** — day cells become clickable with a 3 px event dot (inverted on today's cell); `DayPanel` overlay (`absolute inset-0`, blurred surface) shows all-day chips then the timed list (HH:mm + title + location) with an inline title/time/Add form; signed-out it shows a Connect hint instead — and never fires the events query. `CalendarActions` header action (Connect/Disconnect) wired into `DashboardGrid`.
+- **IPC `google:open-auth`** — new generic guarded channel (`typeof` check + `https://accounts.google.com/` prefix, mirrors `youtube:open-auth` which stays untouched) exposed as `openGoogleAuth` on the bridge.
+
+### Notes
+- Requires enabling the **Google Calendar API** in the Google Cloud project and adding a second redirect URI `http://localhost:7432/api/calendar/callback` to the existing Google OAuth client (the YouTube one) — the `YOUTUBE_CLIENT_ID` Settings hint now mentions both URIs.
+- Calendar consent is separate from YouTube's: connecting YouTube does not sign in Calendar (different scope, different token file), so each widget shows its own Connect action.
+
+---
+
 ## [PR #95] feat: network monitor widget (latency/jitter/loss + throughput)
 **Branch:** `feat/network-monitor` → `master`
 **Date:** 2026-07-06

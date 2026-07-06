@@ -8,6 +8,7 @@ import { stocksRoutes } from './routes/stocks';
 import { hardwareRoutes } from './routes/hardware';
 import { soundRoutes } from './routes/sound';
 import { youtubeRoutes } from './routes/youtube';
+import { calendarRoutes } from './routes/calendar';
 import { twitchRoutes } from './routes/twitch';
 import { newsRoutes } from './routes/news';
 import { cryptoRoutes } from './routes/crypto';
@@ -58,6 +59,7 @@ export async function buildServer(opts: { logger?: boolean } = {}): Promise<Fast
   server.register(hardwareRoutes, { prefix: '/api/hardware' });
   server.register(soundRoutes, { prefix: '/api/sound' });
   server.register(youtubeRoutes, { prefix: '/api/youtube' });
+  server.register(calendarRoutes, { prefix: '/api/calendar' });
   server.register(twitchRoutes, { prefix: '/api/twitch' });
   server.register(newsRoutes, { prefix: '/api/news' });
   server.register(cryptoRoutes, { prefix: '/api/crypto' });
