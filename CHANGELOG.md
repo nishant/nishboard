@@ -4,7 +4,7 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
-## [PR #NN] chore: remove the Claude chat widget
+## [PR #106] chore: remove the Claude chat widget
 **Branch:** `chore/remove-claude-widget` → `master`
 **Date:** 2026-07-10
 
