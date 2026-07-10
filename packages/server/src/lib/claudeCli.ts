@@ -164,70 +164,131 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 }
 
 /**
- * Map one raw stream-json line from `claude -p --output-format stream-json
- * --include-partial-messages --verbose` to a ClaudeStreamEvent. Unknown types
- * and unparseable lines return null (forward-compatible: newer CLIs add event
- * types freely). Exported for tests.
+ * Short human label for a tool call, derived from its input — a filename for
+ * file tools, the command for shells, the pattern for search, etc. Kept compact
+ * (the widget renders it in a one-line chip). Exported for tests.
  */
-export function parseStreamJsonLine(line: string): ClaudeStreamEvent | null {
+export function toolDetail(name: string, input: unknown): string {
+  const inp = asRecord(input) ?? {};
+  const basename = (p: unknown): string => (typeof p === 'string' ? p.split(/[\\/]/).pop() ?? p : '');
+  let detail = '';
+  switch (name) {
+    case 'Write':
+    case 'Edit':
+    case 'Read':
+    case 'NotebookEdit':
+      detail = basename(inp.file_path ?? inp.notebook_path);
+      break;
+    case 'Bash':
+    case 'PowerShell':
+      detail = typeof inp.command === 'string' ? inp.command : '';
+      break;
+    case 'Glob':
+    case 'Grep':
+      detail = typeof inp.pattern === 'string' ? inp.pattern : '';
+      break;
+    case 'WebFetch':
+    case 'WebSearch':
+      detail = (typeof inp.url === 'string' && inp.url) || (typeof inp.query === 'string' && inp.query) || '';
+      break;
+    case 'Task':
+      detail = typeof inp.description === 'string' ? inp.description : '';
+      break;
+    default:
+      detail = '';
+  }
+  return detail.replace(/\s+/g, ' ').trim().slice(0, 200);
+}
+
+/**
+ * Map one raw stream-json line from `claude -p --output-format stream-json
+ * --include-partial-messages --verbose` to zero or more ClaudeStreamEvents.
+ * Most lines map to one event (or none); an `assistant` line can carry several
+ * tool calls and a `user` line several tool results, hence the array. Unknown
+ * types and unparseable lines return `[]` (forward-compatible: newer CLIs add
+ * event types freely). Exported for tests.
+ */
+export function parseStreamJsonLine(line: string): ClaudeStreamEvent[] {
   const trimmed = line.trim();
-  if (!trimmed) return null;
+  if (!trimmed) return [];
   let raw: unknown;
   try {
     raw = JSON.parse(trimmed);
   } catch {
-    return null;
+    return [];
   }
   const obj = asRecord(raw);
-  if (!obj) return null;
+  if (!obj) return [];
 
   switch (obj.type) {
     case 'system': {
       // {type:'system',subtype:'init',session_id,model,...}
-      if (obj.subtype !== 'init') return null;
-      return {
-        type: 'init',
-        sessionId: typeof obj.session_id === 'string' ? obj.session_id : '',
-        model: typeof obj.model === 'string' ? obj.model : '',
-      };
+      if (obj.subtype !== 'init') return [];
+      return [
+        {
+          type: 'init',
+          sessionId: typeof obj.session_id === 'string' ? obj.session_id : '',
+          model: typeof obj.model === 'string' ? obj.model : '',
+        },
+      ];
     }
     case 'stream_event': {
       // {type:'stream_event',event:{type:'content_block_delta',delta:{type:'text_delta',text}}}
       const event = asRecord(obj.event);
-      if (!event || event.type !== 'content_block_delta') return null;
+      if (!event || event.type !== 'content_block_delta') return [];
       const delta = asRecord(event.delta);
-      if (!delta || delta.type !== 'text_delta' || typeof delta.text !== 'string') return null;
-      return { type: 'delta', text: delta.text };
+      if (!delta || delta.type !== 'text_delta' || typeof delta.text !== 'string') return [];
+      return [{ type: 'delta', text: delta.text }];
     }
     case 'assistant': {
-      // {type:'assistant',message:{content:[{type:'text',text}, ...]}} —
-      // authoritative final text; concat text blocks, skip tool_use etc.
+      // {type:'assistant',message:{content:[{type:'text',text},{type:'tool_use',id,name,input}]}}
+      // Text is NOT re-emitted here — the delta stream already carried it (and a
+      // tool-using turn has several assistant messages, so re-emitting text would
+      // duplicate/clobber). We only surface the tool_use blocks.
       const message = asRecord(obj.message);
-      if (!message || !Array.isArray(message.content)) return null;
+      if (!message || !Array.isArray(message.content)) return [];
       // Observed on v2.1.201: a not-logged-in CLI reports auth failure as a
       // synthetic assistant message ("Not logged in · Please run /login") with
       // error:'authentication_failed' on the EVENT — not on stderr. Surface
       // the friendly hint instead of the raw CLI text.
       if (obj.error === 'authentication_failed') {
-        return { type: 'error', message: LOGIN_HINT };
+        return [{ type: 'error', message: LOGIN_HINT }];
       }
-      let text = '';
+      const events: ClaudeStreamEvent[] = [];
       for (const block of message.content) {
         const b = asRecord(block);
-        if (b && b.type === 'text' && typeof b.text === 'string') text += b.text;
+        if (b && b.type === 'tool_use' && typeof b.id === 'string' && typeof b.name === 'string') {
+          events.push({ type: 'tool-use', id: b.id, name: b.name, detail: toolDetail(b.name, b.input) });
+        }
       }
-      return { type: 'message', text };
+      return events;
+    }
+    case 'user': {
+      // {type:'user',message:{content:[{type:'tool_result',tool_use_id,is_error,content}]}}
+      // The CLI reports tool completion as a synthetic user turn.
+      const message = asRecord(obj.message);
+      if (!message || !Array.isArray(message.content)) return [];
+      const events: ClaudeStreamEvent[] = [];
+      for (const block of message.content) {
+        const b = asRecord(block);
+        if (b && b.type === 'tool_result' && typeof b.tool_use_id === 'string') {
+          events.push({ type: 'tool-result', id: b.tool_use_id, isError: b.is_error === true });
+        }
+      }
+      return events;
     }
     case 'result': {
       // {type:'result',subtype,is_error,duration_ms,...}
-      return {
-        type: 'done',
-        isError: obj.is_error === true,
-        durationMs: typeof obj.duration_ms === 'number' ? obj.duration_ms : 0,
-      };
+      return [
+        {
+          type: 'done',
+          isError: obj.is_error === true,
+          durationMs: typeof obj.duration_ms === 'number' ? obj.duration_ms : 0,
+        },
+      ];
     }
     default:
-      return null;
+      return [];
   }
 }
 
@@ -256,6 +317,11 @@ export function isSessionNotFoundError(message: string): boolean {
 export interface SpawnClaudeChatOpts {
   message: string;
   sessionId?: string;
+  /** Passed straight to `--permission-mode`. 'bypassPermissions' lets the CLI
+   *  actually write files / run commands / invoke skills — which a
+   *  non-interactive `-p` session otherwise auto-denies (it can't prompt).
+   *  Omit or 'default' to keep the safe, read-only-ish posture. */
+  permissionMode?: 'default' | 'bypassPermissions';
   onEvent: (event: ClaudeStreamEvent) => void;
   /** Fires exactly once, after the child is fully finished (or failed to start). */
   onExit: () => void;
@@ -304,6 +370,12 @@ export function spawnClaudeChat(opts: SpawnClaudeChatOpts): { kill(): void } {
     // NOTE: --verbose is MANDATORY with -p + stream-json — the CLI errors out
     // without it. --include-partial-messages is what yields the delta stream.
     const args = ['-p', '--output-format', 'stream-json', '--include-partial-messages', '--verbose'];
+    // Opt-in tool execution. Without this, -p mode auto-denies Write/Edit/Bash
+    // (it can't show a permission prompt), so file output / commands / skills
+    // never actually run — they just report "pending permission approval".
+    if (opts.permissionMode && opts.permissionMode !== 'default') {
+      args.push('--permission-mode', opts.permissionMode);
+    }
     if (opts.sessionId) args.push('--resume', opts.sessionId);
 
     // LOAD-BEARING: delete ANTHROPIC_API_KEY. If it leaks through, the CLI
@@ -317,10 +389,10 @@ export function spawnClaudeChat(opts: SpawnClaudeChatOpts): { kill(): void } {
 
     let stderr = '';
     const splitter = createLineSplitter((line) => {
-      const event = parseStreamJsonLine(line);
-      if (!event) return; // unknown/unparseable → ignore (forward-compatible)
-      if (event.type === 'done') sawDone = true;
-      emit(event);
+      for (const event of parseStreamJsonLine(line)) {
+        if (event.type === 'done') sawDone = true;
+        emit(event);
+      }
     });
 
     child.on('error', (err: NodeJS.ErrnoException) => {

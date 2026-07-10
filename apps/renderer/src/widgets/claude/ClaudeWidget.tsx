@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Plus, SendHorizontal, Square } from 'lucide-react';
+import { Check, Loader2, Plus, SendHorizontal, Square, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { useClaudeStore } from '../../store/claudeStore';
-import type { ClaudeChatMessage } from '../../store/claudeStore';
+import { messageText, useClaudeStore } from '../../store/claudeStore';
+import type { ClaudeChatMessage, ClaudeToolPart } from '../../store/claudeStore';
 import { useClaudeStatus, useSendClaudeMessage, stopClaudeStream } from './useClaude';
 import { HeaderAction } from '../../components/HeaderAction';
 import { cn } from '../../lib/utils';
@@ -33,23 +33,52 @@ export function ClaudeActions() {
   );
 }
 
+/** Inline chip for one tool call. `live` = this is the actively-streaming
+ *  message, so a still-'running' tool shows a spinner; on a reloaded/old message
+ *  a lingering 'running' renders as done rather than a perpetual spinner. */
+function ToolChip({ part, live }: { part: ClaudeToolPart; live: boolean }) {
+  const running = part.status === 'running' && live;
+  return (
+    <div className="flex items-center gap-1.5 my-1 px-2 py-1 rounded-md bg-th-elevated/60 text-[11px] max-w-full">
+      {part.status === 'error' ? (
+        <X size={11} className="shrink-0 text-red-400" />
+      ) : running ? (
+        <Loader2 size={11} className="shrink-0 animate-spin text-th-accent" />
+      ) : (
+        <Check size={11} className="shrink-0 text-emerald-400" />
+      )}
+      <span className="shrink-0 font-medium text-th-hi">{part.name}</span>
+      {part.detail && (
+        <>
+          <span className="shrink-0 text-th-ghost">·</span>
+          <span className="truncate font-mono text-th-ghost">{part.detail}</span>
+        </>
+      )}
+    </div>
+  );
+}
+
 function MessageBubble({ msg, streaming }: { msg: ClaudeChatMessage; streaming: boolean }) {
   if (msg.role === 'user') {
     return (
       <div className="flex justify-end">
         <div className="max-w-[85%] rounded-xl rounded-br-sm bg-th-elevated px-2.5 py-1.5 text-xs text-th-hi whitespace-pre-wrap break-words">
-          {msg.text}
+          {messageText(msg)}
         </div>
       </div>
     );
   }
   return (
-    <div className="max-w-full text-xs text-th-2 leading-relaxed">
-      {msg.text ? (
-        <div className="md-render break-words">
-          <ReactMarkdown>{msg.text}</ReactMarkdown>
-        </div>
-      ) : null}
+    <div className="max-w-full text-xs text-th-2 leading-relaxed space-y-0.5">
+      {msg.parts.map((part, i) =>
+        part.kind === 'tool' ? (
+          <ToolChip key={part.id} part={part} live={streaming} />
+        ) : part.text ? (
+          <div key={i} className="md-render break-words">
+            <ReactMarkdown>{part.text}</ReactMarkdown>
+          </div>
+        ) : null,
+      )}
       {streaming && (
         <span className="inline-block w-1.5 h-3.5 rounded-[1px] bg-th-accent/80 animate-pulse align-text-bottom" />
       )}

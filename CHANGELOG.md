@@ -4,6 +4,27 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #111] feat: Claude widget can run tools — write files, run commands, use skills (opt-in Full-access toggle + tool-activity chips)
+
+**Branch:** `feat/claude-widget-tools` → `master`
+**Date:** 2026-07-10
+
+### Context
+The widget could only chat. In non-interactive `-p` mode the CLI auto-denies `Write`/`Edit`/`Bash` (it can't show a permission prompt), so "output a markdown file" reported *"pending permission approval"* and wrote nothing. This makes file output / commands / skills actually work — gated behind an explicit, off-by-default toggle.
+
+### Added
+- **Settings → App → Claude → "Allow tools (write files, run commands)"** (`claudeAllowTools`, default **OFF**). When on, the chat request carries `allowTools: true` and the server spawns the CLI with `--permission-mode bypassPermissions`, so tools run autonomously. ⚠ This grants Claude full file + command access to the machine; off = chat only. Files land under the widget's cwd, `~/.dash`.
+- **Tool-activity rendering** — an inline chip per tool call (spinner → green check / red ✗) with the tool name + a short detail (filename, command, pattern, …), interleaved with the streamed text in order.
+
+### Changed
+- **Stream event model** — `ClaudeStreamEvent` gains `tool-use` / `tool-result` and drops the `message` (authoritative-final-text) frame: a tool-using turn has several assistant turns, and replace-semantics text would clobber earlier ones, so text now comes purely from `delta` frames (the CLI already runs with `--include-partial-messages`). `parseStreamJsonLine` now returns `ClaudeStreamEvent[]` — one `assistant` line can carry several tool calls, `user` lines carry tool results.
+- **claudeStore** — messages are now an ordered `parts` array (`text` runs + `tool` chips) instead of a flat `text` string, so tool steps interleave with prose. Persist bumped **v1 → v2** with a migration wrapping old `{ text }` messages into `{ parts: [{ kind: 'text', … }] }`.
+
+### Notes
+- `bypassPermissions` is the CLI's own flag; `ANTHROPIC_API_KEY` is still stripped from the child env, so this bills the **Max subscription**, not API credits.
+- Slash commands work by typing them as the message; custom commands/skills are picked up from `~/.claude` and the cwd's `.claude/`.
+- Verified end-to-end: `allowTools: true` writes a real file (green check chip); `allowTools: false` is denied (red ✗ chip, no file). Tests: server parser table rewritten for arrays + `tool-use`/`tool-result`/`toolDetail`; new `claudeStore` parts + migration tests; settings default coverage.
+
 ## [PR #110] fix: Claude widget streamed nothing — CLI child killed before it spawned
 
 **Branch:** `fix/claude-widget-stream-premature-kill` → `master`
