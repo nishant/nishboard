@@ -4,7 +4,7 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
-## [PR #NN] fix: native Windows window behavior (snap, double-click maximize, smooth resize)
+## [PR #104] fix: native Windows window behavior (snap, double-click maximize, smooth resize)
 
 **Branch:** `fix/windows-native-window` → `master`
 **Date:** 2026-07-10
