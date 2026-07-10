@@ -4,6 +4,7 @@ import { apiClient } from '../../lib/apiClient';
 import { postEventStream } from '../../lib/streamClient';
 import { useGatedInterval } from '../../hooks/useGatedInterval';
 import { useClaudeStore } from '../../store/claudeStore';
+import { useAppSettingsStore } from '../../store/settingsStore';
 import { toast } from '../../lib/alerts';
 
 /** CLI availability probe — cheap on the server (60s TtlCache) so a slow poll
@@ -31,12 +32,6 @@ export function stopClaudeStream(): void {
   useClaudeStore.getState().setStreaming(false);
 }
 
-function lastAssistantText(): string {
-  const { messages } = useClaudeStore.getState();
-  const last = messages[messages.length - 1];
-  return last && last.role === 'assistant' ? last.text : '';
-}
-
 export function useSendClaudeMessage(): { send: (text: string) => void; stop: () => void } {
   const send = (text: string): void => {
     const trimmed = text.trim();
@@ -53,6 +48,9 @@ export function useSendClaudeMessage(): { send: (text: string) => void; stop: ()
     const body: ClaudeChatRequestBody = {
       message: trimmed,
       sessionId: store.sessionId ?? undefined,
+      // Opt-in tool execution (write files / run commands / skills). Read at
+      // send time so a Settings toggle takes effect on the next message.
+      allowTools: useAppSettingsStore.getState().claudeAllowTools,
     };
 
     void postEventStream<ClaudeStreamEvent>('/api/claude/chat', body, {
@@ -66,20 +64,20 @@ export function useSendClaudeMessage(): { send: (text: string) => void; stop: ()
           case 'delta':
             s.appendDelta(event.text);
             break;
-          case 'message':
-            // Authoritative final text — replaces the accumulated deltas.
-            s.finalizeAssistant(event.text);
+          case 'tool-use':
+            s.addToolPart(event.id, event.name, event.detail);
+            break;
+          case 'tool-result':
+            s.resolveToolPart(event.id, event.isError);
             break;
           case 'done':
             s.setStreaming(false);
             break;
-          case 'error': {
+          case 'error':
             toast('Claude', event.message, 'error');
-            const partial = lastAssistantText();
-            s.finalizeAssistant(partial ? `${partial}\n\n⚠ ${event.message}` : `⚠ ${event.message}`);
+            s.appendError(event.message);
             s.setStreaming(false);
             break;
-          }
         }
       },
     }).catch((err: unknown) => {
@@ -89,8 +87,7 @@ export function useSendClaudeMessage(): { send: (text: string) => void; stop: ()
       if (controller.signal.aborted) return;
       const message = err instanceof Error ? err.message : String(err);
       toast('Claude', message, 'error');
-      const partial = lastAssistantText();
-      s.finalizeAssistant(partial ? `${partial}\n\n⚠ ${message}` : `⚠ ${message}`);
+      s.appendError(message);
     });
   };
 

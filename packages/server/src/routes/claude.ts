@@ -40,6 +40,7 @@ export const claudeRoutes: FastifyPluginAsync = async (fastify) => {
           properties: {
             message: { type: 'string', minLength: 1, maxLength: 50_000 },
             sessionId: { type: 'string', pattern: '^[A-Za-z0-9-]{8,64}$' },
+            allowTools: { type: 'boolean' },
           },
         },
       },
@@ -47,7 +48,8 @@ export const claudeRoutes: FastifyPluginAsync = async (fastify) => {
     async (req, reply) => {
       if (activeChat) throw new HttpError(409, 'A Claude response is already streaming');
 
-      const { message, sessionId } = req.body;
+      const { message, sessionId, allowTools } = req.body;
+      const permissionMode = allowTools ? 'bypassPermissions' : 'default';
 
       // Past this point we own the raw socket — the central error handler and
       // @fastify/cors no longer apply.
@@ -84,6 +86,7 @@ export const claudeRoutes: FastifyPluginAsync = async (fastify) => {
         const handle = spawnClaudeChat({
           message,
           sessionId: resumeId,
+          permissionMode,
           onEvent: (event) => {
             // --resume pointed at a session this machine's CLI doesn't know
             // (wiped history, different box). Retry ONCE as a fresh chat — the

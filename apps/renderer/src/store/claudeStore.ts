@@ -1,11 +1,37 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+/** A run of assistant text (streamed from `delta` frames). */
+export interface ClaudeTextPart {
+  kind: 'text';
+  text: string;
+}
+/** A tool the model invoked (Write, Bash, a Skill, …), shown as an inline chip. */
+export interface ClaudeToolPart {
+  kind: 'tool';
+  /** CLI tool_use id — matches the `tool-result` that resolves it. */
+  id: string;
+  name: string;
+  detail: string;
+  status: 'running' | 'ok' | 'error';
+}
+export type ClaudePart = ClaudeTextPart | ClaudeToolPart;
+
+/**
+ * A message is an ORDERED list of parts so tool activity interleaves with text
+ * exactly as it happened ("Let me write that." → [Write notes.md] → "Done!").
+ * User messages are always a single text part.
+ */
 export interface ClaudeChatMessage {
   id: string;
   role: 'user' | 'assistant';
-  text: string;
+  parts: ClaudePart[];
   at: number;
+}
+
+/** Concatenated text of a message (ignores tool parts). */
+export function messageText(m: ClaudeChatMessage): string {
+  return m.parts.reduce((acc, p) => (p.kind === 'text' ? acc + p.text : acc), '');
 }
 
 interface ClaudeState {
@@ -17,12 +43,29 @@ interface ClaudeState {
   addUser: (text: string) => void;
   /** Push an empty assistant message for the incoming stream to fill. */
   beginAssistant: () => void;
+  /** Append streamed text to the current assistant message (merges into the
+   *  trailing text part, or starts a new one after a tool call). */
   appendDelta: (text: string) => void;
-  /** Replace the streamed text with the authoritative final text when given. */
-  finalizeAssistant: (text?: string) => void;
+  /** The model started a tool call — append a running chip. */
+  addToolPart: (id: string, name: string, detail: string) => void;
+  /** A tool call finished — flip its chip to ok/error. */
+  resolveToolPart: (id: string, isError: boolean) => void;
+  /** Append an error note to the current assistant message (client-side only). */
+  appendError: (text: string) => void;
   setSession: (id: string, model: string) => void;
   setStreaming: (isStreaming: boolean) => void;
   newChat: () => void;
+}
+
+/** Mutate the trailing assistant message via `fn`, returning a new messages array
+ *  (no-op if the last message isn't an assistant turn). */
+function patchLastAssistant(
+  messages: ClaudeChatMessage[],
+  fn: (m: ClaudeChatMessage) => ClaudeChatMessage,
+): ClaudeChatMessage[] {
+  const last = messages[messages.length - 1];
+  if (!last || last.role !== 'assistant') return messages;
+  return [...messages.slice(0, -1), fn(last)];
 }
 
 export const useClaudeStore = create<ClaudeState>()(
@@ -35,35 +78,70 @@ export const useClaudeStore = create<ClaudeState>()(
 
       addUser: (text) =>
         set((s) => ({
-          messages: [...s.messages, { id: crypto.randomUUID(), role: 'user', text, at: Date.now() }],
+          messages: [
+            ...s.messages,
+            { id: crypto.randomUUID(), role: 'user', parts: [{ kind: 'text', text }], at: Date.now() },
+          ],
         })),
       beginAssistant: () =>
         set((s) => ({
-          messages: [...s.messages, { id: crypto.randomUUID(), role: 'assistant', text: '', at: Date.now() }],
+          messages: [...s.messages, { id: crypto.randomUUID(), role: 'assistant', parts: [], at: Date.now() }],
         })),
       appendDelta: (text) =>
-        set((s) => {
-          const last = s.messages[s.messages.length - 1];
-          if (!last || last.role !== 'assistant') return s;
-          return { messages: [...s.messages.slice(0, -1), { ...last, text: last.text + text }] };
-        }),
-      finalizeAssistant: (text) =>
-        set((s) => {
-          const last = s.messages[s.messages.length - 1];
-          if (!last || last.role !== 'assistant') return s;
-          if (text === undefined) return s;
-          return { messages: [...s.messages.slice(0, -1), { ...last, text }] };
-        }),
+        set((s) => ({
+          messages: patchLastAssistant(s.messages, (m) => {
+            const last = m.parts[m.parts.length - 1];
+            if (last && last.kind === 'text') {
+              return { ...m, parts: [...m.parts.slice(0, -1), { ...last, text: last.text + text }] };
+            }
+            return { ...m, parts: [...m.parts, { kind: 'text', text }] };
+          }),
+        })),
+      addToolPart: (id, name, detail) =>
+        set((s) => ({
+          messages: patchLastAssistant(s.messages, (m) => ({
+            ...m,
+            parts: [...m.parts, { kind: 'tool', id, name, detail, status: 'running' }],
+          })),
+        })),
+      resolveToolPart: (id, isError) =>
+        set((s) => ({
+          messages: patchLastAssistant(s.messages, (m) => ({
+            ...m,
+            parts: m.parts.map((p) =>
+              p.kind === 'tool' && p.id === id ? { ...p, status: isError ? 'error' : 'ok' } : p,
+            ),
+          })),
+        })),
+      appendError: (text) =>
+        set((s) => ({
+          messages: patchLastAssistant(s.messages, (m) => ({
+            ...m,
+            parts: [...m.parts, { kind: 'text', text: `\n\n⚠ ${text}` }],
+          })),
+        })),
       setSession: (sessionId, model) => set({ sessionId, model }),
       setStreaming: (isStreaming) => set({ isStreaming }),
       newChat: () => set({ messages: [], sessionId: null }),
     }),
     {
       name: 'dashboard-claude',
-      version: 1,
+      version: 2,
       // NEVER persist isStreaming — a reload mid-stream would resurrect a
       // permanently-disabled input with no stream behind it.
       partialize: (s) => ({ messages: s.messages, sessionId: s.sessionId, model: s.model }),
+      // v1 messages were flat `{ text: string }`; v2 is `{ parts: ClaudePart[] }`.
+      migrate: (persisted, version) => {
+        const state = persisted as { messages?: Array<Record<string, unknown>> } & Record<string, unknown>;
+        if (version < 2 && Array.isArray(state.messages)) {
+          state.messages = state.messages.map((m) => {
+            if (Array.isArray((m as { parts?: unknown }).parts)) return m;
+            const text = typeof m.text === 'string' ? m.text : '';
+            return { id: m.id, role: m.role, at: m.at, parts: text ? [{ kind: 'text', text }] : [] };
+          });
+        }
+        return state as unknown as ClaudeState;
+      },
     },
   ),
 );
