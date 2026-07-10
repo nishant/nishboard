@@ -4,7 +4,7 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
-## [PR #NN] feat: uniform widget min-width (all widgets minW 3)
+## [PR #100] feat: uniform widget min-width (all widgets minW 3)
 
 **Branch:** `feat/uniform-min-width` → `master`
 **Date:** 2026-07-09
