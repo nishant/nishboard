@@ -65,6 +65,7 @@ export interface UpdateCheckData {
 
 export type IpcChannels =
   | 'app:minimize'
+  | 'app:toggle-maximize'
   | 'app:close'
   | 'app:notify'
   | 'app:open-external'
@@ -112,6 +113,8 @@ export interface ElectronAPI {
   /** Host OS, from the main process (`process.platform`): 'win32' | 'darwin' | 'linux' | … */
   platform: string;
   minimize: () => void;
+  /** Toggle the main window between maximized and its previous size. */
+  toggleMaximize: () => void;
   close: () => void;
   /** Set the renderer zoom factor (1 = 100%) for UI scaling. */
   setZoom: (factor: number) => void;

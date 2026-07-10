@@ -48,19 +48,19 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 function createWindow(): void {
-  // Windows: a transparent frameless window lets the renderer round its own corners
-  // (CSS) and have the desktop show through, matching macOS's native rounded window.
-  // macOS rounds frameless windows natively, so it stays opaque (no transparency artifacts).
-  const isWin = process.platform === 'win32';
-
+  // Frameless on both platforms (custom titlebar). The window is OPAQUE on
+  // Windows: a transparent frameless window there disables Aero Snap
+  // (drag-to-top / drag-to-side maximize), double-click-titlebar maximize, AND
+  // the hardware-accelerated resize path (transparency forces slow per-pixel
+  // alpha compositing → janky corner drags). We used to make it transparent only
+  // to round the corners in CSS; native window behavior is worth far more than
+  // rounded corners, so Windows now matches macOS's opaque frameless window.
   mainWindow = new BrowserWindow({
     width: 1920,
     height: 1080,
     frame: false,
     resizable: true,
-    ...(isWin
-      ? { transparent: true, backgroundColor: '#00000000' }
-      : { backgroundColor: '#09090b' }),
+    backgroundColor: '#09090b',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

@@ -24,6 +24,13 @@ export function registerIpcHandlers(
     BrowserWindow.getFocusedWindow()?.minimize();
   });
 
+  ipcMain.on('app:toggle-maximize', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) return;
+    if (win.isMaximized()) win.unmaximize();
+    else win.maximize();
+  });
+
   ipcMain.on('app:close', (event) => {
     // Close the window (not app.quit()) so the close-to-tray intercept in
     // index.ts gets to apply the closeAction pref.

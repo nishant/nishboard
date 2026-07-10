@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Minus, Settings } from 'lucide-react';
+import { X, Minus, Square, Settings } from 'lucide-react';
 import { SettingsModal } from './SettingsModal';
 import { ThemeMenu } from './menus/ThemeMenu';
 import { WidgetsMenu } from './menus/WidgetsMenu';
@@ -115,6 +115,13 @@ export function Titlebar() {
             title="Minimize"
           >
             <Minus size={13} />
+          </button>
+          <button
+            onClick={() => window.electron?.toggleMaximize()}
+            className="flex items-center justify-center w-6 h-6 rounded text-th-ghost hover:text-th-hi hover:bg-th-elevated/60 transition-colors"
+            title="Maximize"
+          >
+            <Square size={11} />
           </button>
           <button
             onClick={() => window.electron?.close()}
