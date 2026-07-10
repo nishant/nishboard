@@ -24,7 +24,6 @@ import { NewsWidget, NewsActions } from '../widgets/news/NewsWidget';
 import { CryptoWidget, CryptoActions } from '../widgets/crypto/CryptoWidget';
 import { LauncherWidget, LauncherActions } from '../widgets/launcher/LauncherWidget';
 import { ClipboardWidget, ClipboardActions } from '../widgets/clipboard/ClipboardWidget';
-import { ClaudeWidget, ClaudeActions } from '../widgets/claude/ClaudeWidget';
 import { NetworkMonitorWidget, NetworkMonitorActions } from '../widgets/netmon/NetworkMonitorWidget';
 import { TITLEBAR_H } from './Titlebar';
 import { WIDGET_TITLES } from '../lib/layouts';
@@ -58,7 +57,6 @@ export const WIDGET_REGISTRY: Record<WidgetId, WidgetEntry> = {
   crypto: { Component: CryptoWidget, Actions: CryptoActions },
   launcher: { Component: LauncherWidget, Actions: LauncherActions },
   clipboard: { Component: ClipboardWidget, Actions: ClipboardActions },
-  claude: { Component: ClaudeWidget, Actions: ClaudeActions },
   netmon: { Component: NetworkMonitorWidget, Actions: NetworkMonitorActions },
 };
 
@@ -185,7 +183,13 @@ export function DashboardGrid() {
     >
       {visibleLayout.map((item) => {
         const id = item.i as WidgetId;
-        const { Component, Actions } = WIDGET_REGISTRY[id];
+        // Defensive: a persisted layout may still reference a widget id that no
+        // longer exists (e.g. a removed 'claude' tile). Skip it rather than
+        // crash on the destructure below. layoutStore prunes these on rehydrate,
+        // but guard here too for the first render before that runs.
+        const entry = WIDGET_REGISTRY[id];
+        if (!entry) return null;
+        const { Component, Actions } = entry;
         const isPopped = popped.includes(id);
         const isCollapsed = collapsed[id] ?? false;
         return (
