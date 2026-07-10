@@ -4,7 +4,7 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
-## [PR #NN] feat: YouTube Subs tab — channel-list-only mode
+## [PR #103] feat: YouTube Subs tab — channel-list-only mode
 **Branch:** `feat/youtube-subs-list` → `master`
 **Date:** 2026-07-09
 
