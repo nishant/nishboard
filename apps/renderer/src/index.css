@@ -420,17 +420,11 @@ body,
   background: transparent;
 }
 
-/* Rounded window corners. On Windows the BrowserWindow is created transparent
-   (frameless), so rounding + clipping the shell reveals the desktop behind the
-   corners — matching macOS's native rounded frameless window. */
-[data-platform="win32"] body,
-[data-platform="win32"] #root {
-  background: transparent;
-}
-[data-platform="win32"] .app-shell {
-  border-radius: 10px;
-  overflow: hidden;
-}
+/* The Windows window is opaque (see apps/main/src/index.ts) so Aero Snap,
+   double-click-maximize, and smooth resize all work natively. That means NO
+   CSS corner-rounding here — a rounded shell over an opaque square window would
+   just show square dark corners. The window fills its frame edge-to-edge;
+   Windows draws square corners, which is standard for every native app. */
 
 /* Frameless-window drag regions (popout micro-titlebar) */
 .app-region-drag { -webkit-app-region: drag; }

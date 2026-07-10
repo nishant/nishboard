@@ -4,6 +4,27 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #NN] fix: native Windows window behavior (snap, double-click maximize, smooth resize)
+
+**Branch:** `fix/windows-native-window` → `master`
+**Date:** 2026-07-10
+
+### Context
+On Windows you couldn't drag the window to the top of the screen to maximize, double-clicking the titlebar didn't maximize, and corner-resizing was janky. Root cause: the Windows `BrowserWindow` was created `transparent: true` (only to enable CSS-rounded corners). A transparent frameless window on Windows disables Aero Snap and double-click-maximize, and forces slow per-pixel alpha compositing that makes resize stutter. There was also no maximize control at all.
+
+### Fixed
+- **`apps/main/src/index.ts`** — the Windows window is now **opaque** (`backgroundColor: '#09090b'`, no `transparent`), matching macOS. This restores native Aero Snap (drag-to-top / drag-to-side maximize), double-click-titlebar maximize, and the hardware-accelerated (smooth) resize path. Still frameless (custom titlebar).
+- **`apps/renderer/src/index.css`** — dropped the `[data-platform="win32"]` transparency + `.app-shell` corner-rounding rules (a rounded shell over an opaque square window is pointless). Windows now draws square corners, standard for native apps. Scrollbar styling unchanged.
+
+### Added
+- **Maximize button** in the titlebar (between Minimize and Close) via a new `app:toggle-maximize` IPC (`toggleMaximize` on the bridge) that toggles maximize/restore.
+
+### Notes
+- Tradeoff: Windows loses the CSS-rounded corners. Native window behavior is worth more; can be revisited with a DWM corner-preference native call if desired.
+- macOS is untouched (already opaque + natively rounded).
+
+---
+
 ## [PR #103] feat: YouTube Subs tab — channel-list-only mode
 **Branch:** `feat/youtube-subs-list` → `master`
 **Date:** 2026-07-09
