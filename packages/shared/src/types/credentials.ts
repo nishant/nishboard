@@ -9,7 +9,6 @@ export const CREDENTIAL_KEYS = [
   'TWITCH_CLIENT_SECRET',
   'COINGECKO_API_KEY',
   'GITHUB_TOKEN',
-  'CLAUDE_CODE_OAUTH_TOKEN',
 ] as const;
 
 export type CredentialKey = typeof CREDENTIAL_KEYS[number];
@@ -51,13 +50,5 @@ export const CREDENTIAL_DEFS: CredentialDef[] = [
     label: 'Token',
     service: 'Updates (GitHub)',
     hint: 'Optional — only needed for the update check while the repo is private. Fine-grained PAT with read-only Contents access.',
-  },
-  {
-    // Deliberately NOT in build.mjs BUILTIN_KEYS — a personal Max-plan token
-    // must never be baked into distributed installers.
-    key: 'CLAUDE_CODE_OAUTH_TOKEN',
-    label: 'Claude Code OAuth Token',
-    service: 'Claude',
-    hint: "Optional — only needed if Claude Code isn't logged in on this machine. Generate with `claude setup-token`.",
   },
 ];

@@ -4,6 +4,28 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #NN] chore: remove the Claude chat widget
+**Branch:** `chore/remove-claude-widget` → `master`
+**Date:** 2026-07-10
+
+### Context
+Nish uses the Claude **desktop app**, not the Claude Code CLI, so the Claude chat widget — which spawned the local `claude` CLI over an SSE stream — was dead weight. Ripped out entirely: widget, server route, CLI bridge, shared types, credential key, and docs.
+
+### Removed
+- **Renderer widget** — `apps/renderer/src/widgets/claude/` (`ClaudeWidget.tsx`, `useClaude.ts`) and `apps/renderer/src/store/claudeStore.ts`.
+- **`apps/renderer/src/lib/streamClient.ts`** — the `postEventStream` SSE helper; it was added solely for the Claude widget and had no other importer.
+- **Server** — `packages/server/src/routes/claude.ts`, `packages/server/src/lib/claudeCli.ts`, and its test `claudeCli.test.ts` (15 vitest cases). `packages/server/src/app.ts` no longer registers `/api/claude` (and the SSE-CORS-sync note that only that route needed is gone).
+- **Shared** — `packages/shared/src/types/claude.ts` and its re-export from `packages/shared/src/index.ts` (`ClaudeStatusData` / `ClaudeStreamEvent` / `ClaudeChatRequestBody`).
+- **Credential** — `CLAUDE_CODE_OAUTH_TOKEN` dropped from `CREDENTIAL_KEYS` / `CREDENTIAL_DEFS`, so it no longer appears in Settings → Developer. (It was never in `build.mjs` BUILTIN_KEYS, so builds are unchanged.)
+- **`claude` widget id** removed from the `WidgetId` union, `ALL_WIDGET_IDS`, `WIDGET_TITLES`, and `WIDGET_CONSTRAINTS` in `apps/renderer/src/lib/layouts.ts`, plus the `WIDGET_REGISTRY` entry and its import in `DashboardGrid.tsx`.
+- **Docs** — Claude rows removed from the widget table (CLAUDE.md, README.md) and the credential table (README.md); the `CLAUDE_CODE_OAUTH_TOKEN`-not-in-build note and the SSE-bypasses-CORS gotcha removed from CLAUDE.md.
+
+### Notes
+- **Existing users' persisted layouts self-heal.** `layoutStore`'s `onRehydrateStorage` now prunes any layout item / `visibleWidgets` entry / saved-custom-layout tile whose id isn't in `ALL_WIDGET_IDS`, so a stored `claude` tile is dropped on next launch. `DashboardGrid`'s render `.map` also skips (`return null`) any id missing from `WIDGET_REGISTRY`, guarding the very first render before rehydrate pruning runs — no crash on the removed-id destructure.
+- The `CLAUDE_CODE_OAUTH_TOKEN` credential is gone; any previously stored value in `safeStorage` is simply ignored (nothing reads it now).
+
+---
+
 ## [PR #104] fix: native Windows window behavior (snap, double-click maximize, smooth resize)
 
 **Branch:** `fix/windows-native-window` → `master`
