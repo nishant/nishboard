@@ -299,9 +299,10 @@ function AppSettingsPanel() {
   const {
     weatherZips, showTempInClock, uiScale, density, compactTitlebar,
     tempUnit, windUnit, clock24h, lowPower, weatherAlertNotify, twitchLiveNotify, hideYoutubeShorts,
+    youtubeSubsChannelsOnly,
     setWeatherZips, setShowTempInClock, setUiScale, setDensity, setCompactTitlebar,
     setTempUnit, setWindUnit, setClock24h, setLowPower, setWeatherAlertNotify, setTwitchLiveNotify,
-    setHideYoutubeShorts,
+    setHideYoutubeShorts, setYoutubeSubsChannelsOnly,
   } = useAppSettingsStore();
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -389,6 +390,12 @@ function AppSettingsPanel() {
           description="Filter Shorts (≤60s) out of every YouTube tab — Subs, Trending, Search, and the rest."
           checked={hideYoutubeShorts}
           onChange={setHideYoutubeShorts}
+        />
+        <ToggleRow
+          label="Subs tab: channel list only"
+          description="Show your subscriptions as a channel list instead of a video feed — click a channel to see its uploads."
+          checked={youtubeSubsChannelsOnly}
+          onChange={setYoutubeSubsChannelsOnly}
         />
       </div>
 
