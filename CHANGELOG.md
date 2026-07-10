@@ -4,7 +4,7 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
-## [PR #NN] feat: hide YouTube Shorts (setting + server duration filter)
+## [PR #101] feat: hide YouTube Shorts (setting + server duration filter)
 **Branch:** `feat/youtube-hide-shorts` → `master`
 **Date:** 2026-07-09
 
