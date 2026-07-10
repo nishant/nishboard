@@ -4,7 +4,7 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
-## [PR #NN] docs: upload every local build to the Google Drive builds folder
+## [PR #108] docs: upload every local build to the Google Drive builds folder
 
 **Branch:** `docs/build-drive-upload` → `master`
 **Date:** 2026-07-10
