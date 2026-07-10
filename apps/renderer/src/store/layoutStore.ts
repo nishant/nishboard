@@ -236,16 +236,6 @@ export const useLayoutStore = create<LayoutState>()(
       onRehydrateStorage: () => (state) => {
         if (state) {
           if (!state.savedHeights) state.savedHeights = {};
-          // Drop any persisted item referencing a widget id that no longer exists
-          // (e.g. a removed 'claude' tile). Otherwise DashboardGrid would try to
-          // render an unknown id and WIDGET_TITLES/WIDGET_REGISTRY lookups return
-          // undefined. Prune the live layout, the visible set, and every saved
-          // custom layout's tile list through the same ALL_WIDGET_IDS filter.
-          const isKnown = (id: string): boolean => ALL_WIDGET_IDS.includes(id as WidgetId);
-          state.layout = state.layout.filter((item) => isKnown(item.i));
-          if (state.visibleWidgets) {
-            state.visibleWidgets = state.visibleWidgets.filter((id) => isKnown(id));
-          }
           // Re-clamp mins to current WIDGET_CONSTRAINTS so layouts saved with older
           // (larger) minH/minW pick up the new, smaller floors instead of staying stuck.
           state.layout = applyConstraints(autoFillLayout(state.layout));
@@ -268,10 +258,7 @@ export const useLayoutStore = create<LayoutState>()(
           if (!state.savedCustomLayouts) state.savedCustomLayouts = [];
           else state.savedCustomLayouts = state.savedCustomLayouts.map((l) => ({
             ...l,
-            // Prune unknown ids from both the tile list and the pinned set so a
-            // saved layout that predates a widget removal doesn't resurrect it.
-            layout: applyConstraints(l.layout.filter((item) => isKnown(item.i))),
-            visibleWidgets: l.visibleWidgets.filter((id) => isKnown(id)),
+            layout: applyConstraints(l.layout),
           }));
           if (state.activeCustomLayoutId === undefined) state.activeCustomLayoutId = null;
         }

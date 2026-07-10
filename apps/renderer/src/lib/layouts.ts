@@ -3,11 +3,13 @@ import type { Layout } from 'react-grid-layout';
 export type WidgetId =
   | 'weather' | 'spotify' | 'stocks' | 'hardware' | 'sound' | 'calendar' | 'youtube' | 'twitch'
   | 'tasks' | 'worldclock' | 'notes' | 'timer' | 'countdown' | 'news' | 'crypto' | 'launcher' | 'clipboard'
+  | 'claude'
   | 'netmon';
 
 export const ALL_WIDGET_IDS: WidgetId[] = [
   'weather', 'spotify', 'stocks', 'hardware', 'sound', 'calendar', 'youtube', 'twitch',
   'tasks', 'worldclock', 'notes', 'timer', 'countdown', 'news', 'crypto', 'launcher', 'clipboard',
+  'claude',
   'netmon',
 ];
 
@@ -29,6 +31,7 @@ export const WIDGET_TITLES: Record<WidgetId, string> = {
   crypto: 'Crypto',
   launcher: 'Launcher',
   clipboard: 'Clipboard',
+  claude: 'Claude',
   netmon: 'Net Monitor',
 };
 
@@ -228,6 +231,8 @@ export const WIDGET_CONSTRAINTS: Record<WidgetId, { minW: number; minH: number }
   crypto:     { minW: 3, minH: 2 },
   launcher:   { minW: 3, minH: 2 },
   clipboard:  { minW: 3, minH: 2 },
+  // Chat needs room for the input row + a few message lines.
+  claude:     { minW: 3, minH: 3 },
   netmon:     { minW: 3, minH: 2 },
 };
 
