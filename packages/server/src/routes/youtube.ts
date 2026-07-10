@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { fetchJson, HttpError } from '../lib/http';
 import { TtlCache } from '../lib/TtlCache';
 import { cred } from '../lib/env';
+import { parseIso8601Duration, isShortDuration } from '../lib/youtubeDuration';
 import { UserTokenStore, rethrowRefreshFailure } from '../lib/userTokenStore';
 import type { StoredUserTokens } from '../lib/userTokenStore';
 
@@ -93,7 +94,47 @@ function snippetToVideo(s: YtSnippet, videoId: string): YoutubeVideo {
     channelId: s.videoOwnerChannelId ?? s.channelId,
     thumbnailUrl: s.thumbnails?.medium?.url ?? s.thumbnails?.default?.url ?? '',
     publishedAt: s.publishedAt,
+    // Populated by attachDurations() before the list is returned/cached.
+    durationSeconds: 0,
+    isShort: false,
   };
+}
+
+/** Enrich a video list with contentDetails duration + a Shorts heuristic.
+ *  Every YoutubeVideo the server returns must run through this so the renderer
+ *  can filter Shorts client-side. Uses the plain API key (contentDetails is
+ *  public — no OAuth needed) and batches ≤50 ids/call → 1 quota unit per batch.
+ *  Without an API key it leaves fields at their snippet defaults (0 / false),
+ *  so the signed-in tabs still work OAuth-only, just without Short detection. */
+async function attachDurations(videos: YoutubeVideo[]): Promise<YoutubeVideo[]> {
+  if (videos.length === 0) return videos;
+  const apiKey = cred('YOUTUBE_API_KEY');
+
+  const durations = new Map<string, number>();
+  if (apiKey) {
+    for (let i = 0; i < videos.length; i += 50) {
+      const ids = videos.slice(i, i + 50).map((v) => v.videoId);
+      const d = await fetchJson<{
+        items?: { id: string; contentDetails?: { duration?: string } }[];
+      }>(
+        `${BASE}/videos?part=contentDetails&id=${ids.join(',')}&key=${apiKey}`,
+        undefined,
+        { label: 'YouTube durations' },
+      );
+      for (const item of d.items ?? []) {
+        durations.set(item.id, parseIso8601Duration(item.contentDetails?.duration ?? ''));
+      }
+    }
+  }
+
+  return videos.map((v) => {
+    const durationSeconds = durations.get(v.videoId) ?? 0;
+    return {
+      ...v,
+      durationSeconds,
+      isShort: isShortDuration(durationSeconds) || /#shorts/i.test(v.title),
+    };
+  });
 }
 
 /** playlistItems.list → videos (used by playlists, channel uploads, subs feed).
@@ -302,7 +343,10 @@ export const youtubeRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     videos.sort((a, b) => (a.publishedAt < b.publishedAt ? 1 : -1));
-    const page: YoutubeSearchPage = { items: videos.slice(0, 60), nextPageToken: null };
+    const page: YoutubeSearchPage = {
+      items: await attachDurations(videos.slice(0, 60)),
+      nextPageToken: null,
+    };
     SUBS_FEED_CACHE.set('feed', page);
     return reply.send(page);
   });
@@ -345,7 +389,7 @@ export const youtubeRoutes: FastifyPluginAsync = async (fastify) => {
     if (cached) return reply.send(cached);
 
     const page: YoutubeSearchPage = {
-      items: await fetchPlaylistItems(playlistId, 50, 'YouTube playlist videos'),
+      items: await attachDurations(await fetchPlaylistItems(playlistId, 50, 'YouTube playlist videos')),
       nextPageToken: null,
     };
     PLAYLIST_VIDEOS_CACHE.set(playlistId, page);
@@ -360,12 +404,22 @@ export const youtubeRoutes: FastifyPluginAsync = async (fastify) => {
     const cached = LIKED_CACHE.get('liked');
     if (cached) return reply.send(cached);
 
+    // /liked already calls videos.list, so fold contentDetails into the same
+    // request (+0 quota) and set the duration fields inline — no attachDurations
+    // round-trip needed here.
     const d = await ytUserJson<{
-      items?: { id: string; snippet: YtSnippet }[];
-    }>('/videos?part=snippet&myRating=like&maxResults=50', 'YouTube liked');
+      items?: { id: string; snippet: YtSnippet; contentDetails?: { duration?: string } }[];
+    }>('/videos?part=snippet,contentDetails&myRating=like&maxResults=50', 'YouTube liked');
 
     const page: YoutubeSearchPage = {
-      items: (d.items ?? []).map((v) => snippetToVideo(v.snippet, v.id)),
+      items: (d.items ?? []).map((v) => {
+        const durationSeconds = parseIso8601Duration(v.contentDetails?.duration ?? '');
+        return {
+          ...snippetToVideo(v.snippet, v.id),
+          durationSeconds,
+          isShort: isShortDuration(durationSeconds) || /#shorts/i.test(v.snippet.title),
+        };
+      }),
       nextPageToken: null,
     };
     LIKED_CACHE.set('liked', page);
@@ -409,9 +463,11 @@ export const youtubeRoutes: FastifyPluginAsync = async (fastify) => {
       'YouTube channel videos',
     );
     const page: YoutubeSearchPage = {
-      items: (items.items ?? [])
-        .filter((i) => i.snippet.resourceId?.videoId && i.snippet.title !== 'Private video' && i.snippet.title !== 'Deleted video')
-        .map((i) => snippetToVideo(i.snippet, i.snippet.resourceId!.videoId!)),
+      items: await attachDurations(
+        (items.items ?? [])
+          .filter((i) => i.snippet.resourceId?.videoId && i.snippet.title !== 'Private video' && i.snippet.title !== 'Deleted video')
+          .map((i) => snippetToVideo(i.snippet, i.snippet.resourceId!.videoId!)),
+      ),
       nextPageToken: null,
     };
     CHANNEL_VIDEOS_CACHE.set(channelId, page);
@@ -477,14 +533,16 @@ export const youtubeRoutes: FastifyPluginAsync = async (fastify) => {
 
     const page: YoutubeSearchPage = {
       nextPageToken: null,
-      items: (data.items ?? []).map((item): YoutubeVideo => ({
+      items: await attachDurations((data.items ?? []).map((item): YoutubeVideo => ({
         videoId: item.id,
         title: decodeHTMLEntities(item.snippet.title),
         channelTitle: item.snippet.channelTitle,
         channelId: item.snippet.channelId,
         thumbnailUrl: item.snippet.thumbnails.medium?.url ?? item.snippet.thumbnails.default?.url ?? '',
         publishedAt: item.snippet.publishedAt,
-      })),
+        durationSeconds: 0,
+        isShort: false,
+      }))),
     };
 
     BROWSE_CACHE.set(category, page);
@@ -534,14 +592,16 @@ export const youtubeRoutes: FastifyPluginAsync = async (fastify) => {
 
     const page: YoutubeSearchPage = {
       nextPageToken: data.nextPageToken ?? null,
-      items: (data.items ?? []).map((item): YoutubeVideo => ({
+      items: await attachDurations((data.items ?? []).map((item): YoutubeVideo => ({
         videoId: item.id.videoId,
         title: decodeHTMLEntities(item.snippet.title),
         channelTitle: item.snippet.channelTitle,
         channelId: item.snippet.channelId,
         thumbnailUrl: item.snippet.thumbnails.medium?.url ?? item.snippet.thumbnails.default?.url ?? '',
         publishedAt: item.snippet.publishedAt,
-      })),
+        durationSeconds: 0,
+        isShort: false,
+      }))),
     };
 
     SEARCH_CACHE.set(cacheKey, page);

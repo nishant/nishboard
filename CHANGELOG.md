@@ -4,6 +4,27 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #101] feat: hide YouTube Shorts (setting + server duration filter)
+**Branch:** `feat/youtube-hide-shorts` → `master`
+**Date:** 2026-07-09
+
+### Context
+The YouTube tabs (Subs feed, Trending/Music/Gaming, Search, Liked, playlist/channel drill-ins) mixed Shorts in with regular videos. YouTube exposes no official "isShort" flag, so we enrich every returned video with its `contentDetails` duration server-side and let the renderer drop ≤60s clips on a client toggle — instant, no refetch.
+
+### Added
+- **`packages/server/src/lib/youtubeDuration.ts`** — pure `parseIso8601Duration` (ISO-8601 time-part → seconds; malformed/empty → 0) and `isShortDuration` (`>0 && ≤60`). Covered by `youtubeDuration.test.ts` (h/m/s combos, `PT0S`, malformed, and the 60/61/0 boundary).
+- **`attachDurations(videos)`** in `routes/youtube.ts` — batches ids ≤50/call to `videos.list?part=contentDetails` (1 quota unit/batch, plain API key — no OAuth needed), maps id→duration, and sets `durationSeconds` + `isShort = isShortDuration(d) || /#shorts/i.test(title)`. Missing duration → `0` / `false`. Every list-returning endpoint (subscriptions-feed, browse, search, liked, channel-videos, playlist-videos) now runs through it before caching. `/liked` already calls `videos.list`, so it folds `contentDetails` into the same request (+0 quota) and sets the fields inline instead of re-fetching.
+- **`hideYoutubeShorts` app setting** (`settingsStore`, default `false`) + a "Hide YouTube Shorts" ToggleRow under a new **YouTube** section in Settings → App.
+
+### Changed
+- **`YoutubeVideo`** (`packages/shared`) gains required `durationSeconds: number` and `isShort: boolean` — the server always populates them.
+- **Single render-filter** — `YoutubeWidget.tsx`'s list mapper (renamed `toEmbedState` → `useEmbedState`) reads the setting and drops `isShort` items in one place, covering every tab and drill-in. Callers restructured so the hook runs unconditionally (rules of hooks).
+
+### Notes
+- YouTube has no official Shorts flag — "≤60s duration OR a `#shorts` title tag" is a heuristic; a rare ≤60s non-Short (or a >60s clip tagged `#shorts`) can be misclassified.
+- Quota impact is minimal (1 unit/50 ids; `/liked` adds none). Enriched items are cached like before, so the toggle never triggers a refetch.
+- No persist version bump — booleans shallow-merge into existing persisted state.
+
 ## [PR #100] feat: uniform widget min-width (all widgets minW 3)
 
 **Branch:** `feat/uniform-min-width` → `master`

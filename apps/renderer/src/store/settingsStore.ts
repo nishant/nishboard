@@ -42,6 +42,9 @@ interface AppSettingsState {
   /** Chime + toast + native notification when a followed Twitch channel goes
    *  live (no-op unless a Twitch account is connected). */
   twitchLiveNotify: boolean;
+  /** Hide YouTube Shorts (≤60s videos) from every YouTube tab. Pure client-side
+   *  filter of already-fetched items — toggling is instant, no refetch. */
+  hideYoutubeShorts: boolean;
 
   setWeatherZips: (zips: string[]) => void;
   setWeatherZipIdx: (idx: number) => void;
@@ -55,6 +58,7 @@ interface AppSettingsState {
   setLowPower: (mode: LowPowerMode) => void;
   setWeatherAlertNotify: (mode: WeatherAlertNotify) => void;
   setTwitchLiveNotify: (on: boolean) => void;
+  setHideYoutubeShorts: (on: boolean) => void;
 }
 
 export const useAppSettingsStore = create<AppSettingsState>()(
@@ -73,6 +77,7 @@ export const useAppSettingsStore = create<AppSettingsState>()(
       // New keys shallow-merge into persisted state — no version bump needed.
       weatherAlertNotify: 'severe',
       twitchLiveNotify: true,
+      hideYoutubeShorts: false,
 
       // Reset the cycle index too — it may point past the end of the new list.
       setWeatherZips: (weatherZips) => set({ weatherZips, weatherZipIdx: 0 }),
@@ -87,6 +92,7 @@ export const useAppSettingsStore = create<AppSettingsState>()(
       setLowPower: (lowPower) => set({ lowPower }),
       setWeatherAlertNotify: (weatherAlertNotify) => set({ weatherAlertNotify }),
       setTwitchLiveNotify: (twitchLiveNotify) => set({ twitchLiveNotify }),
+      setHideYoutubeShorts: (hideYoutubeShorts) => set({ hideYoutubeShorts }),
     }),
     {
       name: 'dashboard-app-settings',

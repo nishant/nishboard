@@ -42,6 +42,7 @@ describe('dashboard-app-settings v0 → v1 migration', () => {
     const store = await loadStore();
     expect(store.getState().weatherAlertNotify).toBe('severe');
     expect(store.getState().twitchLiveNotify).toBe(true);
+    expect(store.getState().hideYoutubeShorts).toBe(false);
   });
 });
 
