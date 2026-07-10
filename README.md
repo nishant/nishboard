@@ -219,6 +219,8 @@ pnpm package
 
 Artifacts land in `release/`. Both targets are **unsigned** (no code-signing certs).
 
+> **Build archive:** every locally-packaged installer is uploaded to a Google Drive builds folder via an [rclone](https://rclone.org) remote (`nishboard-builds`) → `rclone copy "release/<installer>" nishboard-builds: -P`. One-time `rclone config` (Google OAuth) sets up the remote.
+
 ### 🍎 macOS
 - Output: `release/Nishboard-0.1.0-arm64.dmg` (APFS, arm64).
 - First launch is Gatekeeper-blocked because it's unsigned → **right-click the app → Open** (one-time).

@@ -106,6 +106,13 @@ Three places a key can live — checked in this order at runtime:
 5. Commit message footer: `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
 6. **Feature PRs include tests + docs** — unit tests for logic that warrants them (parsers, stats/mapping fns — vitest lives in all three packages), and keep README.md + this file's widget/credential tables current when features change them.
 
+## Local Build Uploads → Google Drive (standing instruction)
+**Whenever you `pnpm package` a build, upload every produced installer to Nish's Drive builds folder** — he shouldn't have to ask each time. Installers land in `release/` (`Nishboard Setup <ver>.exe` on Windows, `.dmg` on macOS).
+- **Folder:** https://drive.google.com/drive/folders/1Ey-_axm9G91rUCoALhBVqqP4XgEZCuhq (id `1Ey-_axm9G91rUCoALhBVqqP4XgEZCuhq`)
+- **Mechanism:** [rclone](https://rclone.org) remote named `nishboard-builds` (Google Drive, `root_folder_id` = that folder). Per build: `rclone copy "release/Nishboard Setup <ver>.exe" nishboard-builds: -P` (macOS: the `.dmg`). Confirm the file appears (`rclone lsf nishboard-builds:`).
+- **One-time setup (Nish-only, browser OAuth — Claude cannot do this step):** `rclone config create nishboard-builds drive root_folder_id=1Ey-_axm9G91rUCoALhBVqqP4XgEZCuhq scope=drive.file` then authorize in the browser. Until that remote exists, `rclone listremotes` won't show `nishboard-builds` — surface that to Nish rather than silently skipping the upload.
+- The ~80 MB installer is **too large for the Google Drive MCP tool** (inline base64 only) — always use rclone (or a Drive-for-Desktop synced folder), never the MCP `create_file`.
+
 ## Versioning & Releases (automated — never bump versions by hand)
 Every merge to master triggers `.github/workflows/release.yml`: it derives the semver bump from the **squash-commit subject (= the PR title)**, computes the next version from the **latest `v*` tag** (master is branch-protected — CI pushes only a tag, never commits; the repo's package.json version fields are placeholders, the tag is the source of truth), then the build jobs inject the version into their workspace via `scripts/bump-version.mjs set` before `pnpm package`, and publish the DMG + EXE on a GitHub Release.
 

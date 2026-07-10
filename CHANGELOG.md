@@ -4,6 +4,21 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #108] docs: upload every local build to the Google Drive builds folder
+
+**Branch:** `docs/build-drive-upload` → `master`
+**Date:** 2026-07-10
+
+### Context
+Nish wants every locally-packaged installer archived to a Google Drive folder automatically, without asking each time.
+
+### Added
+- **CLAUDE.md** — a "Local Build Uploads → Google Drive" standing instruction: after `pnpm package`, `rclone copy` the `release/` installer to the `nishboard-builds` remote (folder id `1Ey-_axm9G91rUCoALhBVqqP4XgEZCuhq`). Notes the one-time `rclone config` OAuth (Nish-only) and that the ~80 MB installer is too large for the Google Drive MCP tool.
+- **README** — a short build-archive note in Building & Distributing.
+
+### Notes
+- rclone is installed on the Windows box; the `nishboard-builds` remote needs Nish's one-time browser OAuth before uploads can run.
+
 ## [PR #107] revert: restore the Claude chat widget (undo #106)
 
 **Branch:** `revert/restore-claude-widget` → `master`
