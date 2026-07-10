@@ -212,7 +212,8 @@ const h = (r: number, a: SplitNode, b: SplitNode): HSplitNode => ({ type: 'h', r
 // minW is UNIFORM at 3 for every widget — any widget can shrink to a quarter-ish
 // width so the grid stays consistent (no widget bottoms out wider than another).
 // minH stays per-widget (some need vertical room for an input row / chart).
-const WIDGET_CONSTRAINTS: Record<WidgetId, { minW: number; minH: number }> = {
+// Exported so the collapse/expand path can read a widget's minH floor.
+export const WIDGET_CONSTRAINTS: Record<WidgetId, { minW: number; minH: number }> = {
   weather:  { minW: 3, minH: 2 },
   spotify:  { minW: 3, minH: 2 },
   stocks:   { minW: 3, minH: 2 },

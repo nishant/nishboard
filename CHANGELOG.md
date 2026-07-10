@@ -4,6 +4,30 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #102] feat: collapsible widgets (accordion — title bar only)
+**Branch:** `feat/collapsible-widgets` → master
+**Date:** 2026-07-09
+
+### Context
+Running the dashboard all day, some widgets are only occasionally interesting. Rather than hide them (losing their grid slot) or shrink them by hand, every widget now collapses accordion-style to just its `WidgetShell` title bar via a header chevron, and the state persists across restarts. Because grid `rowHeight` is viewport-derived, collapsing can't merely hide the body — it has to shrink the grid item's `h`. Renderer-only; no server/main changes, no new dependencies.
+
+### Added
+- **`store/widgetUiStore.ts`** — new persisted store (`dashboard-widget-ui`, partialized to `{ collapsed }`): `collapsed: Record<WidgetId, boolean>` + `toggleCollapsed` / `setCollapsed`. This boolean is the source of truth for the collapsed flag (drives whether `WidgetShell` renders its body).
+- **`layoutStore.setWidgetCollapsed(id, collapsed, rowHeight, gap)`** — mutates the grid item: on collapse it stashes the current `h` in a new persisted `savedHeights` map and locks the item tiny (`h = minH = maxH = collapsedRowsFor(rowHeight, gap)`, `isResizable:false`); on expand it restores `h`, drops `maxH`, and re-enables resizing. Marks the layout user-edited so it persists.
+- **`collapsedRowsFor(rowHeight, gap)`** (exported) — `max(1, ceil((TITLEBAR_PX + gap)/(rowHeight + gap)))`, `TITLEBAR_PX = 34`. Unit-tested.
+- **`WidgetShell`** — new `collapsed` / `onToggleCollapse` props; renders a chevron `HeaderAction` (first in the action row, ChevronDown expanded / ChevronRight collapsed) and drops the body `<div>` when collapsed. Header stays a drag handle in both states.
+- Tests: `widgetUiStore.test.ts` (toggle/set + persisted `{ collapsed }` shape) and `layoutStore.test.ts` (`collapsedRowsFor` bounds + collapse/expand lock/restore).
+
+### Changed
+- **`DashboardGrid`** — passes `collapsed`/`onToggleCollapse` per widget (toggle flips both stores in lockstep); a new effect re-derives collapsed-item heights from the live viewport `rowHeight` (handles reload + window resize) by patching the lock via `syncLayout`.
+- **`layoutStore` rehydrate** — after `applyConstraints` (which would unlock a persisted collapsed item by resetting `minH`), re-locks every item still present in `savedHeights` so collapsed widgets survive reload collapsed.
+- Exported `WIDGET_CONSTRAINTS` from `lib/layouts.ts` (was module-private) for the expand-height floor.
+
+### Notes
+- Collapsed items stay **draggable** (never `static`) so they can still be reordered; RGL preserves each item's `minH`/`maxH`/`isResizable` through compaction, so dragging another widget won't grow a collapsed one.
+- Collapsing unmounts the widget body, so a collapsed widget stops polling — desirable for an ambient dashboard.
+- Caveat: viewport-derived `rowHeight` means an all-collapsed dashboard isn't pixel-perfect — each title bar occupies a small integer number of rows that depends on how many rows the grid resolves to.
+
 ## [PR #101] feat: hide YouTube Shorts (setting + server duration filter)
 **Branch:** `feat/youtube-hide-shorts` → `master`
 **Date:** 2026-07-09
