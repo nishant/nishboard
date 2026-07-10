@@ -1,8 +1,25 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Layout } from 'react-grid-layout';
-import { DEFAULT_LAYOUT, PRESETS, autoFillLayout, applyConstraints, generateLayout, ALL_WIDGET_IDS } from '../lib/layouts';
+import { DEFAULT_LAYOUT, PRESETS, autoFillLayout, applyConstraints, generateLayout, ALL_WIDGET_IDS, WIDGET_CONSTRAINTS } from '../lib/layouts';
 import type { WidgetId } from '../lib/layouts';
+
+/** WidgetShell header height in px: px-3 py-2 (16px vertical) + ~13px text + 1px
+ *  border ≈ 34. Used to compute how few grid rows a collapsed (title-bar-only)
+ *  widget needs. */
+export const TITLEBAR_PX = 34;
+
+/** Default grid-row height to restore a collapsed widget to when no prior height
+ *  was captured (defensive — savedHeights should normally hold the real value). */
+const DEFAULT_EXPAND_H = 6;
+
+/** How many grid rows a collapsed widget needs to show just its title bar, given
+ *  the current viewport-derived rowHeight and inter-item gap. rowHeight is small
+ *  (many rows) → needs a couple rows; rowHeight large (few rows) → a single row.
+ *  Exported for tests. */
+export function collapsedRowsFor(rowHeight: number, gap: number): number {
+  return Math.max(1, Math.ceil((TITLEBAR_PX + gap) / (rowHeight + gap)));
+}
 
 /** A user-saved layout: tile positions/sizes + which tiles are pinned (visible). */
 export interface SavedCustomLayout {
@@ -19,12 +36,21 @@ interface LayoutState {
   visibleWidgets: WidgetId[];
   savedCustomLayouts: SavedCustomLayout[];
   activeCustomLayoutId: string | null; // id of the saved layout that's active, or null
+  /** Pre-collapse `h` per widget, so expanding restores the prior size. Persisted
+   *  with the layout so a collapsed widget survives reload with the right height. */
+  savedHeights: Partial<Record<WidgetId, number>>;
   /** Update tile geometry only — never touches the active-preset markers.
    *  react-grid-layout echoes onLayoutChange on mount and after programmatic
    *  changes (applyPreset), so geometry sync must not imply a user edit. */
   syncLayout: (layout: Layout[]) => void;
   /** A real pointer gesture (drag/resize stop) — the layout is now custom. */
   markUserEdited: () => void;
+  /** Collapse/expand a widget to its title bar. On collapse: stash the current `h`
+   *  in savedHeights, shrink `h` to fit the title bar, and lock it (minH=maxH=h,
+   *  isResizable:false) so RGL compaction can't grow it. On expand: restore `h`,
+   *  drop the lock. Height is viewport-derived, so callers pass the live rowHeight
+   *  and gap. compactType:'vertical' reflows the rest automatically. */
+  setWidgetCollapsed: (id: WidgetId, collapsed: boolean, rowHeight: number, gap: number) => void;
   applyPreset: (name: string) => void;
   resetToDefault: () => void;
   pinPreset: (name: string) => void;
@@ -50,10 +76,50 @@ export const useLayoutStore = create<LayoutState>()(
       visibleWidgets: [...ALL_WIDGET_IDS],
       savedCustomLayouts: [],
       activeCustomLayoutId: null,
+      savedHeights: {},
 
       syncLayout: (layout) => set({ layout }),
 
       markUserEdited: () => set({ activePreset: null, activeCustomLayoutId: null }),
+
+      setWidgetCollapsed: (id, collapsed, rowHeight, gap) =>
+        set((s) => {
+          const item = s.layout.find((it) => it.i === id);
+          if (!item) return s;
+          const constraints = WIDGET_CONSTRAINTS[id];
+
+          if (collapsed) {
+            const collapsedH = collapsedRowsFor(rowHeight, gap);
+            const layout = s.layout.map((it) =>
+              it.i === id
+                ? { ...it, h: collapsedH, minH: collapsedH, maxH: collapsedH, isResizable: false }
+                : it,
+            );
+            return {
+              layout,
+              savedHeights: { ...s.savedHeights, [id]: item.h },
+              // Collapsing is a user edit — the layout no longer matches the preset.
+              activePreset: null,
+              activeCustomLayoutId: null,
+            };
+          }
+
+          const restoredH = s.savedHeights[id] ?? constraints.minH ?? DEFAULT_EXPAND_H;
+          const layout = s.layout.map((it) => {
+            if (it.i !== id) return it;
+            const { maxH: _drop, ...rest } = it;
+            void _drop;
+            return { ...rest, h: restoredH, minH: constraints.minH, isResizable: true };
+          });
+          const { [id]: _removed, ...remainingHeights } = s.savedHeights;
+          void _removed;
+          return {
+            layout,
+            savedHeights: remainingHeights,
+            activePreset: null,
+            activeCustomLayoutId: null,
+          };
+        }),
 
       applyPreset: (name) => {
         const preset = PRESETS.find((p) => p.name === name);
@@ -169,9 +235,20 @@ export const useLayoutStore = create<LayoutState>()(
       name: 'dashboard-layout',
       onRehydrateStorage: () => (state) => {
         if (state) {
+          if (!state.savedHeights) state.savedHeights = {};
           // Re-clamp mins to current WIDGET_CONSTRAINTS so layouts saved with older
           // (larger) minH/minW pick up the new, smaller floors instead of staying stuck.
           state.layout = applyConstraints(autoFillLayout(state.layout));
+          // applyConstraints resets minH to the widget's floor, which would UNLOCK a
+          // persisted collapsed item (its minH was pinned to its tiny collapsed h).
+          // Re-lock every item still recorded in savedHeights so collapsed widgets
+          // survive reload collapsed. The exact collapsed h gets re-derived from the
+          // live viewport rowHeight by DashboardGrid once it mounts.
+          state.layout = state.layout.map((item) => {
+            const id = item.i as WidgetId;
+            if (state.savedHeights[id] === undefined) return item;
+            return { ...item, minH: item.h, maxH: item.h, isResizable: false };
+          });
           // Back-fill visibleWidgets for stored states that predate this field
           if (!state.visibleWidgets || state.visibleWidgets.length === 0) {
             state.visibleWidgets = [...ALL_WIDGET_IDS];

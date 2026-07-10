@@ -2,9 +2,10 @@ import { useState, useEffect, useMemo } from 'react';
 import { ExternalLink } from 'lucide-react';
 import ReactGridLayout, { WidthProvider } from 'react-grid-layout';
 import type { Layout } from 'react-grid-layout';
-import { useLayoutStore } from '../store/layoutStore';
+import { useLayoutStore, collapsedRowsFor } from '../store/layoutStore';
 import { useAppSettingsStore } from '../store/settingsStore';
 import { usePopoutStore } from '../store/popoutStore';
+import { useWidgetUiStore } from '../store/widgetUiStore';
 import { WidgetShell } from './WidgetShell';
 import { WeatherWidget, WeatherActions } from '../widgets/weather/WeatherWidget';
 import { SpotifyWidget, SpotifyActions } from '../widgets/spotify/SpotifyWidget';
@@ -109,9 +110,11 @@ function useRowHeight(layout: Layout[], gap: number): number {
 }
 
 export function DashboardGrid() {
-  const { layout, syncLayout, markUserEdited, visibleWidgets } = useLayoutStore();
+  const { layout, syncLayout, markUserEdited, visibleWidgets, setWidgetCollapsed } = useLayoutStore();
   const density = useAppSettingsStore((s) => s.density);
   const popped = usePopoutStore((s) => s.popped);
+  const collapsed = useWidgetUiStore((s) => s.collapsed);
+  const setCollapsedFlag = useWidgetUiStore((s) => s.setCollapsed);
   const gap = density === 'compact' ? 4 : 8;
 
   // RGL's stock CSS animates every position change — including the initial
@@ -131,6 +134,28 @@ export function DashboardGrid() {
   );
 
   const rowHeight = useRowHeight(visibleLayout, gap);
+
+  // Reconcile collapsed-item heights with the live, viewport-derived rowHeight.
+  // Covers two cases the store can't handle alone: (1) reload — onRehydrateStorage
+  // re-locks collapsed items but keeps their stale h; (2) window resize changes
+  // rowHeight, so the rows needed to show just a title bar changes. Patch the lock
+  // directly via syncLayout — NOT setWidgetCollapsed, which would clobber the real
+  // savedHeights entry with the already-collapsed height.
+  useEffect(() => {
+    const target = collapsedRowsFor(rowHeight, gap);
+    const store = useLayoutStore.getState();
+    const needsPatch = store.layout.some(
+      (it) => collapsed[it.i as WidgetId] && it.h !== target,
+    );
+    if (!needsPatch) return;
+    store.syncLayout(
+      store.layout.map((it) =>
+        collapsed[it.i as WidgetId]
+          ? { ...it, h: target, minH: target, maxH: target, isResizable: false }
+          : it,
+      ),
+    );
+  }, [rowHeight, gap, collapsed]);
 
   return (
     <GridLayout
@@ -162,10 +187,19 @@ export function DashboardGrid() {
         const id = item.i as WidgetId;
         const { Component, Actions } = WIDGET_REGISTRY[id];
         const isPopped = popped.includes(id);
+        const isCollapsed = collapsed[id] ?? false;
         return (
           <div key={id}>
             <WidgetShell
               title={WIDGET_TITLES[id]}
+              collapsed={isCollapsed}
+              onToggleCollapse={() => {
+                const next = !isCollapsed;
+                // Keep the two stores in lockstep: the boolean drives the body,
+                // the layout action drives the height lock.
+                setCollapsedFlag(id, next);
+                setWidgetCollapsed(id, next, rowHeight, gap);
+              }}
               actions={
                 <>
                   {Actions && <Actions />}
