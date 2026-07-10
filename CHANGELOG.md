@@ -4,6 +4,23 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #100] feat: uniform widget min-width (all widgets minW 3)
+
+**Branch:** `feat/uniform-min-width` → `master`
+**Date:** 2026-07-09
+
+### Context
+`WIDGET_CONSTRAINTS` had a 3→6 spread of `minW`, so some widgets could be dragged much narrower than others — hardware/youtube/twitch/netmon bottomed out at 6 columns while a timer or clock went to 3. Uniforming the floor makes resize behavior consistent across the grid.
+
+### Changed
+- **`apps/renderer/src/lib/layouts.ts`** — every widget's `minW` in `WIDGET_CONSTRAINTS` is now **3** (a quarter-ish of the 24-col grid); `minH` is unchanged (some widgets still need vertical room). The literal `minW` values baked into the 8 static `PRESETS` were synced to 3 as well (they're overridden by `renderTree`/`applyConstraints` at runtime, but stale literals were misleading).
+
+### Notes
+- Propagation is automatic: `layoutStore.onRehydrateStorage` re-clamps the active layout and every saved custom layout to the current `WIDGET_CONSTRAINTS` on next launch, so existing layouts adopt `minW: 3` without breaking.
+- This *lowers* the floor for the previously-wide widgets — they can now be dragged to 3 columns; their content stays scrollable.
+
+---
+
 ## [PR #99] docs: catch README + CLAUDE.md up to the 4-feature batch
 **Branch:** `docs/batch3-features` → `master`
 **Date:** 2026-07-06

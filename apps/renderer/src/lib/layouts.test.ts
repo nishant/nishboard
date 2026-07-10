@@ -102,8 +102,17 @@ describe('applyConstraints', () => {
   it('overwrites stale persisted mins with the authoritative constraints', () => {
     const stale: Layout[] = [{ i: 'weather', x: 0, y: 0, w: 6, h: 8, minW: 12, minH: 9 }];
     const [fixed] = applyConstraints(stale);
-    expect(fixed.minW).toBe(4);
+    expect(fixed.minW).toBe(3); // uniform minW across all widgets
     expect(fixed.minH).toBe(2);
+  });
+
+  it('clamps every widget to minW 3', () => {
+    const items: Layout[] = ALL_WIDGET_IDS.map((id, idx) => ({
+      i: id, x: 0, y: idx, w: 8, h: 4, minW: 8, minH: 8,
+    }));
+    for (const fixed of applyConstraints(items)) {
+      expect(fixed.minW).toBe(3);
+    }
   });
 
   it('leaves unknown ids untouched', () => {

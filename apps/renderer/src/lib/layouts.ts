@@ -56,13 +56,13 @@ export const PRESETS: NamedLayout[] = [
     name: 'Default',
     visibleWidgets: ['weather', 'spotify', 'stocks', 'hardware', 'sound', 'calendar', 'youtube', 'twitch'],
     layout: [
-      { i: 'weather',  x: 0,  y: 0,  w: 6,  h: 8,  minW: 4, minH: 2 },
-      { i: 'spotify',  x: 6,  y: 0,  w: 6,  h: 8,  minW: 4, minH: 2 },
-      { i: 'stocks',   x: 12, y: 0,  w: 6,  h: 8,  minW: 5, minH: 2 },
-      { i: 'calendar', x: 18, y: 0,  w: 6,  h: 8,  minW: 4, minH: 2 },
-      { i: 'youtube',  x: 0,  y: 8,  w: 14, h: 9,  minW: 6, minH: 2 },
+      { i: 'weather',  x: 0,  y: 0,  w: 6,  h: 8,  minW: 3, minH: 2 },
+      { i: 'spotify',  x: 6,  y: 0,  w: 6,  h: 8,  minW: 3, minH: 2 },
+      { i: 'stocks',   x: 12, y: 0,  w: 6,  h: 8,  minW: 3, minH: 2 },
+      { i: 'calendar', x: 18, y: 0,  w: 6,  h: 8,  minW: 3, minH: 2 },
+      { i: 'youtube',  x: 0,  y: 8,  w: 14, h: 9,  minW: 3, minH: 2 },
       { i: 'sound',    x: 14, y: 8,  w: 10, h: 9,  minW: 3, minH: 2 },
-      { i: 'hardware', x: 0,  y: 17, w: 24, h: 5,  minW: 6, minH: 2 },
+      { i: 'hardware', x: 0,  y: 17, w: 24, h: 5,  minW: 3, minH: 2 },
     ],
   },
   {
@@ -72,12 +72,12 @@ export const PRESETS: NamedLayout[] = [
     // Cols 18-23: youtube(12) + calendar(6)  + sound(4)   = 22
     name: 'Markets',
     layout: [
-      { i: 'stocks',   x: 0,  y: 0,  w: 12, h: 12, minW: 5, minH: 2 },
-      { i: 'youtube',  x: 12, y: 0,  w: 12, h: 12, minW: 6, minH: 2 },
-      { i: 'hardware', x: 0,  y: 12, w: 12, h: 10, minW: 6, minH: 2 },
-      { i: 'spotify',  x: 12, y: 12, w: 6,  h: 6,  minW: 4, minH: 2 },
-      { i: 'calendar', x: 18, y: 12, w: 6,  h: 6,  minW: 4, minH: 2 },
-      { i: 'weather',  x: 12, y: 18, w: 6,  h: 4,  minW: 4, minH: 2 },
+      { i: 'stocks',   x: 0,  y: 0,  w: 12, h: 12, minW: 3, minH: 2 },
+      { i: 'youtube',  x: 12, y: 0,  w: 12, h: 12, minW: 3, minH: 2 },
+      { i: 'hardware', x: 0,  y: 12, w: 12, h: 10, minW: 3, minH: 2 },
+      { i: 'spotify',  x: 12, y: 12, w: 6,  h: 6,  minW: 3, minH: 2 },
+      { i: 'calendar', x: 18, y: 12, w: 6,  h: 6,  minW: 3, minH: 2 },
+      { i: 'weather',  x: 12, y: 18, w: 6,  h: 4,  minW: 3, minH: 2 },
       { i: 'sound',    x: 18, y: 18, w: 6,  h: 4,  minW: 3, minH: 2 },
     ],
   },
@@ -88,14 +88,14 @@ export const PRESETS: NamedLayout[] = [
     // Cols 20-23: weather(6)  + calendar(3) + sound(2) + stocks(5) + hardware(6) = 22
     name: 'Media',
     layout: [
-      { i: 'youtube',  x: 0,  y: 0,  w: 12, h: 11, minW: 6, minH: 2 },
-      { i: 'twitch',   x: 0,  y: 11, w: 12, h: 11, minW: 6, minH: 2 },
-      { i: 'spotify',  x: 12, y: 0,  w: 8,  h: 11, minW: 4, minH: 2 },
-      { i: 'weather',  x: 20, y: 0,  w: 4,  h: 6,  minW: 4, minH: 2 },
-      { i: 'calendar', x: 20, y: 6,  w: 4,  h: 3,  minW: 4, minH: 2 },
+      { i: 'youtube',  x: 0,  y: 0,  w: 12, h: 11, minW: 3, minH: 2 },
+      { i: 'twitch',   x: 0,  y: 11, w: 12, h: 11, minW: 3, minH: 2 },
+      { i: 'spotify',  x: 12, y: 0,  w: 8,  h: 11, minW: 3, minH: 2 },
+      { i: 'weather',  x: 20, y: 0,  w: 4,  h: 6,  minW: 3, minH: 2 },
+      { i: 'calendar', x: 20, y: 6,  w: 4,  h: 3,  minW: 3, minH: 2 },
       { i: 'sound',    x: 20, y: 9,  w: 4,  h: 2,  minW: 3, minH: 2 },
-      { i: 'stocks',   x: 12, y: 11, w: 6,  h: 11, minW: 5, minH: 2 },
-      { i: 'hardware', x: 18, y: 11, w: 6,  h: 11, minW: 6, minH: 2 },
+      { i: 'stocks',   x: 12, y: 11, w: 6,  h: 11, minW: 3, minH: 2 },
+      { i: 'hardware', x: 18, y: 11, w: 6,  h: 11, minW: 3, minH: 2 },
     ],
   },
   {
@@ -106,12 +106,12 @@ export const PRESETS: NamedLayout[] = [
     // Cols 19-23: youtube(11)  + weather(6) + sound(5) = 22
     name: 'System',
     layout: [
-      { i: 'hardware', x: 0,  y: 0,  w: 14, h: 11, minW: 6, minH: 2 },
-      { i: 'youtube',  x: 14, y: 0,  w: 10, h: 11, minW: 6, minH: 2 },
-      { i: 'spotify',  x: 0,  y: 11, w: 6,  h: 11, minW: 4, minH: 2 },
-      { i: 'calendar', x: 6,  y: 11, w: 8,  h: 11, minW: 4, minH: 2 },
-      { i: 'stocks',   x: 14, y: 11, w: 5,  h: 6,  minW: 5, minH: 2 },
-      { i: 'weather',  x: 19, y: 11, w: 5,  h: 6,  minW: 4, minH: 2 },
+      { i: 'hardware', x: 0,  y: 0,  w: 14, h: 11, minW: 3, minH: 2 },
+      { i: 'youtube',  x: 14, y: 0,  w: 10, h: 11, minW: 3, minH: 2 },
+      { i: 'spotify',  x: 0,  y: 11, w: 6,  h: 11, minW: 3, minH: 2 },
+      { i: 'calendar', x: 6,  y: 11, w: 8,  h: 11, minW: 3, minH: 2 },
+      { i: 'stocks',   x: 14, y: 11, w: 5,  h: 6,  minW: 3, minH: 2 },
+      { i: 'weather',  x: 19, y: 11, w: 5,  h: 6,  minW: 3, minH: 2 },
       { i: 'sound',    x: 14, y: 17, w: 10, h: 5,  minW: 3, minH: 2 },
     ],
   },
@@ -123,13 +123,13 @@ export const PRESETS: NamedLayout[] = [
     // Cols 19-23: stocks(11) + calendar(11) = 22
     name: 'Focus',
     layout: [
-      { i: 'spotify',  x: 0,  y: 0,  w: 8,  h: 22, minW: 4, minH: 2 },
-      { i: 'youtube',  x: 8,  y: 0,  w: 10, h: 11, minW: 6, minH: 2 },
-      { i: 'stocks',   x: 18, y: 0,  w: 6,  h: 11, minW: 5, minH: 2 },
-      { i: 'hardware', x: 8,  y: 11, w: 6,  h: 11, minW: 6, minH: 2 },
-      { i: 'weather',  x: 14, y: 11, w: 5,  h: 6,  minW: 4, minH: 2 },
+      { i: 'spotify',  x: 0,  y: 0,  w: 8,  h: 22, minW: 3, minH: 2 },
+      { i: 'youtube',  x: 8,  y: 0,  w: 10, h: 11, minW: 3, minH: 2 },
+      { i: 'stocks',   x: 18, y: 0,  w: 6,  h: 11, minW: 3, minH: 2 },
+      { i: 'hardware', x: 8,  y: 11, w: 6,  h: 11, minW: 3, minH: 2 },
+      { i: 'weather',  x: 14, y: 11, w: 5,  h: 6,  minW: 3, minH: 2 },
       { i: 'sound',    x: 14, y: 17, w: 5,  h: 5,  minW: 3, minH: 2 },
-      { i: 'calendar', x: 19, y: 11, w: 5,  h: 11, minW: 4, minH: 2 },
+      { i: 'calendar', x: 19, y: 11, w: 5,  h: 11, minW: 3, minH: 2 },
     ],
   },
   {
@@ -140,13 +140,13 @@ export const PRESETS: NamedLayout[] = [
     // Cols 18-23: spotify(22) = 22
     name: 'Chill',
     layout: [
-      { i: 'weather',  x: 0,  y: 0,  w: 5,  h: 7,  minW: 4, minH: 2 },
-      { i: 'hardware', x: 0,  y: 7,  w: 5,  h: 8,  minW: 6, minH: 2 },
-      { i: 'calendar', x: 0,  y: 15, w: 5,  h: 7,  minW: 4, minH: 2 },
-      { i: 'stocks',   x: 5,  y: 0,  w: 6,  h: 14, minW: 5, minH: 2 },
+      { i: 'weather',  x: 0,  y: 0,  w: 5,  h: 7,  minW: 3, minH: 2 },
+      { i: 'hardware', x: 0,  y: 7,  w: 5,  h: 8,  minW: 3, minH: 2 },
+      { i: 'calendar', x: 0,  y: 15, w: 5,  h: 7,  minW: 3, minH: 2 },
+      { i: 'stocks',   x: 5,  y: 0,  w: 6,  h: 14, minW: 3, minH: 2 },
       { i: 'sound',    x: 5,  y: 14, w: 6,  h: 8,  minW: 3, minH: 2 },
-      { i: 'youtube',  x: 11, y: 0,  w: 7,  h: 22, minW: 6, minH: 2 },
-      { i: 'spotify',  x: 18, y: 0,  w: 6,  h: 22, minW: 4, minH: 2 },
+      { i: 'youtube',  x: 11, y: 0,  w: 7,  h: 22, minW: 3, minH: 2 },
+      { i: 'spotify',  x: 18, y: 0,  w: 6,  h: 22, minW: 3, minH: 2 },
     ],
   },
   {
@@ -159,13 +159,13 @@ export const PRESETS: NamedLayout[] = [
     name: 'Home',
     visibleWidgets: ['weather', 'spotify', 'stocks', 'hardware', 'sound', 'calendar', 'youtube'],
     layout: [
-      { i: 'hardware', x: 0,  y: 0,  w: 6,  h: 19, minW: 6, minH: 2 },
+      { i: 'hardware', x: 0,  y: 0,  w: 6,  h: 19, minW: 3, minH: 2 },
       { i: 'sound',    x: 0,  y: 19, w: 6,  h: 3,  minW: 3, minH: 2 },
-      { i: 'stocks',   x: 6,  y: 0,  w: 6,  h: 14, minW: 5, minH: 2 },
-      { i: 'calendar', x: 6,  y: 14, w: 6,  h: 8,  minW: 4, minH: 2 },
-      { i: 'youtube',  x: 12, y: 0,  w: 12, h: 12, minW: 6, minH: 2 },
-      { i: 'spotify',  x: 12, y: 12, w: 6,  h: 10, minW: 4, minH: 2 },
-      { i: 'weather',  x: 18, y: 12, w: 6,  h: 10, minW: 4, minH: 2 },
+      { i: 'stocks',   x: 6,  y: 0,  w: 6,  h: 14, minW: 3, minH: 2 },
+      { i: 'calendar', x: 6,  y: 14, w: 6,  h: 8,  minW: 3, minH: 2 },
+      { i: 'youtube',  x: 12, y: 0,  w: 12, h: 12, minW: 3, minH: 2 },
+      { i: 'spotify',  x: 12, y: 12, w: 6,  h: 10, minW: 3, minH: 2 },
+      { i: 'weather',  x: 18, y: 12, w: 6,  h: 10, minW: 3, minH: 2 },
     ],
   },
   {
@@ -177,13 +177,13 @@ export const PRESETS: NamedLayout[] = [
     // Cols 20-23: youtube(11) + calendar(11) = 22
     name: 'Wide',
     layout: [
-      { i: 'stocks',   x: 0,  y: 0,  w: 12, h: 11, minW: 5, minH: 2 },
-      { i: 'youtube',  x: 12, y: 0,  w: 12, h: 11, minW: 6, minH: 2 },
-      { i: 'hardware', x: 0,  y: 11, w: 9,  h: 11, minW: 6, minH: 2 },
-      { i: 'spotify',  x: 9,  y: 11, w: 7,  h: 11, minW: 4, minH: 2 },
-      { i: 'weather',  x: 16, y: 11, w: 4,  h: 6,  minW: 4, minH: 2 },
+      { i: 'stocks',   x: 0,  y: 0,  w: 12, h: 11, minW: 3, minH: 2 },
+      { i: 'youtube',  x: 12, y: 0,  w: 12, h: 11, minW: 3, minH: 2 },
+      { i: 'hardware', x: 0,  y: 11, w: 9,  h: 11, minW: 3, minH: 2 },
+      { i: 'spotify',  x: 9,  y: 11, w: 7,  h: 11, minW: 3, minH: 2 },
+      { i: 'weather',  x: 16, y: 11, w: 4,  h: 6,  minW: 3, minH: 2 },
       { i: 'sound',    x: 16, y: 17, w: 4,  h: 5,  minW: 3, minH: 2 },
-      { i: 'calendar', x: 20, y: 11, w: 4,  h: 11, minW: 4, minH: 2 },
+      { i: 'calendar', x: 20, y: 11, w: 4,  h: 11, minW: 3, minH: 2 },
     ],
   },
 ];
@@ -206,29 +206,33 @@ const h = (r: number, a: SplitNode, b: SplitNode): HSplitNode => ({ type: 'h', r
 
 // Authoritative per-widget resize floors. minH is intentionally tiny (2 rows ≈ a
 // header + sliver) so every widget can shrink vertically as far as possible; minW
-// keeps each widget wide enough to stay usable. These OVERRIDE any minW/minH baked
-// into the static PRESETS below (applied via generateLayout / applyConstraints).
+// keeps each widget usable. These OVERRIDE any minW/minH baked into the static
+// PRESETS below (applied via generateLayout / applyConstraints).
+//
+// minW is UNIFORM at 3 for every widget — any widget can shrink to a quarter-ish
+// width so the grid stays consistent (no widget bottoms out wider than another).
+// minH stays per-widget (some need vertical room for an input row / chart).
 const WIDGET_CONSTRAINTS: Record<WidgetId, { minW: number; minH: number }> = {
-  weather:  { minW: 4, minH: 2 },
-  spotify:  { minW: 4, minH: 2 },
-  stocks:   { minW: 5, minH: 2 },
-  hardware: { minW: 6, minH: 2 },
+  weather:  { minW: 3, minH: 2 },
+  spotify:  { minW: 3, minH: 2 },
+  stocks:   { minW: 3, minH: 2 },
+  hardware: { minW: 3, minH: 2 },
   sound:    { minW: 3, minH: 2 },
-  calendar: { minW: 4, minH: 2 },
-  youtube:  { minW: 6, minH: 2 },
-  twitch:   { minW: 6, minH: 2 },
+  calendar: { minW: 3, minH: 2 },
+  youtube:  { minW: 3, minH: 2 },
+  twitch:   { minW: 3, minH: 2 },
   tasks:      { minW: 3, minH: 2 },
   worldclock: { minW: 3, minH: 2 },
   notes:      { minW: 3, minH: 2 },
   timer:      { minW: 3, minH: 2 },
   countdown:  { minW: 3, minH: 2 },
-  news:       { minW: 4, minH: 3 },
-  crypto:     { minW: 4, minH: 2 },
+  news:       { minW: 3, minH: 3 },
+  crypto:     { minW: 3, minH: 2 },
   launcher:   { minW: 3, minH: 2 },
   clipboard:  { minW: 3, minH: 2 },
   // Chat needs room for the input row + a few message lines.
-  claude:     { minW: 4, minH: 3 },
-  netmon:     { minW: 6, minH: 2 },
+  claude:     { minW: 3, minH: 3 },
+  netmon:     { minW: 3, minH: 2 },
 };
 
 /** Clamp each item's minW/minH to the authoritative WIDGET_CONSTRAINTS. Used to
