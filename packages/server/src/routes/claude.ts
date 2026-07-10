@@ -118,10 +118,19 @@ export const claudeRoutes: FastifyPluginAsync = async (fastify) => {
 
       start(sessionId);
 
-      // Renderer aborted (Stop button / widget unmount / app quit) — reap the
-      // CLI child instead of letting it stream into a dead socket.
-      req.raw.on('close', () => {
-        current?.kill();
+      // Reap the CLI child when the CLIENT disconnects mid-stream (Stop button,
+      // widget unmount, app quit) — reap it instead of letting it stream into a
+      // dead socket.
+      //
+      // CRITICAL: key this off the RESPONSE stream (`raw`), NOT `req.raw`. An
+      // http.IncomingMessage emits 'close' the moment its request body is fully
+      // read — which for a POST-with-body is immediately, long before the stream
+      // finishes. Listening on `req.raw` therefore killed the child before
+      // spawnClaudeChat even cleared its first `await`, so every chat produced
+      // zero frames. The response socket only closes early on a real disconnect;
+      // the `ended` guard skips the close that our own raw.end() triggers.
+      raw.on('close', () => {
+        if (!ended) current?.kill();
       });
     },
   );

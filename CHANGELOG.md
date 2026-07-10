@@ -4,6 +4,23 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #110] fix: Claude widget streamed nothing — CLI child killed before it spawned
+
+**Branch:** `fix/claude-widget-stream-premature-kill` → `master`
+**Date:** 2026-07-10
+
+### Context
+The Claude widget accepted a message, `POST /api/claude/chat` returned 200, then nothing streamed back — no text, the input stayed disabled, only Stop worked. The CLI itself was fine (verified: it streams `init → delta → assistant → result` both from a shell and from a bare `spawn`, billing the Max subscription with `apiKeySource: none`). The bug was in the SSE route's lifecycle wiring, and only reproduced through the full Fastify request lifecycle — which is why it looked like a CLI/login problem.
+
+### Fixed
+- **`packages/server/src/routes/claude.ts`** — the disconnect-reaper was keyed off `req.raw`'s `'close'` event. An `http.IncomingMessage` fires `'close'` the instant its POST body is fully read — which for a body-bearing POST is immediately, while the response is still streaming. So every chat killed its own CLI child before `spawnClaudeChat` cleared its first `await` (`aborted=false` — not a real disconnect), and zero frames reached the renderer. Re-keyed the reaper to the **response** stream (`reply.raw`), guarded by `ended`, so it only fires on a genuine client disconnect. Verified end-to-end: chat streams again, and Stop/disconnect still reaps the child (single-flight slot released — no orphaned CLI process).
+
+### Added
+- **`packages/server/src/routes/claude.test.ts`** — a real-`listen()` regression test (not `app.inject()`, which can't reproduce the premature `req.raw` close): mocks `spawnClaudeChat` to emit frames on a delay and asserts the client receives `init/delta/done`; a second test asserts a mid-stream client abort still reaps the child. Both fail on the pre-fix code.
+
+### Notes
+- This restores **text chat only**. Tool use (writing markdown files, running commands, skills, slash-command side effects) still needs an explicit permission posture — the current `-p` invocation auto-denies `Write`/`Edit`/`Bash` because non-interactive mode can't show a permission prompt. Tracked as a follow-up.
+
 ## [PR #108] docs: upload every local build to the Google Drive builds folder
 
 **Branch:** `docs/build-drive-upload` → `master`
