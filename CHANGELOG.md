@@ -4,7 +4,7 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
-## [PR #NN] feat: collapsible widgets (accordion — title bar only)
+## [PR #102] feat: collapsible widgets (accordion — title bar only)
 **Branch:** `feat/collapsible-widgets` → master
 **Date:** 2026-07-09
 
