@@ -36,20 +36,53 @@ export function resetCliCache(): void {
   cached = null;
 }
 
+/** Prefer a native `claude.exe` over the npm `claude.cmd` shim; the
+ *  extensionless sh shim isn't reliably spawnable on Windows. Exported for tests. */
+export function pickWindowsClaude(paths: string[]): string | null {
+  const exe = paths.find((p) => p.toLowerCase().endsWith('.exe'));
+  if (exe) return exe;
+  const cmd = paths.find((p) => p.toLowerCase().endsWith('.cmd'));
+  return cmd ?? null;
+}
+
+/** Known Windows install locations, probed when `where.exe` comes up empty.
+ *  A packaged app launched from Explorer/Start-menu can inherit a stale PATH
+ *  that predates npm adding `%APPDATA%\npm` — so the CLI is installed (npm
+ *  global) yet invisible to the app's `where.exe`. These paths cover it. */
+function windowsCandidatePaths(): string[] {
+  const home = os.homedir();
+  const appData = process.env.APPDATA ?? path.join(home, 'AppData', 'Roaming');
+  const localAppData = process.env.LOCALAPPDATA ?? path.join(home, 'AppData', 'Local');
+  return [
+    path.join(appData, 'npm', 'claude.exe'),
+    path.join(appData, 'npm', 'claude.cmd'), // npm global (the common case)
+    path.join(localAppData, 'Programs', 'claude', 'claude.exe'), // native installer
+    path.join(home, '.local', 'bin', 'claude.exe'),
+    path.join(home, '.local', 'bin', 'claude.cmd'),
+  ];
+}
+
 async function findOnWindows(): Promise<string | null> {
-  // Windows-only: `where.exe claude` lists every PATH match. npm installs
-  // create claude.cmd (+ extensionless sh shim); the native installer drops a
-  // claude.exe. Prefer .exe, else .cmd — anything else isn't spawnable here.
+  // 1) PATH lookup via `where.exe` (lists every match; prefer .exe over .cmd).
   try {
     const { stdout } = await execFileAsync('where.exe', ['claude'], { encoding: 'utf8' });
     const lines = stdout.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-    const exe = lines.find((l) => l.toLowerCase().endsWith('.exe'));
-    if (exe) return exe;
-    const cmd = lines.find((l) => l.toLowerCase().endsWith('.cmd'));
-    return cmd ?? null;
+    const picked = pickWindowsClaude(lines);
+    if (picked) return picked;
   } catch {
-    return null;
+    // not on PATH — fall through to the known-locations probe
   }
+  // 2) Known install locations — covers the packaged-app stale-PATH case where
+  //    e.g. %APPDATA%\npm\claude.cmd exists but isn't on the inherited PATH.
+  for (const candidate of windowsCandidatePaths()) {
+    try {
+      await access(candidate, fsConstants.F_OK); // Windows has no exec bit — existence is enough
+      return candidate;
+    } catch {
+      // keep looking
+    }
+  }
+  return null;
 }
 
 async function findOnMac(): Promise<string | null> {

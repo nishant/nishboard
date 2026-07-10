@@ -4,6 +4,22 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #NN] fix: Claude widget finds the CLI even when it's off the app's PATH
+
+**Branch:** `fix/claude-cli-discovery` → `master`
+**Date:** 2026-07-10
+
+### Context
+The Claude widget showed "Claude Code not found" even with the CLI installed (`npm i -g @anthropic-ai/claude-code` → `%APPDATA%\npm\claude.cmd`) and on the PATH in a terminal. A packaged app launched from the Start menu inherits Explorer's PATH, which can predate npm adding `%APPDATA%\npm` — so the app's `where.exe claude` returns nothing and the CLI looks missing.
+
+### Fixed
+- **`packages/server/src/lib/claudeCli.ts`** — Windows discovery now falls back to probing known install locations when `where.exe` comes up empty: `%APPDATA%\npm\claude.{exe,cmd}` (npm global), `%LOCALAPPDATA%\Programs\claude\claude.exe` (native installer), and `~/.local/bin/claude.{exe,cmd}`. Mirrors the existing macOS launchd-PATH fallback. Extracted a pure `pickWindowsClaude()` (prefer `.exe` over the `.cmd` shim) with unit tests.
+
+### Notes
+- Signing in is still a one-time `claude /login` (or `claude setup-token` → Settings → Developer → `CLAUDE_CODE_OAUTH_TOKEN`); this fix only makes the CLI *discoverable*.
+
+---
+
 ## [PR #103] feat: YouTube Subs tab — channel-list-only mode
 **Branch:** `feat/youtube-subs-list` → `master`
 **Date:** 2026-07-09

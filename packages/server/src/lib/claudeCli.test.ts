@@ -4,9 +4,39 @@ import {
   createLineSplitter,
   isSessionNotFoundError,
   parseStreamJsonLine,
+  pickWindowsClaude,
 } from './claudeCli';
 
 // Pure parser/splitter tests only — no real CLI spawns (CI has no `claude`).
+
+describe('pickWindowsClaude', () => {
+  it('prefers a native .exe over the npm .cmd shim', () => {
+    expect(
+      pickWindowsClaude([
+        'C:\\Users\\n\\AppData\\Roaming\\npm\\claude',
+        'C:\\Users\\n\\AppData\\Roaming\\npm\\claude.cmd',
+        'C:\\Program Files\\claude\\claude.exe',
+      ]),
+    ).toBe('C:\\Program Files\\claude\\claude.exe');
+  });
+
+  it('falls back to .cmd when no .exe is present', () => {
+    expect(
+      pickWindowsClaude([
+        'C:\\Users\\n\\AppData\\Roaming\\npm\\claude', // extensionless sh shim — not spawnable
+        'C:\\Users\\n\\AppData\\Roaming\\npm\\claude.cmd',
+      ]),
+    ).toBe('C:\\Users\\n\\AppData\\Roaming\\npm\\claude.cmd');
+  });
+
+  it('returns null when only the unspawnable extensionless shim exists', () => {
+    expect(pickWindowsClaude(['C:\\Users\\n\\AppData\\Roaming\\npm\\claude'])).toBeNull();
+  });
+
+  it('returns null for an empty list', () => {
+    expect(pickWindowsClaude([])).toBeNull();
+  });
+});
 
 describe('createLineSplitter', () => {
   it('reassembles a JSON line split across chunk boundaries', () => {
