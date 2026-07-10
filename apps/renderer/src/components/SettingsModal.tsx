@@ -298,9 +298,10 @@ const clampScale = (n: number) => Math.round(Math.min(SCALE_MAX, Math.max(SCALE_
 function AppSettingsPanel() {
   const {
     weatherZips, showTempInClock, uiScale, density, compactTitlebar,
-    tempUnit, windUnit, clock24h, lowPower, weatherAlertNotify, twitchLiveNotify,
+    tempUnit, windUnit, clock24h, lowPower, weatherAlertNotify, twitchLiveNotify, hideYoutubeShorts,
     setWeatherZips, setShowTempInClock, setUiScale, setDensity, setCompactTitlebar,
     setTempUnit, setWindUnit, setClock24h, setLowPower, setWeatherAlertNotify, setTwitchLiveNotify,
+    setHideYoutubeShorts,
   } = useAppSettingsStore();
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -377,6 +378,17 @@ function AppSettingsPanel() {
           description="Chime, toast, and native notification when a followed channel goes live. Needs a connected Twitch account (widget → Connect)."
           checked={twitchLiveNotify}
           onChange={setTwitchLiveNotify}
+        />
+      </div>
+
+      {/* YouTube */}
+      <div className="flex flex-col gap-3">
+        <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">YouTube</span>
+        <ToggleRow
+          label="Hide YouTube Shorts"
+          description="Filter Shorts (≤60s) out of every YouTube tab — Subs, Trending, Search, and the rest."
+          checked={hideYoutubeShorts}
+          onChange={setHideYoutubeShorts}
         />
       </div>
 

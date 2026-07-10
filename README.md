@@ -49,7 +49,7 @@
 | 🧮 **Hardware** | CPU / GPU / RAM / disk / network as bars or live sparklines | `systeminformation` (nvidia-smi / WASAPI under the hood) |
 | 🔊 **Sound** | Master volume, mute, output switching, per-app mixer (Windows) | `osascript` (mac) / PowerShell + WASAPI (Windows) |
 | 📅 **Calendar** | Month grid + Google Calendar: event dots, click a day for its events, inline quick-add | Google Calendar API (shares the YouTube OAuth client) |
-| ▶️ **YouTube** | Search, Trending/Music/Gaming, and — signed in — your Subs feed, Playlists, Liked; click any channel name for its uploads; watch inline | YouTube Data API v3 + Google OAuth + localhost embed proxy |
+| ▶️ **YouTube** | Search, Trending/Music/Gaming, and — signed in — your Subs feed, Playlists, Liked; click any channel name for its uploads; watch inline; optionally hide Shorts across every tab (Settings → App) | YouTube Data API v3 + Google OAuth + localhost embed proxy |
 | 🟣 **Twitch** | Search channels; signed in: Live + All followed channels, go-live notifications; watch inline | Twitch Helix (app token + user OAuth) + localhost embed proxy |
 | 📰 **News** | Rotating headline ticker, click to open the article | Google News RSS — no key |
 | 📝 **Notes** | Markdown scratchpad, edit ↔ rendered toggle | Local (localStorage) |

@@ -7,6 +7,7 @@ import {
 import { embedUrl } from '../../lib/apiClient';
 import { EmbedSearchWidget } from '../embed/EmbedSearchWidget';
 import { HeaderAction } from '../../components/HeaderAction';
+import { useAppSettingsStore } from '../../store/settingsStore';
 import type {
   EmbedSearchState, EmbedFoldersState, EmbedFolder, EmbedServiceAdapter,
 } from '../embed/types';
@@ -23,13 +24,20 @@ function YoutubeIcon({ size }: { size: number }) {
 
 const CONNECT_HINT = 'Connect your Google account from the widget header to see this';
 
-function toEmbedState(
+/** The single YouTube list → EmbedSearchState mapper. Every tab (search, browse
+ *  subs/trending/music/gaming/liked, and folder/channel drill-ins) funnels
+ *  through here, so the "Hide Shorts" filter lives in this one place — a pure
+ *  client-side drop of already-fetched `isShort` items (instant on toggle, no
+ *  refetch). It reads the setting reactively, hence a hook. */
+function useEmbedState(
   data: YoutubeSearchPage | undefined,
   isFetching: boolean,
   isError: boolean,
 ): EmbedSearchState {
+  const hideShorts = useAppSettingsStore((s) => s.hideYoutubeShorts);
+  const videos = hideShorts ? data?.items.filter((v) => !v.isShort) : data?.items;
   return {
-    items: data?.items.map((v) => ({
+    items: videos?.map((v) => ({
       id: v.videoId,
       title: v.title,
       subtitle: v.channelTitle,
@@ -43,7 +51,7 @@ function toEmbedState(
 
 function useYoutubeEmbedSearch(query: string): EmbedSearchState {
   const { data, isFetching, isError } = useYoutubeSearch(query);
-  return toEmbedState(data, isFetching, isError);
+  return useEmbedState(data, isFetching, isError);
 }
 
 const ACCOUNT_TABS = new Set(['subs', 'liked', 'playlists']);
@@ -57,11 +65,15 @@ function useYoutubeEmbedBrowse(tabId: string, enabled: boolean): EmbedSearchStat
   const subs = useYoutubeSubsFeed(enabled && authed && tabId === 'subs');
   const liked = useYoutubeLiked(enabled && authed && tabId === 'liked');
 
+  const q = tabId === 'subs' ? subs : tabId === 'liked' ? liked : browse;
+  // Call the mapper unconditionally (rules of hooks) — it reads the Hide-Shorts
+  // setting; the not-connected branch below overrides its result.
+  const state = useEmbedState(q.data, q.isFetching, q.isError);
+
   if (isAccountTab && !authed) {
     return { items: undefined, isFetching: false, isError: false, hint: CONNECT_HINT };
   }
-  const q = tabId === 'subs' ? subs : tabId === 'liked' ? liked : browse;
-  return toEmbedState(q.data, q.isFetching, q.isError);
+  return state;
 }
 
 function useYoutubeEmbedFolders(tabId: string, enabled: boolean): EmbedFoldersState {
@@ -84,7 +96,7 @@ function useYoutubeEmbedFolders(tabId: string, enabled: boolean): EmbedFoldersSt
 
 function useYoutubeEmbedFolderItems(folder: EmbedFolder | null): EmbedSearchState {
   const { data, isFetching, isError } = useYoutubeFolderVideos(folder?.id ?? null);
-  return toEmbedState(data, isFetching, isError);
+  return useEmbedState(data, isFetching, isError);
 }
 
 /** WidgetShell header action (via DashboardGrid): Connect when signed out,
