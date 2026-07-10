@@ -1,15 +1,16 @@
+import { useMemo } from 'react';
 import { LogIn, LogOut } from 'lucide-react';
 import {
   useYoutubeSearch, useYoutubeBrowse,
   useYoutubeAuthStatus, useYoutubeConnect, useYoutubeLogout,
-  useYoutubeSubsFeed, useYoutubeLiked, useYoutubeMyPlaylists, useYoutubeFolderVideos,
+  useYoutubeSubsFeed, useYoutubeSubsList, useYoutubeLiked, useYoutubeMyPlaylists, useYoutubeFolderVideos,
 } from './useYoutube';
 import { embedUrl } from '../../lib/apiClient';
 import { EmbedSearchWidget } from '../embed/EmbedSearchWidget';
 import { HeaderAction } from '../../components/HeaderAction';
 import { useAppSettingsStore } from '../../store/settingsStore';
 import type {
-  EmbedSearchState, EmbedFoldersState, EmbedFolder, EmbedServiceAdapter,
+  EmbedSearchState, EmbedFoldersState, EmbedFolder, EmbedServiceAdapter, EmbedBrowseTab,
 } from '../embed/types';
 import type { YoutubeSearchPage } from '@dash/shared';
 
@@ -76,21 +77,40 @@ function useYoutubeEmbedBrowse(tabId: string, enabled: boolean): EmbedSearchStat
   return state;
 }
 
+/** Folder rows for a kind:'folders' tab. Two sources:
+ *  - Playlists tab → the user's playlists.
+ *  - Subs tab (when the "channel list only" setting is on) → subscribed channels,
+ *    each mapped to a `channel:UC…` folder so opening it reuses the existing
+ *    channel-uploads drill-in (useYoutubeFolderVideos → /channel-videos). */
 function useYoutubeEmbedFolders(tabId: string, enabled: boolean): EmbedFoldersState {
   const authed = useYoutubeAuthStatus().data?.authenticated === true;
-  const { data, isFetching, isError } = useYoutubeMyPlaylists(enabled && authed && tabId === 'playlists');
+  const subsChannelsOnly = useAppSettingsStore((s) => s.youtubeSubsChannelsOnly);
+  // Both hooks run unconditionally (rules of hooks); `enabled` picks which fetches.
+  const playlists = useYoutubeMyPlaylists(enabled && authed && tabId === 'playlists');
+  const subs = useYoutubeSubsList(enabled && authed && tabId === 'subs' && subsChannelsOnly);
   if (!authed) {
     return { folders: undefined, isFetching: false, isError: false, hint: CONNECT_HINT };
   }
+  if (tabId === 'subs') {
+    return {
+      folders: subs.data?.map((c) => ({
+        id: `channel:${c.channelId}`,
+        title: c.title,
+        thumbnailUrl: c.thumbnailUrl,
+      })),
+      isFetching: subs.isFetching,
+      isError: subs.isError,
+    };
+  }
   return {
-    folders: data?.map((p) => ({
+    folders: playlists.data?.map((p) => ({
       id: p.id,
       title: p.title,
       subtitle: `${p.videoCount} videos`,
       thumbnailUrl: p.thumbnailUrl,
     })),
-    isFetching,
-    isError,
+    isFetching: playlists.isFetching,
+    isError: playlists.isError,
   };
 }
 
@@ -146,5 +166,17 @@ const YOUTUBE_ADAPTER: EmbedServiceAdapter = {
 };
 
 export function YoutubeWidget() {
-  return <EmbedSearchWidget adapter={YOUTUBE_ADAPTER} />;
+  const subsChannelsOnly = useAppSettingsStore((s) => s.youtubeSubsChannelsOnly);
+  // When "channel list only" is on, flip the Subs tab to a folders (channel
+  // list) tab — same rendering path the Playlists tab uses. Off = unchanged
+  // (video feed). Everything else in the adapter is static, so only the tabs
+  // array is rebuilt.
+  const adapter = useMemo<EmbedServiceAdapter>(() => {
+    if (!subsChannelsOnly || !YOUTUBE_ADAPTER.browse) return YOUTUBE_ADAPTER;
+    const tabs: EmbedBrowseTab[] = YOUTUBE_ADAPTER.browse.tabs.map((t) =>
+      t.id === 'subs' ? { ...t, kind: 'folders' } : t,
+    );
+    return { ...YOUTUBE_ADAPTER, browse: { ...YOUTUBE_ADAPTER.browse, tabs } };
+  }, [subsChannelsOnly]);
+  return <EmbedSearchWidget adapter={adapter} />;
 }

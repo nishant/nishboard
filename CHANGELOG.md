@@ -4,6 +4,27 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #103] feat: YouTube Subs tab — channel-list-only mode
+**Branch:** `feat/youtube-subs-list` → `master`
+**Date:** 2026-07-09
+
+### Context
+The Subs tab merges the newest uploads from every subscribed channel into one video feed. That's great for "what's new" but not for "open channel X" — you had to scroll the feed or search. A new opt-in setting flips the Subs tab to a plain channel list (avatar + name); clicking a channel drills into its uploads via the existing channel-uploads path. Off by default — the video feed is unchanged.
+
+### Added
+- **`GET /api/youtube/subscriptions-list`** (`routes/youtube.ts`) → `YoutubeChannel[]`. Reuses the same paginated `subscriptions.list?part=snippet&mine=true&maxResults=50` fetch the subs feed uses (≤2 pages / 100 channels), but maps the full snippet the API already returns — `{ channelId: resourceId.channelId, title, thumbnailUrl: thumbnails.medium?.url ?? default?.url ?? '' }` — instead of only the channelId. De-duped by channelId, sorted case-insensitively by title. No `channels.list` / `playlistItems` calls (≈1 quota unit/page). Same OAuth gating + 401 "Not connected" as the feed; own 30-min `SUBS_LIST_CACHE`, cleared on logout with the other user caches.
+- **`YoutubeChannel`** interface in `packages/shared` (`{ channelId; title; thumbnailUrl }`), re-exported from the barrel.
+- **`useYoutubeSubsList(enabled)`** (`useYoutube.ts`) — `useQuery<YoutubeChannel[]>`, key `['youtube-subs-list']`, `staleTime` 30min (matches the server cache), `retry: 1`. Added to the logout invalidation set.
+- **`youtubeSubsChannelsOnly` app setting** (`settingsStore`, default `false`) + a "Subs tab: channel list only" ToggleRow under the existing **YouTube** section in Settings → App. Default asserted in `settingsStore.test.ts`.
+
+### Changed
+- **`YoutubeWidget.tsx`** — when the setting is on, the `YoutubeWidget` root rebuilds the adapter via `useMemo` to flip the **Subs** tab's `kind` to `'folders'`, reusing the exact same folders rendering + drill-in path the Playlists tab uses. `useYoutubeEmbedFolders` now serves two sources: playlists (unchanged) and, for the Subs tab, channels mapped to `channel:UC…` folders so opening one hits the existing `useYoutubeFolderVideos` → `/channel-videos` drill-in. The subs-list query is gated `authed && tab==='subs' && youtubeSubsChannelsOnly` so it never fetches when the setting is off; the subs **video feed** path is untouched in that case. Not-connected still shows the connect hint (via the folders `hint`), not an empty list.
+
+### Notes
+- No new rendering component — the channel list is the existing `EmbedSearchWidget` folders view (`FolderRow`), so channel avatars render in the same 16:9 folder thumb box as playlists.
+- No persist version bump — the new boolean shallow-merges into existing persisted state.
+- Unverified: couldn't exercise the live YouTube Data API or the Electron UI in this environment; changes are covered by typecheck/lint and the unit suite only.
+
 ## [PR #102] feat: collapsible widgets (accordion — title bar only)
 **Branch:** `feat/collapsible-widgets` → master
 **Date:** 2026-07-09

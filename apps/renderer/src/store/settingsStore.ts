@@ -45,6 +45,9 @@ interface AppSettingsState {
   /** Hide YouTube Shorts (≤60s videos) from every YouTube tab. Pure client-side
    *  filter of already-fetched items — toggling is instant, no refetch. */
   hideYoutubeShorts: boolean;
+  /** Subs tab shows just the list of subscribed channels (avatar + name) instead
+   *  of a merged video feed; clicking a channel opens its uploads. */
+  youtubeSubsChannelsOnly: boolean;
 
   setWeatherZips: (zips: string[]) => void;
   setWeatherZipIdx: (idx: number) => void;
@@ -59,6 +62,7 @@ interface AppSettingsState {
   setWeatherAlertNotify: (mode: WeatherAlertNotify) => void;
   setTwitchLiveNotify: (on: boolean) => void;
   setHideYoutubeShorts: (on: boolean) => void;
+  setYoutubeSubsChannelsOnly: (on: boolean) => void;
 }
 
 export const useAppSettingsStore = create<AppSettingsState>()(
@@ -78,6 +82,7 @@ export const useAppSettingsStore = create<AppSettingsState>()(
       weatherAlertNotify: 'severe',
       twitchLiveNotify: true,
       hideYoutubeShorts: false,
+      youtubeSubsChannelsOnly: false,
 
       // Reset the cycle index too — it may point past the end of the new list.
       setWeatherZips: (weatherZips) => set({ weatherZips, weatherZipIdx: 0 }),
@@ -93,6 +98,7 @@ export const useAppSettingsStore = create<AppSettingsState>()(
       setWeatherAlertNotify: (weatherAlertNotify) => set({ weatherAlertNotify }),
       setTwitchLiveNotify: (twitchLiveNotify) => set({ twitchLiveNotify }),
       setHideYoutubeShorts: (hideYoutubeShorts) => set({ hideYoutubeShorts }),
+      setYoutubeSubsChannelsOnly: (youtubeSubsChannelsOnly) => set({ youtubeSubsChannelsOnly }),
     }),
     {
       name: 'dashboard-app-settings',

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { YoutubeSearchPage, YoutubeAuthStatus, YoutubePlaylist } from '@dash/shared';
+import type { YoutubeSearchPage, YoutubeAuthStatus, YoutubePlaylist, YoutubeChannel } from '@dash/shared';
 import { apiClient } from '../../lib/apiClient';
 import { useGatedInterval } from '../../hooks/useGatedInterval';
 
@@ -58,6 +58,7 @@ export function useYoutubeLogout() {
     onSuccess: () => {
       qc.setQueryData<YoutubeAuthStatus>(['youtube-auth'], { authenticated: false });
       void qc.invalidateQueries({ queryKey: ['youtube-subs-feed'] });
+      void qc.invalidateQueries({ queryKey: ['youtube-subs-list'] });
       void qc.invalidateQueries({ queryKey: ['youtube-liked'] });
       void qc.invalidateQueries({ queryKey: ['youtube-my-playlists'] });
       void qc.invalidateQueries({ queryKey: ['youtube-folder'] });
@@ -73,6 +74,18 @@ export function useYoutubeSubsFeed(enabled: boolean) {
     queryFn: () => apiClient.get<YoutubeSearchPage>('/api/youtube/subscriptions-feed'),
     enabled,
     staleTime: 45 * 60 * 1000,
+    retry: 1,
+  });
+}
+
+/** Just the channels you're subscribed to (Subs "channel list only" mode).
+ *  Server caches 30 min — match it client-side to avoid churn. */
+export function useYoutubeSubsList(enabled: boolean) {
+  return useQuery<YoutubeChannel[]>({
+    queryKey: ['youtube-subs-list'],
+    queryFn: () => apiClient.get<YoutubeChannel[]>('/api/youtube/subscriptions-list'),
+    enabled,
+    staleTime: 30 * 60 * 1000,
     retry: 1,
   });
 }

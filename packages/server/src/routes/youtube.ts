@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { YoutubeVideo, YoutubeSearchPage, YoutubeAuthStatus, YoutubePlaylist } from '@dash/shared';
+import type { YoutubeVideo, YoutubeSearchPage, YoutubeAuthStatus, YoutubePlaylist, YoutubeChannel } from '@dash/shared';
 import crypto from 'crypto';
 import { fetchJson, HttpError } from '../lib/http';
 import { TtlCache } from '../lib/TtlCache';
@@ -152,6 +152,7 @@ async function fetchPlaylistItems(playlistId: string, max: number, label: string
 // Personal-data caches. The subs feed is the quota hog (~1 unit per subscribed
 // channel per cold refresh) — 45 min keeps worst case well inside 10k/day.
 const SUBS_FEED_CACHE = new TtlCache<string, YoutubeSearchPage>(45 * 60 * 1000);
+const SUBS_LIST_CACHE = new TtlCache<string, YoutubeChannel[]>(30 * 60 * 1000);
 const MY_PLAYLISTS_CACHE = new TtlCache<string, YoutubePlaylist[]>(15 * 60 * 1000);
 const PLAYLIST_VIDEOS_CACHE = new TtlCache<string, YoutubeSearchPage>(15 * 60 * 1000);
 const LIKED_CACHE = new TtlCache<string, YoutubeSearchPage>(15 * 60 * 1000);
@@ -159,6 +160,7 @@ const CHANNEL_VIDEOS_CACHE = new TtlCache<string, YoutubeSearchPage>(30 * 60 * 1
 
 function clearUserCaches(): void {
   SUBS_FEED_CACHE.clear();
+  SUBS_LIST_CACHE.clear();
   MY_PLAYLISTS_CACHE.clear();
   PLAYLIST_VIDEOS_CACHE.clear();
   LIKED_CACHE.clear();
@@ -349,6 +351,55 @@ export const youtubeRoutes: FastifyPluginAsync = async (fastify) => {
     };
     SUBS_FEED_CACHE.set('feed', page);
     return reply.send(page);
+  });
+
+  // GET /api/youtube/subscriptions-list — just the channels you're subscribed
+  // to (avatar + name), for the Subs "channel list only" mode. The snippet the
+  // subs-feed already fetches carries the title + thumbnails, so this is a plain
+  // ~1 quota unit per page (no channels.list / playlistItems). 30-min cache.
+  fastify.get<{ Reply: YoutubeChannel[] | { error: string } }>('/subscriptions-list', async (_req, reply) => {
+    if (!userTokens.authenticated) return reply.code(401).send({ error: 'Not connected to YouTube' });
+
+    const cached = SUBS_LIST_CACHE.get('list');
+    if (cached) return reply.send(cached);
+
+    // Same paginated subscriptions fetch as the feed (up to 2 pages / 100
+    // channels), but map the full snippet instead of only the channelId.
+    const byId = new Map<string, YoutubeChannel>();
+    let pageToken: string | undefined;
+    for (let page = 0; page < 2; page++) {
+      const d = await ytUserJson<{
+        nextPageToken?: string;
+        items?: {
+          snippet: {
+            title: string;
+            resourceId?: { channelId?: string };
+            thumbnails?: { medium?: { url: string }; default?: { url: string } };
+          };
+        }[];
+      }>(
+        `/subscriptions?part=snippet&mine=true&maxResults=50${pageToken ? `&pageToken=${pageToken}` : ''}`,
+        'YouTube subscriptions',
+      );
+      for (const i of d.items ?? []) {
+        // resourceId.channelId is the SUBSCRIBED channel — not the snippet's own.
+        const channelId = i.snippet.resourceId?.channelId;
+        if (!channelId || byId.has(channelId)) continue;
+        byId.set(channelId, {
+          channelId,
+          title: i.snippet.title,
+          thumbnailUrl: i.snippet.thumbnails?.medium?.url ?? i.snippet.thumbnails?.default?.url ?? '',
+        });
+      }
+      pageToken = d.nextPageToken;
+      if (!pageToken) break;
+    }
+
+    const channels = [...byId.values()].sort((a, b) =>
+      a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }),
+    );
+    SUBS_LIST_CACHE.set('list', channels);
+    return reply.send(channels);
   });
 
   // GET /api/youtube/my-playlists

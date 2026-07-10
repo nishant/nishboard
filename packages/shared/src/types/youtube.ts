@@ -30,3 +30,10 @@ export interface YoutubePlaylist {
   videoCount: number;
   thumbnailUrl: string | null;
 }
+
+/** A channel the signed-in user is subscribed to (Subs tab, channel-list mode). */
+export interface YoutubeChannel {
+  channelId: string;
+  title: string;
+  thumbnailUrl: string;
+}
