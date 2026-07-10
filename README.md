@@ -61,6 +61,7 @@
 | 🚀 **Launcher** | App + link launcher with groups, launch-all, real icons | Local (typed IPC, targets stored main-side) |
 | 📋 **Clipboard** | Rolling text-clipboard history (in-memory, never persisted) | Electron clipboard poller (only while visible) |
 | 📶 **Net Monitor** | Per-host latency / jitter / packet-loss + up/down throughput sparklines | System `ping` via a server-side sampler + `systeminformation` |
+| 🤖 **Claude** | Chat with Claude — streaming replies, markdown, multi-turn context | Your installed **Claude Code CLI** (bills your claude.ai plan, not API keys) |
 
 Everything lives on a **draggable, resizable grid** (react-grid-layout) with built-in presets, saveable custom layouts, and 15 themes plus a custom theme editor. Any widget **collapses accordion-style to just its title bar** (chevron in the header) and the state persists across restarts. The **Ctrl/Cmd+K command palette** understands typed commands with arguments — `timer 1h5m3s tea`, `alarm 7:30am`, `task buy milk`, `volume 40`, `ticker AAPL`, `zone tokyo` — alongside fuzzy search over every action.
 
@@ -174,6 +175,7 @@ All keys are optional to *start* the app — each widget degrades gracefully if 
 | `TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET` | Twitch | for Twitch | [dev.twitch.tv/console](https://dev.twitch.tv/console) → register an app, redirect `http://localhost:7432/api/twitch/callback`² |
 | `COINGECKO_API_KEY` | Crypto | optional | [coingecko.com](https://www.coingecko.com/en/developers/dashboard) demo key — keyless works but throttled |
 | `GITHUB_TOKEN` | update check | optional | fine-grained PAT, read-only Contents — only needed while the repo is private |
+| `CLAUDE_CODE_OAUTH_TOKEN` | Claude | optional | only if Claude Code isn't logged in on the machine — `claude setup-token`. **Never baked into builds** (personal account token); the widget otherwise just uses your local `claude /login` session |
 | `SERVER_PORT` | server | preset | `7432` |
 
 > **Spotify redirect URI is exact-match.** Spotify's form rejects `localhost` for some apps, so this project uses the `127.0.0.1` form — whatever you put in `.env` must match the dashboard registration character-for-character.
