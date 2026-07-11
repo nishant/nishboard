@@ -48,3 +48,22 @@ describe('parseUsageResponse', () => {
     expect(parseUsageResponse([1, 2]).windows).toEqual([]);
   });
 });
+
+describe('parseUsageResponse — fraction normalization', () => {
+  it('scales fraction-shaped responses (all windows ≤ 1) to percent', () => {
+    const data = parseUsageResponse({
+      five_hour: { utilization: 0.62, resets_at: null },
+      seven_day: { utilization: 0.07 },
+    });
+    expect(data.windows[0].utilization).toBeCloseTo(62);
+    expect(data.windows[1].utilization).toBeCloseTo(7);
+  });
+
+  it('leaves percent-shaped responses untouched even with one small window', () => {
+    const data = parseUsageResponse({
+      five_hour: { utilization: 0.9 }, // genuinely <1% used
+      seven_day: { utilization: 45 },
+    });
+    expect(data.windows.map((w) => w.utilization)).toEqual([0.9, 45]);
+  });
+});

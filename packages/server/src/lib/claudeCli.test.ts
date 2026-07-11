@@ -43,7 +43,7 @@ describe('createLineSplitter', () => {
     const splitter = createLineSplitter((l) => lines.push(l));
     splitter.push('{"type":"result","is_error":false,"duration_ms":5}\r\n');
     expect(lines).toHaveLength(1);
-    expect(parseStreamJsonLine(lines[0])).toEqual([{ type: 'done', isError: false, durationMs: 5, outputTokens: null }]);
+    expect(parseStreamJsonLine(lines[0])).toEqual([{ type: 'done', isError: false, durationMs: 5, outputTokens: null, contextTokens: null }]);
   });
 });
 
@@ -174,14 +174,16 @@ describe('parseStreamJsonLine — mapping table', () => {
       duration_ms: 2882,
       result: 'Hello world',
       total_cost_usd: 0,
-      usage: { input_tokens: 4, output_tokens: 356 },
+      usage: { input_tokens: 4, output_tokens: 356, cache_read_input_tokens: 18_000, cache_creation_input_tokens: 2_000 },
     });
-    expect(parseStreamJsonLine(line)).toEqual([{ type: 'done', isError: false, durationMs: 2882, outputTokens: 356 }]);
+    expect(parseStreamJsonLine(line)).toEqual([
+      { type: 'done', isError: false, durationMs: 2882, outputTokens: 356, contextTokens: 20_004 },
+    ]);
   });
 
   it('error result → done with isError true', () => {
     const line = JSON.stringify({ type: 'result', subtype: 'error_during_execution', is_error: true, duration_ms: 10 });
-    expect(parseStreamJsonLine(line)).toEqual([{ type: 'done', isError: true, durationMs: 10, outputTokens: null }]);
+    expect(parseStreamJsonLine(line)).toEqual([{ type: 'done', isError: true, durationMs: 10, outputTokens: null, contextTokens: null }]);
   });
 
   it('unknown top-level types → [] (forward-compatible)', () => {

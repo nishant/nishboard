@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Check, ChevronRight, Copy, Loader2, PieChart, Plus, SendHorizontal, SlidersHorizontal, Square, X,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { ClaudeEffort } from '@dash/shared';
-import { CLAUDE_EFFORTS } from '@dash/shared';
+import { CLAUDE_CONTEXT_WINDOW, CLAUDE_EFFORTS } from '@dash/shared';
 import { messageText, useClaudeStore } from '../../store/claudeStore';
 import type { ClaudeChatMessage, ClaudeToolPart } from '../../store/claudeStore';
 import {
@@ -75,27 +77,64 @@ function Shimmer({ startedAt }: { startedAt: number }) {
   );
 }
 
+// ── Markdown pipeline ─────────────────────────────────────────────────────────
+
+/** Links open in the system browser (Electron) — never navigate the app. */
+function MdLink({ href, children, ...rest }: React.AnchorHTMLAttributes<HTMLAnchorElement>) {
+  return (
+    <a
+      {...rest}
+      href={href}
+      onClick={(e) => {
+        e.preventDefault();
+        if (!href) return;
+        if (window.electron?.openExternal) window.electron.openExternal(href);
+        else window.open(href, '_blank', 'noopener');
+      }}
+    >
+      {children}
+    </a>
+  );
+}
+
+// Module-level so ReactMarkdown's props stay referentially stable across renders.
+const MD_PLUGINS = [remarkGfm];
+const MD_COMPONENTS = { a: MdLink };
+
 // ── Small popover scaffold ────────────────────────────────────────────────────
 
-/** Anchored panel above the composer. The fixed backdrop closes on any
- *  outside click without stealing the click from other widgets' popovers. */
-function Popover({ onClose, children, wide = false }: {
+/** Panel anchored above `anchor`, rendered through a PORTAL with fixed
+ *  positioning — the WidgetShell's overflow-hidden would otherwise clip it in
+ *  narrow grid tiles (the usage bars looked mis-filled because their left side
+ *  was cut off at the tile edge, while the right-aligned % labels survived).
+ *  The fixed backdrop closes on any outside click. */
+function Popover({ anchor, onClose, children, wide = false }: {
+  anchor: HTMLElement | null;
   onClose: () => void;
   children: React.ReactNode;
   wide?: boolean;
 }) {
-  return (
+  const width = wide ? 256 : 208; // Tailwind w-64 / w-52 in px
+  const [pos, setPos] = useState<{ left: number; bottom: number } | null>(null);
+  useLayoutEffect(() => {
+    if (!anchor) return;
+    const r = anchor.getBoundingClientRect();
+    // Right-align to the trigger, clamped inside the viewport.
+    const left = Math.max(8, Math.min(r.right - width, window.innerWidth - width - 8));
+    setPos({ left, bottom: window.innerHeight - r.top + 6 });
+  }, [anchor, width]);
+  if (!pos) return null;
+  return createPortal(
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
       <div
-        className={cn(
-          'absolute bottom-full right-0 mb-1.5 z-50 rounded-lg border border-th-line bg-th-surface shadow-xl p-2.5',
-          wide ? 'w-64' : 'w-52',
-        )}
+        className="fixed z-50 rounded-lg border border-th-line bg-th-surface shadow-xl p-2.5"
+        style={{ left: pos.left, bottom: pos.bottom, width }}
       >
         {children}
       </div>
-    </>
+    </>,
+    document.body,
   );
 }
 
@@ -113,7 +152,7 @@ function modelLabel(value: string | null): string {
   return MODEL_OPTIONS.find((o) => o.value === value)?.label ?? value ?? 'Default';
 }
 
-function ModelEffortPanel({ onClose }: { onClose: () => void }) {
+function ModelEffortPanel({ anchor, onClose }: { anchor: HTMLElement | null; onClose: () => void }) {
   const chatModel = useClaudeStore((s) => s.chatModel);
   const chatEffort = useClaudeStore((s) => s.chatEffort);
   const sessionModel = useClaudeStore((s) => s.model);
@@ -122,7 +161,7 @@ function ModelEffortPanel({ onClose }: { onClose: () => void }) {
   const effortIdx = chatEffort ? CLAUDE_EFFORTS.indexOf(chatEffort) : 2;
 
   return (
-    <Popover onClose={onClose}>
+    <Popover anchor={anchor} onClose={onClose}>
       <p className="text-[9px] font-semibold uppercase tracking-wider text-th-3 mb-1.5">Model</p>
       <div className="flex flex-col gap-0.5">
         {MODEL_OPTIONS.map((opt) => (
@@ -197,10 +236,28 @@ function usageBarColor(pct: number): string {
   return 'bg-th-accent';
 }
 
-function UsagePanel({ onClose }: { onClose: () => void }) {
+function UsagePanel({ anchor, onClose }: { anchor: HTMLElement | null; onClose: () => void }) {
   const usage = useClaudeUsage(true);
+  const lastContext = useClaudeStore((s) => s.lastContextTokens);
+  const contextPct = lastContext !== null ? Math.min(100, (lastContext / CLAUDE_CONTEXT_WINDOW) * 100) : null;
   return (
-    <Popover onClose={onClose} wide>
+    <Popover anchor={anchor} onClose={onClose} wide>
+      {lastContext !== null && contextPct !== null && (
+        <div className="mb-2.5">
+          <div className="flex items-baseline justify-between mb-0.5">
+            <span className="text-[10px] text-th-2">Context — this chat</span>
+            <span className="text-[10px] font-medium text-th-hi">
+              {formatTokens(lastContext)} / {formatTokens(CLAUDE_CONTEXT_WINDOW)}
+            </span>
+          </div>
+          <div className="h-1.5 rounded-full bg-th-elevated overflow-hidden">
+            <div
+              className={cn('h-full rounded-full transition-all', usageBarColor(contextPct))}
+              style={{ width: `${Math.max(2, contextPct)}%` }}
+            />
+          </div>
+        </div>
+      )}
       <p className="text-[9px] font-semibold uppercase tracking-wider text-th-3 mb-2">Usage</p>
       {usage.isLoading ? (
         <div className="flex items-center gap-1.5 text-[11px] text-th-ghost py-1">
@@ -373,7 +430,7 @@ function MessageBubble({ msg, streaming }: { msg: ClaudeChatMessage; streaming: 
           part.text ? <ThinkingBlock key={i} text={part.text} /> : null
         ) : part.text ? (
           <div key={i} className="md-render break-words">
-            <ReactMarkdown>{part.text}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={MD_PLUGINS} components={MD_COMPONENTS}>{part.text}</ReactMarkdown>
           </div>
         ) : null,
       )}
@@ -454,6 +511,8 @@ export function ClaudeWidget() {
   const [panel, setPanel] = useState<'model' | 'usage' | null>(null);
   const [slashSel, setSlashSel] = useState(0);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const modelBtnRef = useRef<HTMLButtonElement | null>(null);
+  const usageBtnRef = useRef<HTMLButtonElement | null>(null);
   // Stick to the bottom while streaming — but stop following the moment the
   // user scrolls up to re-read something.
   const [pinned, setPinned] = useState(true);
@@ -629,6 +688,7 @@ export function ClaudeWidget() {
         <ModeSwitch />
         <div className="ml-auto flex items-center gap-0.5">
           <button
+            ref={modelBtnRef}
             onClick={() => setPanel(panel === 'model' ? null : 'model')}
             title="Model & effort"
             aria-label="Model & effort"
@@ -642,6 +702,7 @@ export function ClaudeWidget() {
             {chatEffort && ` · ${chatEffort}`}
           </button>
           <button
+            ref={usageBtnRef}
             onClick={() => setPanel(panel === 'usage' ? null : 'usage')}
             title="Usage"
             aria-label="Usage"
@@ -653,8 +714,8 @@ export function ClaudeWidget() {
             <PieChart size={11} />
           </button>
         </div>
-        {panel === 'model' && <ModelEffortPanel onClose={() => setPanel(null)} />}
-        {panel === 'usage' && <UsagePanel onClose={() => setPanel(null)} />}
+        {panel === 'model' && <ModelEffortPanel anchor={modelBtnRef.current} onClose={() => setPanel(null)} />}
+        {panel === 'usage' && <UsagePanel anchor={usageBtnRef.current} onClose={() => setPanel(null)} />}
       </div>
     </div>
   );

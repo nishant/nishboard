@@ -63,8 +63,11 @@ interface ClaudeState {
   appendDelta: (text: string) => void;
   /** Append extended-thinking text (merges like appendDelta, own part kind). */
   appendThinking: (text: string) => void;
-  /** Stamp duration/token stats onto the current assistant message. */
-  finishAssistant: (durationMs: number, outputTokens: number | null) => void;
+  /** Stamp duration/token stats onto the current assistant message and record
+   *  the turn's context consumption for the usage popover. */
+  finishAssistant: (durationMs: number, outputTokens: number | null, contextTokens: number | null) => void;
+  /** Context tokens consumed by the most recent turn (null before any turn). */
+  lastContextTokens: number | null;
   /** The model started a tool call — append a running chip. */
   addToolPart: (id: string, name: string, detail: string) => void;
   /** A tool call finished — flip its chip to ok/error. */
@@ -100,6 +103,7 @@ export const useClaudeStore = create<ClaudeState>()(
       chatMode: 'chat',
       chatModel: null,
       chatEffort: null,
+      lastContextTokens: null,
 
       addUser: (text) =>
         set((s) => ({
@@ -132,13 +136,14 @@ export const useClaudeStore = create<ClaudeState>()(
             return { ...m, parts: [...m.parts, { kind: 'thinking', text }] };
           }),
         })),
-      finishAssistant: (durationMs, outputTokens) =>
+      finishAssistant: (durationMs, outputTokens, contextTokens) =>
         set((s) => ({
           messages: patchLastAssistant(s.messages, (m) => ({
             ...m,
             durationMs,
             ...(outputTokens !== null ? { outputTokens } : {}),
           })),
+          ...(contextTokens !== null ? { lastContextTokens: contextTokens } : {}),
         })),
       addToolPart: (id, name, detail) =>
         set((s) => ({
@@ -182,6 +187,7 @@ export const useClaudeStore = create<ClaudeState>()(
         chatMode: s.chatMode,
         chatModel: s.chatModel,
         chatEffort: s.chatEffort,
+        lastContextTokens: s.lastContextTokens,
       }),
       // v1 messages were flat `{ text: string }`; v2 is `{ parts: ClaudePart[] }`.
       migrate: (persisted, version) => {

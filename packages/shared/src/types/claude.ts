@@ -15,6 +15,9 @@ export type ClaudeChatMode = 'chat' | 'auto' | 'plan';
 export type ClaudeEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export const CLAUDE_EFFORTS: ClaudeEffort[] = ['low', 'medium', 'high', 'xhigh', 'max'];
 
+/** Assumed model context window for the usage popover's context meter. */
+export const CLAUDE_CONTEXT_WINDOW = 200_000;
+
 /** One SSE frame on POST /api/claude/chat — mapped server-side from the CLI's
  *  stream-json output so the renderer never parses raw CLI output.
  *
@@ -35,7 +38,15 @@ export type ClaudeStreamEvent =
   | { type: 'tool-use'; id: string; name: string; detail: string }
   /** A previously-announced tool call finished (`id` matches the `tool-use`). */
   | { type: 'tool-result'; id: string; isError: boolean }
-  | { type: 'done'; isError: boolean; durationMs: number; outputTokens: number | null }
+  | {
+      type: 'done';
+      isError: boolean;
+      durationMs: number;
+      outputTokens: number | null;
+      /** Total context consumed this turn: input + cache-read + cache-creation
+       *  tokens from the result frame's usage (null when absent). */
+      contextTokens: number | null;
+    }
   | { type: 'error'; message: string };
 
 export interface ClaudeChatRequestBody {

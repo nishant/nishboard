@@ -123,16 +123,19 @@ describe('claudeStore v2 additions', () => {
     const s = useClaudeStore.getState();
     s.beginAssistant();
     s.appendDelta('hi');
-    s.finishAssistant(4200, 356);
+    s.finishAssistant(4200, 356, 24_000);
     let [m] = useClaudeStore.getState().messages;
     expect(m.durationMs).toBe(4200);
     expect(m.outputTokens).toBe(356);
+    expect(useClaudeStore.getState().lastContextTokens).toBe(24_000);
 
     s.beginAssistant();
-    s.finishAssistant(100, null);
+    s.finishAssistant(100, null, null);
     m = useClaudeStore.getState().messages[1];
     expect(m.durationMs).toBe(100);
     expect(m.outputTokens).toBeUndefined();
+    // null context keeps the previous value (a turn without usage shouldn't wipe the meter)
+    expect(useClaudeStore.getState().lastContextTokens).toBe(24_000);
   });
 
   it('mode/model/effort persist with safe defaults', async () => {

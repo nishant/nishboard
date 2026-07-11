@@ -85,6 +85,14 @@ export function parseUsageResponse(raw: unknown): ClaudeUsageData {
       resetsAt: typeof w.resets_at === 'string' ? w.resets_at : null,
     });
   }
+  // Normalize fraction-shaped responses (0–1) to percent. Applied across ALL
+  // windows, not per-window, so a genuine 0% window next to a 45% one isn't
+  // misread as a fraction. Tradeoff: every window genuinely ≤1% would scale
+  // ×100 — accepted, since real subscription windows virtually never all sit
+  // at ≤1% simultaneously.
+  if (windows.length > 0 && windows.every((w) => w.utilization <= 1)) {
+    for (const w of windows) w.utilization = Math.min(100, w.utilization * 100);
+  }
   windows.sort((a, b) => {
     const ai = WINDOW_ORDER.indexOf(a.key);
     const bi = WINDOW_ORDER.indexOf(b.key);

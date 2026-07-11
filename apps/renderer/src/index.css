@@ -387,7 +387,13 @@ body,
 .md-render pre code { background: transparent; padding: 0; }
 .md-render blockquote { border-left: 2px solid rgb(var(--t-line)); padding-left: 0.6em; color: rgb(var(--t-3)); margin: 0.3em 0; }
 .md-render hr { border: none; border-top: 1px solid rgb(var(--t-line)); margin: 0.5em 0; }
-.md-render input[type="checkbox"] { margin-right: 0.4em; }
+.md-render input[type="checkbox"] { margin-right: 0.4em; accent-color: rgb(var(--t-accent)); vertical-align: middle; }
+/* GFM (remark-gfm): tables, strikethrough, task lists */
+.md-render table { border-collapse: collapse; margin: 0.4em 0; font-size: 0.95em; display: block; max-width: 100%; overflow-x: auto; }
+.md-render th, .md-render td { border: 1px solid rgb(var(--t-line)); padding: 0.25em 0.55em; text-align: left; }
+.md-render th { color: rgb(var(--t-hi)); font-weight: 600; background: rgb(var(--t-elevated)); }
+.md-render del { text-decoration: line-through; opacity: 0.65; }
+.md-render li:has(> input[type="checkbox"]) { list-style: none; margin-left: -1.2em; }
 /* ── Windows parity ──────────────────────────────────────────────────────────
    Scoped to Windows via the data-platform attribute set on <html> from the
    Electron platform, so macOS keeps its native overlay scrollbars + native
