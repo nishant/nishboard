@@ -4,6 +4,30 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #117] feat: Claude widget interactive prompts — Allow/Deny cards, questions, plan approval, loose sandbox
+
+**Branch:** `feat/claude-interactive-prompts` → `master`
+**Date:** 2026-07-11
+
+### Context
+The widget's CLI ran non-interactively: permission checks dead-ended ("requires approval" with nowhere to approve), its file sandbox was just `~/.dash`, and AskUserQuestion didn't exist for it. Nish wants loose permissions and to be prompted when Claude needs something — including plan approval.
+
+### Added
+- **Interactive prompt cards** (in-message, with buttons): tool permissions (Allow / Deny), **AskUserQuestion** (options rendered as buttons, multi-select supported, answers keyed by question text), and **ExitPlanMode** (plan markdown + Approve plan / Keep planning — approval continues execution in the same turn). A pending prompt swaps the shimmer to "Waiting for you" and fires `fireAlert` (chime + toast + native notification). Resolved prompts collapse to one-line chips; prompts pending when a stream dies render as Cancelled/Expired.
+- **Ask mode** replaces Chat as the default (persisted `'chat'` migrates, store v3): default permission mode + `--permission-prompt-tool stdio`, with reads pre-allowed (`--allowedTools Read Glob Grep WebFetch WebSearch`) so only writes/commands/skills prompt. Auto (bypassPermissions) and Plan unchanged in spirit; Plan now surfaces its approval.
+- **Workspace settings** (Settings → App → Claude): CLI cwd (default `~/.dash`) and extra `--add-dir` folders (default `~` — the whole home dir, per Nish's "perms loose"). `~` expands server-side; relative paths rejected.
+- Server: `--input-format stream-json` with stdin held open as the control channel (closed after the result frame — that's what exits the CLI; 5s grace kill). Pending-prompt map with 5-minute timeout → auto-deny. New `POST /api/claude/control`; new SSE frames `permission-request` / `permission-resolved`. Env `CLAUDE_CODE_ENABLE_ASK_USER_QUESTION_TOOL=1`.
+
+### Fixed
+- `--resume` of an unknown session id under stream-json input yields a stderr line + `is_error` result (no error frame) — now converted to an error event so the existing retry-without-resume works (wiped history / cross-machine / bogus persisted id previously produced a silent empty turn).
+
+### Notes
+- Control-protocol wire shapes pinned live against CLI 2.1.207 (captured frames are test fixtures); AskUserQuestion answers ride `updatedInput.answers` keyed by question text.
+- Verified end-to-end with a real CLI: Ask-mode Write → card → Allow → file on disk; question card → click → model echoed the choice; Plan → Approve → in-turn Write prompt → file on disk; bogus-session retry streams fresh.
+- Windows `.cmd`-wrapper stdin fidelity for control responses still needs a check on the Windows box (manual matrix item).
+
+---
+
 ## [PR #115] fix: Claude widget polish — unclipped popovers, context meter, full GFM markdown
 
 **Branch:** `fix/claude-widget-polish` → `master`

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { ClaudeChatMode, ClaudeEffort } from '@dash/shared';
+import type { ClaudeChatMode, ClaudeEffort, ClaudePromptRequest } from '@dash/shared';
 
 /** A run of assistant text (streamed from `delta` frames). */
 export interface ClaudeTextPart {
@@ -21,7 +21,18 @@ export interface ClaudeToolPart {
   detail: string;
   status: 'running' | 'ok' | 'error';
 }
-export type ClaudePart = ClaudeTextPart | ClaudeThinkingPart | ClaudeToolPart;
+/** An interactive prompt from the CLI (permission / question / plan approval),
+ *  rendered as an in-message card with buttons while `pending`. */
+export interface ClaudePromptPart {
+  kind: 'prompt';
+  requestId: string;
+  request: ClaudePromptRequest;
+  status: 'pending' | 'allowed' | 'denied' | 'cancelled' | 'timeout';
+  /** Human summary of what the user chose ("Blue", "Plan approved", …). */
+  resolution?: string;
+}
+
+export type ClaudePart = ClaudeTextPart | ClaudeThinkingPart | ClaudeToolPart | ClaudePromptPart;
 
 /**
  * A message is an ORDERED list of parts so tool activity interleaves with text
@@ -72,6 +83,12 @@ interface ClaudeState {
   addToolPart: (id: string, name: string, detail: string) => void;
   /** A tool call finished — flip its chip to ok/error. */
   resolveToolPart: (id: string, isError: boolean) => void;
+  /** The CLI raised a permission/question/plan prompt — append a pending card. */
+  addPromptPart: (requestId: string, request: ClaudePromptRequest) => void;
+  /** A prompt finished (user click / timeout / cancellation). */
+  resolvePromptPart: (requestId: string, status: ClaudePromptPart['status'], resolution?: string) => void;
+  /** Flip every still-pending prompt to cancelled (stream stopped/errored). */
+  cancelPendingPrompts: () => void;
   /** Append an error note to the current assistant message (client-side only). */
   appendError: (text: string) => void;
   setSession: (id: string, model: string) => void;
@@ -100,7 +117,7 @@ export const useClaudeStore = create<ClaudeState>()(
       sessionId: null,
       model: null,
       isStreaming: false,
-      chatMode: 'chat',
+      chatMode: 'ask',
       chatModel: null,
       chatEffort: null,
       lastContextTokens: null,
@@ -161,6 +178,40 @@ export const useClaudeStore = create<ClaudeState>()(
             ),
           })),
         })),
+      addPromptPart: (requestId, request) =>
+        set((s) => ({
+          messages: patchLastAssistant(s.messages, (m) => ({
+            ...m,
+            parts: [...m.parts, { kind: 'prompt', requestId, request, status: 'pending' }],
+          })),
+        })),
+      resolvePromptPart: (requestId, status, resolution) =>
+        set((s) => ({
+          messages: patchLastAssistant(s.messages, (m) => ({
+            ...m,
+            parts: m.parts.map((p) =>
+              p.kind === 'prompt' && p.requestId === requestId
+                ? {
+                    ...p,
+                    // First resolution wins (the server frame and the POST's
+                    // local stash race — arrival order varies)…
+                    status: p.status === 'pending' ? status : p.status,
+                    // …but a resolution summary attaches whenever it shows up.
+                    ...(resolution !== undefined ? { resolution } : {}),
+                  }
+                : p,
+            ),
+          })),
+        })),
+      cancelPendingPrompts: () =>
+        set((s) => ({
+          messages: patchLastAssistant(s.messages, (m) => ({
+            ...m,
+            parts: m.parts.map((p) =>
+              p.kind === 'prompt' && p.status === 'pending' ? { ...p, status: 'cancelled' } : p,
+            ),
+          })),
+        })),
       appendError: (text) =>
         set((s) => ({
           messages: patchLastAssistant(s.messages, (m) => ({
@@ -177,7 +228,7 @@ export const useClaudeStore = create<ClaudeState>()(
     }),
     {
       name: 'dashboard-claude',
-      version: 2,
+      version: 3,
       // NEVER persist isStreaming — a reload mid-stream would resurrect a
       // permanently-disabled input with no stream behind it.
       partialize: (s) => ({
@@ -189,7 +240,8 @@ export const useClaudeStore = create<ClaudeState>()(
         chatEffort: s.chatEffort,
         lastContextTokens: s.lastContextTokens,
       }),
-      // v1 messages were flat `{ text: string }`; v2 is `{ parts: ClaudePart[] }`.
+      // v1 messages were flat `{ text: string }`; v2 is `{ parts: ClaudePart[] }`;
+      // v3 renamed the no-tools mode 'chat' → 'ask' (which now surfaces prompts).
       migrate: (persisted, version) => {
         const state = persisted as { messages?: Array<Record<string, unknown>> } & Record<string, unknown>;
         if (version < 2 && Array.isArray(state.messages)) {
@@ -198,6 +250,9 @@ export const useClaudeStore = create<ClaudeState>()(
             const text = typeof m.text === 'string' ? m.text : '';
             return { id: m.id, role: m.role, at: m.at, parts: text ? [{ kind: 'text', text }] : [] };
           });
+        }
+        if (version < 3 && state.chatMode === 'chat') {
+          state.chatMode = 'ask';
         }
         return state as unknown as ClaudeState;
       },

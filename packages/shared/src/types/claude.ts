@@ -6,10 +6,13 @@ export interface ClaudeStatusData {
   reason?: 'not-found' | 'error';
 }
 
-/** Widget chat mode → CLI `--permission-mode`:
- *  chat = default (tools auto-denied in -p) · auto = bypassPermissions
- *  (tools actually run) · plan = plan mode (research + a plan, no mutations). */
-export type ClaudeChatMode = 'chat' | 'auto' | 'plan';
+/** Widget chat mode:
+ *  ask  = default permission mode + `--permission-prompt-tool stdio` — reads run
+ *         freely (ASK_MODE_ALLOWED_TOOLS), writes/commands surface an in-widget
+ *         Allow/Deny card · auto = bypassPermissions (tools run autonomously) ·
+ *  plan = CLI plan mode (research + a plan; ExitPlanMode approval surfaces as a
+ *         card). Legacy persisted value 'chat' migrates to 'ask'. */
+export type ClaudeChatMode = 'ask' | 'auto' | 'plan';
 
 /** CLI `--effort` levels (2.1.x). */
 export type ClaudeEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
@@ -38,6 +41,16 @@ export type ClaudeStreamEvent =
   | { type: 'tool-use'; id: string; name: string; detail: string }
   /** A previously-announced tool call finished (`id` matches the `tool-use`). */
   | { type: 'tool-result'; id: string; isError: boolean }
+  /** The CLI is waiting on the user — render a prompt card. Answered via
+   *  POST /api/claude/control; resolution arrives as `permission-resolved`. */
+  | { type: 'permission-request'; requestId: string; request: ClaudePromptRequest }
+  /** A pending prompt finished (user response, timeout, or CLI cancellation). */
+  | {
+      type: 'permission-resolved';
+      requestId: string;
+      behavior: 'allow' | 'deny';
+      reason: 'user' | 'timeout' | 'cancelled';
+    }
   | {
       type: 'done';
       isError: boolean;
@@ -53,13 +66,49 @@ export interface ClaudeChatRequestBody {
   message: string;
   /** Resume an existing CLI conversation (`--resume`). */
   sessionId?: string;
-  /** Permission posture for this turn — see ClaudeChatMode. Default 'chat'. */
-  mode?: ClaudeChatMode;
+  /** Permission posture for this turn — see ClaudeChatMode. Default 'ask'.
+   *  'chat' is the pre-v3 name for the no-tools mode; the server coerces it
+   *  to 'ask' so an un-migrated renderer keeps working. */
+  mode?: ClaudeChatMode | 'chat';
   /** CLI `--model` value: an alias ('opus', 'sonnet', 'haiku', 'fable') or a
    *  full model id. Omit for the CLI's default. */
   model?: string;
   /** CLI `--effort` level. Omit for the CLI's default. */
   effort?: ClaudeEffort;
+  /** CLI cwd (its file ops are relative to this). `~`-expanded server-side;
+   *  default ~/.dash. */
+  workspaceDir?: string;
+  /** Extra dirs the CLI may touch (`--add-dir` each). Default: home dir. */
+  additionalDirs?: string[];
+}
+
+/** One question from the CLI's AskUserQuestion tool. */
+export interface ClaudeQuestionItem {
+  question: string;
+  header: string | null;
+  multiSelect: boolean;
+  options: Array<{ label: string; description: string | null }>;
+}
+
+/** What the CLI is waiting on — discriminates the in-widget prompt card. */
+export type ClaudePromptRequest =
+  /** Permission for one tool call (`detail` = human summary, e.g. filename). */
+  | { kind: 'tool'; toolName: string; detail: string }
+  /** AskUserQuestion — render the questions/options as buttons. */
+  | { kind: 'question'; questions: ClaudeQuestionItem[] }
+  /** ExitPlanMode — `plan` is markdown; Approve / Keep planning. */
+  | { kind: 'plan'; plan: string };
+
+/** POST /api/claude/control body. High-level on purpose: the renderer never
+ *  builds the CLI's control_response wire shape — the server owns that mapping
+ *  (pinned against CLI 2.1.207) in one pure function. */
+export interface ClaudeControlRequestBody {
+  requestId: string;
+  response:
+    | { behavior: 'allow' }
+    /** AskUserQuestion: selected option label(s) per question, in order. */
+    | { behavior: 'allow'; answers: string[][] }
+    | { behavior: 'deny'; message?: string };
 }
 
 /** One slash command the CLI reports (built-ins, ~/.claude/commands, skills). */

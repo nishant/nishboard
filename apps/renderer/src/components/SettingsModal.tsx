@@ -299,14 +299,25 @@ function AppSettingsPanel() {
   const {
     weatherZips, showTempInClock, uiScale, density, compactTitlebar,
     tempUnit, windUnit, clock24h, lowPower, weatherAlertNotify, twitchLiveNotify, hideYoutubeShorts,
-    youtubeSubsChannelsOnly,
+    youtubeSubsChannelsOnly, claudeWorkspaceDir, claudeAdditionalDirs,
     setWeatherZips, setShowTempInClock, setUiScale, setDensity, setCompactTitlebar,
     setTempUnit, setWindUnit, setClock24h, setLowPower, setWeatherAlertNotify, setTwitchLiveNotify,
-    setHideYoutubeShorts, setYoutubeSubsChannelsOnly,
+    setHideYoutubeShorts, setYoutubeSubsChannelsOnly, setClaudeWorkspaceDir, setClaudeAdditionalDirs,
   } = useAppSettingsStore();
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const [importError, setImportError] = useState<string | null>(null);
+
+  // Free-form while typing; committed on blur/Enter (same pattern as ZIPs).
+  const [claudeDirsText, setClaudeDirsText] = useState(() => claudeAdditionalDirs.join(', '));
+  function commitClaudeDirs() {
+    const dirs = [...new Set(
+      claudeDirsText.split(',').map((d) => d.trim())
+        .filter((d) => d.startsWith('/') || d === '~' || d.startsWith('~/') || /^[A-Za-z]:[\\/]/.test(d)),
+    )].slice(0, 10);
+    setClaudeAdditionalDirs(dirs);
+    setClaudeDirsText(dirs.join(', '));
+  }
 
   // Free-form text while typing; parsed into the store on blur/Enter so a
   // half-typed ZIP doesn't thrash the weather query.
@@ -397,6 +408,46 @@ function AppSettingsPanel() {
           checked={youtubeSubsChannelsOnly}
           onChange={setYoutubeSubsChannelsOnly}
         />
+      </div>
+
+      {/* Claude */}
+      <div className="flex flex-col gap-3">
+        <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">Claude</span>
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-3">
+            <span className="text-th-3 text-[11px] w-28 shrink-0">Workspace</span>
+            <input
+              value={claudeWorkspaceDir}
+              onChange={(e) => setClaudeWorkspaceDir(e.target.value)}
+              placeholder="~/.dash (default)"
+              spellCheck={false}
+              className="flex-1 bg-th-elevated border border-th-line rounded-lg px-3 py-1.5 text-th-hi text-[11px] font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-3 transition-colors"
+            />
+          </div>
+          <p className="text-th-ghost text-[10px] leading-relaxed pl-[calc(7rem+0.75rem)]">
+            Where the Claude widget's CLI runs — file operations are relative to this folder.
+            Absolute path or ~-prefixed.
+          </p>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-3">
+            <span className="text-th-3 text-[11px] w-28 shrink-0">Extra folders</span>
+            <input
+              value={claudeDirsText}
+              onChange={(e) => setClaudeDirsText(e.target.value)}
+              onBlur={commitClaudeDirs}
+              onKeyDown={(e) => { if (e.key === 'Enter') commitClaudeDirs(); }}
+              placeholder="~ (home)"
+              spellCheck={false}
+              className="flex-1 bg-th-elevated border border-th-line rounded-lg px-3 py-1.5 text-th-hi text-[11px] font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-3 transition-colors"
+            />
+          </div>
+          <p className="text-th-ghost text-[10px] leading-relaxed pl-[calc(7rem+0.75rem)]">
+            Comma-separated folders Claude may also read/write (beyond the workspace).
+            Default ~ = your whole home directory. In Ask mode writes still prompt;
+            ⚠ in Auto mode Claude can change anything in these folders without asking.
+          </p>
+        </div>
       </div>
 
       {/* Units & time */}
