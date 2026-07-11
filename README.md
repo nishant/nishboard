@@ -61,7 +61,7 @@
 | 🚀 **Launcher** | App + link launcher with groups, launch-all, real icons | Local (typed IPC, targets stored main-side) |
 | 📋 **Clipboard** | Rolling text-clipboard history (in-memory, never persisted) | Electron clipboard poller (only while visible) |
 | 📶 **Net Monitor** | Per-host latency / jitter / packet-loss + up/down throughput sparklines | System `ping` via a server-side sampler + `systeminformation` |
-| 🤖 **Claude** | Chat with Claude — streaming replies, markdown, multi-turn context. Opt-in **"Allow tools"** setting (default off) lets it write files, run commands, and use skills, shown as inline tool chips | Your installed **Claude Code CLI** (bills your claude.ai plan, not API keys) |
+| 🤖 **Claude** | Chat with Claude — streaming replies, markdown, multi-turn context, thinking blocks, animated status shimmer. Composer controls: **Chat / Auto / Plan** mode (Auto runs tools — inline chips; Plan researches without mutating), **model picker + effort slider**, `/` **slash-command & skill autocomplete**, and a **usage popover** (5-hour session + weekly windows) | Your installed **Claude Code CLI** (bills your claude.ai plan, not API keys) |
 
 Everything lives on a **draggable, resizable grid** (react-grid-layout) with built-in presets, saveable custom layouts, and 15 themes plus a custom theme editor. Any widget **collapses accordion-style to just its title bar** (chevron in the header) and the state persists across restarts. The **Ctrl/Cmd+K command palette** understands typed commands with arguments — `timer 1h5m3s tea`, `alarm 7:30am`, `task buy milk`, `volume 40`, `ticker AAPL`, `zone tokyo` — alongside fuzzy search over every action.
 

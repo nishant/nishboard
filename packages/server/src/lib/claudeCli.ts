@@ -10,11 +10,18 @@
 import { spawn, execFile } from 'child_process';
 import type { ChildProcess } from 'child_process';
 import { promisify } from 'util';
-import { access, mkdir } from 'fs/promises';
+import { access, mkdir, readFile, readdir, writeFile } from 'fs/promises';
 import { constants as fsConstants } from 'fs';
 import os from 'os';
 import path from 'path';
-import type { ClaudeStatusData, ClaudeStreamEvent } from '@dash/shared';
+import type {
+  ClaudeChatMode,
+  ClaudeEffort,
+  ClaudeMetaData,
+  ClaudeSlashCommand,
+  ClaudeStatusData,
+  ClaudeStreamEvent,
+} from '@dash/shared';
 
 const execFileAsync = promisify(execFile);
 
@@ -233,12 +240,19 @@ export function parseStreamJsonLine(line: string): ClaudeStreamEvent[] {
       ];
     }
     case 'stream_event': {
-      // {type:'stream_event',event:{type:'content_block_delta',delta:{type:'text_delta',text}}}
+      // {type:'stream_event',event:{type:'content_block_delta',delta:{type:'text_delta'|'thinking_delta',…}}}
       const event = asRecord(obj.event);
       if (!event || event.type !== 'content_block_delta') return [];
       const delta = asRecord(event.delta);
-      if (!delta || delta.type !== 'text_delta' || typeof delta.text !== 'string') return [];
-      return [{ type: 'delta', text: delta.text }];
+      if (!delta) return [];
+      if (delta.type === 'text_delta' && typeof delta.text === 'string') {
+        return [{ type: 'delta', text: delta.text }];
+      }
+      // Extended thinking streams as thinking_delta (signature_delta is noise).
+      if (delta.type === 'thinking_delta' && typeof delta.thinking === 'string') {
+        return [{ type: 'thinking', text: delta.thinking }];
+      }
+      return [];
     }
     case 'assistant': {
       // {type:'assistant',message:{content:[{type:'text',text},{type:'tool_use',id,name,input}]}}
@@ -278,18 +292,89 @@ export function parseStreamJsonLine(line: string): ClaudeStreamEvent[] {
       return events;
     }
     case 'result': {
-      // {type:'result',subtype,is_error,duration_ms,...}
+      // {type:'result',subtype,is_error,duration_ms,usage:{output_tokens,...},...}
+      const usage = asRecord(obj.usage);
       return [
         {
           type: 'done',
           isError: obj.is_error === true,
           durationMs: typeof obj.duration_ms === 'number' ? obj.duration_ms : 0,
+          outputTokens: usage && typeof usage.output_tokens === 'number' ? usage.output_tokens : null,
         },
       ];
     }
     default:
       return [];
   }
+}
+
+// ── Slash-command / skill metadata ───────────────────────────────────────────
+// The CLI's init frame lists every slash command (built-ins + ~/.claude/commands
+// + user-invocable skills) and, separately, which of them are skills. Capture it
+// on every chat and persist to ~/.dash/claude-meta.json so autocomplete works
+// across restarts; before any chat has EVER run, fall back to scanning the
+// ~/.claude/commands and ~/.claude/skills dirs directly.
+
+const META_FILE = path.join(os.homedir(), '.dash', 'claude-meta.json');
+
+let metaCache: ClaudeMetaData | null = null;
+
+/** Pure: build ClaudeMetaData from a parsed init-frame object (or null when the
+ *  line isn't an init frame). Exported for tests. */
+export function extractInitMeta(raw: unknown): ClaudeMetaData | null {
+  const obj = asRecord(raw);
+  if (!obj || obj.type !== 'system' || obj.subtype !== 'init') return null;
+  const names = Array.isArray(obj.slash_commands)
+    ? obj.slash_commands.filter((n): n is string => typeof n === 'string')
+    : [];
+  const skills = new Set(
+    Array.isArray(obj.skills) ? obj.skills.filter((n): n is string => typeof n === 'string') : [],
+  );
+  return {
+    slashCommands: names.map((name) => ({ name, isSkill: skills.has(name) })),
+    model: typeof obj.model === 'string' ? obj.model : null,
+  };
+}
+
+function captureInitMeta(raw: unknown): void {
+  const meta = extractInitMeta(raw);
+  if (!meta || meta.slashCommands.length === 0) return;
+  metaCache = meta;
+  // Fire-and-forget persist — losing it only degrades cold-start autocomplete.
+  void writeFile(META_FILE, JSON.stringify(meta)).catch(() => {});
+}
+
+/** Cold-start fallback: names from ~/.claude/commands/*.md and skill dirs
+ *  containing SKILL.md under ~/.claude/skills. Best-effort, never throws. */
+async function scanClaudeDirs(): Promise<ClaudeSlashCommand[]> {
+  const home = os.homedir();
+  const out: ClaudeSlashCommand[] = [];
+  try {
+    const files = await readdir(path.join(home, '.claude', 'commands'));
+    for (const f of files) {
+      if (f.endsWith('.md')) out.push({ name: f.slice(0, -3), isSkill: false });
+    }
+  } catch { /* no commands dir */ }
+  try {
+    const entries = await readdir(path.join(home, '.claude', 'skills'), { withFileTypes: true });
+    for (const e of entries) {
+      if (e.isDirectory()) out.push({ name: e.name, isSkill: true });
+    }
+  } catch { /* no skills dir */ }
+  return out;
+}
+
+/** Slash-command metadata: memory → persisted file → dir scan. */
+export async function getClaudeMeta(): Promise<ClaudeMetaData> {
+  if (metaCache) return metaCache;
+  try {
+    const parsed = JSON.parse(await readFile(META_FILE, 'utf8')) as ClaudeMetaData;
+    if (Array.isArray(parsed.slashCommands) && parsed.slashCommands.length > 0) {
+      metaCache = parsed;
+      return parsed;
+    }
+  } catch { /* no/corrupt file — fall through */ }
+  return { slashCommands: await scanClaudeDirs(), model: null };
 }
 
 const LOGIN_HINT = 'Claude Code is not logged in — run `claude /login` in a terminal.';
@@ -317,14 +402,33 @@ export function isSessionNotFoundError(message: string): boolean {
 export interface SpawnClaudeChatOpts {
   message: string;
   sessionId?: string;
-  /** Passed straight to `--permission-mode`. 'bypassPermissions' lets the CLI
-   *  actually write files / run commands / invoke skills — which a
-   *  non-interactive `-p` session otherwise auto-denies (it can't prompt).
-   *  Omit or 'default' to keep the safe, read-only-ish posture. */
-  permissionMode?: 'default' | 'bypassPermissions';
+  /** chat → default permission mode (non-interactive -p auto-denies mutations);
+   *  auto → bypassPermissions (tools actually run); plan → CLI plan mode. */
+  mode?: ClaudeChatMode;
+  /** `--model` value (alias or full id). Omit for the CLI default. */
+  model?: string;
+  /** `--effort` level. Omit for the CLI default. */
+  effort?: ClaudeEffort;
   onEvent: (event: ClaudeStreamEvent) => void;
   /** Fires exactly once, after the child is fully finished (or failed to start). */
   onExit: () => void;
+}
+
+/** Pure: CLI argv for one chat turn (prompt travels via stdin, never argv).
+ *  NOTE: --verbose is MANDATORY with -p + stream-json — the CLI errors out
+ *  without it. --include-partial-messages is what yields the delta stream.
+ *  Exported for tests. */
+export function buildChatArgs(opts: Pick<SpawnClaudeChatOpts, 'sessionId' | 'mode' | 'model' | 'effort'>): string[] {
+  const args = ['-p', '--output-format', 'stream-json', '--include-partial-messages', '--verbose'];
+  // Opt-in tool execution. In default mode, -p auto-denies Write/Edit/Bash
+  // (it can't show a permission prompt), so file output / commands / skills
+  // never actually run — they just report "pending permission approval".
+  if (opts.mode === 'auto') args.push('--permission-mode', 'bypassPermissions');
+  if (opts.mode === 'plan') args.push('--permission-mode', 'plan');
+  if (opts.model) args.push('--model', opts.model);
+  if (opts.effort) args.push('--effort', opts.effort);
+  if (opts.sessionId) args.push('--resume', opts.sessionId);
+  return args;
 }
 
 const STDERR_CAP = 16 * 1024;
@@ -367,16 +471,7 @@ export function spawnClaudeChat(opts: SpawnClaudeChatOpts): { kill(): void } {
       return;
     }
 
-    // NOTE: --verbose is MANDATORY with -p + stream-json — the CLI errors out
-    // without it. --include-partial-messages is what yields the delta stream.
-    const args = ['-p', '--output-format', 'stream-json', '--include-partial-messages', '--verbose'];
-    // Opt-in tool execution. Without this, -p mode auto-denies Write/Edit/Bash
-    // (it can't show a permission prompt), so file output / commands / skills
-    // never actually run — they just report "pending permission approval".
-    if (opts.permissionMode && opts.permissionMode !== 'default') {
-      args.push('--permission-mode', opts.permissionMode);
-    }
-    if (opts.sessionId) args.push('--resume', opts.sessionId);
+    const args = buildChatArgs(opts);
 
     // LOAD-BEARING: delete ANTHROPIC_API_KEY. If it leaks through, the CLI
     // silently bills API credits instead of the claude.ai Max subscription.
@@ -389,6 +484,15 @@ export function spawnClaudeChat(opts: SpawnClaudeChatOpts): { kill(): void } {
 
     let stderr = '';
     const splitter = createLineSplitter((line) => {
+      // Init frames carry the slash-command/skill list — snapshot it for
+      // /api/claude/meta (autocomplete) before the client-event mapping,
+      // which deliberately drops those fields.
+      const trimmed = line.trim();
+      if (trimmed.startsWith('{') && trimmed.includes('"init"')) {
+        try {
+          captureInitMeta(JSON.parse(trimmed));
+        } catch { /* not JSON — parseStreamJsonLine skips it too */ }
+      }
       for (const event of parseStreamJsonLine(line)) {
         if (event.type === 'done') sawDone = true;
         emit(event);

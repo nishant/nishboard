@@ -1,6 +1,13 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { ClaudeChatRequestBody, ClaudeStatusData, ClaudeStreamEvent } from '@dash/shared';
-import { claudeStatus, isSessionNotFoundError, spawnClaudeChat } from '../lib/claudeCli';
+import type {
+  ClaudeChatRequestBody,
+  ClaudeMetaData,
+  ClaudeStatusData,
+  ClaudeStreamEvent,
+  ClaudeUsageData,
+} from '@dash/shared';
+import { claudeStatus, getClaudeMeta, isSessionNotFoundError, spawnClaudeChat } from '../lib/claudeCli';
+import { fetchClaudeUsage } from '../lib/claudeUsage';
 import { TtlCache } from '../lib/TtlCache';
 import { HttpError } from '../lib/http';
 
@@ -8,6 +15,10 @@ import { HttpError } from '../lib/http';
 // makes hits cheap once found, but a missing CLI would otherwise re-run
 // `where`/`which` on every renderer poll.
 const statusCache = new TtlCache<'status', ClaudeStatusData>(60_000);
+
+// Usage barely moves turn-to-turn; 60s keeps popover reopens from hammering
+// the OAuth endpoint (and the keychain read behind it).
+const usageCache = new TtlCache<'usage', ClaudeUsageData>(60_000);
 
 // Single-flight: one streaming chat at a time. The CLI child is heavyweight
 // and the widget UI only ever has one in-flight turn.
@@ -28,6 +39,20 @@ export const claudeRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send(status);
   });
 
+  // GET /api/claude/meta — slash commands + skills for composer autocomplete.
+  fastify.get<{ Reply: ClaudeMetaData }>('/meta', async (_req, reply) => {
+    return reply.send(await getClaudeMeta());
+  });
+
+  // GET /api/claude/usage — subscription windows (5h session + weekly).
+  fastify.get<{ Reply: ClaudeUsageData }>('/usage', async (_req, reply) => {
+    const cached = usageCache.get('usage');
+    if (cached) return reply.send(cached);
+    const usage = await fetchClaudeUsage();
+    usageCache.set('usage', usage);
+    return reply.send(usage);
+  });
+
   // POST /api/claude/chat — hijacked SSE stream of ClaudeStreamEvent frames.
   fastify.post<{ Body: ClaudeChatRequestBody }>(
     '/chat',
@@ -40,7 +65,10 @@ export const claudeRoutes: FastifyPluginAsync = async (fastify) => {
           properties: {
             message: { type: 'string', minLength: 1, maxLength: 50_000 },
             sessionId: { type: 'string', pattern: '^[A-Za-z0-9-]{8,64}$' },
-            allowTools: { type: 'boolean' },
+            mode: { type: 'string', enum: ['chat', 'auto', 'plan'] },
+            // Alias ('opus') or full id ('claude-opus-4-8') — CLI validates the rest.
+            model: { type: 'string', pattern: '^[a-z][a-z0-9.-]{1,49}$' },
+            effort: { type: 'string', enum: ['low', 'medium', 'high', 'xhigh', 'max'] },
           },
         },
       },
@@ -48,8 +76,7 @@ export const claudeRoutes: FastifyPluginAsync = async (fastify) => {
     async (req, reply) => {
       if (activeChat) throw new HttpError(409, 'A Claude response is already streaming');
 
-      const { message, sessionId, allowTools } = req.body;
-      const permissionMode = allowTools ? 'bypassPermissions' : 'default';
+      const { message, sessionId, mode, model, effort } = req.body;
 
       // Past this point we own the raw socket — the central error handler and
       // @fastify/cors no longer apply.
@@ -86,7 +113,9 @@ export const claudeRoutes: FastifyPluginAsync = async (fastify) => {
         const handle = spawnClaudeChat({
           message,
           sessionId: resumeId,
-          permissionMode,
+          mode,
+          model,
+          effort,
           onEvent: (event) => {
             // --resume pointed at a session this machine's CLI doesn't know
             // (wiped history, different box). Retry ONCE as a fresh chat — the

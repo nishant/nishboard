@@ -102,3 +102,63 @@ describe('dashboard-claude v1 → v2 migration', () => {
     expect('text' in messages[0]).toBe(false);
   });
 });
+
+describe('claudeStore v2 additions', () => {
+  it('appendThinking merges into a trailing thinking part, separate from text', async () => {
+    const { useClaudeStore } = await loadStore();
+    const s = useClaudeStore.getState();
+    s.beginAssistant();
+    s.appendThinking('Let me consider');
+    s.appendThinking(' the options.');
+    s.appendDelta('Answer.');
+    const [m] = useClaudeStore.getState().messages;
+    expect(m.parts).toEqual([
+      { kind: 'thinking', text: 'Let me consider the options.' },
+      { kind: 'text', text: 'Answer.' },
+    ]);
+  });
+
+  it('finishAssistant stamps duration and tokens (tokens omitted when null)', async () => {
+    const { useClaudeStore } = await loadStore();
+    const s = useClaudeStore.getState();
+    s.beginAssistant();
+    s.appendDelta('hi');
+    s.finishAssistant(4200, 356);
+    let [m] = useClaudeStore.getState().messages;
+    expect(m.durationMs).toBe(4200);
+    expect(m.outputTokens).toBe(356);
+
+    s.beginAssistant();
+    s.finishAssistant(100, null);
+    m = useClaudeStore.getState().messages[1];
+    expect(m.durationMs).toBe(100);
+    expect(m.outputTokens).toBeUndefined();
+  });
+
+  it('mode/model/effort persist with safe defaults', async () => {
+    const first = await loadStore();
+    expect(first.useClaudeStore.getState().chatMode).toBe('chat');
+    expect(first.useClaudeStore.getState().chatModel).toBeNull();
+    expect(first.useClaudeStore.getState().chatEffort).toBeNull();
+    first.useClaudeStore.getState().setChatMode('plan');
+    first.useClaudeStore.getState().setChatModel('opus');
+    first.useClaudeStore.getState().setChatEffort('xhigh');
+
+    vi.resetModules(); // simulate app restart — persist must rehydrate
+    const second = await loadStore();
+    expect(second.useClaudeStore.getState().chatMode).toBe('plan');
+    expect(second.useClaudeStore.getState().chatModel).toBe('opus');
+    expect(second.useClaudeStore.getState().chatEffort).toBe('xhigh');
+  });
+
+  it('newChat clears the transcript but keeps mode/model/effort', async () => {
+    const { useClaudeStore } = await loadStore();
+    const s = useClaudeStore.getState();
+    s.setChatMode('auto');
+    s.addUser('hello');
+    s.newChat();
+    expect(useClaudeStore.getState().messages).toEqual([]);
+    expect(useClaudeStore.getState().sessionId).toBeNull();
+    expect(useClaudeStore.getState().chatMode).toBe('auto');
+  });
+});

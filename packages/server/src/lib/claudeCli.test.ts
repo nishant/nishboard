@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildChatArgs,
   classifyCliError,
   createLineSplitter,
+  extractInitMeta,
   isSessionNotFoundError,
   parseStreamJsonLine,
   toolDetail,
@@ -41,7 +43,7 @@ describe('createLineSplitter', () => {
     const splitter = createLineSplitter((l) => lines.push(l));
     splitter.push('{"type":"result","is_error":false,"duration_ms":5}\r\n');
     expect(lines).toHaveLength(1);
-    expect(parseStreamJsonLine(lines[0])).toEqual([{ type: 'done', isError: false, durationMs: 5 }]);
+    expect(parseStreamJsonLine(lines[0])).toEqual([{ type: 'done', isError: false, durationMs: 5, outputTokens: null }]);
   });
 });
 
@@ -67,12 +69,20 @@ describe('parseStreamJsonLine — mapping table', () => {
     expect(parseStreamJsonLine(line)).toEqual([{ type: 'delta', text: 'Hel' }]);
   });
 
-  it('non-text stream_events (message_start, content_block_stop, thinking deltas) → []', () => {
+  it('thinking_delta → [thinking] (extended-thinking stream)', () => {
+    const line = JSON.stringify({
+      type: 'stream_event',
+      event: { type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: 'hmm' } },
+    });
+    expect(parseStreamJsonLine(line)).toEqual([{ type: 'thinking', text: 'hmm' }]);
+  });
+
+  it('non-text stream_events (message_start, content_block_stop, signature deltas) → []', () => {
     for (const event of [
       { type: 'message_start', message: {} },
       { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
       { type: 'content_block_stop', index: 0 },
-      { type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: 'hmm' } },
+      { type: 'content_block_delta', index: 0, delta: { type: 'signature_delta', signature: 'xyz' } },
       { type: 'message_stop' },
     ]) {
       expect(parseStreamJsonLine(JSON.stringify({ type: 'stream_event', event }))).toEqual([]);
@@ -164,13 +174,14 @@ describe('parseStreamJsonLine — mapping table', () => {
       duration_ms: 2882,
       result: 'Hello world',
       total_cost_usd: 0,
+      usage: { input_tokens: 4, output_tokens: 356 },
     });
-    expect(parseStreamJsonLine(line)).toEqual([{ type: 'done', isError: false, durationMs: 2882 }]);
+    expect(parseStreamJsonLine(line)).toEqual([{ type: 'done', isError: false, durationMs: 2882, outputTokens: 356 }]);
   });
 
   it('error result → done with isError true', () => {
     const line = JSON.stringify({ type: 'result', subtype: 'error_during_execution', is_error: true, duration_ms: 10 });
-    expect(parseStreamJsonLine(line)).toEqual([{ type: 'done', isError: true, durationMs: 10 }]);
+    expect(parseStreamJsonLine(line)).toEqual([{ type: 'done', isError: true, durationMs: 10, outputTokens: null }]);
   });
 
   it('unknown top-level types → [] (forward-compatible)', () => {
@@ -244,5 +255,62 @@ describe('isSessionNotFoundError', () => {
   it('does not match unrelated errors', () => {
     expect(isSessionNotFoundError('rate limit exceeded')).toBe(false);
     expect(isSessionNotFoundError('Claude Code is not logged in')).toBe(false);
+  });
+});
+
+describe('buildChatArgs', () => {
+  const BASE = ['-p', '--output-format', 'stream-json', '--include-partial-messages', '--verbose'];
+
+  it('defaults: no mode/model/effort/resume flags', () => {
+    expect(buildChatArgs({})).toEqual(BASE);
+    expect(buildChatArgs({ mode: 'chat' })).toEqual(BASE);
+  });
+
+  it('auto → bypassPermissions, plan → plan', () => {
+    expect(buildChatArgs({ mode: 'auto' })).toEqual([...BASE, '--permission-mode', 'bypassPermissions']);
+    expect(buildChatArgs({ mode: 'plan' })).toEqual([...BASE, '--permission-mode', 'plan']);
+  });
+
+  it('model, effort, and resume append their flags in order', () => {
+    expect(buildChatArgs({ mode: 'auto', model: 'opus', effort: 'xhigh', sessionId: 'abc-123' })).toEqual([
+      ...BASE,
+      '--permission-mode', 'bypassPermissions',
+      '--model', 'opus',
+      '--effort', 'xhigh',
+      '--resume', 'abc-123',
+    ]);
+  });
+});
+
+describe('extractInitMeta', () => {
+  it('maps slash_commands, tags skills, and keeps the resolved model', () => {
+    const meta = extractInitMeta({
+      type: 'system',
+      subtype: 'init',
+      model: 'claude-opus-4-8',
+      slash_commands: ['compact', 'model', 'dataviz', 'code-review'],
+      skills: ['dataviz', 'code-review'],
+    });
+    expect(meta).toEqual({
+      model: 'claude-opus-4-8',
+      slashCommands: [
+        { name: 'compact', isSkill: false },
+        { name: 'model', isSkill: false },
+        { name: 'dataviz', isSkill: true },
+        { name: 'code-review', isSkill: true },
+      ],
+    });
+  });
+
+  it('non-init lines and junk → null', () => {
+    expect(extractInitMeta({ type: 'system', subtype: 'status' })).toBeNull();
+    expect(extractInitMeta({ type: 'result' })).toBeNull();
+    expect(extractInitMeta(null)).toBeNull();
+    expect(extractInitMeta('str')).toBeNull();
+  });
+
+  it('missing skills/commands arrays degrade to empty/false, not throw', () => {
+    const meta = extractInitMeta({ type: 'system', subtype: 'init', model: 7, slash_commands: ['a', 42] });
+    expect(meta).toEqual({ model: null, slashCommands: [{ name: 'a', isSkill: false }] });
   });
 });

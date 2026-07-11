@@ -429,3 +429,32 @@ body,
 /* Frameless-window drag regions (popout micro-titlebar) */
 .app-region-drag { -webkit-app-region: drag; }
 .app-region-no-drag { -webkit-app-region: no-drag; }
+
+/* Claude widget loading shimmer — a light band sweeps across the status verb
+   while a response streams (matches the Claude app's thinking indicator). */
+@keyframes claude-shimmer-sweep {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.claude-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgb(var(--t-ghost)) 35%,
+    rgb(var(--t-hi)) 50%,
+    rgb(var(--t-ghost)) 65%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: claude-shimmer-sweep 2.2s linear infinite;
+}
+@keyframes claude-spark-spin {
+  0% { transform: rotate(0deg) scale(1); opacity: 0.9; }
+  50% { transform: rotate(180deg) scale(1.25); opacity: 0.5; }
+  100% { transform: rotate(360deg) scale(1); opacity: 0.9; }
+}
+.claude-spark {
+  display: inline-block;
+  animation: claude-spark-spin 1.8s ease-in-out infinite;
+}

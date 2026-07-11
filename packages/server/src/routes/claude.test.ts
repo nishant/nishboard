@@ -9,6 +9,7 @@ vi.mock('../lib/claudeCli', () => ({
   spawnClaudeChat: vi.fn(),
   claudeStatus: vi.fn(async () => ({ available: true, version: 'test' })),
   isSessionNotFoundError: vi.fn(() => false),
+  getClaudeMeta: vi.fn(async () => ({ slashCommands: [], model: null })),
 }));
 
 import { claudeRoutes } from './claude';
@@ -48,7 +49,7 @@ describe('POST /api/claude/chat — request lifecycle', () => {
         if (killed) return;
         opts.onEvent({ type: 'init', sessionId: 'sess-1', model: 'test-model' });
         opts.onEvent({ type: 'delta', text: 'hello' });
-        opts.onEvent({ type: 'done', isError: false, durationMs: 1 });
+        opts.onEvent({ type: 'done', isError: false, durationMs: 1, outputTokens: null });
         opts.onExit();
       }, 40);
       return {
