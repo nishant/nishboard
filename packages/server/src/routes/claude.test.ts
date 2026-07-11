@@ -56,6 +56,7 @@ describe('POST /api/claude/chat — request lifecycle', () => {
         kill: () => {
           killed = true;
         },
+        respondControl: () => false,
       };
     });
 
@@ -97,7 +98,11 @@ describe('POST /api/claude/chat — request lifecycle', () => {
       return {
         kill: () => {
           killed = true;
+          // The real handle's child-close fires onExit, releasing the
+          // single-flight slot — mirror it so later tests aren't 409'd.
+          opts.onExit();
         },
+        respondControl: () => false,
       };
     });
 
@@ -118,5 +123,93 @@ describe('POST /api/claude/chat — request lifecycle', () => {
     await new Promise((r) => setTimeout(r, 80));
 
     expect(killed).toBe(true);
+  });
+});
+
+describe('POST /api/claude/control + chat body extensions', () => {
+  let app: FastifyInstance | null = null;
+
+  afterEach(async () => {
+    await app?.close();
+    app = null;
+    vi.clearAllMocks();
+  });
+
+  async function startChat(url: string, extra: Record<string, unknown> = {}) {
+    // Fire a chat that never finishes so activeChat stays set; caller aborts.
+    const controller = new AbortController();
+    const inflight = fetch(`${url}/api/claude/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'hi', ...extra }),
+      signal: controller.signal,
+    }).catch(() => undefined);
+    await new Promise((r) => setTimeout(r, 50));
+    return { controller, inflight };
+  }
+
+  it('409 when no chat is active', async () => {
+    const server = await listen();
+    app = server.app;
+    const res = await fetch(`${server.url}/api/claude/control`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestId: 'r1', response: { behavior: 'allow' } }),
+    });
+    expect(res.status).toBe(409);
+  });
+
+  it('204 when the handle accepts; 404 for unknown request ids', async () => {
+    const respondControl = vi.fn((id: string) => id === 'known');
+    mockSpawn.mockImplementation((opts: SpawnClaudeChatOpts) => ({ kill: () => opts.onExit(), respondControl }));
+    const server = await listen();
+    app = server.app;
+    const { controller, inflight } = await startChat(server.url);
+
+    const ok = await fetch(`${server.url}/api/claude/control`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestId: 'known', response: { behavior: 'allow', answers: [['Blue']] } }),
+    });
+    expect(ok.status).toBe(204);
+    expect(respondControl).toHaveBeenCalledWith('known', { behavior: 'allow', answers: [['Blue']] });
+
+    const missing = await fetch(`${server.url}/api/claude/control`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestId: 'other', response: { behavior: 'deny' } }),
+    });
+    expect(missing.status).toBe(404);
+
+    controller.abort();
+    await inflight;
+  });
+
+  it('legacy mode "chat" is coerced to "ask"; ~ paths expand; relative paths 400', async () => {
+    mockSpawn.mockImplementation((opts: SpawnClaudeChatOpts) => ({ kill: () => opts.onExit(), respondControl: () => false }));
+    const server = await listen();
+    app = server.app;
+
+    const { controller, inflight } = await startChat(server.url, {
+      mode: 'chat',
+      workspaceDir: '~/projects',
+      additionalDirs: ['~'],
+    });
+    expect(mockSpawn).toHaveBeenCalledOnce();
+    const opts = mockSpawn.mock.calls[0][0];
+    expect(opts.mode).toBe('ask');
+    expect(opts.workspaceDir).toMatch(/^([A-Za-z]:)?[\\/].*projects$/);
+    expect(opts.workspaceDir?.includes('~')).toBe(false);
+    expect(opts.additionalDirs?.[0].includes('~')).toBe(false);
+    controller.abort();
+    await inflight;
+    await new Promise((r) => setTimeout(r, 30)); // let the route clear activeChat
+
+    const bad = await fetch(`${server.url}/api/claude/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'hi', workspaceDir: 'relative/path' }),
+    });
+    expect(bad.status).toBe(400);
   });
 });

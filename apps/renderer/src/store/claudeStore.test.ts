@@ -140,7 +140,7 @@ describe('claudeStore v2 additions', () => {
 
   it('mode/model/effort persist with safe defaults', async () => {
     const first = await loadStore();
-    expect(first.useClaudeStore.getState().chatMode).toBe('chat');
+    expect(first.useClaudeStore.getState().chatMode).toBe('ask');
     expect(first.useClaudeStore.getState().chatModel).toBeNull();
     expect(first.useClaudeStore.getState().chatEffort).toBeNull();
     first.useClaudeStore.getState().setChatMode('plan');
@@ -163,5 +163,52 @@ describe('claudeStore v2 additions', () => {
     expect(useClaudeStore.getState().messages).toEqual([]);
     expect(useClaudeStore.getState().sessionId).toBeNull();
     expect(useClaudeStore.getState().chatMode).toBe('auto');
+  });
+});
+
+describe('claudeStore v3 — prompt parts + mode migration', () => {
+  it('addPromptPart appends a pending card; resolvePromptPart flips it once and attaches resolution', async () => {
+    const { useClaudeStore } = await loadStore();
+    const s = useClaudeStore.getState();
+    s.beginAssistant();
+    s.addPromptPart('req-1', { kind: 'tool', toolName: 'Write', detail: 'notes.md' });
+    let [m] = useClaudeStore.getState().messages;
+    expect(m.parts).toEqual([
+      { kind: 'prompt', requestId: 'req-1', request: { kind: 'tool', toolName: 'Write', detail: 'notes.md' }, status: 'pending' },
+    ]);
+
+    s.resolvePromptPart('req-1', 'allowed');
+    s.resolvePromptPart('req-1', 'denied', 'Blue'); // late resolution: status keeps first, summary attaches
+    [m] = useClaudeStore.getState().messages;
+    const part = m.parts[0];
+    expect(part.kind).toBe('prompt');
+    if (part.kind === 'prompt') {
+      expect(part.status).toBe('allowed');
+      expect(part.resolution).toBe('Blue');
+    }
+  });
+
+  it('cancelPendingPrompts flips only pending prompts', async () => {
+    const { useClaudeStore } = await loadStore();
+    const s = useClaudeStore.getState();
+    s.beginAssistant();
+    s.addPromptPart('a', { kind: 'tool', toolName: 'Bash', detail: 'ls' });
+    s.addPromptPart('b', { kind: 'plan', plan: '# p' });
+    s.resolvePromptPart('a', 'allowed');
+    s.cancelPendingPrompts();
+    const [m] = useClaudeStore.getState().messages;
+    const statuses = m.parts.map((p) => (p.kind === 'prompt' ? p.status : null));
+    expect(statuses).toEqual(['allowed', 'cancelled']);
+  });
+
+  it('migrates persisted v2 chatMode "chat" → "ask"; default is ask', async () => {
+    localStorage.setItem('dashboard-claude', JSON.stringify({ state: { messages: [], chatMode: 'chat' }, version: 2 }));
+    const first = await loadStore();
+    expect(first.useClaudeStore.getState().chatMode).toBe('ask');
+
+    vi.resetModules();
+    localStorage.clear();
+    const fresh = await loadStore();
+    expect(fresh.useClaudeStore.getState().chatMode).toBe('ask');
   });
 });

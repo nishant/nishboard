@@ -16,8 +16,11 @@ import os from 'os';
 import path from 'path';
 import type {
   ClaudeChatMode,
+  ClaudeControlRequestBody,
   ClaudeEffort,
   ClaudeMetaData,
+  ClaudePromptRequest,
+  ClaudeQuestionItem,
   ClaudeSlashCommand,
   ClaudeStatusData,
   ClaudeStreamEvent,
@@ -407,46 +410,221 @@ export function isSessionNotFoundError(message: string): boolean {
 export interface SpawnClaudeChatOpts {
   message: string;
   sessionId?: string;
-  /** chat → default permission mode (non-interactive -p auto-denies mutations);
-   *  auto → bypassPermissions (tools actually run); plan → CLI plan mode. */
+  /** ask → default permission mode + stdio prompt tool (writes/commands raise
+   *  permission-request events; reads in ASK_MODE_ALLOWED_TOOLS run freely);
+   *  auto → bypassPermissions (tools run autonomously); plan → CLI plan mode
+   *  (+ stdio prompt tool so ExitPlanMode approval surfaces). */
   mode?: ClaudeChatMode;
   /** `--model` value (alias or full id). Omit for the CLI default. */
   model?: string;
   /** `--effort` level. Omit for the CLI default. */
   effort?: ClaudeEffort;
+  /** CLI cwd (already validated/expanded by the route). Default ~/.dash. */
+  workspaceDir?: string;
+  /** `--add-dir` targets (already validated/expanded by the route). */
+  additionalDirs?: string[];
   onEvent: (event: ClaudeStreamEvent) => void;
   /** Fires exactly once, after the child is fully finished (or failed to start). */
   onExit: () => void;
 }
 
+/** Read-shaped tools that never prompt in ask mode — approving every Read
+ *  would make the mode unusable. Deliberately excludes Bash/Task/Write/Edit. */
+export const ASK_MODE_ALLOWED_TOOLS = 'Read Glob Grep WebFetch WebSearch';
+
 /** Pure: CLI argv for one chat turn (prompt travels via stdin, never argv).
- *  NOTE: --verbose is MANDATORY with -p + stream-json — the CLI errors out
- *  without it. --include-partial-messages is what yields the delta stream.
+ *  NOTES: --verbose is MANDATORY with -p + stream-json output (the CLI errors
+ *  out without it); --include-partial-messages yields the delta stream;
+ *  --input-format stream-json keeps stdin open as a control channel
+ *  (permission prompts + AskUserQuestion answers flow back through it);
+ *  --permission-prompt-tool stdio is what turns permission checks into
+ *  control_request lines instead of silent auto-denies (verified on 2.1.207).
  *  Exported for tests. */
-export function buildChatArgs(opts: Pick<SpawnClaudeChatOpts, 'sessionId' | 'mode' | 'model' | 'effort'>): string[] {
-  const args = ['-p', '--output-format', 'stream-json', '--include-partial-messages', '--verbose'];
-  // Opt-in tool execution. In default mode, -p auto-denies Write/Edit/Bash
-  // (it can't show a permission prompt), so file output / commands / skills
-  // never actually run — they just report "pending permission approval".
-  if (opts.mode === 'auto') args.push('--permission-mode', 'bypassPermissions');
-  if (opts.mode === 'plan') args.push('--permission-mode', 'plan');
+export function buildChatArgs(
+  opts: Pick<SpawnClaudeChatOpts, 'sessionId' | 'mode' | 'model' | 'effort' | 'additionalDirs'>,
+): string[] {
+  const args = [
+    '-p',
+    '--output-format', 'stream-json',
+    '--input-format', 'stream-json',
+    '--include-partial-messages',
+    '--verbose',
+  ];
+  const mode = opts.mode ?? 'ask';
+  if (mode === 'auto') {
+    args.push('--permission-mode', 'bypassPermissions');
+  } else if (mode === 'plan') {
+    args.push('--permission-mode', 'plan', '--permission-prompt-tool', 'stdio');
+  } else {
+    // ask: default permission mode, prompts routed to stdio, reads pre-allowed.
+    args.push('--permission-prompt-tool', 'stdio', '--allowedTools', ASK_MODE_ALLOWED_TOOLS);
+  }
   if (opts.model) args.push('--model', opts.model);
   if (opts.effort) args.push('--effort', opts.effort);
+  for (const dir of opts.additionalDirs ?? []) args.push('--add-dir', dir);
   if (opts.sessionId) args.push('--resume', opts.sessionId);
   return args;
 }
 
+// ── Control protocol (wire shapes pinned against CLI 2.1.207) ────────────────
+// Captured live: a permission check arrives as
+//   {"type":"control_request","request_id":"<uuid>","request":{"subtype":"can_use_tool",
+//    "tool_name":"Write","input":{...},"description":"probe2.txt",
+//    "permission_suggestions":[...],"tool_use_id":"toolu_..."}}
+// and is answered by writing ONE line to the child's stdin:
+//   {"type":"control_response","response":{"subtype":"success","request_id":"<uuid>",
+//    "response":{"behavior":"allow","updatedInput":{...}}}}        (or behavior:"deny","message":...)
+// AskUserQuestion answers ride updatedInput as {...input, answers:{"<question>":"<label>"}}.
+
+/** Pure: the stream-json stdin line carrying the user's message. */
+export function buildUserMessageLine(text: string): string {
+  return JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'text', text }] } }) + '\n';
+}
+
+export interface CliControlRequest {
+  requestId: string;
+  toolName: string;
+  input: Record<string, unknown>;
+  /** CLI-provided human summary (e.g. the filename) — may be absent. */
+  description: string | null;
+}
+
+/** Pure: parse a can_use_tool control_request line (already JSON.parsed).
+ *  Returns null for anything else — unknown control frames degrade to the
+ *  CLI-side timeout rather than crashing the stream. Exported for tests. */
+export function extractControlRequest(raw: unknown): CliControlRequest | null {
+  const obj = asRecord(raw);
+  if (!obj || obj.type !== 'control_request' || typeof obj.request_id !== 'string') return null;
+  const request = asRecord(obj.request);
+  if (!request || request.subtype !== 'can_use_tool' || typeof request.tool_name !== 'string') return null;
+  return {
+    requestId: obj.request_id,
+    toolName: request.tool_name,
+    input: asRecord(request.input) ?? {},
+    description: typeof request.description === 'string' ? request.description : null,
+  };
+}
+
+/** Pure: requestId of a control_cancel_request line, else null. */
+export function extractControlCancel(raw: unknown): string | null {
+  const obj = asRecord(raw);
+  if (!obj || obj.type !== 'control_cancel_request') return null;
+  return typeof obj.request_id === 'string' ? obj.request_id : null;
+}
+
+/** Pure: shape a control request into what the widget's prompt card renders. */
+export function buildPromptRequest(toolName: string, input: Record<string, unknown>, description: string | null): ClaudePromptRequest {
+  if (toolName === 'AskUserQuestion' && Array.isArray(input.questions)) {
+    const questions: ClaudeQuestionItem[] = [];
+    for (const q of input.questions) {
+      const qr = asRecord(q);
+      if (!qr || typeof qr.question !== 'string') continue;
+      const options = Array.isArray(qr.options)
+        ? qr.options.flatMap((o) => {
+            const or = asRecord(o);
+            return or && typeof or.label === 'string'
+              ? [{ label: or.label, description: typeof or.description === 'string' ? or.description : null }]
+              : [];
+          })
+        : [];
+      questions.push({
+        question: qr.question,
+        header: typeof qr.header === 'string' ? qr.header : null,
+        multiSelect: qr.multiSelect === true,
+        options,
+      });
+    }
+    if (questions.length > 0) return { kind: 'question', questions };
+    // Malformed questions payload — fall through to a generic tool card.
+  }
+  if (toolName === 'ExitPlanMode' && typeof input.plan === 'string') {
+    return { kind: 'plan', plan: input.plan };
+  }
+  return { kind: 'tool', toolName, detail: description ?? toolDetail(toolName, input) };
+}
+
+/** Pure: the stdin line answering a control request. For AskUserQuestion,
+ *  `answers` (per-question selected labels, in question order) are keyed by
+ *  question text — multi-select labels join with ", " (matches how the
+ *  interactive CLI reports multi answers). Exported for tests. */
+export function buildControlResponseLine(
+  requestId: string,
+  pending: { toolName: string; input: Record<string, unknown> },
+  resp: ClaudeControlRequestBody['response'],
+): string {
+  let inner: Record<string, unknown>;
+  if (resp.behavior === 'deny') {
+    inner = { behavior: 'deny', message: resp.message ?? 'The user denied this action in the dashboard.' };
+  } else {
+    let updatedInput: Record<string, unknown> = pending.input;
+    if ('answers' in resp && pending.toolName === 'AskUserQuestion' && Array.isArray(pending.input.questions)) {
+      const answers: Record<string, string> = {};
+      pending.input.questions.forEach((q, i) => {
+        const qr = asRecord(q);
+        const chosen = resp.answers[i];
+        if (qr && typeof qr.question === 'string' && Array.isArray(chosen) && chosen.length > 0) {
+          answers[qr.question] = chosen.join(', ');
+        }
+      });
+      updatedInput = { ...pending.input, answers };
+    }
+    inner = { behavior: 'allow', updatedInput };
+  }
+  return JSON.stringify({
+    type: 'control_response',
+    response: { subtype: 'success', request_id: requestId, response: inner },
+  }) + '\n';
+}
+
 const STDERR_CAP = 16 * 1024;
+
+/** How long a permission prompt may sit unanswered before the server denies it
+ *  on the user's behalf (the CLI would otherwise wait forever). */
+export const PROMPT_TIMEOUT_MS = 5 * 60_000;
+
+/** After the result frame we end stdin and expect a prompt exit; if the child
+ *  lingers (e.g. a straggling subprocess), kill it. */
+const EXIT_GRACE_MS = 5_000;
+
+export interface ClaudeChatHandle {
+  kill(): void;
+  /** Answer a pending permission/question/plan prompt. False = unknown or
+   *  already-resolved requestId. */
+  respondControl(requestId: string, response: ClaudeControlRequestBody['response']): boolean;
+}
 
 /**
  * Spawn one CLI chat turn. Events stream through onEvent; the handle's kill()
  * tears the child down (client disconnected / Stop pressed).
  */
-export function spawnClaudeChat(opts: SpawnClaudeChatOpts): { kill(): void } {
+export function spawnClaudeChat(opts: SpawnClaudeChatOpts): ClaudeChatHandle {
   let child: ChildProcess | null = null;
   let killed = false;
   let exited = false;
   let sawDone = false;
+  let graceTimer: NodeJS.Timeout | null = null;
+
+  // Prompts the CLI is waiting on. Never log `input` — it can carry file
+  // contents / commands (same secrecy rule as the rest of this module).
+  const pending = new Map<string, { toolName: string; input: Record<string, unknown>; timer: NodeJS.Timeout }>();
+
+  const clearPending = (): void => {
+    for (const p of pending.values()) clearTimeout(p.timer);
+    pending.clear();
+  };
+
+  const killChild = (): void => {
+    if (!child) return;
+    if (process.platform === 'win32' && child.pid) {
+      // Windows-only: the child may be a cmd.exe wrapper around the real CLI
+      // process — child.kill() would only hit the wrapper. Kill the tree.
+      void execFileAsync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true })
+        .catch(() => child?.kill());
+    } else {
+      // macOS-only (and .exe edge): direct child, plain SIGTERM suffices.
+      child.kill();
+    }
+  };
 
   const exitOnce = (): void => {
     if (exited) return;
@@ -466,9 +644,10 @@ export function spawnClaudeChat(opts: SpawnClaudeChatOpts): { kill(): void } {
       return;
     }
 
-    // cwd = ~/.dash so the CLI's per-project session history lands in the same
-    // stable home-dir spot the dashboard already uses (survives reinstalls).
-    const cwd = path.join(os.homedir(), '.dash');
+    // Default cwd = ~/.dash so the CLI's per-project session history lands in
+    // the same stable home-dir spot the dashboard already uses; the user can
+    // point it elsewhere via Settings → Claude → Workspace.
+    const cwd = opts.workspaceDir ?? path.join(os.homedir(), '.dash');
     await mkdir(cwd, { recursive: true }).catch(() => {});
 
     if (killed) {
@@ -484,22 +663,75 @@ export function spawnClaudeChat(opts: SpawnClaudeChatOpts): { kill(): void } {
     // the spread as the no-interactive-login fallback.
     const env: NodeJS.ProcessEnv = { ...process.env };
     delete env.ANTHROPIC_API_KEY;
+    // Lets the model ask multiple-choice questions (rendered as prompt cards).
+    env.CLAUDE_CODE_ENABLE_ASK_USER_QUESTION_TOOL = '1';
 
     child = spawnCli(cliPath, args, { cwd, env });
 
+    const writeLine = (line: string): void => {
+      // EPIPE after child death is swallowed by the stdin 'error' handler.
+      child?.stdin?.write(line);
+    };
+
     let stderr = '';
     const splitter = createLineSplitter((line) => {
-      // Init frames carry the slash-command/skill list — snapshot it for
-      // /api/claude/meta (autocomplete) before the client-event mapping,
-      // which deliberately drops those fields.
       const trimmed = line.trim();
-      if (trimmed.startsWith('{') && trimmed.includes('"init"')) {
+      if (trimmed.startsWith('{')) {
+        let raw: unknown = null;
         try {
-          captureInitMeta(JSON.parse(trimmed));
+          raw = JSON.parse(trimmed);
         } catch { /* not JSON — parseStreamJsonLine skips it too */ }
+        // Init frames carry the slash-command/skill list — snapshot it for
+        // /api/claude/meta (autocomplete) before the client-event mapping,
+        // which deliberately drops those fields.
+        captureInitMeta(raw);
+        // Control channel: permission checks / question prompts / plan approval.
+        const control = extractControlRequest(raw);
+        if (control) {
+          const timer = setTimeout(() => {
+            if (!pending.delete(control.requestId)) return;
+            writeLine(buildControlResponseLine(control.requestId, control, {
+              behavior: 'deny',
+              message: 'Timed out waiting for approval in the dashboard.',
+            }));
+            emit({ type: 'permission-resolved', requestId: control.requestId, behavior: 'deny', reason: 'timeout' });
+          }, PROMPT_TIMEOUT_MS);
+          pending.set(control.requestId, { toolName: control.toolName, input: control.input, timer });
+          emit({
+            type: 'permission-request',
+            requestId: control.requestId,
+            request: buildPromptRequest(control.toolName, control.input, control.description),
+          });
+          return;
+        }
+        const cancelled = extractControlCancel(raw);
+        if (cancelled) {
+          const entry = pending.get(cancelled);
+          if (entry) {
+            clearTimeout(entry.timer);
+            pending.delete(cancelled);
+            emit({ type: 'permission-resolved', requestId: cancelled, behavior: 'deny', reason: 'cancelled' });
+          }
+          return;
+        }
       }
       for (const event of parseStreamJsonLine(line)) {
-        if (event.type === 'done') sawDone = true;
+        if (event.type === 'done') {
+          sawDone = true;
+          // stdin is the control channel, held open all turn — closing it after
+          // the result frame is what lets the CLI exit (verified on 2.1.207).
+          child?.stdin?.end();
+          graceTimer = setTimeout(killChild, EXIT_GRACE_MS);
+          // With stream-json INPUT, `--resume <unknown id>` doesn't emit an
+          // error frame — it prints "No conversation found…" on stderr and
+          // ends with an is_error result. Convert that to an error event so
+          // the route's retry-without-resume kicks in (wiped ~/.claude
+          // history, different machine, bogus persisted id).
+          if (event.isError && isSessionNotFoundError(stderr)) {
+            emit({ type: 'error', message: classifyCliError(stderr) });
+            continue;
+          }
+        }
         emit(event);
       }
     });
@@ -521,6 +753,8 @@ export function spawnClaudeChat(opts: SpawnClaudeChatOpts): { kill(): void } {
 
     child.on('close', (code) => {
       splitter.flush();
+      clearPending();
+      if (graceTimer) clearTimeout(graceTimer);
       if (!sawDone && !killed) {
         // Non-zero exit (or clean exit with no result) and no result frame —
         // surface stderr as the error.
@@ -532,25 +766,33 @@ export function spawnClaudeChat(opts: SpawnClaudeChatOpts): { kill(): void } {
       exitOnce();
     });
 
-    // Prompt goes via stdin (never argv) then EOF so -p mode starts.
+    // The message goes via stdin (never argv) as a stream-json line. stdin
+    // stays OPEN — it doubles as the control channel for prompt responses;
+    // the done-frame handler above closes it once the turn finishes.
     child.stdin?.on('error', () => {}); // EPIPE if the child dies instantly
-    child.stdin?.write(opts.message);
-    child.stdin?.end();
+    child.stdin?.write(buildUserMessageLine(opts.message));
   })();
 
   return {
+    respondControl(requestId, response): boolean {
+      const entry = pending.get(requestId);
+      if (!entry) return false;
+      clearTimeout(entry.timer);
+      pending.delete(requestId);
+      child?.stdin?.write(buildControlResponseLine(requestId, entry, response));
+      emit({
+        type: 'permission-resolved',
+        requestId,
+        behavior: response.behavior,
+        reason: 'user',
+      });
+      return true;
+    },
     kill(): void {
       killed = true;
-      if (!child) return;
-      if (process.platform === 'win32' && child.pid) {
-        // Windows-only: the child may be a cmd.exe wrapper around the real CLI
-        // process — child.kill() would only hit the wrapper. Kill the tree.
-        void execFileAsync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true })
-          .catch(() => child?.kill());
-      } else {
-        // macOS-only (and .exe edge): direct child, plain SIGTERM suffices.
-        child.kill();
-      }
+      clearPending();
+      if (graceTimer) clearTimeout(graceTimer);
+      killChild();
     },
   };
 }

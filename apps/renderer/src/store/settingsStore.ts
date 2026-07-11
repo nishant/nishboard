@@ -48,6 +48,12 @@ interface AppSettingsState {
   /** Subs tab shows just the list of subscribed channels (avatar + name) instead
    *  of a merged video feed; clicking a channel opens its uploads. */
   youtubeSubsChannelsOnly: boolean;
+  /** Claude widget: CLI cwd (its file ops are relative to this). '' = default
+   *  ~/.dash. Absolute or ~-prefixed. */
+  claudeWorkspaceDir: string;
+  /** Claude widget: extra dirs the CLI may touch (`--add-dir`). Default home —
+   *  loose by design; tighten here if desired. */
+  claudeAdditionalDirs: string[];
   setWeatherZips: (zips: string[]) => void;
   setWeatherZipIdx: (idx: number) => void;
   setShowTempInClock: (show: boolean) => void;
@@ -62,6 +68,8 @@ interface AppSettingsState {
   setTwitchLiveNotify: (on: boolean) => void;
   setHideYoutubeShorts: (on: boolean) => void;
   setYoutubeSubsChannelsOnly: (on: boolean) => void;
+  setClaudeWorkspaceDir: (dir: string) => void;
+  setClaudeAdditionalDirs: (dirs: string[]) => void;
 }
 
 export const useAppSettingsStore = create<AppSettingsState>()(
@@ -82,6 +90,8 @@ export const useAppSettingsStore = create<AppSettingsState>()(
       twitchLiveNotify: true,
       hideYoutubeShorts: false,
       youtubeSubsChannelsOnly: false,
+      claudeWorkspaceDir: '',
+      claudeAdditionalDirs: ['~'],
 
       // Reset the cycle index too — it may point past the end of the new list.
       setWeatherZips: (weatherZips) => set({ weatherZips, weatherZipIdx: 0 }),
@@ -98,6 +108,8 @@ export const useAppSettingsStore = create<AppSettingsState>()(
       setTwitchLiveNotify: (twitchLiveNotify) => set({ twitchLiveNotify }),
       setHideYoutubeShorts: (hideYoutubeShorts) => set({ hideYoutubeShorts }),
       setYoutubeSubsChannelsOnly: (youtubeSubsChannelsOnly) => set({ youtubeSubsChannelsOnly }),
+      setClaudeWorkspaceDir: (claudeWorkspaceDir) => set({ claudeWorkspaceDir }),
+      setClaudeAdditionalDirs: (claudeAdditionalDirs) => set({ claudeAdditionalDirs }),
     }),
     {
       name: 'dashboard-app-settings',
