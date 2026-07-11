@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ASK_MODE_ALLOWED_TOOLS,
   buildChatArgs,
+  buildControlResponseLine,
+  buildPromptRequest,
+  buildUserMessageLine,
   classifyCliError,
+  extractControlCancel,
+  extractControlRequest,
   createLineSplitter,
   extractInitMeta,
   isSessionNotFoundError,
@@ -261,26 +267,148 @@ describe('isSessionNotFoundError', () => {
 });
 
 describe('buildChatArgs', () => {
-  const BASE = ['-p', '--output-format', 'stream-json', '--include-partial-messages', '--verbose'];
+  const BASE = [
+    '-p', '--output-format', 'stream-json', '--input-format', 'stream-json',
+    '--include-partial-messages', '--verbose',
+  ];
+  const ASK = ['--permission-prompt-tool', 'stdio', '--allowedTools', ASK_MODE_ALLOWED_TOOLS];
 
-  it('defaults: no mode/model/effort/resume flags', () => {
-    expect(buildChatArgs({})).toEqual(BASE);
-    expect(buildChatArgs({ mode: 'chat' })).toEqual(BASE);
+  it('ask is the default: stdio prompt tool + read-only allowlist, no permission-mode', () => {
+    expect(buildChatArgs({})).toEqual([...BASE, ...ASK]);
+    expect(buildChatArgs({ mode: 'ask' })).toEqual([...BASE, ...ASK]);
   });
 
-  it('auto → bypassPermissions, plan → plan', () => {
+  it('auto → bypassPermissions (no prompt tool); plan → plan + prompt tool (ExitPlanMode approval)', () => {
     expect(buildChatArgs({ mode: 'auto' })).toEqual([...BASE, '--permission-mode', 'bypassPermissions']);
-    expect(buildChatArgs({ mode: 'plan' })).toEqual([...BASE, '--permission-mode', 'plan']);
+    expect(buildChatArgs({ mode: 'plan' })).toEqual([
+      ...BASE, '--permission-mode', 'plan', '--permission-prompt-tool', 'stdio',
+    ]);
   });
 
-  it('model, effort, and resume append their flags in order', () => {
-    expect(buildChatArgs({ mode: 'auto', model: 'opus', effort: 'xhigh', sessionId: 'abc-123' })).toEqual([
+  it('model, effort, add-dirs, and resume append their flags in order', () => {
+    expect(buildChatArgs({
+      mode: 'auto', model: 'opus', effort: 'xhigh', sessionId: 'abc-123',
+      additionalDirs: ['/Users/x', '/Users/x/Code'],
+    })).toEqual([
       ...BASE,
       '--permission-mode', 'bypassPermissions',
       '--model', 'opus',
       '--effort', 'xhigh',
+      '--add-dir', '/Users/x',
+      '--add-dir', '/Users/x/Code',
       '--resume', 'abc-123',
     ]);
+  });
+});
+
+describe('control protocol pure functions (wire shapes captured from CLI 2.1.207)', () => {
+  it('buildUserMessageLine wraps text as a stream-json user line', () => {
+    expect(buildUserMessageLine('hi')).toBe(
+      '{"type":"user","message":{"role":"user","content":[{"type":"text","text":"hi"}]}}\n',
+    );
+  });
+
+  // Verbatim capture from the probe run (trimmed suggestion payload).
+  const CAPTURED_REQUEST = {
+    type: 'control_request',
+    request_id: '42dc2bad-739e-4ceb-93eb-aa854b3afb38',
+    request: {
+      subtype: 'can_use_tool',
+      tool_name: 'Write',
+      display_name: 'Write',
+      input: { file_path: '/ws/probe2.txt', content: 'hello.' },
+      description: 'probe2.txt',
+      permission_suggestions: [{ type: 'setMode', mode: 'acceptEdits', destination: 'session' }],
+      tool_use_id: 'toolu_016hGQDpzEmbvrLZGHWTR5is',
+    },
+  };
+
+  it('extractControlRequest parses a captured can_use_tool line', () => {
+    expect(extractControlRequest(CAPTURED_REQUEST)).toEqual({
+      requestId: '42dc2bad-739e-4ceb-93eb-aa854b3afb38',
+      toolName: 'Write',
+      input: { file_path: '/ws/probe2.txt', content: 'hello.' },
+      description: 'probe2.txt',
+    });
+  });
+
+  it('extractControlRequest → null for non-control / malformed frames', () => {
+    expect(extractControlRequest({ type: 'result' })).toBeNull();
+    expect(extractControlRequest({ type: 'control_request', request: { subtype: 'other' } })).toBeNull();
+    expect(extractControlRequest({ type: 'control_request', request_id: 'x', request: { subtype: 'can_use_tool' } })).toBeNull();
+    expect(extractControlRequest(null)).toBeNull();
+  });
+
+  it('extractControlCancel picks up control_cancel_request ids', () => {
+    expect(extractControlCancel({ type: 'control_cancel_request', request_id: 'abc' })).toBe('abc');
+    expect(extractControlCancel({ type: 'control_request', request_id: 'abc' })).toBeNull();
+  });
+
+  it('buildPromptRequest: tool card prefers the CLI description, falls back to toolDetail', () => {
+    expect(buildPromptRequest('Write', { file_path: '/a/b/c.txt' }, 'c.txt')).toEqual({
+      kind: 'tool', toolName: 'Write', detail: 'c.txt',
+    });
+    expect(buildPromptRequest('Bash', { command: 'npm test' }, null)).toEqual({
+      kind: 'tool', toolName: 'Bash', detail: 'npm test',
+    });
+  });
+
+  it('buildPromptRequest: AskUserQuestion → question card; malformed questions degrade to tool card', () => {
+    const input = {
+      questions: [{
+        question: 'Red or blue?',
+        header: 'Color',
+        multiSelect: false,
+        options: [{ label: 'Red', description: 'r' }, { label: 'Blue', description: 'b' }],
+      }],
+    };
+    expect(buildPromptRequest('AskUserQuestion', input, null)).toEqual({
+      kind: 'question',
+      questions: [{
+        question: 'Red or blue?', header: 'Color', multiSelect: false,
+        options: [{ label: 'Red', description: 'r' }, { label: 'Blue', description: 'b' }],
+      }],
+    });
+    expect(buildPromptRequest('AskUserQuestion', { questions: [42] }, null)).toEqual({
+      kind: 'tool', toolName: 'AskUserQuestion', detail: '',
+    });
+  });
+
+  it('buildPromptRequest: ExitPlanMode → plan card', () => {
+    expect(buildPromptRequest('ExitPlanMode', { plan: '# Plan\n- do it' }, null)).toEqual({
+      kind: 'plan', plan: '# Plan\n- do it',
+    });
+  });
+
+  it('buildControlResponseLine: allow echoes the original input as updatedInput', () => {
+    const line = buildControlResponseLine('req-1', { toolName: 'Write', input: { file_path: '/x' } }, { behavior: 'allow' });
+    expect(JSON.parse(line)).toEqual({
+      type: 'control_response',
+      response: {
+        subtype: 'success',
+        request_id: 'req-1',
+        response: { behavior: 'allow', updatedInput: { file_path: '/x' } },
+      },
+    });
+  });
+
+  it('buildControlResponseLine: AskUserQuestion answers keyed by question text (multi joins with ", ")', () => {
+    const pending = {
+      toolName: 'AskUserQuestion',
+      input: { questions: [{ question: 'Red or blue?' }, { question: 'Pick fruits' }] },
+    };
+    const line = buildControlResponseLine('req-2', pending, { behavior: 'allow', answers: [['Blue'], ['Apple', 'Pear']] });
+    const inner = (JSON.parse(line) as { response: { response: { updatedInput: Record<string, unknown> } } }).response.response;
+    expect(inner.updatedInput.answers).toEqual({ 'Red or blue?': 'Blue', 'Pick fruits': 'Apple, Pear' });
+    expect(inner.updatedInput.questions).toEqual(pending.input.questions);
+  });
+
+  it('buildControlResponseLine: deny carries the message (with a default)', () => {
+    interface Wire { response: { response: { behavior: string; message: string } } }
+    const denied = JSON.parse(buildControlResponseLine('r', { toolName: 'Write', input: {} }, { behavior: 'deny', message: 'no' })) as Wire;
+    expect(denied.response.response).toEqual({ behavior: 'deny', message: 'no' });
+    const defaulted = JSON.parse(buildControlResponseLine('r', { toolName: 'Write', input: {} }, { behavior: 'deny' })) as Wire;
+    expect(defaulted.response.response.message).toMatch(/denied/i);
   });
 });
 

@@ -16,6 +16,7 @@ export type { NewsItem, NewsData } from './types/news';
 export type {
   ClaudeStatusData, ClaudeStreamEvent, ClaudeChatRequestBody, ClaudeChatMode, ClaudeEffort,
   ClaudeSlashCommand, ClaudeMetaData, ClaudeUsageWindow, ClaudeUsageData,
+  ClaudeQuestionItem, ClaudePromptRequest, ClaudeControlRequestBody,
 } from './types/claude';
 export { CLAUDE_EFFORTS, CLAUDE_CONTEXT_WINDOW } from './types/claude';
 export type { CryptoCoinData, CryptoData } from './types/crypto';

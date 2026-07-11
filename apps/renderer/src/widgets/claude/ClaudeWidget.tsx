@@ -1,16 +1,18 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Check, ChevronRight, Copy, Loader2, PieChart, Plus, SendHorizontal, SlidersHorizontal, Square, X,
+  Check, ChevronRight, ClipboardCheck, Copy, Loader2, PieChart, Plus, SendHorizontal,
+  ShieldQuestion, SlidersHorizontal, Square, X,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { ClaudeEffort } from '@dash/shared';
 import { CLAUDE_CONTEXT_WINDOW, CLAUDE_EFFORTS } from '@dash/shared';
 import { messageText, useClaudeStore } from '../../store/claudeStore';
-import type { ClaudeChatMessage, ClaudeToolPart } from '../../store/claudeStore';
+import type { ClaudeChatMessage, ClaudePromptPart, ClaudeToolPart } from '../../store/claudeStore';
 import {
   useClaudeStatus, useClaudeMeta, useClaudeUsage, useSendClaudeMessage, stopClaudeStream,
+  respondToClaudePrompt, promptSummary,
 } from './useClaude';
 import { HeaderAction } from '../../components/HeaderAction';
 import { cn } from '../../lib/utils';
@@ -52,8 +54,9 @@ const WHIMSY = [
 ] as const;
 
 /** Animated ✻ + rotating whimsical verb + elapsed seconds — shown for the whole
- *  streaming turn (covers the silent stretch before the first token). */
-function Shimmer({ startedAt }: { startedAt: number }) {
+ *  streaming turn (covers the silent stretch before the first token). While a
+ *  prompt card is pending, the whimsy gives way to "Waiting for you". */
+function Shimmer({ startedAt, waiting = false }: { startedAt: number; waiting?: boolean }) {
   const [word, setWord] = useState(() => WHIMSY[Math.floor(Math.random() * WHIMSY.length)]);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -71,8 +74,10 @@ function Shimmer({ startedAt }: { startedAt: number }) {
   return (
     <div className="flex items-center gap-1.5 py-0.5 text-[11px] select-none">
       <span className="claude-spark text-th-accent">✻</span>
-      <span className="claude-shimmer font-medium">{word}…</span>
-      <span className="text-th-ghost text-[9px]">{secs}s · esc to stop</span>
+      <span className="claude-shimmer font-medium">{waiting ? 'Waiting for you' : `${word}…`}</span>
+      <span className="text-th-ghost text-[9px]">
+        {waiting ? 'answer above to continue' : `${secs}s · esc to stop`}
+      </span>
     </div>
   );
 }
@@ -382,6 +387,160 @@ function ToolChip({ part, live }: { part: ClaudeToolPart; live: boolean }) {
   );
 }
 
+// ── Interactive prompt cards ──────────────────────────────────────────────────
+
+function CardButton({ primary = false, disabled, onClick, children }: {
+  primary?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        'px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors disabled:opacity-40',
+        primary
+          ? 'bg-th-accent/20 text-th-accent hover:bg-th-accent/30'
+          : 'bg-th-elevated text-th-2 hover:bg-th-overlay hover:text-th-hi',
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+const PROMPT_STATUS_LABEL: Record<Exclude<ClaudePromptPart['status'], 'pending'>, string> = {
+  allowed: 'Allowed',
+  denied: 'Denied',
+  cancelled: 'Cancelled',
+  timeout: 'Timed out',
+};
+
+/** In-message card for a CLI prompt (tool permission / question / plan).
+ *  `live` = the actively-streaming message; a pending prompt on an old message
+ *  (app reloaded mid-turn) renders as Expired instead of live buttons. */
+function PromptCard({ part, live }: { part: ClaudePromptPart; live: boolean }) {
+  const [busy, setBusy] = useState(false);
+  // Per-question selected labels (multi-select accumulates; single replaces).
+  const [selected, setSelected] = useState<string[][]>(() =>
+    part.request.kind === 'question' ? part.request.questions.map(() => []) : [],
+  );
+
+  if (part.status !== 'pending' || !live) {
+    const status = part.status === 'pending' ? 'Expired' : PROMPT_STATUS_LABEL[part.status];
+    const ok = part.status === 'allowed';
+    return (
+      <div className="flex items-center gap-1.5 my-1 px-2 py-1 rounded-md bg-th-elevated/60 text-[11px] max-w-full">
+        {ok ? <Check size={11} className="shrink-0 text-emerald-400" /> : <X size={11} className="shrink-0 text-th-ghost" />}
+        <span className="shrink-0 font-medium text-th-hi">{status}</span>
+        <span className="shrink-0 text-th-ghost">·</span>
+        <span className="truncate text-th-ghost">
+          {promptSummary(part.request)}
+          {part.resolution ? ` — ${part.resolution}` : ''}
+        </span>
+      </div>
+    );
+  }
+
+  const respond = (response: Parameters<typeof respondToClaudePrompt>[1], resolution?: string): void => {
+    setBusy(true);
+    void respondToClaudePrompt(part.requestId, response, resolution);
+  };
+
+  if (part.request.kind === 'question') {
+    const { questions } = part.request;
+    const allAnswered = selected.every((s) => s.length > 0);
+    const submit = (finalSelected: string[][]): void => {
+      respond({ behavior: 'allow', answers: finalSelected }, finalSelected.map((s) => s.join(', ')).join(' · '));
+    };
+    return (
+      <div className="my-1.5 rounded-lg border border-th-accent/30 bg-th-elevated/40 p-2 space-y-2">
+        {questions.map((q, qi) => (
+          <div key={qi}>
+            <p className="text-[11px] text-th-hi font-medium mb-1">
+              {q.header && <span className="px-1 py-px mr-1.5 rounded bg-th-accent/15 text-th-accent text-[9px] uppercase tracking-wider">{q.header}</span>}
+              {q.question}
+            </p>
+            <div className="flex flex-col gap-1">
+              {q.options.map((opt) => {
+                const isOn = selected[qi]?.includes(opt.label);
+                return (
+                  <button
+                    key={opt.label}
+                    disabled={busy}
+                    onClick={() => {
+                      const next = selected.map((s, i) => {
+                        if (i !== qi) return s;
+                        if (q.multiSelect) return isOn ? s.filter((l) => l !== opt.label) : [...s, opt.label];
+                        return [opt.label];
+                      });
+                      setSelected(next);
+                      // Single question + single select → answering IS submitting.
+                      if (!q.multiSelect && questions.length === 1) submit(next);
+                    }}
+                    className={cn(
+                      'text-left px-2 py-1 rounded-md text-[11px] transition-colors disabled:opacity-40',
+                      isOn ? 'bg-th-accent/20 text-th-accent' : 'bg-th-elevated text-th-2 hover:bg-th-overlay hover:text-th-hi',
+                    )}
+                  >
+                    <span className="font-medium">{opt.label}</span>
+                    {opt.description && <span className="block text-[10px] text-th-ghost">{opt.description}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+        {(questions.length > 1 || questions.some((q) => q.multiSelect)) && (
+          <div className="flex gap-1.5">
+            <CardButton primary disabled={busy || !allAnswered} onClick={() => submit(selected)}>Submit</CardButton>
+            <CardButton disabled={busy} onClick={() => respond({ behavior: 'deny', message: 'The user dismissed the question.' })}>Dismiss</CardButton>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (part.request.kind === 'plan') {
+    return (
+      <div className="my-1.5 rounded-lg border border-th-accent/30 bg-th-elevated/40 p-2">
+        <p className="flex items-center gap-1.5 text-[11px] font-medium text-th-hi mb-1">
+          <ClipboardCheck size={12} className="text-th-accent" /> Claude proposed a plan
+        </p>
+        <div className="md-render max-h-48 overflow-y-auto text-[11px] text-th-2 leading-relaxed pr-1">
+          <ReactMarkdown remarkPlugins={MD_PLUGINS} components={MD_COMPONENTS}>{part.request.plan}</ReactMarkdown>
+        </div>
+        <div className="mt-1.5 flex gap-1.5">
+          <CardButton primary disabled={busy} onClick={() => respond({ behavior: 'allow' }, 'Plan approved')}>
+            Approve plan
+          </CardButton>
+          <CardButton disabled={busy} onClick={() => respond({ behavior: 'deny', message: 'Keep planning — the user wants revisions.' })}>
+            Keep planning
+          </CardButton>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="my-1.5 rounded-lg border border-th-accent/30 bg-th-elevated/40 p-2">
+      <p className="flex items-center gap-1.5 text-[11px] text-th-hi min-w-0">
+        <ShieldQuestion size={12} className="shrink-0 text-th-accent" />
+        <span className="font-medium shrink-0">{part.request.toolName}</span>
+        {part.request.detail && (
+          <span className="truncate font-mono text-th-ghost">· {part.request.detail}</span>
+        )}
+      </p>
+      <div className="mt-1.5 flex gap-1.5">
+        <CardButton primary disabled={busy} onClick={() => respond({ behavior: 'allow' })}>Allow</CardButton>
+        <CardButton disabled={busy} onClick={() => respond({ behavior: 'deny' })}>Deny</CardButton>
+      </div>
+    </div>
+  );
+}
+
 /** Collapsed-by-default extended-thinking block. */
 function ThinkingBlock({ text }: { text: string }) {
   return (
@@ -426,6 +585,8 @@ function MessageBubble({ msg, streaming }: { msg: ClaudeChatMessage; streaming: 
       {msg.parts.map((part, i) =>
         part.kind === 'tool' ? (
           <ToolChip key={part.id} part={part} live={streaming} />
+        ) : part.kind === 'prompt' ? (
+          <PromptCard key={part.requestId} part={part} live={streaming} />
         ) : part.kind === 'thinking' ? (
           part.text ? <ThinkingBlock key={i} text={part.text} /> : null
         ) : part.text ? (
@@ -435,7 +596,10 @@ function MessageBubble({ msg, streaming }: { msg: ClaudeChatMessage; streaming: 
         ) : null,
       )}
       {streaming ? (
-        <Shimmer startedAt={msg.at} />
+        <Shimmer
+          startedAt={msg.at}
+          waiting={msg.parts.some((p) => p.kind === 'prompt' && p.status === 'pending')}
+        />
       ) : (
         (msg.durationMs !== undefined || text) && (
           <div className="flex items-center gap-1.5 pt-0.5 text-[9px] text-th-ghost opacity-0 group-hover/msg:opacity-100 focus-within:opacity-100 transition-opacity">
@@ -461,9 +625,9 @@ function MessageBubble({ msg, streaming }: { msg: ClaudeChatMessage; streaming: 
 // ── Composer footer ───────────────────────────────────────────────────────────
 
 const MODES = [
-  { value: 'chat', label: 'Chat', title: 'Chat only — file writes and commands are denied' },
+  { value: 'ask', label: 'Ask', title: 'Reads run freely — writes & commands ask you first' },
   { value: 'auto', label: 'Auto', title: '⚠ Tools run autonomously (bypass permissions)' },
-  { value: 'plan', label: 'Plan', title: 'Research + plan, no mutations' },
+  { value: 'plan', label: 'Plan', title: 'Research + a plan — approve it before changes' },
 ] as const;
 
 function ModeSwitch() {
@@ -552,7 +716,7 @@ export function ClaudeWidget() {
   };
 
   const cycleMode = (): void => {
-    const order = ['chat', 'auto', 'plan'] as const;
+    const order = ['ask', 'auto', 'plan'] as const;
     setChatMode(order[(order.indexOf(chatMode) + 1) % order.length]);
   };
 

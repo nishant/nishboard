@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import type {
   ClaudeChatRequestBody,
+  ClaudeControlRequestBody,
   ClaudeMetaData,
+  ClaudePromptRequest,
   ClaudeStatusData,
   ClaudeStreamEvent,
   ClaudeUsageData,
@@ -10,7 +12,8 @@ import { apiClient } from '../../lib/apiClient';
 import { postEventStream } from '../../lib/streamClient';
 import { useGatedInterval } from '../../hooks/useGatedInterval';
 import { useClaudeStore } from '../../store/claudeStore';
-import { toast } from '../../lib/alerts';
+import { useAppSettingsStore } from '../../store/settingsStore';
+import { fireAlert, toast } from '../../lib/alerts';
 
 /** CLI availability probe — cheap on the server (60s TtlCache) so a slow poll
  *  is plenty; it flips the widget out of its "not installed" state. */
@@ -56,7 +59,49 @@ let activeController: AbortController | null = null;
 export function stopClaudeStream(): void {
   activeController?.abort();
   activeController = null;
-  useClaudeStore.getState().setStreaming(false);
+  const s = useClaudeStore.getState();
+  // Aborting closes the socket → the server reaps the child → any prompts the
+  // CLI was waiting on are dead. Reflect that instead of leaving live buttons.
+  s.cancelPendingPrompts();
+  s.setStreaming(false);
+}
+
+/** One-line human summary for the prompt notification + resolved chips. */
+export function promptSummary(request: ClaudePromptRequest): string {
+  switch (request.kind) {
+    case 'tool':
+      return request.detail ? `${request.toolName} · ${request.detail}` : request.toolName;
+    case 'question':
+      return request.questions[0]?.question ?? 'Claude has a question';
+    case 'plan':
+      return 'Review Claude’s plan';
+  }
+}
+
+/** Answer a pending prompt card. State flips when the server's
+ *  `permission-resolved` frame arrives; on HTTP failure the card is flipped to
+ *  cancelled locally so it never wedges in `pending`. */
+export async function respondToClaudePrompt(
+  requestId: string,
+  response: ClaudeControlRequestBody['response'],
+  resolution?: string,
+): Promise<void> {
+  const body: ClaudeControlRequestBody = { requestId, response };
+  try {
+    await apiClient.post('/api/claude/control', body);
+    if (resolution !== undefined) {
+      // The resolved frame carries no answer text — stash the human summary now.
+      useClaudeStore.getState().resolvePromptPart(
+        requestId,
+        response.behavior === 'allow' ? 'allowed' : 'denied',
+        resolution,
+      );
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    toast('Claude', message, 'error');
+    useClaudeStore.getState().resolvePromptPart(requestId, 'cancelled');
+  }
 }
 
 export function useSendClaudeMessage(): { send: (text: string) => void; stop: () => void } {
@@ -72,14 +117,17 @@ export function useSendClaudeMessage(): { send: (text: string) => void; stop: ()
 
     const controller = new AbortController();
     activeController = controller;
-    // Mode/model/effort read at send time so composer changes apply to the
-    // very next message, including one queued mid-adjustment.
+    // Mode/model/effort + workspace read at send time so composer/Settings
+    // changes apply to the very next message.
+    const settings = useAppSettingsStore.getState();
     const body: ClaudeChatRequestBody = {
       message: trimmed,
       sessionId: store.sessionId ?? undefined,
       mode: store.chatMode,
       model: store.chatModel ?? undefined,
       effort: store.chatEffort ?? undefined,
+      workspaceDir: settings.claudeWorkspaceDir.trim() || undefined,
+      additionalDirs: settings.claudeAdditionalDirs.length > 0 ? settings.claudeAdditionalDirs : undefined,
     };
 
     void postEventStream<ClaudeStreamEvent>('/api/claude/chat', body, {
@@ -101,6 +149,18 @@ export function useSendClaudeMessage(): { send: (text: string) => void; stop: ()
             break;
           case 'tool-result':
             s.resolveToolPart(event.id, event.isError);
+            break;
+          case 'permission-request':
+            s.addPromptPart(event.requestId, event.request);
+            // Chime + toast + native notification — the whole point is pulling
+            // the user back when Claude blocks on them mid-turn.
+            fireAlert('Claude needs your input', promptSummary(event.request));
+            break;
+          case 'permission-resolved':
+            s.resolvePromptPart(
+              event.requestId,
+              event.reason === 'user' ? (event.behavior === 'allow' ? 'allowed' : 'denied') : event.reason,
+            );
             break;
           case 'done':
             s.finishAssistant(event.durationMs, event.outputTokens, event.contextTokens);
