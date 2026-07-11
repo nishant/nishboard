@@ -48,12 +48,6 @@ interface AppSettingsState {
   /** Subs tab shows just the list of subscribed channels (avatar + name) instead
    *  of a merged video feed; clicking a channel opens its uploads. */
   youtubeSubsChannelsOnly: boolean;
-  /** Let the Claude widget actually run tools — write files, run commands,
-   *  invoke skills — by spawning the CLI with `--permission-mode
-   *  bypassPermissions`. OFF ⇒ chat only (writes/commands auto-denied).
-   *  ⚠ ON grants Claude autonomous file+command access to this machine. */
-  claudeAllowTools: boolean;
-
   setWeatherZips: (zips: string[]) => void;
   setWeatherZipIdx: (idx: number) => void;
   setShowTempInClock: (show: boolean) => void;
@@ -68,7 +62,6 @@ interface AppSettingsState {
   setTwitchLiveNotify: (on: boolean) => void;
   setHideYoutubeShorts: (on: boolean) => void;
   setYoutubeSubsChannelsOnly: (on: boolean) => void;
-  setClaudeAllowTools: (on: boolean) => void;
 }
 
 export const useAppSettingsStore = create<AppSettingsState>()(
@@ -89,7 +82,6 @@ export const useAppSettingsStore = create<AppSettingsState>()(
       twitchLiveNotify: true,
       hideYoutubeShorts: false,
       youtubeSubsChannelsOnly: false,
-      claudeAllowTools: false,
 
       // Reset the cycle index too — it may point past the end of the new list.
       setWeatherZips: (weatherZips) => set({ weatherZips, weatherZipIdx: 0 }),
@@ -106,7 +98,6 @@ export const useAppSettingsStore = create<AppSettingsState>()(
       setTwitchLiveNotify: (twitchLiveNotify) => set({ twitchLiveNotify }),
       setHideYoutubeShorts: (hideYoutubeShorts) => set({ hideYoutubeShorts }),
       setYoutubeSubsChannelsOnly: (youtubeSubsChannelsOnly) => set({ youtubeSubsChannelsOnly }),
-      setClaudeAllowTools: (claudeAllowTools) => set({ claudeAllowTools }),
     }),
     {
       name: 'dashboard-app-settings',

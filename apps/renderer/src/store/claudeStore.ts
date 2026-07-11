@@ -1,9 +1,15 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { ClaudeChatMode, ClaudeEffort } from '@dash/shared';
 
 /** A run of assistant text (streamed from `delta` frames). */
 export interface ClaudeTextPart {
   kind: 'text';
+  text: string;
+}
+/** Extended-thinking text — rendered as a collapsed grey block above the answer. */
+export interface ClaudeThinkingPart {
+  kind: 'thinking';
   text: string;
 }
 /** A tool the model invoked (Write, Bash, a Skill, …), shown as an inline chip. */
@@ -15,7 +21,7 @@ export interface ClaudeToolPart {
   detail: string;
   status: 'running' | 'ok' | 'error';
 }
-export type ClaudePart = ClaudeTextPart | ClaudeToolPart;
+export type ClaudePart = ClaudeTextPart | ClaudeThinkingPart | ClaudeToolPart;
 
 /**
  * A message is an ORDERED list of parts so tool activity interleaves with text
@@ -27,6 +33,9 @@ export interface ClaudeChatMessage {
   role: 'user' | 'assistant';
   parts: ClaudePart[];
   at: number;
+  /** Set on assistant messages when their turn's `done` frame arrives. */
+  durationMs?: number;
+  outputTokens?: number;
 }
 
 /** Concatenated text of a message (ignores tool parts). */
@@ -40,12 +49,22 @@ interface ClaudeState {
   sessionId: string | null;
   model: string | null;
   isStreaming: boolean;
+  /** Permission posture sent with each turn (chat / auto / plan). */
+  chatMode: ClaudeChatMode;
+  /** `--model` value for new turns; null = CLI default. */
+  chatModel: string | null;
+  /** `--effort` level for new turns; null = CLI default. */
+  chatEffort: ClaudeEffort | null;
   addUser: (text: string) => void;
   /** Push an empty assistant message for the incoming stream to fill. */
   beginAssistant: () => void;
   /** Append streamed text to the current assistant message (merges into the
    *  trailing text part, or starts a new one after a tool call). */
   appendDelta: (text: string) => void;
+  /** Append extended-thinking text (merges like appendDelta, own part kind). */
+  appendThinking: (text: string) => void;
+  /** Stamp duration/token stats onto the current assistant message. */
+  finishAssistant: (durationMs: number, outputTokens: number | null) => void;
   /** The model started a tool call — append a running chip. */
   addToolPart: (id: string, name: string, detail: string) => void;
   /** A tool call finished — flip its chip to ok/error. */
@@ -54,6 +73,9 @@ interface ClaudeState {
   appendError: (text: string) => void;
   setSession: (id: string, model: string) => void;
   setStreaming: (isStreaming: boolean) => void;
+  setChatMode: (mode: ClaudeChatMode) => void;
+  setChatModel: (model: string | null) => void;
+  setChatEffort: (effort: ClaudeEffort | null) => void;
   newChat: () => void;
 }
 
@@ -75,6 +97,9 @@ export const useClaudeStore = create<ClaudeState>()(
       sessionId: null,
       model: null,
       isStreaming: false,
+      chatMode: 'chat',
+      chatModel: null,
+      chatEffort: null,
 
       addUser: (text) =>
         set((s) => ({
@@ -96,6 +121,24 @@ export const useClaudeStore = create<ClaudeState>()(
             }
             return { ...m, parts: [...m.parts, { kind: 'text', text }] };
           }),
+        })),
+      appendThinking: (text) =>
+        set((s) => ({
+          messages: patchLastAssistant(s.messages, (m) => {
+            const last = m.parts[m.parts.length - 1];
+            if (last && last.kind === 'thinking') {
+              return { ...m, parts: [...m.parts.slice(0, -1), { ...last, text: last.text + text }] };
+            }
+            return { ...m, parts: [...m.parts, { kind: 'thinking', text }] };
+          }),
+        })),
+      finishAssistant: (durationMs, outputTokens) =>
+        set((s) => ({
+          messages: patchLastAssistant(s.messages, (m) => ({
+            ...m,
+            durationMs,
+            ...(outputTokens !== null ? { outputTokens } : {}),
+          })),
         })),
       addToolPart: (id, name, detail) =>
         set((s) => ({
@@ -122,6 +165,9 @@ export const useClaudeStore = create<ClaudeState>()(
         })),
       setSession: (sessionId, model) => set({ sessionId, model }),
       setStreaming: (isStreaming) => set({ isStreaming }),
+      setChatMode: (chatMode) => set({ chatMode }),
+      setChatModel: (chatModel) => set({ chatModel }),
+      setChatEffort: (chatEffort) => set({ chatEffort }),
       newChat: () => set({ messages: [], sessionId: null }),
     }),
     {
@@ -129,7 +175,14 @@ export const useClaudeStore = create<ClaudeState>()(
       version: 2,
       // NEVER persist isStreaming — a reload mid-stream would resurrect a
       // permanently-disabled input with no stream behind it.
-      partialize: (s) => ({ messages: s.messages, sessionId: s.sessionId, model: s.model }),
+      partialize: (s) => ({
+        messages: s.messages,
+        sessionId: s.sessionId,
+        model: s.model,
+        chatMode: s.chatMode,
+        chatModel: s.chatModel,
+        chatEffort: s.chatEffort,
+      }),
       // v1 messages were flat `{ text: string }`; v2 is `{ parts: ClaudePart[] }`.
       migrate: (persisted, version) => {
         const state = persisted as { messages?: Array<Record<string, unknown>> } & Record<string, unknown>;

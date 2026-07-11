@@ -299,10 +299,10 @@ function AppSettingsPanel() {
   const {
     weatherZips, showTempInClock, uiScale, density, compactTitlebar,
     tempUnit, windUnit, clock24h, lowPower, weatherAlertNotify, twitchLiveNotify, hideYoutubeShorts,
-    youtubeSubsChannelsOnly, claudeAllowTools,
+    youtubeSubsChannelsOnly,
     setWeatherZips, setShowTempInClock, setUiScale, setDensity, setCompactTitlebar,
     setTempUnit, setWindUnit, setClock24h, setLowPower, setWeatherAlertNotify, setTwitchLiveNotify,
-    setHideYoutubeShorts, setYoutubeSubsChannelsOnly, setClaudeAllowTools,
+    setHideYoutubeShorts, setYoutubeSubsChannelsOnly,
   } = useAppSettingsStore();
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -396,17 +396,6 @@ function AppSettingsPanel() {
           description="Show your subscriptions as a channel list instead of a video feed — click a channel to see its uploads."
           checked={youtubeSubsChannelsOnly}
           onChange={setYoutubeSubsChannelsOnly}
-        />
-      </div>
-
-      {/* Claude */}
-      <div className="flex flex-col gap-3">
-        <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">Claude</span>
-        <ToggleRow
-          label="Allow tools (write files, run commands)"
-          description="⚠ Lets the Claude widget actually create/edit files, run shell commands, and use skills — autonomously, without a prompt (bypassPermissions). Off = chat only. Files are written under ~/.dash. Only enable if you trust it to act on your machine."
-          checked={claudeAllowTools}
-          onChange={setClaudeAllowTools}
         />
       </div>
 

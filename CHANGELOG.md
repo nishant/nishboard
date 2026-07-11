@@ -4,6 +4,37 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #113] feat: Claude widget v2 — model/effort controls, plan mode, slash autocomplete, usage, loading shimmer
+
+**Branch:** `feat/claude-widget-v2` → `master`
+**Date:** 2026-07-10
+
+### Context
+Brings the widget to near-parity with the Claude apps for a chat session: a proper streaming indicator, per-session model/effort, Claude-Code-style permission modes, `/` command discovery, and subscription usage — all riding the same local CLI bridge from #97/#112.
+
+### Added
+- **Loading shimmer** — animated ✻ + rotating whimsical status verb ("Pondering…", "Percolating…", …) with elapsed seconds and an *esc to stop* hint, shown for the whole streaming turn (covers the silent stretch before the first token).
+- **Model picker + effort slider** (composer footer popover) — model aliases Default/Opus/Sonnet/Haiku/Fable via `--model`; effort low→max via the CLI's `--effort`; both persisted, both omitted by default so the CLI's own defaults apply. Footer chip shows the active pick (e.g. "Haiku · low"); panel also shows the resolved session model.
+- **Chat / Auto / Plan mode switch** (composer footer, shift+tab cycles) → `--permission-mode`: Chat = tools denied, Auto = `bypassPermissions` (amber highlight), Plan = research + plan without mutations. Replaces the Settings → Claude "Allow tools" toggle.
+- **Slash-command & skill autocomplete** — typing `/` opens a filtered menu (prefix first, then contains; ↑/↓ + Tab/Enter, skills badged). Backed by `GET /api/claude/meta`: the CLI init frame's `slash_commands`+`skills` are captured on every chat and persisted to `~/.dash/claude-meta.json`; before any first chat, `~/.claude/commands` + `~/.claude/skills` are scanned.
+- **Usage popover** (pie icon) — 5-hour session + weekly windows with color-coded bars and "resets in…" times via `GET /api/claude/usage` (claude.ai OAuth usage endpoint, 60s server cache). Token sources: `CLAUDE_CODE_OAUTH_TOKEN` env → macOS keychain (`Claude Code-credentials`) → `~/.claude/.credentials.json`; never logged, and a missing/expired login degrades to an actionable hint.
+- **Extended-thinking display** — `thinking_delta` frames render as a collapsed "✻ Thinking" block above the answer.
+- **Per-response stats + copy** — hover reveals duration, output tokens (from the `result` frame), and a copy-response button.
+- **Esc interrupts** the in-flight response (composer and widget-wide); the composer stays typable while streaming.
+
+### Changed
+- `POST /api/claude/chat` body: `allowTools` replaced by `mode` (`chat`/`auto`/`plan`) plus optional `model` and `effort` (schema-validated); spawn argv built by pure `buildChatArgs()` (unit-tested).
+- `done` stream frame now carries `outputTokens`; `ClaudeChatMessage` gains `durationMs`/`outputTokens`; new `thinking` part kind in `claudeStore` (persist version unchanged — additive).
+- Settings → App loses the Claude "Allow tools" toggle (`claudeAllowTools` removed from `settingsStore`); the widget's mode switch is the control now.
+- README + CLAUDE.md widget rows updated accordingly.
+
+### Notes
+- Usage shows real bars only where the CLI has its own login (`claude /login`) or `CLAUDE_CODE_OAUTH_TOKEN` is set — machines running only the Claude desktop app get the hint instead.
+- `--effort` requires a reasonably current CLI (verified against 2.1.207); leaving effort at "default" sends no flag, so older CLIs are unaffected.
+- Verified end-to-end against a real CLI: init/meta capture, `--model haiku` resolution, error paths (not-logged-in renders inline), slash menu, popovers, shimmer, stats. Full test suite + typecheck + lint green.
+
+---
+
 ## [PR #112] feat: Claude widget can run tools — write files, run commands, use skills (opt-in Full-access toggle + tool-activity chips)
 
 **Branch:** `feat/claude-widget-tools` → `master`
