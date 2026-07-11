@@ -47,6 +47,26 @@ The usage popover's bars looked mis-filled in narrow grid tiles: the `w-64` pane
 - `finishAssistant` signature gains `contextTokens`; a turn without usage keeps the previous meter value.
 - 200k context window is an assumed constant (`CLAUDE_CONTEXT_WINDOW` in `@dash/shared`).
 
+## [PR #114] fix: local `pnpm package` artifacts carry the real version, not the 0.1.0 placeholder
+
+**Branch:** `fix/local-package-version` → `master`
+**Date:** 2026-07-10
+
+### Context
+The committed package.json versions are placeholders (the latest `v*` tag is the source of truth); only CI stamped the real version before electron-builder. Local `pnpm package` therefore produced `Nishboard-0.1.0-arm64.dmg` regardless of the actual release line, and locally-built apps reported 0.1.0 in Settings → About (breaking the update-available comparison).
+
+### Added
+- `scripts/package-app.mjs` — local packaging wrapper: best-effort `git fetch --tags`, resolve the latest `v*` tag, `bump-version.mjs set` it into both package.json files, run electron-builder (`CSC_IDENTITY_AUTO_DISCOVERY=false`, `--publish never`), then restore the placeholder files bytewise (working tree stays clean even if the build fails). No tag found → builds with placeholders and says so.
+
+### Changed
+- Root `package` script: `pnpm build && node scripts/prepare-wincodesign.cjs && node scripts/package-app.mjs` (drops the inline `cross-env`; the wrapper sets the env var itself, same behavior on Windows and macOS).
+- CLAUDE.md Versioning section documents the local-stamping behavior.
+
+### Notes
+- CI (`release.yml`) is untouched — it still checks out the fresh tag and calls `bump-version.mjs set` directly.
+- Verified locally: `pnpm package` produced `release/Nishboard-0.12.0-arm64.dmg` and left both package.json files bytewise identical afterwards.
+
+
 ---
 
 ## [PR #113] feat: Claude widget v2 — model/effort controls, plan mode, slash autocomplete, usage, loading shimmer

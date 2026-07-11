@@ -126,6 +126,7 @@ Every merge to master triggers `.github/workflows/release.yml`: it derives the s
 Consequences for Claude:
 - **PR titles are load-bearing** — they choose the version bump. Keep the `<type>: description` convention exact.
 - Never edit the `version` field in any package.json; never `git tag` or push tags by hand. Manual/off-cycle release: GitHub → Actions → Release → Run workflow (pick bump).
+- **Local `pnpm package` stamps the real version too**: `scripts/package-app.mjs` fetches tags (best-effort), writes the latest `v*` tag version into both package.json files, runs electron-builder, then restores the placeholders — so local artifacts are named accurately (e.g. `Nishboard-0.12.0-arm64.dmg`) and Settings → About compares correctly against releases.
 - CI builds bake no `_BUILTIN` keys (no `.env` in CI) — released installers need keys entered once in Settings → Developer.
 
 ### Changelog Format

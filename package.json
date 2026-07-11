@@ -11,7 +11,7 @@
   "scripts": {
     "dev": "pnpm --filter @dash/shared build && concurrently -k -n shared,server,renderer,main -c cyan,blue,green,yellow \"pnpm --filter @dash/shared dev\" \"pnpm --filter @dash/server dev\" \"pnpm --filter @dash/renderer dev\" \"pnpm --filter @dash/main dev\"",
     "build": "turbo build",
-    "package": "pnpm build && node scripts/prepare-wincodesign.cjs && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --config electron-builder.yml --publish never",
+    "package": "pnpm build && node scripts/prepare-wincodesign.cjs && node scripts/package-app.mjs",
     "typecheck": "turbo typecheck",
     "lint": "turbo lint",
     "test": "turbo test"
