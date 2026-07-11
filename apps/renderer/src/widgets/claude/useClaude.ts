@@ -103,7 +103,7 @@ export function useSendClaudeMessage(): { send: (text: string) => void; stop: ()
             s.resolveToolPart(event.id, event.isError);
             break;
           case 'done':
-            s.finishAssistant(event.durationMs, event.outputTokens);
+            s.finishAssistant(event.durationMs, event.outputTokens, event.contextTokens);
             s.setStreaming(false);
             break;
           case 'error':

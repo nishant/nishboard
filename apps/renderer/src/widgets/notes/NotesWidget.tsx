@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Eye, Pencil, Plus, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useNotesStore } from '../../store/notesStore';
+
+// Module-level so the plugin array stays referentially stable across renders.
+const MD_PLUGINS = [remarkGfm];
 import { cn } from '../../lib/utils';
 
 /** Inline rename input — mounted in place of the tab label while renaming. */
@@ -110,7 +114,7 @@ export function NotesWidget() {
         {rendered ? (
           <div className="md-render h-full overflow-y-auto text-th-2 text-xs leading-relaxed">
             {active.content.trim()
-              ? <ReactMarkdown>{active.content}</ReactMarkdown>
+              ? <ReactMarkdown remarkPlugins={MD_PLUGINS}>{active.content}</ReactMarkdown>
               : <span className="text-th-ghost">Nothing to preview</span>}
           </div>
         ) : (

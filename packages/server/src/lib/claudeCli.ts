@@ -294,12 +294,17 @@ export function parseStreamJsonLine(line: string): ClaudeStreamEvent[] {
     case 'result': {
       // {type:'result',subtype,is_error,duration_ms,usage:{output_tokens,...},...}
       const usage = asRecord(obj.usage);
+      const num = (v: unknown): number => (typeof v === 'number' ? v : 0);
+      const contextTokens = usage
+        ? num(usage.input_tokens) + num(usage.cache_read_input_tokens) + num(usage.cache_creation_input_tokens)
+        : null;
       return [
         {
           type: 'done',
           isError: obj.is_error === true,
           durationMs: typeof obj.duration_ms === 'number' ? obj.duration_ms : 0,
           outputTokens: usage && typeof usage.output_tokens === 'number' ? usage.output_tokens : null,
+          contextTokens,
         },
       ];
     }

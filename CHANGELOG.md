@@ -4,6 +4,27 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #115] fix: Claude widget polish — unclipped popovers, context meter, full GFM markdown
+
+**Branch:** `fix/claude-widget-polish` → `master`
+**Date:** 2026-07-11
+
+### Context
+The usage popover's bars looked mis-filled in narrow grid tiles: the `w-64` panel was absolutely positioned inside the tile and `WidgetShell`'s `overflow-hidden` clipped its left side — bars lost their left portion while the right-aligned % labels survived. Also: no way to see the current conversation's context consumption, and markdown lacked GFM (tables/strikethrough/task lists rendered as plain text).
+
+### Fixed
+- Model/effort + usage popovers render through a **portal** (`createPortal` to body, fixed positioning anchored to the trigger, viewport-clamped) — no widget bounds can clip them; bars now always match their labels. Defensive server-side normalization added for fraction-shaped (0–1) usage responses.
+
+### Added
+- **Context meter** in the usage popover: "Context — this chat X / 200.0k" with the same color-coded bar; fed by a new `contextTokens` field on the `done` frame (input + cache-read + cache-creation tokens from the CLI result frame), persisted as `lastContextTokens`.
+- **Full GFM markdown** in the Claude widget *and* Notes preview: `remark-gfm` (tables, strikethrough, task lists, autolinks) + `.md-render` CSS for tables/del/task-list items; assistant-message links open in the system browser via `openExternal` (`window.open` fallback in dev).
+
+### Notes
+- `finishAssistant` signature gains `contextTokens`; a turn without usage keeps the previous meter value.
+- 200k context window is an assumed constant (`CLAUDE_CONTEXT_WINDOW` in `@dash/shared`).
+
+---
+
 ## [PR #113] feat: Claude widget v2 — model/effort controls, plan mode, slash autocomplete, usage, loading shimmer
 
 **Branch:** `feat/claude-widget-v2` → `master`

@@ -17,7 +17,7 @@ export type {
   ClaudeStatusData, ClaudeStreamEvent, ClaudeChatRequestBody, ClaudeChatMode, ClaudeEffort,
   ClaudeSlashCommand, ClaudeMetaData, ClaudeUsageWindow, ClaudeUsageData,
 } from './types/claude';
-export { CLAUDE_EFFORTS } from './types/claude';
+export { CLAUDE_EFFORTS, CLAUDE_CONTEXT_WINDOW } from './types/claude';
 export type { CryptoCoinData, CryptoData } from './types/crypto';
 export type { IpcChannels, ElectronAPI, LauncherItemData, LauncherGroupData, LauncherStateData, ClipboardEntryData, AppPrefsData, UpdateCheckData } from './types/ipc';
 export type { CredentialKey, CredentialDef } from './types/credentials';
