@@ -4,6 +4,31 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #123] fix: Discord embed feels like a widget — live resize handles, gesture-frozen resizing, auto zoom, compact CSS
+
+**Branch:** `fix/discord-embed-polish` → `master`
+**Date:** 2026-07-14
+
+### Context
+The Discord `<webview>` lives in an app-lifetime `position:fixed z-30` host overlaying the tile's rAF-tracked rect (load-bearing: the guest must never unmount/`display:none` or Discord logs out — see `discordStore`). Three defects made it feel like a foreign window instead of a widget: RGL's resize handles render INSIDE each grid item (a transform-created stacking context, so no z-index can lift them above the root-level host) — every handle under the webview (s/se/sw/e/w) was dead; the rAF loop resized the host per mousemove during grid gestures, forcing the guest WebContents into async relayouts (tearing, Discord breakpoint thrash); and the guest rendered desktop-width Discord into narrow tiles with a theme-colored splash flash. The host architecture is unchanged — this is polish on top of it.
+
+### Fixed
+- **Dead resize handles — padded frame.** The tile body now wraps a `p-2` gutter and publishes the INNER div's rect, so the fixed host floats ~8px inside the tile: RGL's edge/corner hit areas are exposed all around, and the tile's own border/background visibly frames the embed. Host corners are now `rounded-md` on all four (all are visible inside the gutter).
+- **Resize/drag jank — gesture freeze + settle debounce.** New ephemeral `discordStore.interacting` flag, set by `DashboardGrid`'s `onDragStart`/`onResizeStart` and cleared in `onDragStop`/`onResizeStop` (any tile's gesture — harmless when Discord isn't around). While interacting, the host applies rect x/y per frame but FREEZES width/height at the last settled size and goes `pointer-events:none` (grid mousemoves must not hit the guest); the final size applies once on gesture end. Outside gestures, size changes settle via a 120 ms trailing debounce (window resizes stream per-frame rects) — position always tracks live. The style/settle decision is a pure helper `nextHostStyle(rect, interacting, settledSize)` in `widgets/discord/lib.ts`, unit-tested.
+
+### Added
+- **Auto zoom.** `zoomForWidth(width)` steps the guest zoom by SETTLED tile width — ≥900px → 1.0, ≥700 → 0.9, ≥550 → 0.85, else 0.75 — applied on webview `dom-ready` and re-applied only when the settled width crosses a breakpoint or after a reload (never per frame). `setZoomFactor`/`insertCSS` added to the `DiscordWebviewElement` interface, signatures pinned against electron@33.4.11 `WebviewTag` typings.
+- **Compact CSS.** `DISCORD_COMPACT_CSS` hides the members list (`[class*="membersWrap"]`) via `insertCSS` on every `dom-ready` (inserted CSS doesn't survive reload/navigation). FAIL-SOFT: Discord's hashed class names keep semantic prefixes; if the prefix rots the selector matches nothing and the stock layout shows. Server rail + channel sidebar deliberately kept ("see a server"). No settings toggle yet — Settings files are owned by another in-flight PR; a toggle can follow.
+
+### Changed
+- Loading splash background is now Discord's own dark chrome (`#313338`) instead of the app theme surface — no white/theme flash before the guest paints.
+
+### Notes
+- Unit tests cover `zoomForWidth` breakpoint boundaries and all `nextHostStyle` branches (hidden, first-show, mid-gesture freeze, hold, debounce) in `lib.test.ts`.
+- Not verifiable in unit tests (real `<webview>` needed): handle hit-areas around the gutter, gesture-frozen resizing feel, zoom steps, and the members-list hide — verify in `pnpm dev` / a packaged build.
+
+---
+
 ## [PR #122] feat: accordion collapse/expand exchanges space with the widget below (no full-grid reflow)
 
 **Branch:** `feat/accordion-space-steal` → `master`
