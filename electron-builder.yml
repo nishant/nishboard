@@ -54,6 +54,11 @@ win:
 mac:
   target: dmg
   icon: build/icon.icns
+  # macOS-only: without these Info.plist usage strings, TCC silently denies the
+  # mic/camera to the packaged app — Discord widget voice would just not work.
+  extendInfo:
+    NSMicrophoneUsageDescription: Voice chat in the Discord widget uses the microphone.
+    NSCameraUsageDescription: Video chat in the Discord widget uses the camera.
 
 nsis:
   oneClick: false

@@ -5,6 +5,7 @@ import { registerIpcHandlers } from './ipc';
 import { createTray, destroyTray } from './tray';
 import { readPrefs } from './prefs';
 import { closeAllPopouts } from './popout';
+import { initDiscordSession, registerWebviewGuards } from './discord';
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -66,6 +67,9 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // For the Discord widget's <webview> ONLY — every attach is validated by
+      // registerWebviewGuards() (discord.com src, preload/node stripped).
+      webviewTag: true,
     },
   });
 
@@ -138,6 +142,11 @@ app.whenReady().then(async () => {
       callback({ responseHeaders });
     },
   );
+
+  // Discord widget plumbing — partition session + <webview> attach guards must
+  // exist before any window can host the webview.
+  initDiscordSession();
+  registerWebviewGuards();
 
   await spawnServer();
   registerIpcHandlers(ipcMain, { onPrefsChanged: syncGlobalHotkey });

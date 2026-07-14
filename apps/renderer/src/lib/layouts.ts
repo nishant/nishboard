@@ -4,13 +4,15 @@ export type WidgetId =
   | 'weather' | 'spotify' | 'stocks' | 'hardware' | 'sound' | 'calendar' | 'youtube' | 'twitch'
   | 'tasks' | 'worldclock' | 'notes' | 'timer' | 'countdown' | 'news' | 'crypto' | 'launcher' | 'clipboard'
   | 'claude'
-  | 'netmon';
+  | 'netmon'
+  | 'discord';
 
 export const ALL_WIDGET_IDS: WidgetId[] = [
   'weather', 'spotify', 'stocks', 'hardware', 'sound', 'calendar', 'youtube', 'twitch',
   'tasks', 'worldclock', 'notes', 'timer', 'countdown', 'news', 'crypto', 'launcher', 'clipboard',
   'claude',
   'netmon',
+  'discord',
 ];
 
 export const WIDGET_TITLES: Record<WidgetId, string> = {
@@ -33,6 +35,7 @@ export const WIDGET_TITLES: Record<WidgetId, string> = {
   clipboard: 'Clipboard',
   claude: 'Claude',
   netmon: 'Net Monitor',
+  discord: 'Discord',
 };
 
 export interface NamedLayout {
@@ -234,6 +237,8 @@ export const WIDGET_CONSTRAINTS: Record<WidgetId, { minW: number; minH: number }
   // Chat needs room for the input row + a few message lines.
   claude:     { minW: 3, minH: 3 },
   netmon:     { minW: 3, minH: 2 },
+  // The full Discord web app — needs real vertical room to be usable.
+  discord:    { minW: 3, minH: 3 },
 };
 
 /** Clamp each item's minW/minH to the authoritative WIDGET_CONSTRAINTS. Used to

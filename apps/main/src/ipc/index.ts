@@ -12,6 +12,9 @@ import {
 import {
   setClipboardWatch, getClipboardHistory, copyClipboardEntry, clearClipboardHistory,
 } from '../clipboardHistory';
+import {
+  signOutDiscord, setDiscordScreenShareWatch, selectDiscordScreenShareSource,
+} from '../discord';
 import { readPrefs, writePrefs } from '../prefs';
 import { openPopout, closePopout, openPopoutIds } from '../popout';
 import type { CredentialKey, AppPrefsData } from '@dash/shared';
@@ -139,6 +142,14 @@ export function registerIpcHandlers(
   ipcMain.handle('clipboard:clear', () => clearClipboardHistory());
   ipcMain.handle('clipboard:set-enabled', (event, enabled: boolean) =>
     setClipboardWatch(enabled === true, event.sender));
+
+  // ── Discord widget (persist:discord webview — sign-out + screen-share picker) ─
+
+  ipcMain.handle('discord:sign-out', () => signOutDiscord());
+  ipcMain.handle('discord:screenshare-watch', (event, enabled: boolean) =>
+    setDiscordScreenShareWatch(enabled === true, event.sender));
+  ipcMain.handle('discord:screenshare-select', (_event, requestId: string, sourceId: string | null) =>
+    selectDiscordScreenShareSource(String(requestId), sourceId === null ? null : String(sourceId)));
 
   // ── Credentials ─────────────────────────────────────────────────────────────
 
