@@ -39,8 +39,6 @@ interface WidgetEntry {
   Component: React.ComponentType;
   /** Rendered in the WidgetShell header's hover-revealed action row. */
   Actions?: React.ComponentType;
-  /** Keep the body mounted (hidden) while collapsed — see WidgetShell. */
-  keepMounted?: boolean;
 }
 
 export const WIDGET_REGISTRY: Record<WidgetId, WidgetEntry> = {
@@ -63,8 +61,9 @@ export const WIDGET_REGISTRY: Record<WidgetId, WidgetEntry> = {
   clipboard: { Component: ClipboardWidget, Actions: ClipboardActions },
   claude: { Component: ClaudeWidget, Actions: ClaudeActions },
   netmon: { Component: NetworkMonitorWidget, Actions: NetworkMonitorActions },
-  // keepMounted: collapsing must not unmount the webview (voice would drop).
-  discord: { Component: DiscordWidget, Actions: DiscordActions, keepMounted: true },
+  // The webview itself lives in the app-lifetime DiscordHost (App.tsx) — this
+  // tile only positions it, so unmounting here never drops the session.
+  discord: { Component: DiscordWidget, Actions: DiscordActions },
 };
 
 /** Rightmost header action on EVERY widget: float it in its own window.
@@ -190,7 +189,7 @@ export function DashboardGrid() {
     >
       {visibleLayout.map((item) => {
         const id = item.i as WidgetId;
-        const { Component, Actions, keepMounted } = WIDGET_REGISTRY[id];
+        const { Component, Actions } = WIDGET_REGISTRY[id];
         const isPopped = popped.includes(id);
         const isCollapsed = collapsed[id] ?? false;
         return (
@@ -198,7 +197,6 @@ export function DashboardGrid() {
             <WidgetShell
               title={WIDGET_TITLES[id]}
               collapsed={isCollapsed}
-              keepMounted={keepMounted}
               onToggleCollapse={() => {
                 const next = !isCollapsed;
                 // Keep the two stores in lockstep: the boolean drives the body,
