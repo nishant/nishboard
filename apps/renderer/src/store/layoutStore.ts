@@ -21,6 +21,50 @@ export function collapsedRowsFor(rowHeight: number, gap: number): number {
   return Math.max(1, Math.ceil((TITLEBAR_PX + gap) / (rowHeight + gap)));
 }
 
+/** Find the visible, non-collapsed widgets sitting DIRECTLY below `item`
+ *  (`y === item.y + item.h`) that together tile its exact x-span. These are the
+ *  accordion partners: collapse gifts them the freed rows, expand steals the rows
+ *  back — their bottom edges never move, so the layout stays gap-free, RGL's
+ *  vertical compaction is a no-op, and the viewport-derived rowHeight is
+ *  untouched. Returns null (→ caller falls back to plain shrink/restore + RGL
+ *  reflow) when the row below doesn't qualify:
+ *  - nothing visible starts exactly at the item's bottom edge within its span,
+ *  - a candidate sticks out past the span (it would corrupt columns outside it),
+ *  - the candidates don't tile the span exactly (gap or overlap),
+ *  - a candidate is itself collapsed (height-locked — can't give or take rows).
+ *  Hidden widgets are ignored entirely — they don't participate in grid geometry.
+ *  Exported for tests. */
+export function exactNeighborsBelow(
+  layout: Layout[],
+  visibleWidgets: WidgetId[],
+  item: Layout,
+  savedHeights: Partial<Record<WidgetId, number>>,
+): Layout[] | null {
+  const bottom = item.y + item.h;
+  const right = item.x + item.w;
+  const visible = new Set<string>(visibleWidgets);
+  const candidates = layout.filter(
+    (it) =>
+      it.i !== item.i &&
+      visible.has(it.i) &&
+      it.y === bottom &&
+      it.x < right &&
+      it.x + it.w > item.x,
+  );
+  if (candidates.length === 0) return null;
+  for (const n of candidates) {
+    if (n.x < item.x || n.x + n.w > right) return null;
+    if (savedHeights[n.i as WidgetId] !== undefined || n.isResizable === false) return null;
+  }
+  const sorted = [...candidates].sort((a, b) => a.x - b.x);
+  let cursor = item.x;
+  for (const n of sorted) {
+    if (n.x !== cursor) return null; // gap (or overlap) in the tiling
+    cursor += n.w;
+  }
+  return cursor === right ? sorted : null;
+}
+
 /** A user-saved layout: tile positions/sizes + which tiles are pinned (visible). */
 export interface SavedCustomLayout {
   id: string;
@@ -48,11 +92,17 @@ interface LayoutState {
   syncLayout: (layout: Layout[]) => void;
   /** A real pointer gesture (drag/resize stop) — the layout is now custom. */
   markUserEdited: () => void;
-  /** Collapse/expand a widget to its title bar. On collapse: stash the current `h`
-   *  in savedHeights, shrink `h` to fit the title bar, and lock it (minH=maxH=h,
-   *  isResizable:false) so RGL compaction can't grow it. On expand: restore `h`,
-   *  drop the lock. Height is viewport-derived, so callers pass the live rowHeight
-   *  and gap. compactType:'vertical' reflows the rest automatically. */
+  /** Collapse/expand a widget to/from its title bar, accordion-style. On collapse:
+   *  stash the current `h` in savedHeights, shrink `h` to fit the title bar, and
+   *  lock it (minH=maxH=h, isResizable:false) so RGL compaction can't grow it; the
+   *  freed rows are GIFTED to the widgets directly below (exactNeighborsBelow) so
+   *  their bottom edges — and the rest of the grid — stay put. On expand: restore
+   *  `h`, drop the lock, and STEAL the rows back from those same neighbors,
+   *  provided each stays ≥ its WIDGET_CONSTRAINTS minH. Whenever the row below
+   *  doesn't qualify (nothing below, partial tiling, overhang, collapsed neighbor,
+   *  not enough spare rows) fall back to plain shrink/restore and let
+   *  compactType:'vertical' reflow the rest. Height is viewport-derived, so
+   *  callers pass the live rowHeight and gap. */
   setWidgetCollapsed: (id: WidgetId, collapsed: boolean, rowHeight: number, gap: number) => void;
   applyPreset: (name: string) => void;
   resetToDefault: () => void;
@@ -96,11 +146,20 @@ export const useLayoutStore = create<LayoutState>()(
 
           if (collapsed) {
             const collapsedH = collapsedRowsFor(rowHeight, gap);
-            const layout = s.layout.map((it) =>
-              it.i === id
-                ? { ...it, h: collapsedH, minH: collapsedH, maxH: collapsedH, isResizable: false }
-                : it,
-            );
+            const delta = item.h - collapsedH;
+            // Accordion gift: hand the freed rows to the widgets directly below —
+            // they grow upward (y -= delta, h += delta), bottoms fixed, so nothing
+            // else on the grid moves and rowHeight stays constant. This is also
+            // what lets the later expand take the same rows back in place.
+            const giftNeighbors =
+              delta > 0 ? exactNeighborsBelow(s.layout, s.visibleWidgets, item, s.savedHeights) : null;
+            const giftIds = new Set((giftNeighbors ?? []).map((n) => n.i));
+            const layout = s.layout.map((it) => {
+              if (it.i === id)
+                return { ...it, h: collapsedH, minH: collapsedH, maxH: collapsedH, isResizable: false };
+              if (giftIds.has(it.i)) return { ...it, y: it.y - delta, h: it.h + delta };
+              return it;
+            });
             return {
               layout,
               savedHeights: { ...s.savedHeights, [id]: item.h },
@@ -111,11 +170,30 @@ export const useLayoutStore = create<LayoutState>()(
           }
 
           const restoredH = s.savedHeights[id] ?? constraints.minH ?? DEFAULT_EXPAND_H;
+          const delta = restoredH - item.h;
+          // Accordion steal: take the rows back from the widgets directly below,
+          // but only if every one of them can spare `delta` rows while staying at
+          // or above its own WIDGET_CONSTRAINTS minH floor (NOT the item's minH,
+          // which may be stale). Otherwise fall back to the plain restore and let
+          // RGL's vertical compaction push everything below down.
+          const neighbors =
+            delta > 0 ? exactNeighborsBelow(s.layout, s.visibleWidgets, item, s.savedHeights) : null;
+          const stealNeighbors =
+            neighbors &&
+            neighbors.every(
+              (n) => n.h - delta >= (WIDGET_CONSTRAINTS[n.i as WidgetId]?.minH ?? 1),
+            )
+              ? neighbors
+              : null;
+          const stealIds = new Set((stealNeighbors ?? []).map((n) => n.i));
           const layout = s.layout.map((it) => {
-            if (it.i !== id) return it;
-            const { maxH: _drop, ...rest } = it;
-            void _drop;
-            return { ...rest, h: restoredH, minH: constraints.minH, isResizable: true };
+            if (it.i === id) {
+              const { maxH: _drop, ...rest } = it;
+              void _drop;
+              return { ...rest, h: restoredH, minH: constraints.minH, isResizable: true };
+            }
+            if (stealIds.has(it.i)) return { ...it, y: it.y + delta, h: it.h - delta };
+            return it;
           });
           const { [id]: _removed, ...remainingHeights } = s.savedHeights;
           void _removed;

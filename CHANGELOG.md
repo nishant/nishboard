@@ -4,6 +4,26 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #122] feat: accordion collapse/expand exchanges space with the widget below (no full-grid reflow)
+
+**Branch:** `feat/accordion-space-steal` → `master`
+**Date:** 2026-07-14
+
+### Context
+Expanding a collapsed widget used to push everything below it down, growing the grid's total rows — and because `rowHeight` is viewport-derived, the WHOLE dashboard rescaled on every chevron click. Nish wants the accordion to be local: take the space from the widget directly below, leave everything else alone.
+
+### Changed
+- **`layoutStore.setWidgetCollapsed` is now an in-place accordion.** Collapse **gifts** the freed rows to the visible widgets directly below (`y -= delta, h += delta` — they grow upward, bottom edges fixed); expand **steals** the rows back (`y += delta, h -= delta`), provided every neighbor stays ≥ its `WIDGET_CONSTRAINTS` minH (read from the constants, not the item's possibly-stale `minH`). The layout stays gap-free, so react-grid-layout's vertical compaction is a no-op and the viewport-derived `rowHeight` never changes — nothing else on the grid moves.
+- New pure helper `exactNeighborsBelow(layout, visibleWidgets, item, savedHeights)` (exported for tests): qualifies the row below only when every candidate starts exactly at the widget's bottom edge, lies fully inside its x-span, tiles that span exactly (no gaps/overlap/overhang), is visible, and isn't itself collapsed (height-locked).
+- **Fallback preserved:** any disqualification — nothing below, partial tiling, a neighbor sticking out of the span, a collapsed neighbor, or a neighbor without enough spare rows (possible if tiles were rearranged while collapsed) — falls back to the previous behavior: plain shrink/restore + RGL compaction reflow.
+
+### Notes
+- Because collapse gifts exactly the rows expand later takes back, a collapse→expand cycle round-trips to the exact original geometry (unit-tested), and the expand's minH check only fails if the user rearranged things in between.
+- Unchanged semantics: `savedHeights` stash/restore, the collapse lock (`minH=maxH=h`, `isResizable:false`), `activePreset`/`activeCustomLayoutId` cleared on collapse, hidden widgets ignored by grid geometry, and `DashboardGrid`'s rowHeight-reconciliation effect for collapsed items.
+- Unit tests: neighbor qualification (sorting, overhang, gaps, wrong row), single- and multi-neighbor give/take, exact round-trip, all fallback paths, hidden-widget adjacency (`layoutStore.test.ts`).
+
+---
+
 ## [PR #121] feat: one-click Claude CLI login from Settings
 
 **Branch:** `feat/claude-login-button` → `master`
