@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Titlebar } from './components/Titlebar';
 import { DashboardGrid } from './components/DashboardGrid';
+import { DiscordHost } from './widgets/discord/DiscordHost';
 import { ToastHost } from './components/ToastHost';
 import { CommandPalette } from './components/CommandPalette';
 import { AlertsEvaluator } from './components/AlertsEvaluator';
@@ -127,6 +128,9 @@ export function App() {
         </div>
         <ToastHost />
         <CommandPalette />
+        {/* App-lifetime Discord webview — overlays the widget tile's rect and
+            merely hides when the tile is gone, so the session never drops. */}
+        <DiscordHost />
       </div>
     </QueryClientProvider>
   );

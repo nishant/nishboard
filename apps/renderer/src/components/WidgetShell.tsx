@@ -11,14 +11,9 @@ interface WidgetShellProps {
   collapsed?: boolean;
   /** Toggle handler for the chevron. Omit to hide the collapse control. */
   onToggleCollapse?: () => void;
-  /** Keep the body MOUNTED (in a zero-height wrapper) while collapsed instead
-   *  of dropping it. For widgets with live sessions that must survive collapse
-   *  (Discord's webview — voice keeps playing). NEVER swap this for
-   *  display:none: a hidden webview's guest blanks/dies. */
-  keepMounted?: boolean;
 }
 
-export function WidgetShell({ title, children, actions, className, collapsed = false, onToggleCollapse, keepMounted = false }: WidgetShellProps) {
+export function WidgetShell({ title, children, actions, className, collapsed = false, onToggleCollapse }: WidgetShellProps) {
   // The chevron and the widget's own actions share the hover-revealed row. The
   // chevron is FIRST so its position is stable across widgets.
   const actionRow = (onToggleCollapse || actions) && (
@@ -44,15 +39,11 @@ export function WidgetShell({ title, children, actions, className, collapsed = f
         <span className="text-xs font-medium text-th-3 uppercase tracking-widest">{title}</span>
         {actionRow}
       </div>
-      {!collapsed ? (
+      {!collapsed && (
         <div className="flex-1 min-h-0 overflow-hidden">
           {children}
         </div>
-      ) : keepMounted ? (
-        <div className="h-0 overflow-hidden" aria-hidden>
-          {children}
-        </div>
-      ) : null}
+      )}
     </div>
   );
 }

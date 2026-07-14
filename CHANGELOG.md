@@ -4,6 +4,28 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #119] fix: Discord stays signed in across layout switches — app-lifetime webview host
+
+**Branch:** `fix/discord-persistent-session` → `master`
+**Date:** 2026-07-14
+
+### Context
+Switching layouts (or unpinning) logged Nish out of the Discord widget every time. Root cause is a Discord anti-token-theft measure, not storage: Discord web reads its auth token OUT of localStorage into memory on startup and only writes it back on a **graceful unload** (`beforeunload`). Unmounting a `<webview>` destroys the guest **abruptly** — no unload ever fires, the token is never restored, and the next mount lands on the login screen. Partition persistence was never the problem; the guest simply must not be destroyed mid-session.
+
+### Fixed
+- **The webview moved out of the widget into `DiscordHost`** (`apps/renderer/src/widgets/discord/DiscordHost.tsx`) — mounted ONCE per window (App, and a discord popout's own shell), `position:fixed` at `z-30` (above grid tiles, below menus/portals). The grid tile is now just an activator + rect publisher: an rAF loop reads its body `getBoundingClientRect()` (rAF, not ResizeObserver — RGL animates tiles via CSS transforms observers can't see) and the host overlays that rect. Tile collapsed/unpinned/absent → host shrinks to **0×0, never `display:none`, never unmounted** → **signed-in session AND live voice calls survive layout switches, unpins, and collapse for the whole app run**.
+- All widget overlays (screen-share picker, sign-out confirm, unread badge, loading/error) moved into the host with the webview.
+
+### Removed
+- `WidgetShell`'s `keepMounted` prop (added in #118 for Discord's collapse case) — dead code now: the tile placeholder is trivially cheap to unmount, and the guest's survival no longer depends on the tile staying mounted.
+
+### Notes
+- Popping Discord out gives the popout window its own host/webview (separate renderer); the main window's host hides but stays alive — two Discord clients run while popped out (same as two browser tabs). Closing the popout window is a graceful close.
+- Quitting the app still ends the session's guest; whether the token survives a quit depends on Discord's unload handler getting to run. If restarts ever show a logout, the next lever is force-running graceful guest closes on `before-quit`.
+- The share-picker/sign-out overlays are invisible while the tile is hidden (0×0 host) — pending share requests deny on the 60s timeout, unchanged.
+
+---
+
 ## [PR #118] feat: Discord widget — embedded Discord web with voice + screen share
 
 **Branch:** `feat/discord-widget` → `master`

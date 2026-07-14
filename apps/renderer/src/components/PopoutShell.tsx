@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { X } from 'lucide-react';
 import { ThemeManager } from '../App';
 import { WIDGET_REGISTRY } from './DashboardGrid';
+import { DiscordHost } from '../widgets/discord/DiscordHost';
 import { HeaderAction } from './HeaderAction';
 import { WIDGET_TITLES } from '../lib/layouts';
 import type { WidgetId } from '../lib/layouts';
@@ -46,6 +47,9 @@ export function PopoutShell({ widgetId }: { widgetId: WidgetId }) {
         <div className="flex-1 min-h-0 overflow-hidden bg-th-surface">
           <Component />
         </div>
+        {/* A popped-out Discord gets its own host in THIS window (separate
+            renderer — the main window's host hides meanwhile). */}
+        {widgetId === 'discord' && <DiscordHost />}
       </div>
     </QueryClientProvider>
   );
