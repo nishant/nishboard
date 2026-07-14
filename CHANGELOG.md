@@ -4,7 +4,7 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
-## [PR #TBD] fix: Discord embed feels like a widget — live resize handles, gesture-frozen resizing, auto zoom, compact CSS
+## [PR #123] fix: Discord embed feels like a widget — live resize handles, gesture-frozen resizing, auto zoom, compact CSS
 
 **Branch:** `fix/discord-embed-polish` → `master`
 **Date:** 2026-07-14
