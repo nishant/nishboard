@@ -4,14 +4,52 @@ import { useLayoutStore } from '../../store/layoutStore';
 import { cn } from '../../lib/utils';
 import { Backdrop, noDragStyle } from './primitives';
 
-/** Compact left-side quick-switcher: the pinned presets collapsed into a dropdown. */
-export function PinnedLayoutsMenu() {
-  const { activePreset, applyPreset, pinnedPresets } = useLayoutStore();
-  const [open, setOpen] = useState(false);
-  if (pinnedPresets.length === 0) return null;
+/** One titlebar quick-switch chip — a pinned preset (name-keyed) or a pinned
+ *  saved custom layout (id-keyed). */
+interface PinnedEntry {
+  key: string;
+  label: string;
+  active: boolean;
+  apply: () => void;
+}
 
-  // Show the active preset's name when it's a pinned one; otherwise a neutral label.
-  const label = activePreset && pinnedPresets.includes(activePreset) ? activePreset : 'Layouts';
+/** Presets first, then custom layouts, each in their pin order. Pinned ids
+ *  whose layout was deleted are filtered store-side, but stay defensive. */
+function usePinnedEntries(): PinnedEntry[] {
+  const {
+    activePreset, applyPreset, pinnedPresets,
+    pinnedCustomLayouts, savedCustomLayouts, activeCustomLayoutId, applyCustomLayout,
+  } = useLayoutStore();
+
+  const presets: PinnedEntry[] = pinnedPresets.map((name) => ({
+    key: `preset:${name}`,
+    label: name,
+    active: activePreset === name,
+    apply: () => applyPreset(name),
+  }));
+
+  const customs: PinnedEntry[] = pinnedCustomLayouts.flatMap((id) => {
+    const cl = savedCustomLayouts.find((l) => l.id === id);
+    if (!cl) return [];
+    return [{
+      key: `custom:${id}`,
+      label: cl.name,
+      active: activeCustomLayoutId === id,
+      apply: () => applyCustomLayout(id),
+    }];
+  });
+
+  return [...presets, ...customs];
+}
+
+/** Compact left-side quick-switcher: the pinned layouts collapsed into a dropdown. */
+export function PinnedLayoutsMenu() {
+  const entries = usePinnedEntries();
+  const [open, setOpen] = useState(false);
+  if (entries.length === 0) return null;
+
+  // Show the active layout's name when it's a pinned one; otherwise a neutral label.
+  const label = entries.find((e) => e.active)?.label ?? 'Layouts';
 
   return (
     <div className="relative" style={noDragStyle}>
@@ -34,18 +72,18 @@ export function PinnedLayoutsMenu() {
         <>
           <Backdrop onClose={() => setOpen(false)} />
           <div className="absolute left-0 top-full mt-1 z-50 bg-th-surface border border-th-line rounded-lg shadow-xl py-1 min-w-[140px]">
-            {pinnedPresets.map((name) => (
+            {entries.map((e) => (
               <button
-                key={name}
-                onClick={() => { applyPreset(name); setOpen(false); }}
+                key={e.key}
+                onClick={() => { e.apply(); setOpen(false); }}
                 className={cn(
                   'w-full text-left px-3 py-1.5 text-[11px] transition-colors',
-                  activePreset === name
+                  e.active
                     ? 'bg-th-elevated text-th-hi'
                     : 'text-th-2 hover:bg-th-elevated/60 hover:text-th-hi',
                 )}
               >
-                {name}
+                {e.label}
               </button>
             ))}
           </div>
@@ -55,25 +93,25 @@ export function PinnedLayoutsMenu() {
   );
 }
 
-/** Full-width left side: the pinned presets as inline buttons. */
-export function InlinePinnedPresets() {
-  const { activePreset, applyPreset, pinnedPresets } = useLayoutStore();
-  if (pinnedPresets.length === 0) return null;
+/** Full-width left side: the pinned layouts (presets + customs) as inline buttons. */
+export function InlinePinnedLayouts() {
+  const entries = usePinnedEntries();
+  if (entries.length === 0) return null;
 
   return (
     <div style={noDragStyle} className="flex items-center gap-0.5 min-w-0">
-      {pinnedPresets.map((name) => (
+      {entries.map((e) => (
         <button
-          key={name}
-          onClick={() => applyPreset(name)}
+          key={e.key}
+          onClick={e.apply}
           className={cn(
             'px-2 py-0.5 rounded text-[11px] font-medium transition-colors truncate',
-            activePreset === name
+            e.active
               ? 'bg-th-elevated text-th-hi'
               : 'text-th-ghost hover:text-th-hi hover:bg-th-elevated/60',
           )}
         >
-          {name}
+          {e.label}
         </button>
       ))}
     </div>

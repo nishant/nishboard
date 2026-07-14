@@ -76,6 +76,7 @@ type LayoutPanel = 'list' | 'custom-list' | 'editor';
 export function LayoutsMenu({ compact }: { compact: boolean }) {
   const {
     activePreset, applyPreset, pinnedPresets, pinPreset, unpinPreset,
+    pinnedCustomLayouts, pinCustomLayout, unpinCustomLayout,
     visibleWidgets, showWidget, hideWidget,
     savedCustomLayouts, activeCustomLayoutId,
     saveCustomLayout, deleteCustomLayout, applyCustomLayout, updateCustomLayout,
@@ -194,16 +195,21 @@ export function LayoutsMenu({ compact }: { compact: boolean }) {
                 {savedCustomLayouts.length > 0 && (
                   <>
                     <div className="h-px bg-th-line mx-3 my-1" />
-                    {savedCustomLayouts.map((cl) => (
-                      <SavedItemRow
-                        key={cl.id}
-                        name={cl.name}
-                        active={activeCustomLayoutId === cl.id}
-                        icon={<LayoutGrid size={11} className="shrink-0 text-th-ghost" />}
-                        onApply={() => { applyCustomLayout(cl.id); setEditTarget(cl); setPanel('editor'); }}
-                        onDelete={() => setDeleteTarget(cl)}
-                      />
-                    ))}
+                    {savedCustomLayouts.map((cl) => {
+                      const pinned = pinnedCustomLayouts.includes(cl.id);
+                      return (
+                        <SavedItemRow
+                          key={cl.id}
+                          name={cl.name}
+                          active={activeCustomLayoutId === cl.id}
+                          icon={<LayoutGrid size={11} className="shrink-0 text-th-ghost" />}
+                          onApply={() => { applyCustomLayout(cl.id); setEditTarget(cl); setPanel('editor'); }}
+                          onDelete={() => setDeleteTarget(cl)}
+                          pinned={pinned}
+                          onTogglePin={() => (pinned ? unpinCustomLayout(cl.id) : pinCustomLayout(cl.id))}
+                        />
+                      );
+                    })}
                   </>
                 )}
               </>

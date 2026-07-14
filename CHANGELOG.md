@@ -4,6 +4,24 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #120] feat: pin custom layouts to the titlebar quick-switch bar
+
+**Branch:** `feat/pin-custom-layouts` → `master`
+**Date:** 2026-07-14
+
+### Context
+The top-left titlebar bar could only pin built-in presets — saved custom layouts were reachable only through Layouts → Custom. Nish wants his custom layouts one click away too.
+
+### Added
+- **Pin toggle on saved custom layouts** (Layouts → Custom → hover a saved layout): pins/unpins it to the titlebar bar, exactly like presets. Store: `pinnedCustomLayouts` (ids, not names — names aren't unique) + `pinCustomLayout`/`unpinCustomLayout`; deleting a layout also unpins it, and rehydrate prunes ids whose layout no longer exists.
+- The titlebar quick-switch (inline chips when wide, dropdown when compact) now renders **presets first, then pinned customs**, each applying via its own path (`applyPreset` / `applyCustomLayout`) with the active one highlighted; `InlinePinnedPresets` renamed `InlinePinnedLayouts`.
+- `SavedItemRow` (shared saved-layouts/saved-themes row) grew optional `pinned`/`onTogglePin` props — themes are unaffected.
+
+### Notes
+- Unit tests: pin idempotence, delete-unpins, rehydrate pruning (`layoutStore.test.ts`).
+
+---
+
 ## [PR #119] fix: Discord stays signed in across layout switches — app-lifetime webview host
 
 **Branch:** `fix/discord-persistent-session` → `master`
