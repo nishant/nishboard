@@ -4,6 +4,34 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #TBD] feat: Discord native mode — RPC voice controls + live chat feed via the desktop client
+
+**Branch:** `feat/discord-native-rpc` → `master`
+**Date:** 2026-07-14
+
+### Context
+The `<webview>` embed is full Discord, but it's heavy for the ambient at-a-glance case and its controls live inside Discord's own UI. Discord's **local RPC API** — a JSON protocol over a named pipe to the RUNNING desktop client — exposes exactly the ambient feature set: browse, read, voice control, speaking state. Nish owns the Discord application (owner accounts get RPC access with no tester allowlist), so no approval process applies. The embed stays as the second mode for DMs/replying/full Discord; `DiscordHost` internals are untouched.
+
+### Added
+- **Server pipe client** `packages/server/src/lib/discordRpc.ts` (no new dependencies): `net.connect` across `discord-ipc-0…9` — Windows-only `\\?\pipe\…`, macOS/Linux-only `$XDG_RUNTIME_DIR`/`$TMPDIR`/`/tmp` — with LE `int32 op`+`int32 len`+JSON framing (`encodeRpcFrame` + chunk-safe `RpcFrameDecoder`, both pure and unit-tested against split/coalesced/empty frames). HANDSHAKE→READY, nonce-matched commands, DISPATCH fan-out, PING answered with PONG defensively (keepalive verified optional). Wire gotcha pinned in code: **SUBSCRIBE/UNSUBSCRIBE carry the event name top-level as `evt`, not in `args`**.
+- **Auth**: AUTHORIZE over the pipe (scopes `rpc rpc.voice.read rpc.voice.write rpc.notifications.read messages.read`) pops Discord's own consent modal → code exchange at `discord.com/api/oauth2/token` (the registered redirect `http://localhost:7432/api/discord/callback` is required by the exchange even though no browser visits it) → AUTHENTICATE. Tokens persist to `~/.dash/discord_rpc_tokens.json` via the shared `UserTokenStore` (single-flight refresh; definitive refresh rejection clears → widget shows Connect). Silent re-auth on status polls makes sessions survive dashboard restarts.
+- **Routes** `packages/server/src/routes/discord.ts`: `/status` (`configured`/`running`/`connected` + user — expected failure states are clean booleans, never 5xx), `/connect`, `/disconnect`, `/guilds`, `/guilds/:id/channels`, `/channels/:id` (lean mapped messages, oldest-first), `/voice/selected`, `/voice/select` (join/leave, `force:true`), `/voice/settings` (GET/POST mute+deafen), `/select-text-channel` ("Reply in Discord" — jumps the desktop client), and `/stream`.
+- **`GET /api/discord/stream`** — hijacked SSE exactly like `/api/claude/chat`: mirrors the ALLOWED_ORIGINS list manually (CORS plugin bypassed) and reaps on **`reply.raw` 'close', never `req.raw`** (the PR #110 gotcha). Frames: `state`, `voice-roster` (full resync), `speaking` (ring flips), `message`/`message-delete` (for the queried channel), `notification`. The hub resubscribes VOICE_STATE_*/SPEAKING_* when VOICE_CHANNEL_SELECT fires and follows the newest stream's text channel; pipe close ends every stream after a `state` frame.
+- **Renderer native mode** (`DiscordNative.tsx` + `useDiscordNative.ts` + pure `nativeLib.ts`): guild rail (icons/initials) → channel list (text/voice sections, hover-Join) → read-only live chat feed (newest at bottom, plain-text render — React-escaped, no markdown lib) with a "Reply in Discord" header button and a read-only composer note; voice footer with channel name, member avatars, **green speaking rings**, mute/deafen/leave. States for not-configured / Discord-not-running / Connect (with "approve inside Discord" hint). SSE consumed via a new `getEventStream` in `streamClient.ts` (shares the frame parser with `postEventStream`).
+- **`discordUiStore`** (`dashboard-discord-ui`, persisted, partialized to `{ mode }`): `mode: 'embed' | 'native'`, default `'embed'` so existing setups don't change. The ephemeral `discordStore` (host rects/controls) stays non-persisted.
+- **Credentials plumbing**: `DISCORD_CLIENT_ID`/`DISCORD_CLIENT_SECRET` in `CREDENTIAL_KEYS`/`CREDENTIAL_DEFS` (auto-appears in Settings → Developer), in `build.mjs` `BUILTIN_KEYS`, and documented in `.env.example`.
+- **Tests**: framing/pipe-path/mapping units + a `DiscordRpcClient` integration suite against a REAL fake pipe server (platform-appropriate named pipe/unix socket — handshake, nonce matching, ERROR rejection, dispatch, teardown); route tests incl. the SSE lifecycle over a real `listen()` (state/roster/message frames, cross-channel filtering, client-disconnect unsubscribe, pipe-close stream ending); renderer store persistence + feed/speaking reducer tests.
+
+### Changed
+- `DiscordWidget` is now a mode switch: embed keeps the exact activator/rect-publisher body (the rAF effect is gated on `mode === 'embed'`; its cleanup pushes `setHostRect(null)`, parking the still-alive host at 0×0 on switch), native renders `DiscordNative` inline — which also works in the plain-browser dev renderer, unlike the webview. `DiscordActions`: Home/Reload/Sign-out are embed-only; native shows Disconnect (when connected) + the mode toggle.
+- `apps/main` is untouched — native mode is pure server+renderer.
+
+### Notes
+- **Verified live**: a HANDSHAKE-only probe against the real running Discord desktop client (Nish's client id) got READY in ~200 ms. AUTHORIZE/voice/chat flows deliberately NOT exercised — they pop UI in the live client; manual checklist in the PR.
+- Discord must be RUNNING for native mode (`running:false` panel otherwise); the widget polls status every 15 s and connects automatically once it appears.
+
+---
+
 ## [PR #123] fix: Discord embed feels like a widget — live resize handles, gesture-frozen resizing, auto zoom, compact CSS
 
 **Branch:** `fix/discord-embed-polish` → `master`
