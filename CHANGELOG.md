@@ -4,7 +4,7 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
-## [PR #TBD] feat: accordion collapse/expand exchanges space with the widget below (no full-grid reflow)
+## [PR #122] feat: accordion collapse/expand exchanges space with the widget below (no full-grid reflow)
 
 **Branch:** `feat/accordion-space-steal` → `master`
 **Date:** 2026-07-14
