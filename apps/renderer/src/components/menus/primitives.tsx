@@ -148,15 +148,18 @@ export function SaveAsForm({
 }
 
 /** A saved-item row: apply button (icon/swatch + name, active highlight) with
- *  a hover-reveal delete X — shared by saved layouts and saved themes. */
+ *  a hover-reveal delete X — shared by saved layouts and saved themes. Pass
+ *  `onTogglePin` to also render a pin-to-titlebar toggle (saved layouts). */
 export function SavedItemRow({
-  active, name, icon, onApply, onDelete,
+  active, name, icon, onApply, onDelete, pinned = false, onTogglePin,
 }: {
   active: boolean;
   name: string;
   icon: ReactNode;
   onApply: () => void;
   onDelete: () => void;
+  pinned?: boolean;
+  onTogglePin?: () => void;
 }) {
   return (
     <div className="flex items-center gap-1 px-1 group">
@@ -172,6 +175,20 @@ export function SavedItemRow({
         {icon}
         <span className="truncate">{name}</span>
       </button>
+      {onTogglePin && (
+        <button
+          onClick={onTogglePin}
+          title={pinned ? 'Unpin from bar' : 'Pin to bar'}
+          className={cn(
+            'p-1 rounded transition-colors shrink-0',
+            pinned
+              ? 'text-th-2 hover:text-red-400'
+              : 'text-th-ghost hover:text-th-2 opacity-0 group-hover:opacity-100',
+          )}
+        >
+          <Pin size={10} className={pinned ? 'fill-current' : ''} />
+        </button>
+      )}
       <button
         onClick={onDelete}
         title={`Delete "${name}"`}

@@ -4,7 +4,7 @@ import { SettingsModal } from './SettingsModal';
 import { ThemeMenu } from './menus/ThemeMenu';
 import { WidgetsMenu } from './menus/WidgetsMenu';
 import { LayoutsMenu } from './menus/LayoutsMenu';
-import { PinnedLayoutsMenu, InlinePinnedPresets } from './menus/PinnedLayouts';
+import { PinnedLayoutsMenu, InlinePinnedLayouts } from './menus/PinnedLayouts';
 import { menuBtn, dragStyle, noDragStyle } from './menus/primitives';
 import { useAppSettingsStore } from '../store/settingsStore';
 import { useOverlayStore } from '../store/overlayStore';
@@ -84,7 +84,7 @@ export function Titlebar() {
         <span className="text-th-ghost text-[11px] font-semibold tracking-[0.2em] uppercase shrink-0">
           nishboard
         </span>
-        {compact ? <PinnedLayoutsMenu /> : <InlinePinnedPresets />}
+        {compact ? <PinnedLayoutsMenu /> : <InlinePinnedLayouts />}
       </div>
 
       {/* Center: clock — absolute so it's always perfectly centred */}

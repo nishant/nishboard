@@ -33,6 +33,9 @@ interface LayoutState {
   layout: Layout[];
   activePreset: string | null;
   pinnedPresets: string[];
+  /** Ids (not names — names aren't unique) of saved custom layouts pinned to
+   *  the titlebar quick-switch bar, alongside the pinned presets. */
+  pinnedCustomLayouts: string[];
   visibleWidgets: WidgetId[];
   savedCustomLayouts: SavedCustomLayout[];
   activeCustomLayoutId: string | null; // id of the saved layout that's active, or null
@@ -55,6 +58,8 @@ interface LayoutState {
   resetToDefault: () => void;
   pinPreset: (name: string) => void;
   unpinPreset: (name: string) => void;
+  pinCustomLayout: (id: string) => void;
+  unpinCustomLayout: (id: string) => void;
   showWidget: (id: WidgetId) => void;
   hideWidget: (id: WidgetId) => void;
   /** Save current layout + pinned tiles under a name; activates it. */
@@ -73,6 +78,7 @@ export const useLayoutStore = create<LayoutState>()(
       layout: autoFillLayout(DEFAULT_LAYOUT.layout),
       activePreset: DEFAULT_LAYOUT.name,
       pinnedPresets: [],
+      pinnedCustomLayouts: [],
       visibleWidgets: [...ALL_WIDGET_IDS],
       savedCustomLayouts: [],
       activeCustomLayoutId: null,
@@ -154,6 +160,16 @@ export const useLayoutStore = create<LayoutState>()(
       unpinPreset: (name) =>
         set((s) => ({ pinnedPresets: s.pinnedPresets.filter((p) => p !== name) })),
 
+      pinCustomLayout: (id) =>
+        set((s) => ({
+          pinnedCustomLayouts: s.pinnedCustomLayouts.includes(id)
+            ? s.pinnedCustomLayouts
+            : [...s.pinnedCustomLayouts, id],
+        })),
+
+      unpinCustomLayout: (id) =>
+        set((s) => ({ pinnedCustomLayouts: s.pinnedCustomLayouts.filter((p) => p !== id) })),
+
       showWidget: (id) =>
         set((s) => {
           if (s.visibleWidgets.includes(id)) return s;
@@ -207,6 +223,8 @@ export const useLayoutStore = create<LayoutState>()(
         set((s) => ({
           savedCustomLayouts: s.savedCustomLayouts.filter((l) => l.id !== id),
           activeCustomLayoutId: s.activeCustomLayoutId === id ? null : s.activeCustomLayoutId,
+          // A deleted layout must not leave a ghost chip in the titlebar bar.
+          pinnedCustomLayouts: s.pinnedCustomLayouts.filter((p) => p !== id),
         })),
 
       updateCustomLayout: (id) =>
@@ -261,6 +279,13 @@ export const useLayoutStore = create<LayoutState>()(
             layout: applyConstraints(l.layout),
           }));
           if (state.activeCustomLayoutId === undefined) state.activeCustomLayoutId = null;
+          // Back-fill for stored states that predate pinned custom layouts, and
+          // prune ids whose layout no longer exists (defensive).
+          if (!state.pinnedCustomLayouts) state.pinnedCustomLayouts = [];
+          else {
+            const ids = new Set(state.savedCustomLayouts.map((l) => l.id));
+            state.pinnedCustomLayouts = state.pinnedCustomLayouts.filter((id) => ids.has(id));
+          }
         }
       },
     }

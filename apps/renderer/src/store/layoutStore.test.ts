@@ -29,6 +29,44 @@ describe('collapsedRowsFor', () => {
   });
 });
 
+describe('pinned custom layouts', () => {
+  it('pin is idempotent and unpin removes', async () => {
+    const { useLayoutStore } = await loadStore();
+    useLayoutStore.getState().saveCustomLayout('Work');
+    const id = useLayoutStore.getState().savedCustomLayouts[0].id;
+
+    useLayoutStore.getState().pinCustomLayout(id);
+    useLayoutStore.getState().pinCustomLayout(id);
+    expect(useLayoutStore.getState().pinnedCustomLayouts).toEqual([id]);
+
+    useLayoutStore.getState().unpinCustomLayout(id);
+    expect(useLayoutStore.getState().pinnedCustomLayouts).toEqual([]);
+  });
+
+  it('deleting a pinned layout also unpins it (no ghost chip)', async () => {
+    const { useLayoutStore } = await loadStore();
+    useLayoutStore.getState().saveCustomLayout('Work');
+    const id = useLayoutStore.getState().savedCustomLayouts[0].id;
+    useLayoutStore.getState().pinCustomLayout(id);
+
+    useLayoutStore.getState().deleteCustomLayout(id);
+    expect(useLayoutStore.getState().pinnedCustomLayouts).toEqual([]);
+  });
+
+  it('rehydrate prunes pinned ids whose layout no longer exists', async () => {
+    localStorage.setItem('dashboard-layout', JSON.stringify({
+      state: {
+        layout: [],
+        savedCustomLayouts: [{ id: 'keep', name: 'Keep', layout: [], visibleWidgets: [] }],
+        pinnedCustomLayouts: ['keep', 'gone'],
+      },
+      version: 0,
+    }));
+    const { useLayoutStore } = await loadStore();
+    expect(useLayoutStore.getState().pinnedCustomLayouts).toEqual(['keep']);
+  });
+});
+
 describe('setWidgetCollapsed', () => {
   function seed(store: { getState: () => { syncLayout: (l: Layout[]) => void } }, layout: Layout[]) {
     store.getState().syncLayout(layout);
