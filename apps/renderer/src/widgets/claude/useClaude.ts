@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   ClaudeChatRequestBody,
   ClaudeControlRequestBody,
@@ -19,6 +20,17 @@ import { fireAlert, toast } from '../../lib/alerts';
  *  is plenty; it flips the widget out of its "not installed" state. */
 export function useClaudeStatus() {
   const interval = useGatedInterval(60_000);
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    // One-click CLI login: the main process pushes claude:login-finished once
+    // its watcher sees fresh credentials — refetch now instead of waiting out
+    // the 60s poll. Subscribed here so it works wherever the widget lives
+    // (main window or popout).
+    return window.electron?.claude.onLoginFinished(() => {
+      void queryClient.invalidateQueries({ queryKey: ['claude-status'] });
+      void queryClient.invalidateQueries({ queryKey: ['claude-usage'] });
+    });
+  }, [queryClient]);
   return useQuery<ClaudeStatusData>({
     queryKey: ['claude-status'],
     queryFn: () => apiClient.get<ClaudeStatusData>('/api/claude/status'),
@@ -101,6 +113,25 @@ export async function respondToClaudePrompt(
     const message = err instanceof Error ? err.message : String(err);
     toast('Claude', message, 'error');
     useClaudeStore.getState().resolvePromptPart(requestId, 'cancelled');
+  }
+}
+
+/** One-click CLI login (Settings → App → Claude + the widget's unavailable
+ *  panel): main IPC opens a terminal running `claude auth login --claudeai`;
+ *  the user finishes in the browser, then the main process auto-closes the
+ *  terminal and pushes claude:login-finished (see useClaudeStatus). No-op
+ *  outside Electron. */
+export async function openClaudeCliLogin(): Promise<void> {
+  if (!window.electron) return;
+  try {
+    const result = await window.electron.claude.openLogin();
+    if (result === 'already-open') {
+      toast('Claude', 'A login terminal is already open — finish logging in there.');
+    } else {
+      toast('Claude', 'Terminal opened — finish login in the browser. The window closes itself when done.');
+    }
+  } catch (err: unknown) {
+    toast('Claude', err instanceof Error ? err.message : String(err), 'error');
   }
 }
 

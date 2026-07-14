@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Eye, EyeOff, Check, Loader2, Lock, Minus, Plus, Download, Upload, FolderOpen, RotateCw, FolderSync } from 'lucide-react';
+import { X, Eye, EyeOff, Check, Loader2, Lock, Minus, Plus, Download, Upload, FolderOpen, RotateCw, FolderSync, Terminal } from 'lucide-react';
 import { CREDENTIAL_DEFS, CREDENTIAL_KEYS } from '@dash/shared';
 import type { CredentialKey, AppPrefsData, UpdateCheckData } from '@dash/shared';
 import { useAppSettingsStore } from '../store/settingsStore';
@@ -9,6 +9,7 @@ import { exportSettings, importSettings } from '../lib/backup';
 import { apiClient } from '../lib/apiClient';
 import { cn } from '../lib/utils';
 import { ToggleRow, SegmentedRow } from './settings/controls';
+import { openClaudeCliLogin } from '../widgets/claude/useClaude';
 import { AlertsPanel } from './settings/AlertsPanel';
 import { useOverlayStore } from '../store/overlayStore';
 
@@ -446,6 +447,23 @@ function AppSettingsPanel() {
             Comma-separated folders Claude may also read/write (beyond the workspace).
             Default ~ = your whole home directory. In Ask mode writes still prompt;
             ⚠ in Auto mode Claude can change anything in these folders without asking.
+          </p>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-3">
+            <span className="text-th-3 text-[11px] w-28 shrink-0">CLI login</span>
+            <button
+              onClick={() => void openClaudeCliLogin()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-th-elevated hover:bg-th-overlay text-th-hi text-[11px] transition-colors"
+            >
+              <Terminal size={13} />
+              Log in to Claude CLI
+            </button>
+          </div>
+          <p className="text-th-ghost text-[10px] leading-relaxed pl-[calc(7rem+0.75rem)]">
+            Opens a terminal running <code className="bg-th-elevated px-1 py-0.5 rounded">claude auth login</code> —
+            finish sign-in in the browser (bills your Claude subscription, not API keys).
+            The terminal closes itself once you&apos;re logged in.
           </p>
         </div>
       </div>

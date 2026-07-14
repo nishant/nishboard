@@ -4,6 +4,31 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #121] feat: one-click Claude CLI login from Settings
+
+**Branch:** `feat/claude-login-button` → `master`
+**Date:** 2026-07-14
+
+### Context
+The Claude widget needs the Claude Code CLI to be logged in (it bills the claude.ai Max subscription via the CLI's own OAuth). Until now Nish had to open a terminal himself and run the login flow by hand. Probing the installed CLI (2.1.201) found a dedicated non-interactive entry point — `claude auth login` — which opens the browser, waits for the OAuth callback, prints success, and **exits**; no keystroke automation or interactive `/login` session needed.
+
+### Added
+- **"Log in to Claude CLI" button** in Settings → App → Claude, and in the Claude widget's "not available" panel. One click opens a real terminal window running `claude auth login --claudeai` (`--claudeai` pins subscription billing — never Console/API keys); the user finishes sign-in in the browser.
+- **Main module `apps/main/src/claudeLogin.ts`** (clipboardHistory-style singleton, one flow at a time):
+  - **Windows-only** terminal spawn: hidden PowerShell helper → `Start-Process cmd -ArgumentList '/k',… -PassThru` — ShellExecute guarantees a NEW visible console (direct `spawn('cmd')` would attach to the parent console under `pnpm dev`) and `-PassThru` yields the cmd PID: the killable root of the window's process tree. Deliberately **not `wt.exe`**: the wt alias hands off to WindowsTerminal.exe and exits, so its PID can't close the window (and killing WindowsTerminal.exe would nuke every open tab); on Win11 the default-terminal setting routes the cmd window into Windows Terminal anyway. Spawn + `taskkill /T /F` verified live on this machine.
+  - **macOS-only** spawn: `osascript` driving Terminal.app; the `do script` result ("tab 1 of window id N…") is parsed so the exact window can be closed later.
+  - **Credentials watcher** (2 s poll, 5 min timeout): Windows/Linux watch `~/.claude/.credentials.json` mtime (where the CLI writes OAuth tokens); **macOS-only** the CLI stores creds in the keychain, so it polls `security find-generic-password -s "Claude Code-credentials"` **without `-w`** — metadata only, the "mdat" (modified-date) attribute; the secret never enters the process. On fresh creds: close the terminal after a 1.5 s grace (Windows `taskkill /PID <cmd> /T /F`; macOS best-effort window close) and broadcast `claude:login-finished`. Timeout leaves the terminal open. A Windows liveness probe stops the watch early if the user closed the window themselves.
+- **IPC**: `claude:open-login` (invoke → `'opened' | 'already-open'`; second clicks while a flow is live don't spawn a second terminal) + `claude:login-finished` (push, broadcast to all windows) — typed end-to-end via `IpcChannels`/`ElectronAPI` (`ClaudeLoginOpenResult` in `packages/shared`).
+- **Renderer**: `openClaudeCliLogin()` in `useClaude.ts` (toasts opened/already-open/errors); `useClaudeStatus` subscribes to `claude:login-finished` and invalidates `claude-status` + `claude-usage` so the widget flips available immediately instead of waiting out its 60 s poll (subscription lives in the hook, so it works in popouts too).
+- Unit tests (`apps/main/src/claudeLogin.test.ts`): spawn-spec shapes per platform, PID/window-id/keychain-mdat parsers, credentials-change detection.
+
+### Notes
+- What stays manual: the browser OAuth approval itself ("I can take it from there"). The terminal needs no typing — the CLI auto-opens the browser.
+- **macOS caveat**: auto-close depends on the keychain mdat attribute updating on re-login; if it doesn't fire, the watcher times out after 5 min and the window simply stays open showing the CLI's success message.
+- Already logged in? The flow is harmless — re-running `claude auth login` just re-authenticates; fresh creds still trigger the auto-close.
+
+---
+
 ## [PR #120] feat: pin custom layouts to the titlebar quick-switch bar
 
 **Branch:** `feat/pin-custom-layouts` → `master`

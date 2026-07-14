@@ -15,6 +15,7 @@ import {
 import {
   signOutDiscord, setDiscordScreenShareWatch, selectDiscordScreenShareSource,
 } from '../discord';
+import { openClaudeLogin } from '../claudeLogin';
 import { readPrefs, writePrefs } from '../prefs';
 import { openPopout, closePopout, openPopoutIds } from '../popout';
 import type { CredentialKey, AppPrefsData } from '@dash/shared';
@@ -142,6 +143,10 @@ export function registerIpcHandlers(
   ipcMain.handle('clipboard:clear', () => clearClipboardHistory());
   ipcMain.handle('clipboard:set-enabled', (event, enabled: boolean) =>
     setClipboardWatch(enabled === true, event.sender));
+
+  // ── Claude CLI one-click login (terminal spawn + credentials watcher) ───────
+
+  ipcMain.handle('claude:open-login', () => openClaudeLogin());
 
   // ── Discord widget (persist:discord webview — sign-out + screen-share picker) ─
 

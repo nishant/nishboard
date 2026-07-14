@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webFrame } from 'electron';
-import type { ElectronAPI, IpcChannels, CredentialKey, LauncherItemData, LauncherGroupData, LauncherStateData, ClipboardEntryData, AppPrefsData, UpdateCheckData, DiscordScreenShareRequestData } from '@dash/shared';
+import type { ElectronAPI, IpcChannels, CredentialKey, LauncherItemData, LauncherGroupData, LauncherStateData, ClipboardEntryData, AppPrefsData, UpdateCheckData, DiscordScreenShareRequestData, ClaudeLoginOpenResult } from '@dash/shared';
 
 const electronAPI: ElectronAPI = {
   platform: process.platform,
@@ -90,6 +90,15 @@ const electronAPI: ElectronAPI = {
       ipcRenderer.invoke('clipboard:set-enabled' satisfies IpcChannels, enabled) as Promise<void>,
     onChanged: (cb: () => void) => {
       const channel: IpcChannels = 'clipboard:changed';
+      ipcRenderer.on(channel, cb);
+      return () => ipcRenderer.removeListener(channel, cb);
+    },
+  },
+  claude: {
+    openLogin: () =>
+      ipcRenderer.invoke('claude:open-login' satisfies IpcChannels) as Promise<ClaudeLoginOpenResult>,
+    onLoginFinished: (cb: () => void) => {
+      const channel: IpcChannels = 'claude:login-finished';
       ipcRenderer.on(channel, cb);
       return () => ipcRenderer.removeListener(channel, cb);
     },

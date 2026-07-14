@@ -67,6 +67,10 @@ export interface AppPrefsData {
   backupDir: string | null;
 }
 
+/** Result of `claude:open-login` — 'already-open' means a login terminal is
+ *  already being watched, so no second window was spawned. */
+export type ClaudeLoginOpenResult = 'opened' | 'already-open';
+
 /** Result of a manual update check against GitHub releases. */
 export interface UpdateCheckData {
   currentVersion: string;
@@ -120,6 +124,8 @@ export type IpcChannels =
   | 'clipboard:clear'
   | 'clipboard:set-enabled'
   | 'clipboard:changed'
+  | 'claude:open-login'
+  | 'claude:login-finished'
   | 'discord:sign-out'
   | 'discord:screenshare-watch'
   | 'discord:screenshare-select'
@@ -221,6 +227,16 @@ export interface ElectronAPI {
     setEnabled: (enabled: boolean) => Promise<void>;
     /** Fires when a new entry is captured; returns unsubscribe. */
     onChanged: (cb: () => void) => () => void;
+  };
+  claude: {
+    /** One-click CLI login: opens a real terminal window running
+     *  `claude auth login --claudeai`. The main process watches for fresh CLI
+     *  credentials (Windows/Linux: ~/.claude/.credentials.json mtime; macOS:
+     *  keychain item metadata) and auto-closes the terminal on success. */
+    openLogin: () => Promise<ClaudeLoginOpenResult>;
+    /** Fires once the login watcher detects fresh credentials — listeners
+     *  should refetch /api/claude/status. Returns unsubscribe. */
+    onLoginFinished: (cb: () => void) => () => void;
   };
   discord: {
     /** Clear the persist:discord partition (cookies/storage/cache) — logs the
