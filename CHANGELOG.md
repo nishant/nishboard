@@ -4,7 +4,7 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
-## [PR #TBD] feat: Discord native mode — RPC voice controls + live chat feed via the desktop client
+## [PR #124] feat: Discord native mode — RPC voice controls + live chat feed via the desktop client
 
 **Branch:** `feat/discord-native-rpc` → `master`
 **Date:** 2026-07-14
