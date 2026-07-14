@@ -31,6 +31,7 @@ const DEFAULT_SIZES: Record<string, { width: number; height: number }> = {
   crypto: { width: 360, height: 380 },
   launcher: { width: 360, height: 380 },
   clipboard: { width: 340, height: 400 },
+  discord: { width: 480, height: 560 },
 };
 const FALLBACK_SIZE = { width: 360, height: 320 };
 
@@ -100,6 +101,8 @@ export function openPopout(id: string): void {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // Discord widget <webview> (popped out) — guarded by registerWebviewGuards().
+      webviewTag: true,
     },
   });
 

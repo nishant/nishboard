@@ -4,6 +4,30 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #118] feat: Discord widget — embedded Discord web with voice + screen share
+
+**Branch:** `feat/discord-widget` → `master`
+**Date:** 2026-07-13
+
+### Context
+Nish wants Discord on the dashboard — servers, DMs/group messages, replying, voice channels, screen share. A hand-built client is impossible via official APIs (no user-account messaging/DMs/voice; the local RPC API is private-beta and has no send-message command; a user-token self-bot violates Discord ToS → ban risk). Decision: embed the **real discord.com web app** in an Electron `<webview>` — the WebCord-proven approach. Full feature set, **zero setup** (no Discord application, no keys): log in once inside the widget, the session persists on a dedicated `persist:discord` partition. Cost ≈ one Chrome tab of RAM.
+
+### Added
+- **Discord widget** (`apps/renderer/src/widgets/discord/`): `<webview src="https://discord.com/app" partition="persist:discord" allowpopups>` with loading shimmer, error card (main-frame failures only — `ERR_ABORTED`/subframe noise ignored), mention-count badge parsed from the guest title `(N)` (`page-title-updated`), and header actions Home / Reload / Sign out (in-body confirm → clears the partition). Ephemeral `discordStore` bridges the header actions to the webview ref.
+- **Screen-share picker**: Discord's `getDisplayMedia` is intercepted main-side (`setDisplayMediaRequestHandler`) → `desktopCapturer` sources cross as data-URI thumbnails (`discord:screenshare-request` push) → in-widget screens/windows grid → `discord:screenshare-select` resolves the stream. Subscribe-while-mounted lifecycle (clipboard-poller pattern), 60 s unanswered → deny. **Windows-only** system audio via `audio: 'loopback'`; macOS shares video-only.
+- **Main module `apps/main/src/discord.ts`**: `persist:discord` session init — full clean-Chrome UA (Electron-token stripping is NOT enough; the `Nishboard/x` app token trips Discord's unsupported-browser wall), permission request+**check** handlers (Discord gates notifications on the sync `Notification.permission` read) allowing media/display-capture/notifications/clipboard-write/fullscreen for `*.discord.com` only.
+- **Webview hardening**: `webviewTag: true` on the main + popout windows, gated by an app-wide `will-attach-webview` guard — https `*.discord.com` src only (URL-parsed, lookalike hosts rejected), preload/nodeIntegration stripped; guest `window.open`/off-site navigations go to the system browser, never an Electron window.
+- **`WidgetShell` `keepMounted` prop** (opt-in, registry-driven): collapsed children render in an `h-0 overflow-hidden` wrapper instead of unmounting — collapsing Discord keeps voice running (`display:none` would blank/kill a webview; `backgroundThrottling=false` keeps its timers live).
+- Tests: `discord.test.ts` (UA shape, URL allowlist incl. `discord.com.evil.com` rejection, permission matrix, source serialization) + `lib.test.ts` (title-badge parsing); electron-stub grew `session`/`desktopCapturer`/`app.on`.
+- macOS packaging: `mac.extendInfo` mic/camera usage strings (TCC would otherwise silently deny voice in packaged builds).
+
+### Notes
+- Webview pages are **top-level documents** — Discord's `frame-ancestors` CSP never applies, so no CSP stripping was needed (unlike the Twitch/RainViewer iframes).
+- Known caveats: unpinning, pop-out toggling, or quitting remounts the webview → an active voice call drops (login persists). The picker overlay is invisible while collapsed → the 60 s timeout denies harmlessly. Mention badge counts mentions/DMs only (Discord's `(N)` title prefix); plain unread channels ("•") don't badge.
+- Discord notifications render as native OS toasts once granted (dev builds attribute them to "Electron"; packaged builds are correct).
+
+---
+
 ## [PR #117] feat: Claude widget interactive prompts — Allow/Deny cards, questions, plan approval, loose sandbox
 
 **Branch:** `feat/claude-interactive-prompts` → `master`

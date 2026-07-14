@@ -34,6 +34,27 @@ export interface ClipboardEntryData {
   at: number;
 }
 
+/** One capturable screen/window for the Discord widget's screen-share picker.
+ *  Thumbnails/icons are `data:` URIs resolved MAIN-SIDE (launcher convention) —
+ *  never OS paths or live capture handles. */
+export interface DiscordScreenShareSourceData {
+  /** desktopCapturer source id (`screen:…` / `window:…`) — echoed back on select. */
+  id: string;
+  name: string;
+  kind: 'screen' | 'window';
+  /** `data:` URI preview thumbnail. */
+  thumbnail: string;
+  /** `data:` URI app icon (windows only have these; screens don't). */
+  appIcon?: string;
+}
+
+/** Pushed to the renderer when Discord (in the webview) calls getDisplayMedia —
+ *  the widget shows a picker and answers via discord:screenshare-select. */
+export interface DiscordScreenShareRequestData {
+  requestId: string;
+  sources: DiscordScreenShareSourceData[];
+}
+
 /** Main-side app prefs (userData/prefs.json — NOT renderer localStorage: the
  *  close intercept and hotkey registration run before the renderer loads). */
 export interface AppPrefsData {
@@ -99,6 +120,10 @@ export type IpcChannels =
   | 'clipboard:clear'
   | 'clipboard:set-enabled'
   | 'clipboard:changed'
+  | 'discord:sign-out'
+  | 'discord:screenshare-watch'
+  | 'discord:screenshare-select'
+  | 'discord:screenshare-request'
   | 'prefs:get'
   | 'prefs:set'
   | 'server:restarted'
@@ -196,6 +221,18 @@ export interface ElectronAPI {
     setEnabled: (enabled: boolean) => Promise<void>;
     /** Fires when a new entry is captured; returns unsubscribe. */
     onChanged: (cb: () => void) => () => void;
+  };
+  discord: {
+    /** Clear the persist:discord partition (cookies/storage/cache) — logs the
+     *  webview out. The renderer reloads the webview afterwards. */
+    signOut: () => Promise<void>;
+    /** Subscribe/unsubscribe this renderer as the screen-share picker host —
+     *  ONLY while the Discord widget is mounted (clipboard-poller pattern). */
+    setScreenShareWatch: (enabled: boolean) => Promise<void>;
+    /** Answer a pending getDisplayMedia request. null sourceId = cancel/deny. */
+    selectScreenShareSource: (requestId: string, sourceId: string | null) => Promise<void>;
+    /** Fires when Discord requests a screen share; returns unsubscribe. */
+    onScreenShareRequest: (cb: (req: DiscordScreenShareRequestData) => void) => () => void;
   };
   credentials: {
     /** Which keys are set — never the values. The Settings UI is write-only:

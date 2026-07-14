@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webFrame } from 'electron';
-import type { ElectronAPI, IpcChannels, CredentialKey, LauncherItemData, LauncherGroupData, LauncherStateData, ClipboardEntryData, AppPrefsData, UpdateCheckData } from '@dash/shared';
+import type { ElectronAPI, IpcChannels, CredentialKey, LauncherItemData, LauncherGroupData, LauncherStateData, ClipboardEntryData, AppPrefsData, UpdateCheckData, DiscordScreenShareRequestData } from '@dash/shared';
 
 const electronAPI: ElectronAPI = {
   platform: process.platform,
@@ -92,6 +92,19 @@ const electronAPI: ElectronAPI = {
       const channel: IpcChannels = 'clipboard:changed';
       ipcRenderer.on(channel, cb);
       return () => ipcRenderer.removeListener(channel, cb);
+    },
+  },
+  discord: {
+    signOut: () => ipcRenderer.invoke('discord:sign-out' satisfies IpcChannels) as Promise<void>,
+    setScreenShareWatch: (enabled: boolean) =>
+      ipcRenderer.invoke('discord:screenshare-watch' satisfies IpcChannels, enabled) as Promise<void>,
+    selectScreenShareSource: (requestId: string, sourceId: string | null) =>
+      ipcRenderer.invoke('discord:screenshare-select' satisfies IpcChannels, requestId, sourceId) as Promise<void>,
+    onScreenShareRequest: (cb: (req: DiscordScreenShareRequestData) => void) => {
+      const channel: IpcChannels = 'discord:screenshare-request';
+      const listener = (_event: Electron.IpcRendererEvent, req: DiscordScreenShareRequestData) => cb(req);
+      ipcRenderer.on(channel, listener);
+      return () => ipcRenderer.removeListener(channel, listener);
     },
   },
   credentials: {
