@@ -32,6 +32,11 @@ interface DiscordState {
   /** Live viewport rect of the widget tile's body; null = tile not visible
    *  (host hides at 0×0 but the guest keeps running). */
   hostRect: DiscordHostRect | null;
+  /** True while ANY grid tile is mid drag/resize gesture (set by
+   *  DashboardGrid). The host freezes its size and mutes pointer events for
+   *  the duration — resizing the guest per mousemove tears, and the webview
+   *  would otherwise eat the grid's drag events. Ephemeral, never persisted. */
+  interacting: boolean;
   /** Mention count parsed from the webview's tab title. */
   unread: number;
   /** Registered by the host; null when no webview is live. */
@@ -40,6 +45,7 @@ interface DiscordState {
   signOutPrompt: boolean;
   activate: () => void;
   setHostRect: (rect: DiscordHostRect | null) => void;
+  setInteracting: (interacting: boolean) => void;
   setUnread: (unread: number) => void;
   registerControls: (controls: DiscordControls | null) => void;
   setSignOutPrompt: (open: boolean) => void;
@@ -48,11 +54,13 @@ interface DiscordState {
 export const useDiscordStore = create<DiscordState>((set) => ({
   active: false,
   hostRect: null,
+  interacting: false,
   unread: 0,
   controls: null,
   signOutPrompt: false,
   activate: () => set({ active: true }),
   setHostRect: (hostRect) => set({ hostRect }),
+  setInteracting: (interacting) => set({ interacting }),
   setUnread: (unread) => set({ unread }),
   registerControls: (controls) => set({ controls }),
   setSignOutPrompt: (signOutPrompt) => set({ signOutPrompt }),

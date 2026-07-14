@@ -2,9 +2,18 @@ import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import type { DiscordScreenShareRequestData } from '@dash/shared';
 import { HeaderAction } from '../../components/HeaderAction';
+import { cn } from '../../lib/utils';
 import { useDiscordStore } from '../../store/discordStore';
-import { DISCORD_APP_URL, DISCORD_HOME_URL, parseDiscordUnreadCount } from './lib';
+import {
+  DISCORD_APP_URL,
+  DISCORD_COMPACT_CSS,
+  DISCORD_HOME_URL,
+  nextHostStyle,
+  parseDiscordUnreadCount,
+  zoomForWidth,
+} from './lib';
 import type {
+  DiscordHostSize,
   DiscordWebviewElement,
   WebviewDidFailLoadEvent,
   WebviewPageTitleUpdatedEvent,
@@ -25,12 +34,24 @@ type LoadStatus = 'loading' | 'ready' | 'error';
 /** Keep the picker's local lifetime in sync with main's authoritative timeout. */
 const SHARE_PICKER_TIMEOUT_MS = 60_000;
 
+/** Out-of-gesture size changes (window resize, density switch) apply after
+ *  the rect has been stable this long — never per rAF frame. */
+const SIZE_SETTLE_MS = 120;
+
 export function DiscordHost() {
   const webviewRef = useRef<DiscordWebviewElement | null>(null);
   const [status, setStatus] = useState<LoadStatus>('loading');
   const [shareReq, setShareReq] = useState<DiscordScreenShareRequestData | null>(null);
+  // Last size actually applied to the webview container — position tracks the
+  // live rect per frame, size only moves on settle (see nextHostStyle).
+  const [settledSize, setSettledSize] = useState<DiscordHostSize | null>(null);
+  // Counts dom-ready fires: 0 = guest methods (setZoomFactor/insertCSS) would
+  // still throw; bumps on every load so per-load state (zoom) is re-applied.
+  const [domReadyTick, setDomReadyTick] = useState(0);
+  const wasInteracting = useRef(false);
   const active = useDiscordStore((s) => s.active);
   const hostRect = useDiscordStore((s) => s.hostRect);
+  const interacting = useDiscordStore((s) => s.interacting);
   const unread = useDiscordStore((s) => s.unread);
   const setUnread = useDiscordStore((s) => s.setUnread);
   const registerControls = useDiscordStore((s) => s.registerControls);
@@ -45,6 +66,13 @@ export function DiscordHost() {
   useEffect(() => {
     const wv = webviewRef.current;
     if (!wv) return;
+    const onDomReady = () => {
+      // Fires on every top-level load (reload included) — inserted CSS and
+      // zoom don't survive navigation. The compact CSS is fail-soft: if its
+      // hashed-class prefix stops matching, the stock layout just shows.
+      void wv.insertCSS(DISCORD_COMPACT_CSS);
+      setDomReadyTick((t) => t + 1); // unlocks + re-triggers the zoom effect
+    };
     const onReady = () => setStatus('ready');
     const onFail = (e: Event) => {
       const ev = e as WebviewDidFailLoadEvent;
@@ -55,15 +83,48 @@ export function DiscordHost() {
     const onTitle = (e: Event) => {
       setUnread(parseDiscordUnreadCount((e as WebviewPageTitleUpdatedEvent).title));
     };
+    wv.addEventListener('dom-ready', onDomReady);
     wv.addEventListener('did-finish-load', onReady);
     wv.addEventListener('did-fail-load', onFail);
     wv.addEventListener('page-title-updated', onTitle);
     return () => {
+      wv.removeEventListener('dom-ready', onDomReady);
       wv.removeEventListener('did-finish-load', onReady);
       wv.removeEventListener('did-fail-load', onFail);
       wv.removeEventListener('page-title-updated', onTitle);
     };
   }, [active, setUnread]);
+
+  // Size settling — the ONLY place settledSize changes. Adopt the live rect's
+  // size: immediately when the tile hides/first shows or a grid gesture just
+  // ended (apply the final size once); debounced SIZE_SETTLE_MS otherwise
+  // (window resizes stream per-frame rects with interacting=false). While a
+  // gesture is in flight ('hold') the size stays frozen at the last settled
+  // value — only the host's position tracks the drag.
+  useEffect(() => {
+    const justEnded = wasInteracting.current && !interacting;
+    wasInteracting.current = interacting;
+    const { settle } = nextHostStyle(hostRect, interacting, settledSize);
+    if (settle === 'hold') return;
+    const adopt = () =>
+      setSettledSize(hostRect ? { width: hostRect.width, height: hostRect.height } : null);
+    if (settle === 'immediate' || justEnded) {
+      adopt();
+      return;
+    }
+    const t = setTimeout(adopt, SIZE_SETTLE_MS);
+    return () => clearTimeout(t);
+  }, [hostRect, interacting, settledSize]);
+
+  // Auto zoom, stepped by the SETTLED width — never per frame. `zoom` is
+  // derived, so the effect only fires when the width crosses a zoomForWidth
+  // breakpoint (or when a load/reload bumps domReadyTick and the factor must
+  // be re-applied).
+  const zoom = settledSize && settledSize.width > 0 ? zoomForWidth(settledSize.width) : null;
+  useEffect(() => {
+    if (domReadyTick === 0 || zoom === null) return; // guest not ready / tile hidden
+    webviewRef.current?.setZoomFactor(zoom);
+  }, [domReadyTick, zoom]);
 
   // Screen-share picker — subscribed for the host's whole life (main
   // auto-denies getDisplayMedia when nobody is watching).
@@ -122,12 +183,18 @@ export function DiscordHost() {
     : [];
 
   // Tile hidden → 0×0 (guest alive). NEVER display:none — it kills the guest.
-  const style = hostRect
-    ? { left: hostRect.x, top: hostRect.y, width: hostRect.width, height: hostRect.height }
-    : { left: 0, top: 0, width: 0, height: 0 };
+  // Position tracks the live rect per frame; size is settled/frozen (see
+  // nextHostStyle). rounded-md on ALL corners — the host floats inside the
+  // tile's padded gutter, so every corner is visible.
+  const { style } = nextHostStyle(hostRect, interacting, settledSize);
 
   return (
-    <div className="fixed z-30 overflow-hidden rounded-b-md" style={style}>
+    <div
+      // pointer-events-none during grid gestures: RGL's drag/resize mousemoves
+      // must reach the grid, not the guest.
+      className={cn('fixed z-30 overflow-hidden rounded-md', interacting && 'pointer-events-none')}
+      style={style}
+    >
       <div className="relative h-full w-full">
         <webview
           ref={webviewRef}
@@ -146,8 +213,10 @@ export function DiscordHost() {
         )}
 
         {status === 'loading' && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-th-surface">
-            <div className="h-4 w-28 rounded bg-th-elevated animate-pulse" />
+          // Discord's own dark chrome color — the splash must not flash the
+          // app theme (white in light mode) before the guest paints.
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#313338]">
+            <div className="h-4 w-28 rounded bg-white/10 animate-pulse" />
           </div>
         )}
 

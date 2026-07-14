@@ -53,7 +53,18 @@ export function DiscordWidget() {
     );
   }
 
-  return <div ref={bodyRef} className="h-full w-full" />;
+  return (
+    // Padded frame: the ~8px gutter keeps the fixed z-30 host from covering
+    // RGL's resize handles — they render INSIDE the grid item (a transformed
+    // stacking context, so no z-index can lift them above the host), and
+    // without the gutter every handle except n/ne/nw sits under the webview,
+    // dead. It also lets the tile's border/background visibly frame the embed.
+    // The rAF loop publishes the INNER div's rect, so the host floats inside
+    // the gutter.
+    <div className="h-full w-full p-2">
+      <div ref={bodyRef} className="h-full w-full" />
+    </div>
+  );
 }
 
 export function DiscordActions() {

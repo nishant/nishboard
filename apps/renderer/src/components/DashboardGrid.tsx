@@ -3,6 +3,7 @@ import { ExternalLink } from 'lucide-react';
 import ReactGridLayout, { WidthProvider } from 'react-grid-layout';
 import type { Layout } from 'react-grid-layout';
 import { useLayoutStore, collapsedRowsFor } from '../store/layoutStore';
+import { useDiscordStore } from '../store/discordStore';
 import { useAppSettingsStore } from '../store/settingsStore';
 import { usePopoutStore } from '../store/popoutStore';
 import { useWidgetUiStore } from '../store/widgetUiStore';
@@ -115,6 +116,11 @@ function useRowHeight(layout: Layout[], gap: number): number {
 
 export function DashboardGrid() {
   const { layout, syncLayout, markUserEdited, visibleWidgets, setWidgetCollapsed } = useLayoutStore();
+  // ANY tile's drag/resize gesture flips this: the Discord host freezes its
+  // size and mutes pointer events for the duration (the webview otherwise
+  // relayouts per mousemove and eats the grid's drag events). Simplest to set
+  // it for every gesture — harmless when the Discord tile isn't around.
+  const setDiscordInteracting = useDiscordStore((s) => s.setInteracting);
   const density = useAppSettingsStore((s) => s.density);
   const popped = usePopoutStore((s) => s.popped);
   const collapsed = useWidgetUiStore((s) => s.collapsed);
@@ -180,8 +186,16 @@ export function DashboardGrid() {
         const hiddenItems = layout.filter((i) => !visibleIds.has(i.i));
         syncLayout([...newVisible, ...hiddenItems]);
       }}
-      onDragStop={markUserEdited}
-      onResizeStop={markUserEdited}
+      onDragStart={() => setDiscordInteracting(true)}
+      onResizeStart={() => setDiscordInteracting(true)}
+      onDragStop={() => {
+        setDiscordInteracting(false);
+        markUserEdited();
+      }}
+      onResizeStop={() => {
+        setDiscordInteracting(false);
+        markUserEdited();
+      }}
       compactType="vertical"
       isResizable
       isDraggable
