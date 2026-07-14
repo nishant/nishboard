@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Check, ChevronRight, ClipboardCheck, Copy, Loader2, PieChart, Plus, SendHorizontal,
-  ShieldQuestion, SlidersHorizontal, Square, X,
+  ShieldQuestion, SlidersHorizontal, Square, Terminal, X,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -12,7 +12,7 @@ import { messageText, useClaudeStore } from '../../store/claudeStore';
 import type { ClaudeChatMessage, ClaudePromptPart, ClaudeToolPart } from '../../store/claudeStore';
 import {
   useClaudeStatus, useClaudeMeta, useClaudeUsage, useSendClaudeMessage, stopClaudeStream,
-  respondToClaudePrompt, promptSummary,
+  respondToClaudePrompt, promptSummary, openClaudeCliLogin,
 } from './useClaude';
 import { HeaderAction } from '../../components/HeaderAction';
 import { cn } from '../../lib/utils';
@@ -763,11 +763,19 @@ export function ClaudeWidget() {
 
   if (status.data?.available === false) {
     return (
-      <div className="h-full flex items-center justify-center p-4 text-center">
+      <div className="h-full flex flex-col items-center justify-center gap-3 p-4 text-center">
         <p className="text-th-ghost text-xs leading-relaxed max-w-64">
-          Claude Code not found — install it from claude.com/claude-code, then run{' '}
-          <code className="bg-th-elevated px-1 py-0.5 rounded text-th-2">claude /login</code>.
+          Claude Code not found — install it from claude.com/claude-code, then log in.
         </p>
+        {window.electron && (
+          <button
+            onClick={() => void openClaudeCliLogin()}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-th-elevated hover:bg-th-overlay text-th-hi text-[11px] transition-colors"
+          >
+            <Terminal size={12} />
+            Log in to Claude CLI
+          </button>
+        )}
       </div>
     );
   }
