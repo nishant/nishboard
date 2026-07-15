@@ -4,6 +4,19 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #126] fix: GitHub Release notes no longer duplicated [skip release]
+
+**Branch:** `fix/release-notes-dupe` → `master`
+**Date:** 2026-07-14
+
+### Context
+Every GitHub Release body showed its "What's Changed" section twice: both matrix build jobs (Windows + macOS) ran `softprops/action-gh-release` with `generate_release_notes: true` against the same tag — whichever finished second appended a second copy of the generated notes.
+
+### Fixed
+- `release.yml`: a new `create-release` job makes the release ONCE with generated notes; the build matrix jobs now only attach their assets (no body writes). Existing releases' bodies were deduplicated in place via the API.
+
+---
+
 ## [PR #125] fix: packaged builds baked ZERO keys when .env has CRLF line endings
 
 **Branch:** `fix/env-crlf-bake` → `master`
