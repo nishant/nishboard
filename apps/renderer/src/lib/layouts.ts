@@ -38,6 +38,28 @@ export const WIDGET_TITLES: Record<WidgetId, string> = {
   discord: 'Discord',
 };
 
+export interface WidgetCategory {
+  id: string;
+  label: string;
+  widgets: WidgetId[];
+}
+
+/** Fixed, ordered partition of ALL_WIDGET_IDS for the Widgets menu, the
+ *  layout editor's pin list, and Settings → Widgets. Every widget id must
+ *  appear in EXACTLY one category — enforced by a unit test, so adding a
+ *  widget without categorizing it fails the suite. */
+export const WIDGET_CATEGORIES: WidgetCategory[] = [
+  { id: 'media', label: 'Media', widgets: ['spotify', 'youtube', 'twitch', 'discord'] },
+  { id: 'feeds', label: 'Feeds', widgets: ['weather', 'stocks', 'crypto', 'news'] },
+  {
+    id: 'productivity',
+    label: 'Productivity',
+    widgets: ['calendar', 'tasks', 'notes', 'timer', 'countdown', 'worldclock', 'clipboard', 'launcher'],
+  },
+  { id: 'system', label: 'System', widgets: ['hardware', 'sound', 'netmon'] },
+  { id: 'ai', label: 'AI', widgets: ['claude'] },
+];
+
 export interface NamedLayout {
   name: string;
   layout: Layout[];

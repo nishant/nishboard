@@ -44,6 +44,26 @@ describe('dashboard-app-settings v0 → v1 migration', () => {
     expect(store.getState().twitchLiveNotify).toBe(true);
     expect(store.getState().hideYoutubeShorts).toBe(false);
     expect(store.getState().youtubeSubsChannelsOnly).toBe(false);
+    expect(store.getState().disabledWidgets).toEqual([]);
+  });
+});
+
+describe('disabledWidgets', () => {
+  it('toggleWidgetDisabled adds then removes an id', async () => {
+    const store = await loadStore();
+    store.getState().toggleWidgetDisabled('twitch');
+    store.getState().toggleWidgetDisabled('news');
+    expect(store.getState().disabledWidgets).toEqual(['twitch', 'news']);
+    store.getState().toggleWidgetDisabled('twitch');
+    expect(store.getState().disabledWidgets).toEqual(['news']);
+  });
+
+  it('persists across a reload', async () => {
+    const store = await loadStore();
+    store.getState().toggleWidgetDisabled('clipboard');
+    vi.resetModules();
+    const reloaded = await loadStore();
+    expect(reloaded.getState().disabledWidgets).toEqual(['clipboard']);
   });
 });
 

@@ -4,6 +4,9 @@ import { CREDENTIAL_DEFS, CREDENTIAL_KEYS } from '@dash/shared';
 import type { CredentialKey, AppPrefsData, UpdateCheckData } from '@dash/shared';
 import { useAppSettingsStore } from '../store/settingsStore';
 import type { Density, TempUnit, WindUnit, LowPowerMode, WeatherAlertNotify } from '../store/settingsStore';
+import { useLayoutStore } from '../store/layoutStore';
+import { WIDGET_CATEGORIES, WIDGET_TITLES } from '../lib/layouts';
+import type { WidgetId } from '../lib/layouts';
 import { useQueryClient } from '@tanstack/react-query';
 import { exportSettings, importSettings } from '../lib/backup';
 import { apiClient } from '../lib/apiClient';
@@ -290,6 +293,52 @@ function SystemPrefsSection() {
   );
 }
 
+// ── Widgets section (enable/disable per widget) ───────────────────────────────
+
+function WidgetsSection() {
+  const disabledWidgets = useAppSettingsStore((s) => s.disabledWidgets);
+  const toggleWidgetDisabled = useAppSettingsStore((s) => s.toggleWidgetDisabled);
+
+  function onToggle(id: WidgetId, enabled: boolean) {
+    toggleWidgetDisabled(id);
+    if (!enabled) {
+      // Disabling: unpin from the grid now (BSP layouts reflow gap-free) and
+      // close a floating popout if one is open. Only the disabled flag is new
+      // state — re-enabling does NOT auto-pin; pin from the Widgets menu.
+      useLayoutStore.getState().hideWidget(id);
+      window.electron?.popout?.close(id);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">Widgets</span>
+      <p className="text-th-ghost text-[10px] leading-relaxed">
+        Disabled widgets disappear everywhere — the Widgets menu, the layout editor, the grid,
+        and the command palette. Re-enabling doesn&apos;t pin the widget back; pin it from the
+        Widgets menu.
+      </p>
+      {WIDGET_CATEGORIES.map((category) => (
+        <div key={category.id} className="flex flex-col gap-2">
+          <span className="text-th-3 text-[10px] uppercase tracking-wider font-medium">
+            {category.label}
+          </span>
+          <div className="flex flex-col gap-2 pl-2">
+            {category.widgets.map((id) => (
+              <ToggleRow
+                key={id}
+                label={WIDGET_TITLES[id]}
+                checked={!disabledWidgets.includes(id)}
+                onChange={(v) => onToggle(id, v)}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── App settings tab ──────────────────────────────────────────────────────────
 
 const SCALE_MIN = 0.8;
@@ -547,6 +596,9 @@ function AppSettingsPanel() {
           onChange={setDensity}
         />
       </div>
+
+      {/* Widgets (enable/disable) */}
+      <WidgetsSection />
 
       {/* System (Electron only — hidden in the browser) */}
       <SystemPrefsSection />

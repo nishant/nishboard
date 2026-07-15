@@ -4,6 +4,31 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #TBD] feat: widgets menu categories + reordering, and disable-widgets in Settings
+
+**Branch:** `feat/widget-menu-categories` → `master`
+**Date:** 2026-07-15
+
+### Context
+The Widgets menu was a single flat 20-row list in `ALL_WIDGET_IDS` order — hard to scan, not user-arrangeable, and the only way to get rid of a widget was to unpin it (it still cluttered the menu and the command palette). Nish asked for category headings with indented rows, user reordering, and a Settings switch to disable widgets outright.
+
+### Added
+- **`WIDGET_CATEGORIES`** (`apps/renderer/src/lib/layouts.ts`): a fixed, ordered partition of `ALL_WIDGET_IDS` into Media (spotify/youtube/twitch/discord), Feeds (weather/stocks/crypto/news), Productivity (calendar/tasks/notes/timer/countdown/worldclock/clipboard/launcher), System (hardware/sound/netmon), and AI (claude). A unit test asserts the categories partition `ALL_WIDGET_IDS` exactly — adding a widget without categorizing it fails the suite.
+- **Categorized Widgets menu**: `WidgetPinList` (`components/menus/primitives.tsx`) now renders uppercase micro-label category headings with the widget rows indented beneath. Both call sites — the titlebar Widgets menu and the custom-layout editor in `LayoutsMenu` — get the grouping for free (their props are unchanged).
+- **Row reordering**: hover a row for ChevronUp/ChevronDown buttons (before the Pin toggle) that move the widget within its category. Persisted in `widgetUiStore` (`dashboard-widget-ui`) as `menuOrder: Partial<Record<string, WidgetId[]>>` + a `moveWidget(categoryId, id, direction)` action. Display order = persisted order merged with defaults via the pure helper `orderedCategoryWidgets`: persisted first, ids missing from it (new widgets after app updates) appended in default order, ids no longer in the category filtered; `onRehydrateStorage` prunes stale ids and unknown category keys (same spirit as layoutStore's `pinnedCustomLayouts` prune). Boundary moves no-op; arrows at the edges render hidden.
+- **Disable widgets entirely**: `settingsStore` gains `disabledWidgets: WidgetId[]` + `toggleWidgetDisabled(id)` (new key shallow-merges — no version bump). New Settings → App → **Widgets** section lists every widget grouped by the same categories with an enabled toggle. Disabling also immediately unpins the widget (`hideWidget` — BSP layouts reflow gap-free) and closes its popout window if open.
+
+### Changed
+- Disabled widgets are excluded everywhere: the Widgets menu + layout-editor pin list (`WidgetPinList`), the grid (`DashboardGrid`'s `visibleLayout` filter — also covers stale persisted `visibleWidgets` containing a disabled id), and the command palette's show/hide widget actions (`paletteActions.ts`).
+- The Widgets menu panel is slightly wider (`min-w-[190px]`) to fit the two reorder arrows.
+
+### Notes
+- Re-enabling a widget does **not** auto-pin it — it just returns to the Widgets menu; pin from there. Pin state in layoutStore is otherwise untouched by disabling.
+- Disabling the Discord widget does NOT unmount `DiscordHost` — the host self-hides at 0×0 when the tile disappears (deliberate: abrupt webview destruction = Discord logout), exactly like unpinning.
+- `moveWidget` swaps within the full merged category order (which can include disabled ids); reorder arrows are hidden at displayed-list boundaries, so a swap across a hidden disabled neighbor may need a second click — accepted edge case to keep the store decoupled from settings.
+
+---
+
 ## [PR #126] fix: GitHub Release notes no longer duplicated [skip release]
 
 **Branch:** `fix/release-notes-dupe` → `master`

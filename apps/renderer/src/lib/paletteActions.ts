@@ -58,7 +58,9 @@ registerActionSource(() => {
 // ── Widgets (show/hide reflects current visibility) ───────────────────────────
 registerActionSource(() => {
   const s = useLayoutStore.getState();
-  return ALL_WIDGET_IDS.map((id) => {
+  // Widgets disabled in Settings → Widgets get no palette entries at all.
+  const disabled = useAppSettingsStore.getState().disabledWidgets;
+  return ALL_WIDGET_IDS.filter((id) => !disabled.includes(id)).map((id) => {
     const visible = s.visibleWidgets.includes(id);
     return {
       id: `widget:${id}`,
