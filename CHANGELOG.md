@@ -4,7 +4,7 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
-## [PR #TBD] feat: widgets menu categories + reordering, and disable-widgets in Settings
+## [PR #127] feat: widgets menu categories + reordering, and disable-widgets in Settings
 
 **Branch:** `feat/widget-menu-categories` → `master`
 **Date:** 2026-07-15
