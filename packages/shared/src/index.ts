@@ -20,6 +20,12 @@ export type {
 } from './types/claude';
 export { CLAUDE_EFFORTS, CLAUDE_CONTEXT_WINDOW } from './types/claude';
 export type { CryptoCoinData, CryptoData } from './types/crypto';
+export type {
+  DiscordStatusData, DiscordUserData, DiscordGuildData, DiscordChannelKind, DiscordChannelData,
+  DiscordMessageData, DiscordChannelDetailData, DiscordVoiceMemberData, DiscordSelectedVoiceData,
+  DiscordVoiceSettingsData, DiscordStreamEvent,
+  DiscordVoiceSelectRequestBody, DiscordVoiceSettingsRequestBody, DiscordSelectTextChannelRequestBody,
+} from './types/discord';
 export type { IpcChannels, ElectronAPI, LauncherItemData, LauncherGroupData, LauncherStateData, ClipboardEntryData, AppPrefsData, UpdateCheckData, DiscordScreenShareSourceData, DiscordScreenShareRequestData, ClaudeLoginOpenResult } from './types/ipc';
 export type { CredentialKey, CredentialDef } from './types/credentials';
 export { CREDENTIAL_KEYS, CREDENTIAL_DEFS } from './types/credentials';

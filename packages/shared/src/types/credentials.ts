@@ -7,6 +7,8 @@ export const CREDENTIAL_KEYS = [
   'ALPACA_API_SECRET',
   'TWITCH_CLIENT_ID',
   'TWITCH_CLIENT_SECRET',
+  'DISCORD_CLIENT_ID',
+  'DISCORD_CLIENT_SECRET',
   'COINGECKO_API_KEY',
   'GITHUB_TOKEN',
   'CLAUDE_CODE_OAUTH_TOKEN',
@@ -40,6 +42,13 @@ export const CREDENTIAL_DEFS: CredentialDef[] = [
   { key: 'ALPACA_API_SECRET',    label: 'API Secret',    service: 'Stocks (Alpaca)' },
   { key: 'TWITCH_CLIENT_ID',     label: 'Client ID',     service: 'Twitch' },
   { key: 'TWITCH_CLIENT_SECRET', label: 'Client Secret', service: 'Twitch' },
+  {
+    key: 'DISCORD_CLIENT_ID',
+    label: 'Client ID',
+    service: 'Discord',
+    hint: 'Only for the Discord widget’s native mode (local RPC to the desktop app). Create an application YOU own at discord.com/developers/applications (the owner account has RPC access without a tester allowlist) and add redirect http://localhost:7432/api/discord/callback.',
+  },
+  { key: 'DISCORD_CLIENT_SECRET', label: 'Client Secret', service: 'Discord' },
   {
     key: 'COINGECKO_API_KEY',
     label: 'API Key',

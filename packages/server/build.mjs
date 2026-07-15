@@ -31,6 +31,8 @@ const BUILTIN_KEYS = [
   'ALPACA_API_SECRET',
   'TWITCH_CLIENT_ID',
   'TWITCH_CLIENT_SECRET',
+  'DISCORD_CLIENT_ID',
+  'DISCORD_CLIENT_SECRET',
   'COINGECKO_API_KEY',
 ];
 const builtins = Object.fromEntries(
