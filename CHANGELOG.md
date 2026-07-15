@@ -4,6 +4,19 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #125] fix: packaged builds baked ZERO keys when .env has CRLF line endings
+
+**Branch:** `fix/env-crlf-bake` → `master`
+**Date:** 2026-07-14
+
+### Context
+Nish installed v0.18.0 and every keyed widget failed at once — YouTube `/auth-url` 503, Spotify "no client id", Discord native "not configured". The baked-credentials map (`BUILTINS_JSON`) in the packaged server bundle was **empty**: `build.mjs` split `.env` on `'\n'`, so with CRLF line endings every line kept a trailing `\r` — and since `\r` is a JS regex line terminator, `(.*)$` can't match past it, so the key=value regex failed on EVERY line and zero keys were baked. Dev never noticed (dotenv parses CRLF fine) — a packaged-build-only failure, the class CLAUDE.md warns about.
+
+### Fixed
+- `packages/server/build.mjs` splits `.env` on `/\r?\n/` — CRLF and LF both parse. Verified post-fix: all 11 BUILTIN_KEYS bake with non-empty values.
+
+---
+
 ## [PR #124] feat: Discord native mode — RPC voice controls + live chat feed via the desktop client
 
 **Branch:** `feat/discord-native-rpc` → `master`

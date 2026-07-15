@@ -5,11 +5,15 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Parse root .env without pulling in dotenv as a build-time dep
+// Parse root .env without pulling in dotenv as a build-time dep.
+// Split on /\r?\n/, NOT '\n': with CRLF line endings every line keeps a
+// trailing \r, and `(.*)$` can't cross it (\r is a JS regex line terminator) —
+// so a CRLF .env silently baked ZERO keys and the packaged app lost every
+// credential (dev never noticed; dotenv handles CRLF).
 const envFile = path.join(__dirname, '../../.env');
 const envVars = {};
 if (fs.existsSync(envFile)) {
-  for (const line of fs.readFileSync(envFile, 'utf8').split('\n')) {
+  for (const line of fs.readFileSync(envFile, 'utf8').split(/\r?\n/)) {
     const m = line.match(/^([^#=\s][^=]*)=(.*)$/);
     if (m) envVars[m[1].trim()] = m[2].trim();
   }
