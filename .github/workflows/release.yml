@@ -110,8 +110,22 @@ jobs:
           echo "released=true" >> "$GITHUB_OUTPUT"
           echo "tag=v$next" >> "$GITHUB_OUTPUT"
 
-  build:
+  # Create the release ONCE, with generated notes. The build matrix jobs only
+  # attach their assets — both previously passed generate_release_notes:true,
+  # and whichever finished second APPENDED a duplicate "What's Changed" body.
+  create-release:
     needs: version
+    if: needs.version.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          draft: false
+          generate_release_notes: true
+
+  build:
+    needs: [version, create-release]
     if: needs.version.outputs.released == 'true'
     strategy:
       fail-fast: false
@@ -157,7 +171,7 @@ jobs:
         with:
           tag_name: ${{ needs.version.outputs.tag }}
           files: ${{ matrix.artifact }}
-          # Both matrix jobs target the same tag → same release; the second job
-          # just adds its asset.
+          # Both matrix jobs target the same release (created with notes by
+          # create-release) and ONLY add their asset — no body writes here,
+          # or the second job would duplicate the notes.
           draft: false
-          generate_release_notes: true
