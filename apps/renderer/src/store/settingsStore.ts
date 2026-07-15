@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { WidgetId } from '../lib/layouts';
 
 export type Density = 'compact' | 'comfortable';
 export type TempUnit = 'f' | 'c';
@@ -54,6 +55,11 @@ interface AppSettingsState {
   /** Claude widget: extra dirs the CLI may touch (`--add-dir`). Default home —
    *  loose by design; tighten here if desired. */
   claudeAdditionalDirs: string[];
+  /** Widgets removed from the app entirely (Settings → App → Widgets): excluded
+   *  from the Widgets menu, the layout editor, the grid, and the command
+   *  palette. Pin state in layoutStore is untouched, so re-enabling restores
+   *  the widget to the menu without auto-pinning it. */
+  disabledWidgets: WidgetId[];
   setWeatherZips: (zips: string[]) => void;
   setWeatherZipIdx: (idx: number) => void;
   setShowTempInClock: (show: boolean) => void;
@@ -70,6 +76,7 @@ interface AppSettingsState {
   setYoutubeSubsChannelsOnly: (on: boolean) => void;
   setClaudeWorkspaceDir: (dir: string) => void;
   setClaudeAdditionalDirs: (dirs: string[]) => void;
+  toggleWidgetDisabled: (id: WidgetId) => void;
 }
 
 export const useAppSettingsStore = create<AppSettingsState>()(
@@ -92,6 +99,7 @@ export const useAppSettingsStore = create<AppSettingsState>()(
       youtubeSubsChannelsOnly: false,
       claudeWorkspaceDir: '',
       claudeAdditionalDirs: ['~'],
+      disabledWidgets: [],
 
       // Reset the cycle index too — it may point past the end of the new list.
       setWeatherZips: (weatherZips) => set({ weatherZips, weatherZipIdx: 0 }),
@@ -110,6 +118,12 @@ export const useAppSettingsStore = create<AppSettingsState>()(
       setYoutubeSubsChannelsOnly: (youtubeSubsChannelsOnly) => set({ youtubeSubsChannelsOnly }),
       setClaudeWorkspaceDir: (claudeWorkspaceDir) => set({ claudeWorkspaceDir }),
       setClaudeAdditionalDirs: (claudeAdditionalDirs) => set({ claudeAdditionalDirs }),
+      toggleWidgetDisabled: (id) =>
+        set((s) => ({
+          disabledWidgets: s.disabledWidgets.includes(id)
+            ? s.disabledWidgets.filter((w) => w !== id)
+            : [...s.disabledWidgets, id],
+        })),
     }),
     {
       name: 'dashboard-app-settings',

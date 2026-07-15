@@ -122,6 +122,7 @@ export function DashboardGrid() {
   // it for every gesture — harmless when the Discord tile isn't around.
   const setDiscordInteracting = useDiscordStore((s) => s.setInteracting);
   const density = useAppSettingsStore((s) => s.density);
+  const disabledWidgets = useAppSettingsStore((s) => s.disabledWidgets);
   const popped = usePopoutStore((s) => s.popped);
   const collapsed = useWidgetUiStore((s) => s.collapsed);
   const setCollapsedFlag = useWidgetUiStore((s) => s.setCollapsed);
@@ -137,10 +138,17 @@ export function DashboardGrid() {
   }, []);
 
   // Only pass visible items to the grid; hidden items stay in `layout` with
-  // their positions intact so they snap back when re-enabled.
+  // their positions intact so they snap back when re-enabled. Disabled widgets
+  // (Settings → Widgets) are excluded too — covers stale persisted
+  // visibleWidgets that still contain a disabled id.
   const visibleLayout = useMemo(
-    () => layout.filter((item) => visibleWidgets.includes(item.i as WidgetId)),
-    [layout, visibleWidgets],
+    () =>
+      layout.filter(
+        (item) =>
+          visibleWidgets.includes(item.i as WidgetId) &&
+          !disabledWidgets.includes(item.i as WidgetId),
+      ),
+    [layout, visibleWidgets, disabledWidgets],
   );
 
   const rowHeight = useRowHeight(visibleLayout, gap);

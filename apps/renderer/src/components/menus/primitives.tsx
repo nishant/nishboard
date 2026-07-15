@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import type { ReactNode, CSSProperties } from 'react';
-import { ArrowLeft, Pin, X } from 'lucide-react';
-import { ALL_WIDGET_IDS, WIDGET_TITLES } from '../../lib/layouts';
+import { ArrowLeft, ChevronDown, ChevronUp, Pin, X } from 'lucide-react';
+import { WIDGET_CATEGORIES, WIDGET_TITLES } from '../../lib/layouts';
 import type { WidgetId } from '../../lib/layouts';
+import { orderedCategoryWidgets, useWidgetUiStore } from '../../store/widgetUiStore';
+import { useAppSettingsStore } from '../../store/settingsStore';
 import { cn } from '../../lib/utils';
 
 // WebkitAppRegion is a non-standard Electron CSS property missing from React's
@@ -46,8 +48,36 @@ export function SubmenuHeader({ label, onBack }: { label: string; onBack: () => 
   );
 }
 
-/** The widget pin/unpin toggle list — shared by the Widgets menu and the
- *  custom-layout editor (they differ only in the tooltip wording). */
+/** Hover-reveal up/down arrow for reordering a WidgetPinList row. Boundary
+ *  rows render it invisible (still occupying space, so columns stay aligned). */
+function MoveButton({
+  direction, atBoundary, onMove,
+}: {
+  direction: -1 | 1;
+  atBoundary: boolean;
+  onMove: () => void;
+}) {
+  const Icon = direction === -1 ? ChevronUp : ChevronDown;
+  return (
+    <button
+      onClick={onMove}
+      disabled={atBoundary}
+      title={direction === -1 ? 'Move up' : 'Move down'}
+      className={cn(
+        'p-0.5 rounded transition-colors shrink-0 text-th-ghost hover:text-th-2',
+        atBoundary ? 'opacity-0 pointer-events-none' : 'opacity-0 group-hover:opacity-100',
+      )}
+    >
+      <Icon size={11} />
+    </button>
+  );
+}
+
+/** The widget pin/unpin toggle list, grouped under category headings — shared
+ *  by the Widgets menu and the custom-layout editor (they differ only in the
+ *  tooltip wording). Row order within a category is user-adjustable via the
+ *  hover arrows (persisted in widgetUiStore.menuOrder); widgets disabled in
+ *  Settings → Widgets are omitted entirely. */
 export function WidgetPinList({
   visibleWidgets, showWidget, hideWidget, pinTitle, unpinTitle,
 }: {
@@ -57,30 +87,57 @@ export function WidgetPinList({
   pinTitle: string;
   unpinTitle: string;
 }) {
+  const menuOrder = useWidgetUiStore((s) => s.menuOrder);
+  const moveWidget = useWidgetUiStore((s) => s.moveWidget);
+  const disabledWidgets = useAppSettingsStore((s) => s.disabledWidgets);
+
   return (
     <>
-      {ALL_WIDGET_IDS.map((id) => {
-        const visible = visibleWidgets.includes(id);
+      {WIDGET_CATEGORIES.map((category) => {
+        const ids = orderedCategoryWidgets(category, menuOrder).filter(
+          (id) => !disabledWidgets.includes(id),
+        );
+        if (ids.length === 0) return null;
         return (
-          <div key={id} className="flex items-center gap-1 px-1 group">
-            <span className={cn(
-              'flex-1 px-2 py-1 text-[11px]',
-              visible ? 'text-th-2' : 'text-th-ghost',
-            )}>
-              {WIDGET_TITLES[id]}
-            </span>
-            <button
-              onClick={() => (visible ? hideWidget(id) : showWidget(id))}
-              title={visible ? unpinTitle : pinTitle}
-              className={cn(
-                'p-1 rounded transition-colors shrink-0',
-                visible
-                  ? 'text-th-2 hover:text-red-400'
-                  : 'text-th-ghost hover:text-th-2 opacity-0 group-hover:opacity-100',
-              )}
-            >
-              <Pin size={10} className={visible ? 'fill-current' : ''} />
-            </button>
+          <div key={category.id}>
+            <p className="px-3 pt-1.5 pb-0.5 text-th-3 text-[10px] uppercase tracking-wider font-medium">
+              {category.label}
+            </p>
+            {ids.map((id, idx) => {
+              const visible = visibleWidgets.includes(id);
+              return (
+                <div key={id} className="flex items-center gap-0.5 pl-3 pr-1 group">
+                  <span className={cn(
+                    'flex-1 px-2 py-1 text-[11px] min-w-0 truncate',
+                    visible ? 'text-th-2' : 'text-th-ghost',
+                  )}>
+                    {WIDGET_TITLES[id]}
+                  </span>
+                  <MoveButton
+                    direction={-1}
+                    atBoundary={idx === 0}
+                    onMove={() => moveWidget(category.id, id, -1)}
+                  />
+                  <MoveButton
+                    direction={1}
+                    atBoundary={idx === ids.length - 1}
+                    onMove={() => moveWidget(category.id, id, 1)}
+                  />
+                  <button
+                    onClick={() => (visible ? hideWidget(id) : showWidget(id))}
+                    title={visible ? unpinTitle : pinTitle}
+                    className={cn(
+                      'p-1 rounded transition-colors shrink-0',
+                      visible
+                        ? 'text-th-2 hover:text-red-400'
+                        : 'text-th-ghost hover:text-th-2 opacity-0 group-hover:opacity-100',
+                    )}
+                  >
+                    <Pin size={10} className={visible ? 'fill-current' : ''} />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         );
       })}

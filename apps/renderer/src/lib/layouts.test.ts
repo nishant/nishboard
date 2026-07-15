@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { Layout } from 'react-grid-layout';
 import type { WidgetId } from './layouts';
-import { ALL_WIDGET_IDS, applyConstraints, autoFillLayout, DEFAULT_LAYOUT, generateLayout, PRESETS } from './layouts';
+import {
+  ALL_WIDGET_IDS, applyConstraints, autoFillLayout, DEFAULT_LAYOUT, generateLayout, PRESETS,
+  WIDGET_CATEGORIES,
+} from './layouts';
 
 const COLS = 24;
 const ROWS = 22;
@@ -37,6 +40,21 @@ describe('static PRESETS', () => {
 
   it('DEFAULT_LAYOUT is the first preset', () => {
     expect(DEFAULT_LAYOUT).toBe(PRESETS[0]);
+  });
+});
+
+describe('WIDGET_CATEGORIES', () => {
+  it('partitions ALL_WIDGET_IDS exactly — every widget in exactly one category', () => {
+    // Adding a widget without slotting it into a category fails here.
+    const flat = WIDGET_CATEGORIES.flatMap((c) => c.widgets);
+    expect(new Set(flat).size, 'a widget id appears in more than one category').toBe(flat.length);
+    expect([...flat].sort()).toEqual([...ALL_WIDGET_IDS].sort());
+  });
+
+  it('has unique category ids and no empty categories', () => {
+    const ids = WIDGET_CATEGORIES.map((c) => c.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const c of WIDGET_CATEGORIES) expect(c.widgets.length).toBeGreaterThan(0);
   });
 });
 

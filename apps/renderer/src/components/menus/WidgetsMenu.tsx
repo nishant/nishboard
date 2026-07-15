@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Layers } from 'lucide-react';
 import { useLayoutStore } from '../../store/layoutStore';
+import { cn } from '../../lib/utils';
 import { Backdrop, menuBtn, menuPanel, noDragStyle, WidgetPinList } from './primitives';
 
 export function WidgetsMenu({ compact }: { compact: boolean }) {
@@ -17,7 +18,8 @@ export function WidgetsMenu({ compact }: { compact: boolean }) {
       {open && (
         <>
           <Backdrop onClose={() => setOpen(false)} />
-          <div className={menuPanel} style={noDragStyle}>
+          {/* Wider than the base panel: rows carry two reorder arrows + pin. */}
+          <div className={cn(menuPanel, 'min-w-[190px]')} style={noDragStyle}>
             <WidgetPinList
               visibleWidgets={visibleWidgets}
               showWidget={showWidget}
