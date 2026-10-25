@@ -5,8 +5,8 @@ import { readFileSync } from 'fs';
 import { createRequire } from 'module';
 import path from 'path';
 import { PRESETS } from '@nish/ui/theme';
-import { APP_PRESETS } from './src/lib/appPresets';
-import { LEGACY_THEME_IDS } from './src/lib/legacyThemes';
+import { APP_PRESETS } from './src/lib/appPresets.ts';
+import { LEGACY_THEME_IDS } from './src/lib/legacyThemes.ts';
 
 const require = createRequire(import.meta.url);
 
