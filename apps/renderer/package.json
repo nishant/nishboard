@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@dash/shared": "workspace:*",
-    "@nish/ui": "github:nishant/ui#v0.2.2",
+    "@nish/ui": "github:nishant/ui#v0.2.3",
     "@tanstack/react-query": "^5.62.0",
     "lucide-react": "^1.16.0",
     "react": "^19.3.1",
