@@ -4,7 +4,7 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
-## [PR #TBD] feat: shared nish.software theme (@nish/ui) + React 19 / Vite 8 / Tailwind 4
+## [PR #128] feat: shared nish.software theme (@nish/ui) + React 19 / Vite 8 / Tailwind 4
 
 **Branch:** `ui/nish-ui` → `master`
 **Date:** 2026-10-25
