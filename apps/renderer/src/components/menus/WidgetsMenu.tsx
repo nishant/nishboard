@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Layers } from 'lucide-react';
 import { useLayoutStore } from '../../store/layoutStore';
-import { cn } from '../../lib/utils';
 import { Backdrop, menuBtn, menuPanel, noDragStyle, WidgetPinList } from './primitives';
+import { cn } from '@nish/ui';
 
 export function WidgetsMenu({ compact }: { compact: boolean }) {
   const { visibleWidgets, showWidget, hideWidget } = useLayoutStore();

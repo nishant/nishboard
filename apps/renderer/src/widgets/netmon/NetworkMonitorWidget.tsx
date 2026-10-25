@@ -3,12 +3,13 @@ import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { Activity, BarChart2, Gauge, Loader2, Radio, Settings, Wifi } from 'lucide-react';
 import { useNetwork, type NetworkHistory } from './useNetwork';
 import { useNetmonStore, type NetmonView } from '../../store/netmonStore';
-import { WidgetSkeleton } from '../../components/Skeleton';
 import { ErrorState } from '../../components/ErrorState';
 import { HeaderAction } from '../../components/HeaderAction';
 import { RefreshAction } from '../../components/RefreshAction';
 import { useDragScroll } from '../../hooks/useDragScroll';
 import type { NetworkMonitorData, PingHostStats } from '@dash/shared';
+import { SkeletonLines } from '@nish/ui';
+import { tk } from '../../lib/tokens';
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -20,15 +21,15 @@ const MIN_SAMPLES = 3;
 const WINDOW_LABEL = '60s';
 
 function latClass(ms: number): string {
-  if (ms < 30) return 'text-emerald-400';
-  if (ms < 80) return 'text-amber-400';
-  return 'text-red-400';
+  if (ms < 30) return 'text-th-ok';
+  if (ms < 80) return 'text-th-warn';
+  return 'text-th-loss';
 }
 
 function latHex(ms: number): string {
-  if (ms < 30) return '#34d399';
-  if (ms < 80) return '#fbbf24';
-  return '#f87171';
+  if (ms < 30) return tk('ok');
+  if (ms < 80) return tk('warn');
+  return tk('loss');
 }
 
 function fmtMs(ms: number): string {
@@ -91,12 +92,12 @@ const LatencyCard = memo(function LatencyCard({ stats, spark, view }: {
     <Card>
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center gap-1.5">
-          <Radio size={12} className="text-sky-400" />
-          <span className="text-xs text-th-2 font-medium font-mono truncate max-w-[160px]">{stats.host}</span>
+          <Radio size={12} className="text-th-sky" />
+          <span className="text-xs text-th-hi2 font-medium font-mono truncate max-w-[160px]">{stats.host}</span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {stats.avgMs !== null && (
-            <span className="text-[10px] text-th-ghost tabular-nums">avg {fmtMs(stats.avgMs)} ms</span>
+            <span className="text-[10px] text-th-hi3 tabular-nums">avg {fmtMs(stats.avgMs)} ms</span>
           )}
           {stats.latestMs !== null ? (
             <span className={`text-sm font-semibold tabular-nums ${latClass(stats.latestMs)}`}>
@@ -105,21 +106,21 @@ const LatencyCard = memo(function LatencyCard({ stats, spark, view }: {
           ) : (
             // Degraded, not error — latest ping lost; the Quality card's loss
             // stat carries the story (e.g. ICMP blocked while traffic flows).
-            <span className="text-sm font-semibold text-th-3">—</span>
+            <span className="text-sm font-semibold text-th-hi3">—</span>
           )}
         </div>
       </div>
 
       {stats.samples < MIN_SAMPLES ? (
-        <div className="flex items-center gap-2 py-1 text-th-ghost text-[10px]">
+        <div className="flex items-center gap-2 py-1 text-th-hi3 text-[10px]">
           <Loader2 size={11} className="animate-spin" /> Sampling…
         </div>
       ) : view === 'sparks' ? (
-        <Spark data={spark} color="#60a5fa" />
+        <Spark data={spark} color={tk('chart-1')} />
       ) : (
         <UsageBar
           pct={((stats.latestMs ?? 0) / LAT_SCALE_MS) * 100}
-          color={stats.latestMs !== null ? latHex(stats.latestMs) : '#64748b'}
+          color={stats.latestMs !== null ? latHex(stats.latestMs) : tk('ghost')}
         />
       )}
     </Card>
@@ -132,19 +133,19 @@ const QualityCard = memo(function QualityCard({ hosts }: { hosts: PingHostStats[
   return (
     <Card>
       <div className="flex items-center gap-1.5 mb-1.5">
-        <Gauge size={12} className="text-purple-400" />
-        <span className="text-xs text-th-2 font-medium">Quality</span>
+        <Gauge size={12} className="text-th-violet" />
+        <span className="text-xs text-th-hi2 font-medium">Quality</span>
       </div>
       <div className="space-y-1.5">
         {hosts.map((h) => (
           <div key={h.host}>
-            <div className="flex justify-between text-[10px] text-th-3 mb-0.5">
+            <div className="flex justify-between text-[10px] text-th-hi3 mb-0.5">
               <span className="font-mono">{h.host}</span>
               <span className="tabular-nums">
                 jitter {h.jitterMs !== null ? `${h.jitterMs.toFixed(1)} ms` : '—'} · loss {h.lossPct.toFixed(0)}%
               </span>
             </div>
-            <UsageBar pct={h.lossPct} color={h.lossPct >= 5 ? '#f87171' : '#34d399'} />
+            <UsageBar pct={h.lossPct} color={h.lossPct >= 5 ? tk('loss') : tk('ok')} />
           </div>
         ))}
       </div>
@@ -164,30 +165,30 @@ const ThroughputCard = memo(function ThroughputCard({ totals, ifaces, history, v
     <Card>
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center gap-1.5">
-          <Wifi size={12} className="text-sky-400" />
-          <span className="text-xs text-th-2 font-medium">Throughput</span>
+          <Wifi size={12} className="text-th-sky" />
+          <span className="text-xs text-th-hi2 font-medium">Throughput</span>
         </div>
         <div className="flex gap-3 text-[10px] tabular-nums">
-          <span className="text-sky-400">↑ {totals.upMbps.toFixed(1)} Mbps</span>
-          <span className="text-emerald-400">↓ {totals.downMbps.toFixed(1)} Mbps</span>
+          <span className="text-th-chart-5">↑ {totals.upMbps.toFixed(1)} Mbps</span>
+          <span className="text-th-chart-2">↓ {totals.downMbps.toFixed(1)} Mbps</span>
         </div>
       </div>
 
       {view === 'sparks' && (
         <div className="space-y-1">
-          <Spark data={history.netUp} color="#38bdf8" />
-          <Spark data={history.netDown} color="#34d399" />
+          <Spark data={history.netUp} color={tk('chart-5')} />
+          <Spark data={history.netDown} color={tk('chart-2')} />
         </div>
       )}
 
       {ifaces.length > 0 ? (
         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
           {ifaces.map((n) => (
-            <span key={n.iface} className="text-[10px] text-th-3 font-mono">{n.iface}</span>
+            <span key={n.iface} className="text-[10px] text-th-hi3 font-mono">{n.iface}</span>
           ))}
         </div>
       ) : (
-        <span className="text-[10px] text-th-ghost">No active interfaces</span>
+        <span className="text-[10px] text-th-hi3">No active interfaces</span>
       )}
     </Card>
   );
@@ -205,7 +206,7 @@ function ConfigPanel() {
 
   return (
     <div className="bg-th-elevated rounded-lg p-3 border border-th-line">
-      <p className="text-[10px] text-th-3 mb-2 uppercase tracking-wide">Ping targets</p>
+      <p className="text-[10px] text-th-hi3 mb-2 uppercase tracking-wide">Ping targets</p>
       <div className="flex flex-col gap-2">
         {([0, 1] as const).map((i) => (
           <input
@@ -219,7 +220,7 @@ function ConfigPanel() {
             placeholder={i === 0 ? '1.1.1.1' : '8.8.8.8'}
             spellCheck={false}
             className={`bg-th-elevated rounded px-2 py-1 text-xs font-mono text-th-hi border outline-none transition-colors placeholder:text-th-ghost ${
-              isValidHost(drafts[i]) ? 'border-th-line focus:border-th-3' : 'border-red-400/60'
+              isValidHost(drafts[i]) ? 'border-th-line focus:border-th-hi3' : 'border-th-loss/60'
             }`}
           />
         ))}
@@ -263,7 +264,7 @@ export function NetworkMonitorWidget() {
   const { ref: setScrollEl } = useDragScroll<HTMLDivElement>('y');
 
   if (query.isLoading) {
-    return <WidgetSkeleton lines={4} />;
+    return <SkeletonLines lines={4} className="h-full overflow-hidden" />;
   }
 
   // Only a dead API is an error. All-pings-lost with live throughput (ICMP
@@ -289,8 +290,8 @@ export function NetworkMonitorWidget() {
 
       {/* Footer */}
       <div className="flex items-center justify-between px-0.5 shrink-0 mt-auto pt-1">
-        <span className="text-[10px] text-th-ghost">Ping every 2s · last {WINDOW_LABEL}</span>
-        {query.isFetching && <Loader2 size={10} className="text-th-ghost animate-spin" />}
+        <span className="text-[10px] text-th-hi3">Ping every 2s · last {WINDOW_LABEL}</span>
+        {query.isFetching && <Loader2 size={10} className="text-th-hi3 animate-spin" />}
       </div>
     </div>
   );

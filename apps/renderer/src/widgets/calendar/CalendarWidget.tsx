@@ -85,12 +85,12 @@ function MonthView({
 
   return (
     <div className="flex flex-col min-w-0 min-h-0">
-      <p className={`text-[11px] font-semibold text-center mb-1.5 shrink-0 ${isCurrent ? 'text-th-hi' : 'text-th-3'}`}>
+      <p className={`text-[11px] font-semibold text-center mb-1.5 shrink-0 ${isCurrent ? 'text-th-hi' : 'text-th-hi3'}`}>
         {label} {year}
       </p>
       <div className="grid grid-cols-7 shrink-0 mb-0.5">
         {DOW.map((d) => (
-          <span key={d} className="text-center text-[9px] font-medium text-th-ghost uppercase tracking-wide">
+          <span key={d} className="text-center text-[9px] font-medium text-th-hi3 uppercase tracking-wide">
             {d}
           </span>
         ))}
@@ -106,7 +106,7 @@ function MonthView({
               className={`relative flex items-center justify-center text-[11px] h-6 rounded-full ${
                 d === null ? 'invisible' :
                 isToday ? 'bg-th-invert-bg text-th-invert-text font-bold cursor-pointer' :
-                'text-th-2 cursor-pointer hover:bg-th-elevated'
+                'text-th-hi2 cursor-pointer hover:bg-th-elevated'
               }`}
             >
               {d ?? ''}
@@ -161,14 +161,14 @@ function DayPanel({
           onClick={onClose}
           title="Close"
           aria-label="Close day view"
-          className="flex items-center justify-center w-[22px] h-[22px] rounded text-th-ghost hover:text-th-hi hover:bg-th-elevated/60 transition-colors"
+          className="flex items-center justify-center w-[22px] h-[22px] rounded text-th-hi3 hover:text-th-hi hover:bg-th-elevated/60 transition-colors"
         >
           <X size={12} />
         </button>
       </div>
       {!authed ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center">
-          <p className="text-th-ghost text-xs">
+          <p className="text-th-hi3 text-xs">
             Connect your Google account to see and add events
           </p>
           <button
@@ -184,19 +184,19 @@ function DayPanel({
             {allDay.map((e) => (
               <div key={e.id} className="px-2 py-1 rounded bg-th-elevated text-[11px] text-th-hi">
                 {e.title}
-                {e.location && <span className="text-th-ghost ml-1.5">{e.location}</span>}
+                {e.location && <span className="text-th-hi3 ml-1.5">{e.location}</span>}
               </div>
             ))}
             {timed.map((e) => (
               <div key={e.id} className="flex items-baseline gap-1.5 px-0.5 text-[11px]">
-                <span className="text-th-3 tabular-nums shrink-0">
+                <span className="text-th-hi3 tabular-nums shrink-0">
                   {new Date(e.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
-                <span className="text-th-2 truncate">{e.title}</span>
-                {e.location && <span className="text-th-ghost truncate">{e.location}</span>}
+                <span className="text-th-hi2 truncate">{e.title}</span>
+                {e.location && <span className="text-th-hi3 truncate">{e.location}</span>}
               </div>
             ))}
-            {events.length === 0 && <p className="text-th-ghost text-xs">No events</p>}
+            {events.length === 0 && <p className="text-th-hi3 text-xs">No events</p>}
           </div>
           <form
             className="shrink-0 flex items-center gap-1.5 mt-2"
@@ -212,7 +212,7 @@ function DayPanel({
               type="time"
               value={time}
               onChange={(e) => setTime(e.target.value)}
-              className="px-1.5 py-1 rounded bg-th-elevated text-[11px] text-th-2 outline-none"
+              className="px-1.5 py-1 rounded bg-th-elevated text-[11px] text-th-hi2 outline-none"
             />
             <button
               type="submit"

@@ -10,7 +10,6 @@ import type {
   DiscordSelectedVoiceData,
   DiscordUserData,
 } from '@dash/shared';
-import { cn } from '../../lib/utils';
 import { toast } from '../../lib/alerts';
 import {
   connectDiscord,
@@ -25,6 +24,7 @@ import {
   useDiscordVoiceSettings,
 } from './useDiscordNative';
 import { applyMessageEvent, applySpeaking, formatMessageTime, guildInitials } from './nativeLib';
+import { cn } from '@nish/ui';
 
 // Native Discord mode: guild rail → channel list → read-only live chat feed,
 // plus a voice footer (join/leave/mute/deafen + speaking rings). Everything is
@@ -39,7 +39,7 @@ function CenterPanel({ title, body, children }: {
   return (
     <div className="h-full flex flex-col items-center justify-center gap-2 p-4 text-center">
       <p className="text-th-hi text-xs font-medium">{title}</p>
-      <p className="text-th-ghost text-[11px] max-w-64">{body}</p>
+      <p className="text-th-hi3 text-[11px] max-w-64">{body}</p>
       {children}
     </div>
   );
@@ -63,7 +63,7 @@ export function DiscordNative() {
   if (status.isLoading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <Loader2 size={16} className="animate-spin text-th-ghost" />
+        <Loader2 size={16} className="animate-spin text-th-hi3" />
       </div>
     );
   }
@@ -226,9 +226,9 @@ function ChannelList({ loading, textChannels, voiceChannels, activeChannelId, vo
 }) {
   return (
     <div className="w-36 shrink-0 border-r border-th-line overflow-y-auto py-1.5 px-1">
-      {loading && <Loader2 size={12} className="animate-spin text-th-ghost mx-auto my-2" />}
+      {loading && <Loader2 size={12} className="animate-spin text-th-hi3 mx-auto my-2" />}
       {textChannels.length > 0 && (
-        <p className="px-1.5 pb-1 text-[9px] font-semibold uppercase tracking-widest text-th-ghost">Text</p>
+        <p className="px-1.5 pb-1 text-[9px] font-semibold uppercase tracking-widest text-th-hi3">Text</p>
       )}
       {textChannels.map((c) => (
         <button
@@ -236,7 +236,7 @@ function ChannelList({ loading, textChannels, voiceChannels, activeChannelId, vo
           onClick={() => onSelectText(c.id)}
           className={cn(
             'w-full flex items-center gap-1 px-1.5 py-1 rounded text-left text-[11px] transition-colors',
-            c.id === activeChannelId ? 'bg-th-elevated text-th-hi' : 'text-th-ghost hover:text-th-hi hover:bg-th-elevated/50',
+            c.id === activeChannelId ? 'bg-th-elevated text-th-hi' : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated/50',
           )}
         >
           <Hash size={10} className="shrink-0" />
@@ -244,7 +244,7 @@ function ChannelList({ loading, textChannels, voiceChannels, activeChannelId, vo
         </button>
       ))}
       {voiceChannels.length > 0 && (
-        <p className="px-1.5 pt-2 pb-1 text-[9px] font-semibold uppercase tracking-widest text-th-ghost">Voice</p>
+        <p className="px-1.5 pt-2 pb-1 text-[9px] font-semibold uppercase tracking-widest text-th-hi3">Voice</p>
       )}
       {voiceChannels.map((c) => {
         const joined = voice?.channelId === c.id;
@@ -257,13 +257,13 @@ function ChannelList({ loading, textChannels, voiceChannels, activeChannelId, vo
             }}
             className={cn(
               'w-full flex items-center gap-1 px-1.5 py-1 rounded text-left text-[11px] transition-colors group',
-              joined ? 'text-green-400 bg-th-elevated/60' : 'text-th-ghost hover:text-th-hi hover:bg-th-elevated/50',
+              joined ? 'text-th-ok bg-th-elevated/60' : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated/50',
             )}
           >
             <Volume2 size={10} className="shrink-0" />
             <span className="truncate flex-1">{c.name}</span>
             {!joined && (
-              <span className="hidden group-hover:inline text-[9px] text-th-ghost">Join</span>
+              <span className="hidden group-hover:inline text-[9px] text-th-hi3">Join</span>
             )}
           </button>
         );
@@ -288,35 +288,35 @@ function ChatFeed({ channel, loading, messages, selfId }: {
   if (!channel) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <p className="text-th-ghost text-[11px]">Pick a text channel</p>
+        <p className="text-th-hi3 text-[11px]">Pick a text channel</p>
       </div>
     );
   }
   return (
     <>
       <div className="shrink-0 flex items-center gap-1.5 px-2 py-1.5 border-b border-th-line">
-        <Hash size={11} className="text-th-ghost shrink-0" />
+        <Hash size={11} className="text-th-hi3 shrink-0" />
         <span className="text-th-hi text-[11px] font-medium truncate flex-1">{channel.name}</span>
         <button
           title="Open this channel in the Discord app to reply"
           onClick={() => void replyInDiscord(channel.id)}
-          className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-th-ghost hover:text-th-hi hover:bg-th-elevated/60 transition-colors"
+          className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-th-hi3 hover:text-th-hi hover:bg-th-elevated/60 transition-colors"
         >
           <ExternalLink size={10} />
           Reply in Discord
         </button>
       </div>
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-1 py-1.5">
-        {loading && <Loader2 size={12} className="animate-spin text-th-ghost mx-auto my-2" />}
+        {loading && <Loader2 size={12} className="animate-spin text-th-hi3 mx-auto my-2" />}
         {!loading && messages.length === 0 && (
-          <p className="text-th-ghost text-[11px] text-center py-3">No recent messages</p>
+          <p className="text-th-hi3 text-[11px] text-center py-3">No recent messages</p>
         )}
         {messages.map((m) => (
           <MessageRow key={m.id} message={m} self={m.author.id === selfId} />
         ))}
       </div>
       <div className="shrink-0 px-2 py-1 border-t border-th-line">
-        <p className="text-th-ghost text-[10px] select-none">
+        <p className="text-th-hi3 text-[10px] select-none">
           Read-only feed — use “Reply in Discord” to answer.
         </p>
       </div>
@@ -329,17 +329,17 @@ function MessageRow({ message, self }: { message: DiscordMessageData; self: bool
     <div className="flex gap-1.5 px-1 py-0.5">
       <MemberAvatar name={message.author.username} avatarUrl={message.author.avatarUrl} size={18} />
       <div className="min-w-0 flex-1">
-        <span className={cn('text-[10px] font-semibold', self ? 'text-th-accent' : 'text-th-3')}>
+        <span className={cn('text-[10px] font-semibold', self ? 'text-th-accent' : 'text-th-hi3')}>
           {message.author.username}
         </span>
-        <span className="text-th-ghost text-[9px] ml-1.5">
+        <span className="text-th-hi3 text-[9px] ml-1.5">
           {formatMessageTime(message.timestamp)}
           {message.edited && ' (edited)'}
         </span>
         {/* Plain text only — React escapes it; no markdown pipeline in v1. */}
         <p className="text-th-hi text-[11px] whitespace-pre-wrap break-words leading-snug">{message.content}</p>
         {(message.attachmentCount > 0 || message.hasEmbeds) && (
-          <p className="text-th-ghost text-[9px] italic">
+          <p className="text-th-hi3 text-[9px] italic">
             {message.attachmentCount > 0 && `${message.attachmentCount} attachment${message.attachmentCount > 1 ? 's' : ''}`}
             {message.attachmentCount > 0 && message.hasEmbeds && ' · '}
             {message.hasEmbeds && 'embed'}
@@ -362,7 +362,7 @@ function MemberAvatar({ name, avatarUrl, size, speaking = false }: {
       className={cn(
         'shrink-0 rounded-full overflow-hidden flex items-center justify-center bg-th-elevated transition-shadow',
         // Green speaking ring — the whole point of the voice roster.
-        speaking && 'ring-2 ring-green-500',
+        speaking && 'ring-2 ring-th-ok',
       )}
       style={{ width: size, height: size }}
     >
@@ -389,7 +389,7 @@ function VoiceFooter({ voice }: { voice: DiscordSelectedVoiceData }) {
 
   return (
     <div className="shrink-0 border-t border-th-line px-2 py-1.5 flex items-center gap-2">
-      <Volume2 size={11} className="text-green-400 shrink-0" />
+      <Volume2 size={11} className="text-th-ok shrink-0" />
       <span className="text-th-hi text-[10px] font-medium truncate">
         {voice.channelName ?? 'Voice'}
       </span>
@@ -403,7 +403,7 @@ function VoiceFooter({ voice }: { voice: DiscordSelectedVoiceData }) {
         onClick={() => void toggle({ mute: !settings?.mute })}
         className={cn(
           'p-1 rounded transition-colors',
-          settings?.mute ? 'text-red-400 bg-red-400/10' : 'text-th-ghost hover:text-th-hi hover:bg-th-elevated/60',
+          settings?.mute ? 'text-th-loss bg-th-loss-soft' : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated/60',
         )}
       >
         {settings?.mute ? <MicOff size={11} /> : <Mic size={11} />}
@@ -413,7 +413,7 @@ function VoiceFooter({ voice }: { voice: DiscordSelectedVoiceData }) {
         onClick={() => void toggle({ deaf: !settings?.deaf })}
         className={cn(
           'p-1 rounded transition-colors',
-          settings?.deaf ? 'text-red-400 bg-red-400/10' : 'text-th-ghost hover:text-th-hi hover:bg-th-elevated/60',
+          settings?.deaf ? 'text-th-loss bg-th-loss-soft' : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated/60',
         )}
       >
         {settings?.deaf ? <HeadphoneOff size={11} /> : <Headphones size={11} />}
@@ -421,7 +421,7 @@ function VoiceFooter({ voice }: { voice: DiscordSelectedVoiceData }) {
       <button
         title="Leave voice"
         onClick={() => void selectDiscordVoice(null)}
-        className="p-1 rounded text-th-ghost hover:text-red-400 hover:bg-red-400/10 transition-colors"
+        className="p-1 rounded text-th-hi3 hover:text-th-loss hover:bg-th-loss-soft transition-colors"
       >
         <PhoneOff size={11} />
       </button>

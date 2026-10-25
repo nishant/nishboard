@@ -5,10 +5,9 @@ import {
 } from 'lucide-react';
 import { useLauncherUiStore } from '../../store/launcherUiStore';
 import { HeaderAction } from '../../components/HeaderAction';
-import { EmptyState } from '../../components/EmptyState';
 import { toast } from '../../lib/alerts';
-import { cn } from '../../lib/utils';
 import type { LauncherGroupData, LauncherItemData, LauncherStateData } from '@dash/shared';
+import { EmptyState, cn } from '@nish/ui';
 
 const EMPTY_STATE: LauncherStateData = { groups: [], items: [] };
 
@@ -124,27 +123,27 @@ function EditModal({
         if (e.key === 'Escape') setRenamingId(null);
       }}
       autoFocus
-      className="flex-1 min-w-0 bg-transparent text-th-hi text-xs focus:outline-none border-b border-th-3"
+      className="flex-1 min-w-0 bg-transparent text-th-hi text-xs focus:outline-none border-b border-th-hi3"
     />
   );
 
   return (
-    <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 rounded-lg">
-      <div className="bg-th-surface border border-th-line rounded-xl p-4 w-[22rem] max-h-[85%] flex flex-col gap-3 shadow-xl">
+    <div className="absolute inset-0 z-10 flex items-center justify-center bg-th-scrim/60 rounded-lg">
+      <div className="bg-th-surface border border-th-line rounded-xl p-4 w-[22rem] max-h-[85%] flex flex-col gap-3 shadow-pop">
         <div className="flex items-center justify-between">
           <span className="text-th-hi font-semibold text-sm">Edit Launcher</span>
-          <button onClick={onClose} className="text-th-3 hover:text-th-hi transition-colors">
+          <button onClick={onClose} className="text-th-hi3 hover:text-th-hi transition-colors">
             <X size={16} />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto flex flex-col gap-1 min-h-0">
           {items.length === 0 && (
-            <p className="text-th-ghost text-xs text-center py-3">No shortcuts yet</p>
+            <p className="text-th-hi3 text-xs text-center py-3">No shortcuts yet</p>
           )}
           {items.map((it, i) => (
             <div key={it.id} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-th-elevated group">
-              <span className="text-th-3 shrink-0"><ItemIcon item={it} size={12} /></span>
+              <span className="text-th-hi3 shrink-0"><ItemIcon item={it} size={12} /></span>
               {renamingId === it.id ? (
                 renameInput(it.id, false)
               ) : (
@@ -162,18 +161,18 @@ function EditModal({
                   await launcher?.assignGroup(it.id, e.target.value || null);
                   await refresh();
                 }}
-                className="shrink-0 max-w-[6.5rem] bg-th-surface border border-th-line rounded px-1 py-0.5 text-th-2 text-[10px] focus:outline-none focus:border-th-3"
+                className="shrink-0 max-w-[6.5rem] bg-th-surface border border-th-line rounded px-1 py-0.5 text-th-hi2 text-[10px] focus:outline-none focus:border-th-hi3"
                 title="Group"
               >
                 <option value="">— none —</option>
                 {groups.map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}
               </select>
               <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                <button onClick={() => void move(it.id, -1)} disabled={i === 0} className="p-0.5 text-th-ghost hover:text-th-2 disabled:opacity-30" title="Move up"><ArrowUp size={11} /></button>
-                <button onClick={() => void move(it.id, 1)} disabled={i === items.length - 1} className="p-0.5 text-th-ghost hover:text-th-2 disabled:opacity-30" title="Move down"><ArrowDown size={11} /></button>
+                <button onClick={() => void move(it.id, -1)} disabled={i === 0} className="p-0.5 text-th-hi3 hover:text-th-hi2 disabled:opacity-30" title="Move up"><ArrowUp size={11} /></button>
+                <button onClick={() => void move(it.id, 1)} disabled={i === items.length - 1} className="p-0.5 text-th-hi3 hover:text-th-hi2 disabled:opacity-30" title="Move down"><ArrowDown size={11} /></button>
                 <button
                   onClick={async () => { await launcher?.removeItem(it.id); await refresh(); }}
-                  className="p-0.5 text-th-ghost hover:text-red-400"
+                  className="p-0.5 text-th-hi3 hover:text-th-loss"
                   title="Remove"
                 >
                   <X size={11} />
@@ -184,7 +183,7 @@ function EditModal({
 
           {groups.length > 0 && (
             <>
-              <p className="text-th-ghost text-[10px] uppercase tracking-wider mt-2 mb-0.5">Groups</p>
+              <p className="text-th-hi3 text-[10px] uppercase tracking-wider mt-2 mb-0.5">Groups</p>
               {groups.map((g) => (
                 <div key={g.id} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-th-elevated group">
                   {renamingId === g.id ? (
@@ -198,12 +197,12 @@ function EditModal({
                       {g.label}
                     </span>
                   )}
-                  <span className="text-th-ghost text-[10px] shrink-0">
+                  <span className="text-th-hi3 text-[10px] shrink-0">
                     {items.filter((it) => it.group === g.id).length} items
                   </span>
                   <button
                     onClick={async () => { await launcher?.removeGroup(g.id); await refresh(); }}
-                    className="p-0.5 text-th-ghost hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                    className="p-0.5 text-th-hi3 hover:text-th-loss opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
                     title="Delete group (items are kept)"
                   >
                     <X size={11} />
@@ -227,14 +226,14 @@ function EditModal({
               onChange={(e) => setUrlLabel(e.target.value)}
               onKeyDown={onUrlKey}
               placeholder="Label"
-              className="w-20 bg-th-elevated border border-th-line rounded-lg px-2 py-1.5 text-th-hi text-[11px] placeholder:text-th-ghost focus:outline-none focus:border-th-3"
+              className="w-20 bg-th-elevated border border-th-line rounded-lg px-2 py-1.5 text-th-hi text-[11px] placeholder:text-th-ghost focus:outline-none focus:border-th-hi3"
             />
             <input
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               onKeyDown={onUrlKey}
               placeholder="https://…"
-              className="flex-1 min-w-0 bg-th-elevated border border-th-line rounded-lg px-2 py-1.5 text-th-hi text-[11px] font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-3"
+              className="flex-1 min-w-0 bg-th-elevated border border-th-line rounded-lg px-2 py-1.5 text-th-hi text-[11px] font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-hi3"
             />
             <button
               onClick={() => void addUrl()}
@@ -251,7 +250,7 @@ function EditModal({
               onChange={(e) => setGroupLabel(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') void addGroup(); if (e.key === 'Escape') onClose(); }}
               placeholder="New group…"
-              className="flex-1 min-w-0 bg-th-elevated border border-th-line rounded-lg px-2 py-1.5 text-th-hi text-[11px] placeholder:text-th-ghost focus:outline-none focus:border-th-3"
+              className="flex-1 min-w-0 bg-th-elevated border border-th-line rounded-lg px-2 py-1.5 text-th-hi text-[11px] placeholder:text-th-ghost focus:outline-none focus:border-th-hi3"
             />
             <button
               onClick={() => void addGroup()}
@@ -263,13 +262,13 @@ function EditModal({
             </button>
           </div>
           <div className="flex items-center justify-between">
-            <p className="text-th-ghost text-[10px] leading-relaxed">
+            <p className="text-th-hi3 text-[10px] leading-relaxed">
               App paths stay in the main process — the dashboard launches by id.
             </p>
             <button
               onClick={() => void refreshIcons()}
               disabled={refreshingIcons}
-              className="shrink-0 flex items-center gap-1 text-th-ghost hover:text-th-2 text-[10px] disabled:opacity-50 transition-colors"
+              className="shrink-0 flex items-center gap-1 text-th-hi3 hover:text-th-hi2 text-[10px] disabled:opacity-50 transition-colors"
               title="Re-fetch app icons and favicons"
             >
               <RefreshCw size={10} className={cn(refreshingIcons && 'animate-spin')} /> Icons
@@ -300,7 +299,7 @@ function ItemGrid({ items }: { items: LauncherItemData[] }) {
         <button
           key={it.id}
           onClick={() => void window.electron?.launcher?.launch(it.id)}
-          className="flex flex-col items-center gap-1.5 px-1 py-2.5 rounded-lg hover:bg-th-elevated/70 text-th-2 hover:text-th-hi transition-colors"
+          className="flex flex-col items-center gap-1.5 px-1 py-2.5 rounded-lg hover:bg-th-elevated/70 text-th-hi2 hover:text-th-hi transition-colors"
           title={it.label}
         >
           <ItemIcon item={it} size={18} />
@@ -325,9 +324,9 @@ export function LauncherWidget() {
       )}
 
       {!inElectron ? (
-        <EmptyState icon={<Rocket size={16} />} message="Launcher works in the desktop app" />
+        <EmptyState compact icon={<Rocket size={16} />} title="Launcher works in the desktop app" />
       ) : items.length === 0 ? (
-        <EmptyState icon={<Rocket size={16} />} message="No shortcuts — add some with the pencil" />
+        <EmptyState compact icon={<Rocket size={16} />} title="No shortcuts — add some with the pencil" />
       ) : (
         <div className="h-full overflow-y-auto p-2 flex flex-col gap-1.5">
           {ungrouped.length > 0 && <ItemGrid items={ungrouped} />}
@@ -340,7 +339,7 @@ export function LauncherWidget() {
                 <div className="flex items-center gap-1 group/hdr">
                   <button
                     onClick={() => toggleCollapsed(g.id)}
-                    className="flex items-center gap-1 text-th-ghost hover:text-th-2 text-[10px] uppercase tracking-wider transition-colors min-w-0"
+                    className="flex items-center gap-1 text-th-hi3 hover:text-th-hi2 text-[10px] uppercase tracking-wider transition-colors min-w-0"
                     title={isCollapsed ? 'Expand' : 'Collapse'}
                   >
                     {isCollapsed ? <ChevronRight size={11} className="shrink-0" /> : <ChevronDown size={11} className="shrink-0" />}
@@ -349,7 +348,7 @@ export function LauncherWidget() {
                   </button>
                   <button
                     onClick={() => void window.electron?.launcher?.launchGroup(g.id)}
-                    className="p-0.5 text-th-ghost hover:text-th-hi opacity-0 group-hover/hdr:opacity-100 transition-all shrink-0"
+                    className="p-0.5 text-th-hi3 hover:text-th-hi opacity-0 group-hover/hdr:opacity-100 transition-all shrink-0"
                     title={`Launch all in ${g.label}`}
                   >
                     <Play size={11} />

@@ -4,12 +4,12 @@ import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { useCrypto } from './useCrypto';
 import { useCryptoStore } from '../../store/cryptoStore';
 import { useCryptoUiStore } from '../../store/cryptoUiStore';
-import { WidgetSkeleton } from '../../components/Skeleton';
 import { ErrorState } from '../../components/ErrorState';
-import { EmptyState } from '../../components/EmptyState';
 import { HeaderAction } from '../../components/HeaderAction';
 import { RefreshAction } from '../../components/RefreshAction';
 import type { CryptoCoinData } from '@dash/shared';
+import { EmptyState, SkeletonLines } from '@nish/ui';
+import { tk } from '../../lib/tokens';
 
 function fmtPrice(n: number): string {
   if (n >= 1000) return n.toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -20,7 +20,7 @@ function fmtPrice(n: number): string {
 
 function CoinCard({ coin }: { coin: CryptoCoinData }) {
   const up = coin.change24hPercent >= 0;
-  const color = up ? '#34d399' : '#f87171'; // emerald-400 / red-400
+  const color = up ? tk('ok') : tk('loss');
   const points = coin.sparkline7d.map((v) => ({ v }));
 
   return (
@@ -28,8 +28,8 @@ function CoinCard({ coin }: { coin: CryptoCoinData }) {
       <div className="flex items-center gap-1.5 min-w-0">
         <img src={coin.image} alt="" className="w-4 h-4 rounded-full shrink-0" />
         <span className="text-th-hi text-xs font-medium truncate flex-1 min-w-0">{coin.name}</span>
-        <span className="text-th-ghost text-[10px] uppercase shrink-0">{coin.symbol}</span>
-        <span className={`flex items-center gap-0.5 text-[10px] tabular-nums shrink-0 ${up ? 'text-emerald-400' : 'text-red-400'}`}>
+        <span className="text-th-hi3 text-[10px] uppercase shrink-0">{coin.symbol}</span>
+        <span className={`flex items-center gap-0.5 text-[10px] tabular-nums shrink-0 ${up ? 'text-th-ok' : 'text-th-loss'}`}>
           {up ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
           {up ? '+' : ''}{coin.change24hPercent.toFixed(2)}%
         </span>
@@ -67,11 +67,11 @@ function WatchlistModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 rounded-lg">
-      <div className="bg-th-surface border border-th-line rounded-xl p-4 w-72 max-h-[80%] flex flex-col gap-3 shadow-xl">
+    <div className="absolute inset-0 z-10 flex items-center justify-center bg-th-scrim/60 rounded-lg">
+      <div className="bg-th-surface border border-th-line rounded-xl p-4 w-72 max-h-[80%] flex flex-col gap-3 shadow-pop">
         <div className="flex items-center justify-between">
           <span className="text-th-hi font-semibold text-sm">Edit Coins</span>
-          <button onClick={onClose} className="text-th-3 hover:text-th-hi transition-colors">
+          <button onClick={onClose} className="text-th-hi3 hover:text-th-hi transition-colors">
             <X size={16} />
           </button>
         </div>
@@ -83,7 +83,7 @@ function WatchlistModal({ onClose }: { onClose: () => void }) {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKey}
             placeholder="Add coin id… e.g. bitcoin"
-            className="flex-1 bg-th-elevated border border-th-line rounded-lg px-3 py-1.5 text-th-hi text-xs font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-3"
+            className="flex-1 bg-th-elevated border border-th-line rounded-lg px-3 py-1.5 text-th-hi text-xs font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-hi3"
             autoFocus
           />
           <button onClick={submit} className="bg-th-overlay hover:bg-th-overlay/70 text-th-hi rounded-lg px-2.5 py-1.5 transition-colors">
@@ -97,7 +97,7 @@ function WatchlistModal({ onClose }: { onClose: () => void }) {
               <span className="font-mono text-th-hi text-xs">{id}</span>
               <button
                 onClick={() => removeCoin(id)}
-                className="text-th-ghost hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                className="text-th-hi3 hover:text-th-loss transition-colors opacity-0 group-hover:opacity-100"
               >
                 <X size={12} />
               </button>
@@ -105,7 +105,7 @@ function WatchlistModal({ onClose }: { onClose: () => void }) {
           ))}
         </div>
 
-        <p className="text-th-ghost text-[10px]">
+        <p className="text-th-hi3 text-[10px]">
           Use CoinGecko coin <em>ids</em> (the URL slug: coingecko.com/en/coins/<b>bitcoin</b>), not ticker symbols.
           Unknown ids are silently dropped from results.
         </p>
@@ -138,9 +138,9 @@ export function CryptoWidget() {
 
       <div className="flex-1 overflow-y-auto p-2">
         {watchlist.length === 0 ? (
-          <EmptyState message="No coins — add one with the pencil" />
+          <EmptyState compact title="No coins — add one with the pencil" />
         ) : isLoading ? (
-          <WidgetSkeleton lines={4} />
+          <SkeletonLines lines={4} className="h-full overflow-hidden" />
         ) : isError || !data ? (
           <ErrorState
             message={error instanceof Error && error.message ? error.message : 'Failed to load crypto prices'}

@@ -77,11 +77,11 @@ export function Titlebar() {
   return (
     <div
       style={dragStyle}
-      className="h-8 relative flex items-center px-3 bg-th-bar border-b border-th-line/50 shrink-0 select-none"
+      className="h-8 relative flex items-center px-3 bg-th-bg border-b border-th-line/50 shrink-0 select-none"
     >
       {/* Left: brand + pinned layouts (inline when wide, dropdown when compact) */}
       <div className="flex items-center gap-1.5 min-w-0">
-        <span className="text-th-ghost text-[11px] font-semibold tracking-[0.2em] uppercase shrink-0">
+        <span className="text-th-hi3 text-[11px] font-semibold tracking-[0.2em] uppercase shrink-0">
           nishboard
         </span>
         {compact ? <PinnedLayoutsMenu /> : <InlinePinnedLayouts />}
@@ -89,7 +89,7 @@ export function Titlebar() {
 
       {/* Center: clock — absolute so it's always perfectly centred */}
       <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none">
-        <span className="text-th-3 text-[11px] tabular-nums">
+        <span className="text-th-hi3 text-[11px] tabular-nums">
           {clock}{showTempInClock && temp != null ? ` · ${temp}°` : ''}
         </span>
       </div>
@@ -111,21 +111,21 @@ export function Titlebar() {
           <div className="w-px h-3 bg-th-line mx-1" />
           <button
             onClick={() => window.electron?.minimize()}
-            className="flex items-center justify-center w-6 h-6 rounded text-th-ghost hover:text-th-hi hover:bg-th-elevated/60 transition-colors"
+            className="flex items-center justify-center w-6 h-6 rounded text-th-hi3 hover:text-th-hi hover:bg-th-elevated/60 transition-colors"
             title="Minimize"
           >
             <Minus size={13} />
           </button>
           <button
             onClick={() => window.electron?.toggleMaximize()}
-            className="flex items-center justify-center w-6 h-6 rounded text-th-ghost hover:text-th-hi hover:bg-th-elevated/60 transition-colors"
+            className="flex items-center justify-center w-6 h-6 rounded text-th-hi3 hover:text-th-hi hover:bg-th-elevated/60 transition-colors"
             title="Maximize"
           >
             <Square size={11} />
           </button>
           <button
             onClick={() => window.electron?.close()}
-            className="flex items-center justify-center w-6 h-6 rounded text-th-ghost hover:text-red-400 hover:bg-th-elevated/60 transition-colors"
+            className="flex items-center justify-center w-6 h-6 rounded text-th-hi3 hover:text-th-loss hover:bg-th-elevated/60 transition-colors"
             title="Close"
           >
             <X size={13} />

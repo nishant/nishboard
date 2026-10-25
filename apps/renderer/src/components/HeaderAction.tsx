@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { cn } from '../lib/utils';
+import { cn } from '@nish/ui';
 
 /** Icon button for the WidgetShell header action row — uniform 22px square. */
 export function HeaderAction({
@@ -25,8 +25,8 @@ export function HeaderAction({
         active
           ? 'bg-th-overlay text-th-hi'
           : danger
-            ? 'text-th-ghost hover:text-red-400 hover:bg-red-400/10'
-            : 'text-th-ghost hover:text-th-hi hover:bg-th-elevated/60',
+            ? 'text-th-hi3 hover:text-th-loss hover:bg-th-loss-soft'
+            : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated/60',
       )}
     >
       {children}

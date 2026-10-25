@@ -6,11 +6,12 @@ import { useStocksStore } from '../../store/stocksStore';
 import { useStocksUiStore } from '../../store/stocksUiStore';
 import { useAppSettingsStore } from '../../store/settingsStore';
 import { relTimeAgo, relTimeUntil, hourFormat } from '../../lib/time';
-import { WidgetSkeleton, Skeleton } from '../../components/Skeleton';
 import { ErrorState } from '../../components/ErrorState';
 import { HeaderAction } from '../../components/HeaderAction';
 import { RefreshAction } from '../../components/RefreshAction';
 import type { StockQuote } from '@dash/shared';
+import { Skeleton, SkeletonLines } from '@nish/ui';
+import { tk } from '../../lib/tokens';
 
 // ── Market session ────────────────────────────────────────────────────────────
 
@@ -60,7 +61,7 @@ function fmtPrice(n: number): string {
 
 function QuoteCard({ q, onClick }: { q: StockQuote; onClick: () => void }) {
   const positive = q.change >= 0;
-  const color = positive ? 'text-emerald-400' : 'text-red-400';
+  const color = positive ? 'text-th-ok' : 'text-th-loss';
   const Icon = positive ? TrendingUp : TrendingDown;
 
   return (
@@ -104,21 +105,21 @@ function StockDetailPanel({ ticker, onClose }: { ticker: string; onClose: () => 
   const first = bars[0]?.c ?? 0;
   const last = bars[bars.length - 1]?.c ?? 0;
   const up = last >= first;
-  const color = up ? '#34d399' : '#f87171'; // emerald-400 / red-400
+  const color = up ? tk('ok') : tk('loss');
   const gradId = `stk-${ticker}`;
   const rangeLabel = range === 'daily' ? 'Daily · ~2mo' : 'Intraday';
 
   return (
     <div className="absolute inset-0 z-10 bg-th-surface rounded-lg flex flex-col">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-th-line shrink-0">
-        <button onClick={onClose} className="text-th-ghost hover:text-th-hi transition-colors" title="Back">
+        <button onClick={onClose} className="text-th-hi3 hover:text-th-hi transition-colors" title="Back">
           <ArrowLeft size={15} />
         </button>
         <span className="font-mono font-bold text-th-hi text-sm">{ticker}</span>
         {bars.length > 0 && (
           <>
-            <span className="text-th-ghost text-[10px] uppercase tracking-wider">{rangeLabel}</span>
-            <span className={`ml-auto font-mono text-xs tabular-nums ${up ? 'text-emerald-400' : 'text-red-400'}`}>
+            <span className="text-th-hi3 text-[10px] uppercase tracking-wider">{rangeLabel}</span>
+            <span className={`ml-auto font-mono text-xs tabular-nums ${up ? 'text-th-ok' : 'text-th-loss'}`}>
               {fmtPrice(last)}
             </span>
           </>
@@ -131,9 +132,9 @@ function StockDetailPanel({ ticker, onClose }: { ticker: string; onClose: () => 
           {isLoading ? (
             <Skeleton className="h-full w-full" />
           ) : isError ? (
-            <div className="h-full flex items-center justify-center text-red-400 text-xs">Failed to load</div>
+            <div className="h-full flex items-center justify-center text-th-loss text-xs">Failed to load</div>
           ) : bars.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-th-ghost text-xs">No chart data available</div>
+            <div className="h-full flex items-center justify-center text-th-hi3 text-xs">No chart data available</div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={bars} margin={{ top: 4, right: 2, bottom: 0, left: 2 }}>
@@ -146,14 +147,14 @@ function StockDetailPanel({ ticker, onClose }: { ticker: string; onClose: () => 
                 <YAxis domain={['dataMin', 'dataMax']} hide />
                 <Tooltip
                   isAnimationActive={false}
-                  cursor={{ stroke: 'rgb(var(--t-ghost))', strokeWidth: 1 }}
-                  contentStyle={{ background: 'rgb(var(--t-elevated))', border: '1px solid rgb(var(--t-line))', borderRadius: 6, fontSize: 11 }}
-                  labelFormatter={(t: string) =>
+                  cursor={{ stroke: tk('ghost'), strokeWidth: 1 }}
+                  contentStyle={{ background: tk('elevated'), border: `1px solid ${tk('line')}`, color: tk('hi'), borderRadius: 6, fontSize: 11 }}
+                  labelFormatter={(t) =>
                     range === 'daily'
-                      ? new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                      : new Date(t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', ...hourFormat(clock24h) })
+                      ? new Date(String(t)).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                      : new Date(String(t)).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', ...hourFormat(clock24h) })
                   }
-                  formatter={(v: number) => [fmtPrice(v), 'Price']}
+                  formatter={(v) => [fmtPrice(Number(v)), 'Price']}
                 />
                 <Area type="monotone" dataKey="c" stroke={color} strokeWidth={1.5} fill={`url(#${gradId})`} isAnimationActive={false} />
               </AreaChart>
@@ -163,9 +164,9 @@ function StockDetailPanel({ ticker, onClose }: { ticker: string; onClose: () => 
 
         {/* News */}
         <div className="flex flex-col gap-2">
-          <span className="text-th-ghost text-[10px] uppercase tracking-widest">Recent News</span>
+          <span className="text-th-hi3 text-[10px] uppercase tracking-widest">Recent News</span>
           {isLoading ? null : news.length === 0 ? (
-            <span className="text-th-ghost text-xs">No recent news</span>
+            <span className="text-th-hi3 text-xs">No recent news</span>
           ) : (
             news.map((n, i) => (
               <button
@@ -174,11 +175,11 @@ function StockDetailPanel({ ticker, onClose }: { ticker: string; onClose: () => 
                 className="text-left group flex flex-col gap-0.5"
                 title="Open article in browser"
               >
-                <span className="text-th-2 text-xs leading-snug line-clamp-2 group-hover:text-th-accent transition-colors flex items-start gap-1">
+                <span className="text-th-hi2 text-xs leading-snug line-clamp-2 group-hover:text-th-accent transition-colors flex items-start gap-1">
                   {n.headline}
                   <ExternalLink className="w-2.5 h-2.5 shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition" />
                 </span>
-                <span className="text-th-ghost text-[10px]">{n.source}{n.createdAt && ` · ${relTimeAgo(n.createdAt)}`}</span>
+                <span className="text-th-hi3 text-[10px]">{n.source}{n.createdAt && ` · ${relTimeAgo(n.createdAt)}`}</span>
               </button>
             ))
           )}
@@ -208,13 +209,13 @@ function WatchlistModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 rounded-lg">
-      <div className="bg-th-surface border border-th-line rounded-xl p-4 w-72 max-h-[80%] flex flex-col gap-3 shadow-xl">
+    <div className="absolute inset-0 z-10 flex items-center justify-center bg-th-scrim/60 rounded-lg">
+      <div className="bg-th-surface border border-th-line rounded-xl p-4 w-72 max-h-[80%] flex flex-col gap-3 shadow-pop">
         <div className="flex items-center justify-between">
           <span className="text-th-hi font-semibold text-sm">Edit Watchlist</span>
           <button
             onClick={onClose}
-            className="text-th-3 hover:text-th-hi transition-colors"
+            className="text-th-hi3 hover:text-th-hi transition-colors"
           >
             <X size={16} />
           </button>
@@ -227,7 +228,7 @@ function WatchlistModal({ onClose }: { onClose: () => void }) {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKey}
             placeholder="Add ticker…"
-            className="flex-1 bg-th-elevated border border-th-line rounded-lg px-3 py-1.5 text-th-hi text-xs font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-3"
+            className="flex-1 bg-th-elevated border border-th-line rounded-lg px-3 py-1.5 text-th-hi text-xs font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-hi3"
             autoFocus
           />
           <button
@@ -247,7 +248,7 @@ function WatchlistModal({ onClose }: { onClose: () => void }) {
               <span className="font-mono text-th-hi text-xs">{ticker}</span>
               <button
                 onClick={() => removeTicker(ticker)}
-                className="text-th-ghost hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                className="text-th-hi3 hover:text-th-loss transition-colors opacity-0 group-hover:opacity-100"
               >
                 <X size={12} />
               </button>
@@ -255,7 +256,7 @@ function WatchlistModal({ onClose }: { onClose: () => void }) {
           ))}
         </div>
 
-        <p className="text-th-ghost text-[10px]">
+        <p className="text-th-hi3 text-[10px]">
           Note: US equities only (Alpaca IEX feed). Futures/crypto tickers not supported.
         </p>
       </div>
@@ -294,10 +295,10 @@ export function StocksWidget() {
   // No pulse: the dot marks the market session, not a live feed — prices
   // refresh on a 5-minute poll (deliberate; keeps Alpaca usage minimal).
   const sessionDot: Record<MarketSession, string> = {
-    open:         'bg-emerald-400',
-    'after-hours': 'bg-amber-400',
-    'pre-market':  'bg-amber-400',
-    closed:       'bg-red-500',
+    open:         'bg-th-ok',
+    'after-hours': 'bg-th-warn',
+    'pre-market':  'bg-th-warn',
+    closed:       'bg-th-loss',
   };
   const sessionLabel: Record<MarketSession, string> = {
     open:         'Market Open',
@@ -325,7 +326,7 @@ export function StocksWidget() {
 
       <div className="flex items-center px-3 py-1.5 border-b border-th-line shrink-0">
         <span
-          className={`text-[10px] flex items-center gap-1.5 ${session === 'closed' ? 'text-th-ghost' : 'text-th-3'}`}
+          className={`text-[10px] flex items-center gap-1.5 ${session === 'closed' ? 'text-th-hi3' : 'text-th-hi3'}`}
           title="Prices refresh every 5 minutes"
         >
           <span className={`h-1.5 w-1.5 rounded-full inline-block shrink-0 ${sessionDot[session]}`} />
@@ -334,7 +335,7 @@ export function StocksWidget() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
-        {isLoading && <WidgetSkeleton lines={4} />}
+        {isLoading && <SkeletonLines lines={4} className="h-full overflow-hidden" />}
         {isError && (
           // Surface the server's message (e.g. the missing-keys pointer to
           // Settings → Developer) rather than a generic failure string.

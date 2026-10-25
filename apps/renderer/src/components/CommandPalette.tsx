@@ -4,7 +4,7 @@ import { collectActions, matchParamCommand, refreshSources } from '../lib/comman
 import type { PaletteAction, ParamCommandMatch } from '../lib/commandRegistry';
 import { fuzzyScore } from '../lib/fuzzy';
 import { useOverlayStore } from '../store/overlayStore';
-import { cn } from '../lib/utils';
+import { cn } from '@nish/ui';
 
 // In-app command palette (per scope: NOT a global shortcut).
 // Open with mod+K or double-Shift (<300ms). Recents float on an empty query.
@@ -188,15 +188,15 @@ export function CommandPalette() {
 
   return (
     <div
-      className="fixed inset-0 z-[400] flex items-start justify-center pt-[14vh] bg-black/50"
+      className="fixed inset-0 z-[400] flex items-start justify-center pt-[14vh] bg-th-scrim/50"
       onMouseDown={() => setOpen(false)}
     >
       <div
-        className="w-[520px] max-w-[90vw] bg-th-surface border border-th-line rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[60vh]"
+        className="w-[520px] max-w-[90vw] bg-th-surface border border-th-line rounded-xl shadow-modal overflow-hidden flex flex-col max-h-[60vh]"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 px-4 py-3 border-b border-th-line shrink-0">
-          <Search size={14} className="text-th-ghost shrink-0" />
+          <Search size={14} className="text-th-hi3 shrink-0" />
           <input
             ref={inputRef}
             value={query}
@@ -207,12 +207,12 @@ export function CommandPalette() {
             spellCheck={false}
             className="flex-1 bg-transparent text-th-hi text-sm placeholder:text-th-ghost focus:outline-none"
           />
-          <kbd className="text-th-ghost text-[10px] border border-th-line rounded px-1.5 py-0.5 shrink-0">esc</kbd>
+          <kbd className="text-th-hi3 text-[10px] border border-th-line rounded px-1.5 py-0.5 shrink-0">esc</kbd>
         </div>
 
         <div ref={listRef} className="flex-1 overflow-y-auto py-1">
           {results.length === 0 && (
-            <p className="text-th-ghost text-xs text-center py-6">No matching commands</p>
+            <p className="text-th-hi3 text-xs text-center py-6">No matching commands</p>
           )}
           {results.map(({ row, header }, i) => {
             const isHint = row.kind === 'command' && !row.match.parsed;
@@ -223,7 +223,7 @@ export function CommandPalette() {
             return (
               <div key={key}>
                 {header && (
-                  <p className="px-4 pt-2 pb-1 text-th-ghost text-[10px] uppercase tracking-widest">{header}</p>
+                  <p className="px-4 pt-2 pb-1 text-th-hi3 text-[10px] uppercase tracking-widest">{header}</p>
                 )}
                 <button
                   data-idx={i}
@@ -232,19 +232,19 @@ export function CommandPalette() {
                   className={cn(
                     'w-full flex items-center gap-2 px-4 py-1.5 text-left text-xs transition-colors',
                     isHint
-                      ? 'text-th-ghost cursor-default'
-                      : i === selected ? 'bg-th-elevated text-th-hi' : 'text-th-2',
+                      ? 'text-th-hi3 cursor-default'
+                      : i === selected ? 'bg-th-elevated text-th-hi' : 'text-th-hi2',
                   )}
                 >
                   <span className="flex-1 min-w-0 truncate">{title}</span>
-                  {!isHint && i === selected && <CornerDownLeft size={11} className="text-th-ghost shrink-0" />}
+                  {!isHint && i === selected && <CornerDownLeft size={11} className="text-th-hi3 shrink-0" />}
                 </button>
               </div>
             );
           })}
         </div>
 
-        <div className="px-4 py-2 border-t border-th-line text-th-ghost text-[10px] shrink-0">
+        <div className="px-4 py-2 border-t border-th-line text-th-hi3 text-[10px] shrink-0">
           ↑↓ navigate · Enter run · type &quot;timer 25m&quot;, &quot;task …&quot;, &quot;volume 40&quot;
         </div>
       </div>

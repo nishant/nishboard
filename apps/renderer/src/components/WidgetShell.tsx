@@ -1,6 +1,6 @@
 import { GripHorizontal, ChevronDown, ChevronRight } from 'lucide-react';
-import { cn } from '../lib/utils';
 import { HeaderAction } from './HeaderAction';
+import { cn } from '@nish/ui';
 
 interface WidgetShellProps {
   title: string;
@@ -35,8 +35,8 @@ export function WidgetShell({ title, children, actions, className, collapsed = f
   return (
     <div className={cn('h-full flex flex-col rounded-lg border border-th-line bg-th-surface overflow-hidden', className)}>
       <div className="widget-drag-handle group/wsh flex items-center gap-2 px-3 py-2 border-b border-th-line cursor-grab active:cursor-grabbing select-none shrink-0">
-        <GripHorizontal className="w-3.5 h-3.5 text-th-ghost" />
-        <span className="text-xs font-medium text-th-3 uppercase tracking-widest">{title}</span>
+        <GripHorizontal className="w-3.5 h-3.5 text-th-hi3" />
+        <span className="text-xs font-medium text-th-hi3 uppercase tracking-widest">{title}</span>
         {actionRow}
       </div>
       {!collapsed && (

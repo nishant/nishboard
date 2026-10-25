@@ -3,9 +3,8 @@ import { Play, Pause, RotateCcw, X, Plus, Bell } from 'lucide-react';
 import { useTimersStore } from '../../store/timersStore';
 import { useAppSettingsStore } from '../../store/settingsStore';
 import { fireAlert } from '../../lib/alerts';
-import { cn } from '../../lib/utils';
 import { fmtDuration, relTimeUntil, hourFormat } from '../../lib/time';
-import { EmptyState } from '../../components/EmptyState';
+import { EmptyState, cn } from '@nish/ui';
 
 type Tab = 'timer' | 'alarm';
 
@@ -30,7 +29,7 @@ function timeToTimestamp(hhmm: string): number | null {
   return d.getTime();
 }
 
-const iconBtn = 'shrink-0 p-1 rounded text-th-ghost hover:text-th-2 hover:bg-th-elevated/60 transition disabled:opacity-30 disabled:cursor-not-allowed';
+const iconBtn = 'shrink-0 p-1 rounded text-th-hi3 hover:text-th-hi2 hover:bg-th-elevated/60 transition disabled:opacity-30 disabled:cursor-not-allowed';
 
 export function TimerWidget() {
   const [tab, setTab] = useState<Tab>('timer');
@@ -93,7 +92,7 @@ export function TimerWidget() {
             key={t}
             onClick={() => setTab(t)}
             className={cn('px-2.5 py-0.5 rounded text-[10px] capitalize transition-colors',
-              tab === t ? 'bg-th-overlay text-th-hi' : 'text-th-ghost hover:text-th-2')}
+              tab === t ? 'bg-th-overlay text-th-hi' : 'text-th-hi3 hover:text-th-hi2')}
           >
             {t}
           </button>
@@ -104,13 +103,13 @@ export function TimerWidget() {
         <>
           <div className="flex items-center gap-1 shrink-0">
             <input value={tLabel} onChange={(e) => setTLabel(e.target.value)} placeholder="Label"
-              className="flex-1 min-w-0 bg-th-elevated border border-th-line rounded-lg px-2 py-1.5 text-th-hi text-[11px] placeholder:text-th-ghost focus:outline-none focus:border-th-3" />
+              className="flex-1 min-w-0 bg-th-elevated border border-th-line rounded-lg px-2 py-1.5 text-th-hi text-[11px] placeholder:text-th-ghost focus:outline-none focus:border-th-hi3" />
             <input type="number" min={0} value={tMin} onChange={(e) => setTMin(e.target.value)} title="minutes"
-              className="w-10 bg-th-elevated border border-th-line rounded-lg px-1.5 py-1.5 text-th-hi text-[11px] text-center tabular-nums focus:outline-none focus:border-th-3" />
-            <span className="text-th-ghost text-[10px]">m</span>
+              className="w-10 bg-th-elevated border border-th-line rounded-lg px-1.5 py-1.5 text-th-hi text-[11px] text-center tabular-nums focus:outline-none focus:border-th-hi3" />
+            <span className="text-th-hi3 text-[10px]">m</span>
             <input type="number" min={0} max={59} value={tSec} onChange={(e) => setTSec(e.target.value)} title="seconds"
-              className="w-10 bg-th-elevated border border-th-line rounded-lg px-1.5 py-1.5 text-th-hi text-[11px] text-center tabular-nums focus:outline-none focus:border-th-3" />
-            <span className="text-th-ghost text-[10px]">s</span>
+              className="w-10 bg-th-elevated border border-th-line rounded-lg px-1.5 py-1.5 text-th-hi text-[11px] text-center tabular-nums focus:outline-none focus:border-th-hi3" />
+            <span className="text-th-hi3 text-[10px]">s</span>
             <button onClick={submitTimer} className="shrink-0 p-1.5 rounded-lg bg-th-overlay hover:bg-th-overlay/70 text-th-hi transition-colors" title="Add timer">
               <Plus size={14} />
             </button>
@@ -118,7 +117,7 @@ export function TimerWidget() {
 
           <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-1.5">
             {timers.length === 0 ? (
-              <EmptyState message="No timers" />
+              <EmptyState compact title="No timers" />
             ) : (
               timers.map((t) => {
                 const remaining = t.running && t.endsAt != null ? Math.max(0, t.endsAt - now) : t.remainingMs;
@@ -126,7 +125,7 @@ export function TimerWidget() {
                 return (
                   <div key={t.id} className="group flex items-center gap-2 px-2 py-1.5 rounded-lg bg-th-elevated/40">
                     <div className="flex flex-col min-w-0 flex-1">
-                      {t.label && <span className="text-th-ghost text-[10px] truncate">{t.label}</span>}
+                      {t.label && <span className="text-th-hi3 text-[10px] truncate">{t.label}</span>}
                       <span className={cn('text-xl tabular-nums leading-none', done ? 'text-th-accent' : 'text-th-hi')}>
                         {fmtDuration(remaining)}
                       </span>
@@ -152,9 +151,9 @@ export function TimerWidget() {
         <>
           <div className="flex items-center gap-1 shrink-0">
             <input value={aLabel} onChange={(e) => setALabel(e.target.value)} placeholder="Label"
-              className="flex-1 min-w-0 bg-th-elevated border border-th-line rounded-lg px-2 py-1.5 text-th-hi text-[11px] placeholder:text-th-ghost focus:outline-none focus:border-th-3" />
+              className="flex-1 min-w-0 bg-th-elevated border border-th-line rounded-lg px-2 py-1.5 text-th-hi text-[11px] placeholder:text-th-ghost focus:outline-none focus:border-th-hi3" />
             <input type="time" value={aTime} onChange={(e) => setATime(e.target.value)}
-              className="bg-th-elevated border border-th-line rounded-lg px-2 py-1.5 text-th-hi text-[11px] tabular-nums focus:outline-none focus:border-th-3" />
+              className="bg-th-elevated border border-th-line rounded-lg px-2 py-1.5 text-th-hi text-[11px] tabular-nums focus:outline-none focus:border-th-hi3" />
             <button onClick={submitAlarm} disabled={!aTime} className="shrink-0 p-1.5 rounded-lg bg-th-overlay hover:bg-th-overlay/70 text-th-hi disabled:opacity-40 disabled:cursor-not-allowed transition-colors" title="Add alarm">
               <Plus size={14} />
             </button>
@@ -162,18 +161,18 @@ export function TimerWidget() {
 
           <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-1.5">
             {alarms.length === 0 ? (
-              <EmptyState message="No alarms" />
+              <EmptyState compact title="No alarms" />
             ) : (
               alarms.map((a) => (
                 <div key={a.id} className="group flex items-center gap-2 px-2 py-1.5 rounded-lg bg-th-elevated/40">
-                  <Bell size={13} className={cn('shrink-0', a.done ? 'text-th-ghost' : 'text-th-accent')} />
+                  <Bell size={13} className={cn('shrink-0', a.done ? 'text-th-hi3' : 'text-th-accent')} />
                   <div className="flex flex-col flex-1 min-w-0">
-                    <span className={cn('text-sm tabular-nums leading-tight', a.done ? 'text-th-ghost line-through' : 'text-th-hi')}>
+                    <span className={cn('text-sm tabular-nums leading-tight', a.done ? 'text-th-hi3 line-through' : 'text-th-hi')}>
                       {fmtAlarm(a.at, clock24h)}
                     </span>
-                    {a.label && <span className="text-th-ghost text-[10px] truncate">{a.label}</span>}
+                    {a.label && <span className="text-th-hi3 text-[10px] truncate">{a.label}</span>}
                   </div>
-                  <span className={cn('text-[10px] shrink-0', a.done ? 'text-amber-500/70' : 'text-th-ghost')}>
+                  <span className={cn('text-[10px] shrink-0', a.done ? 'text-th-warn' : 'text-th-hi3')}>
                     {a.done ? 'rang' : relTimeUntil(a.at, now)}
                   </span>
                   <button onClick={() => removeAlarm(a.id)} className={iconBtn} title="Delete"><X size={13} /></button>

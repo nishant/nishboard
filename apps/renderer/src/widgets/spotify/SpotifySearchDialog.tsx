@@ -36,10 +36,10 @@ function ActionButton({
       disabled={track.isLocal || status === 'pending'}
       className={`p-1.5 rounded transition-colors ${
         status === 'done'
-          ? 'text-[#1DB954]'
+          ? 'text-th-ok'
           : status === 'error'
-          ? 'text-red-400'
-          : 'text-th-3 hover:text-[#1DB954] hover:bg-th-elevated'
+          ? 'text-th-loss'
+          : 'text-th-hi3 hover:text-th-ok hover:bg-th-elevated'
       } ${track.isLocal ? 'opacity-30 cursor-not-allowed' : ''}`}
       title={title}
     >
@@ -62,15 +62,15 @@ const ResultRow = memo(function ResultRow({
       ) : (
         <div className="w-9 h-9 rounded bg-th-elevated flex items-center justify-center shrink-0">
           {track.type === 'episode'
-            ? <Mic2 size={12} className="text-th-ghost" />
-            : <Music size={12} className="text-th-ghost" />}
+            ? <Mic2 size={12} className="text-th-hi3" />
+            : <Music size={12} className="text-th-hi3" />}
         </div>
       )}
       <div className="min-w-0 flex-1">
         <p className="text-xs text-th-hi truncate leading-tight">{track.trackName}</p>
-        <p className="text-[10px] text-th-3 truncate">{track.artistName}</p>
+        <p className="text-[10px] text-th-hi3 truncate">{track.artistName}</p>
       </div>
-      <span className="text-th-ghost text-[10px] tabular-nums shrink-0">{fmtMs(track.durationMs)}</span>
+      <span className="text-th-hi3 text-[10px] tabular-nums shrink-0">{fmtMs(track.durationMs)}</span>
       <div className="flex items-center gap-0.5 shrink-0">
         <ActionButton track={track} onAction={onAction} action="play" status={playStatus} icon={<Play size={13} />} title="Play now" />
         <ActionButton track={track} onAction={onAction} action="queue" status={queueStatus} icon={<Plus size={13} />} title="Add to queue" />
@@ -169,16 +169,16 @@ export function SpotifySearchDialog({ open, onClose }: SpotifySearchDialogProps)
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] px-4 bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] px-4 bg-th-scrim/60 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-xl rounded-xl border border-th-line bg-th-surface shadow-2xl overflow-hidden flex flex-col max-h-[70vh]"
+        className="w-full max-w-xl rounded-xl border border-th-line bg-th-surface shadow-modal overflow-hidden flex flex-col max-h-[70vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search input */}
         <div className="flex items-center gap-2 px-4 py-3 border-b border-th-line shrink-0">
-          <Search size={16} className="text-th-3 shrink-0" />
+          <Search size={16} className="text-th-hi3 shrink-0" />
           <input
             ref={inputRef}
             type="text"
@@ -190,11 +190,11 @@ export function SpotifySearchDialog({ open, onClose }: SpotifySearchDialogProps)
             spellCheck={false}
           />
           {(search.isFetching && showResults) && (
-            <Loader2 size={14} className="text-th-3 animate-spin shrink-0" />
+            <Loader2 size={14} className="text-th-hi3 animate-spin shrink-0" />
           )}
           <button
             onClick={onClose}
-            className="text-th-3 hover:text-th-hi transition-colors shrink-0"
+            className="text-th-hi3 hover:text-th-hi transition-colors shrink-0"
             title="Close (Esc)"
           >
             <X size={16} />
@@ -203,7 +203,7 @@ export function SpotifySearchDialog({ open, onClose }: SpotifySearchDialogProps)
 
         {/* Device hint */}
         {showResults && devices.data && devices.data.length === 0 && (
-          <p className="text-amber-500/70 text-[10px] px-4 py-1.5 border-b border-th-line/50 shrink-0">
+          <p className="text-th-warn text-[10px] px-4 py-1.5 border-b border-th-line/50 shrink-0">
             Open Spotify on a device to enable playback
           </p>
         )}
@@ -211,22 +211,22 @@ export function SpotifySearchDialog({ open, onClose }: SpotifySearchDialogProps)
         {/* Results */}
         <div className="flex-1 overflow-y-auto min-h-0 p-1.5">
           {!showResults && (
-            <p className="text-th-ghost text-xs text-center py-8">
+            <p className="text-th-hi3 text-xs text-center py-8">
               Type at least 2 characters to search
             </p>
           )}
           {search.isError && (
-            <p className="text-red-400/70 text-xs text-center py-8">
+            <p className="text-th-loss text-xs text-center py-8">
               Search failed — try again
             </p>
           )}
           {hasNoResults && (
-            <p className="text-th-ghost text-xs text-center py-8">No results for "{trimmed}"</p>
+            <p className="text-th-hi3 text-xs text-center py-8">No results for "{trimmed}"</p>
           )}
 
           {tracks.length > 0 && (
             <>
-              <p className="text-[10px] uppercase tracking-wider text-th-ghost px-2.5 pt-2 pb-1 font-medium">
+              <p className="text-[10px] uppercase tracking-wider text-th-hi3 px-2.5 pt-2 pb-1 font-medium">
                 Tracks
               </p>
               {tracks.map((t) => (
@@ -243,7 +243,7 @@ export function SpotifySearchDialog({ open, onClose }: SpotifySearchDialogProps)
 
           {episodes.length > 0 && (
             <>
-              <p className="text-[10px] uppercase tracking-wider text-th-ghost px-2.5 pt-3 pb-1 font-medium">
+              <p className="text-[10px] uppercase tracking-wider text-th-hi3 px-2.5 pt-3 pb-1 font-medium">
                 Podcasts
               </p>
               {episodes.map((t) => (
