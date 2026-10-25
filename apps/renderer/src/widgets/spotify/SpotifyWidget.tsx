@@ -889,7 +889,7 @@ export function SpotifyActions() {
               <button
                 onClick={() => { logout.mutate(); setConfirming(false); }}
                 disabled={logout.isPending}
-                className="px-3 py-1.5 text-xs rounded-lg bg-th-loss hover:bg-th-loss/90 text-th-on-accent font-medium transition-colors disabled:opacity-50"
+                className="px-3 py-1.5 text-xs rounded-lg bg-th-loss hover:bg-th-loss/90 text-th-on-loss font-medium transition-colors disabled:opacity-50"
               >
                 Disconnect
               </button>

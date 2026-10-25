@@ -9,6 +9,7 @@ export type Scheme = 'dark' | 'light';
 export const NISH_COLOR_ROLES = [
   'bg', 'surface', 'elevated', 'overlay', 'line', 'line-strong',
   'hi', 'hi2', 'hi3', 'ghost', 'accent', 'accent2', 'on-accent',
+  'on-accent2', 'on-ok', 'on-loss', 'on-warn', 'on-info',
   'ok', 'loss', 'warn', 'info', 'ok-fill', 'loss-fill', 'warn-fill', 'info-fill', 'scrim', 'invert-bg', 'invert-text',
   'chart-1', 'chart-2', 'chart-3', 'chart-4', 'chart-5', 'chart-6', 'chart-7', 'chart-8',
   'emerald', 'indigo', 'amber', 'lime', 'rose', 'sky', 'violet', 'teal',
@@ -49,7 +50,7 @@ const FILL: Record<Scheme, Record<'ok' | 'loss' | 'warn' | 'info', string> | nul
 };
 const CHART: Record<Scheme, string[]> = {
   dark: ['#8b93ff', '#34d399', '#fbbf24', '#fb7185', '#38bdf8', '#c084fc', '#fb923c', '#a3e635'],
-  light: ['#4f46e5', '#047857', '#b45309', '#be123c', '#0369a1', '#7e22ce', '#c2410c', '#4d7c0f'],
+  light: ['#6366f1', '#059669', '#c96d06', '#f43f5e', '#0284c7', '#a855f7', '#ea580c', '#5a910c'],
 };
 const HUES: Record<Scheme, Record<'emerald' | 'indigo' | 'amber' | 'lime' | 'rose' | 'sky' | 'violet' | 'teal', string>> = {
   dark: { emerald: '#34d399', indigo: '#8b93ff', amber: '#fbbf24', lime: '#a3e635', rose: '#fb7185', sky: '#38bdf8', violet: '#c084fc', teal: '#2dd4bf' },
@@ -117,6 +118,17 @@ export function deriveThemeColors(base: ThemeBase): ThemeColors {
   const readable = (c: string) => ensureContrast(c, panels, 4.5, extreme);
   const status = STATUS[scheme];
   const hues = HUES[scheme];
+  const accent2 = readable(status.accent2);
+  const fill = {
+    ok: FILL[scheme]?.ok ?? readable(status.ok),
+    loss: FILL[scheme]?.loss ?? readable(status.loss),
+    warn: FILL[scheme]?.warn ?? readable(status.warn),
+    info: FILL[scheme]?.info ?? readable(status.info),
+  };
+  // Text and icons on a solid fill: the theme's dark ink or white, whichever
+  // reads better on that fill.
+  const darkInk = scheme === 'dark' ? base.bg : '#0a0a0c'; // @nish/ui light's ink
+  const on = (bg: string) => (contrast(darkInk, bg) >= contrast('#ffffff', bg) ? darkInk : '#ffffff');
   const colors: ThemeColors = {
     bg: base.bg,
     surface: base.surface,
@@ -129,16 +141,21 @@ export function deriveThemeColors(base: ThemeBase): ThemeColors {
     hi3: ensureContrast(base.hi3, panels, 4.5, hi),
     ghost: ensureContrast(base.ghost, [base.surface], 3, hi),
     accent,
-    accent2: readable(status.accent2),
+    accent2,
     'on-accent': onAccent,
+    'on-accent2': on(accent2),
+    'on-ok': on(fill.ok),
+    'on-loss': on(fill.loss),
+    'on-warn': on(fill.warn),
+    'on-info': on(fill.info),
     ok: readable(status.ok),
     loss: readable(status.loss),
     warn: readable(status.warn),
     info: readable(status.info),
-    'ok-fill': FILL[scheme]?.ok ?? readable(status.ok),
-    'loss-fill': FILL[scheme]?.loss ?? readable(status.loss),
-    'warn-fill': FILL[scheme]?.warn ?? readable(status.warn),
-    'info-fill': FILL[scheme]?.info ?? readable(status.info),
+    'ok-fill': fill.ok,
+    'loss-fill': fill.loss,
+    'warn-fill': fill.warn,
+    'info-fill': fill.info,
     scrim: scheme === 'dark' ? '#000000' : hi,
     'invert-bg': base.invertBg ?? hi,
     'invert-text': base.invertText ?? base.surface,

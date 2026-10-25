@@ -207,7 +207,7 @@ export function DiscordHost() {
         />
 
         {unread > 0 && (
-          <div className="absolute top-1.5 right-1.5 z-10 pointer-events-none px-1.5 py-0.5 rounded-full bg-th-loss text-th-on-accent text-[10px] font-semibold leading-none">
+          <div className="absolute top-1.5 right-1.5 z-10 pointer-events-none px-1.5 py-0.5 rounded-full bg-th-loss text-th-on-loss text-[10px] font-semibold leading-none">
             {unread}
           </div>
         )}

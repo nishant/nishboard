@@ -87,5 +87,9 @@ describe('app presets', () => {
       expect(contrast(c[role], c.surface)).toBeGreaterThanOrEqual(4.5);
       expect(contrast(c[role], c.elevated)).toBeGreaterThanOrEqual(4.5);
     }
+    for (const r of ['ok', 'loss', 'warn', 'info'] as const) {
+      expect(contrast(c[`on-${r}`], c[`${r}-fill`])).toBeGreaterThanOrEqual(4.5);
+    }
+    expect(contrast(c['on-accent2'], c.accent2)).toBeGreaterThanOrEqual(4.5);
   });
 });

@@ -61,8 +61,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared
       '@nish/ui':
-        specifier: github:nishant/ui#v0.1.2
-        version: https://codeload.github.com/nishant/ui/tar.gz/2b10af339e3ea7ba6d1c5597e5a79c7523d97fd5(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        specifier: github:nishant/ui#v0.2.0
+        version: https://codeload.github.com/nishant/ui/tar.gz/c8610cdd65f85ad048c248b8fc6fe289acf6f25a(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@tanstack/react-query':
         specifier: ^5.62.0
         version: 5.100.14(react@19.3.1)
@@ -747,9 +747,9 @@ packages:
     resolution: {integrity: sha512-9QOtNffcOF/c1seMCDnjckb3R9WHcG34tky+FHpNKKCW0wc/scYLwMtO+ptyGUfMW0/b/n4qRiALlaFHc9Oj7Q==}
     engines: {node: '>= 10.0.0'}
 
-  '@nish/ui@https://codeload.github.com/nishant/ui/tar.gz/2b10af339e3ea7ba6d1c5597e5a79c7523d97fd5':
-    resolution: {gitHosted: true, integrity: sha512-6YlL2O99q54PHO0aGC8jD5DeGtKcNACL9n5/+/hpUPCWJB2c4pvEu+nvhMrV6Y2bNebHUJEaub2wIUdMLBc1Tw==, tarball: https://codeload.github.com/nishant/ui/tar.gz/2b10af339e3ea7ba6d1c5597e5a79c7523d97fd5}
-    version: 0.1.2
+  '@nish/ui@https://codeload.github.com/nishant/ui/tar.gz/c8610cdd65f85ad048c248b8fc6fe289acf6f25a':
+    resolution: {gitHosted: true, integrity: sha512-fsybaJVb0vTmCu+Zgkj87uwvZG+Q4qC/Wmhcsq03f8uXT1wbOr+dGUOCNWgVgdAESXjmi+B1z3UxV3d+/x+9mw==, tarball: https://codeload.github.com/nishant/ui/tar.gz/c8610cdd65f85ad048c248b8fc6fe289acf6f25a}
+    version: 0.2.0
     peerDependencies:
       react: '>=19'
       react-dom: '>=19'
@@ -4706,7 +4706,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@nish/ui@https://codeload.github.com/nishant/ui/tar.gz/2b10af339e3ea7ba6d1c5597e5a79c7523d97fd5(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
+  '@nish/ui@https://codeload.github.com/nishant/ui/tar.gz/c8610cdd65f85ad048c248b8fc6fe289acf6f25a(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
       clsx: 2.1.1
       tailwind-merge: 3.7.0
