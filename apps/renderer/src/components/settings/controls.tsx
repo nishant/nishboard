@@ -36,7 +36,7 @@ export function Switch({
           'absolute top-0.5 left-0.5 rounded-full transition-transform shadow-card',
           sm ? 'w-3 h-3' : 'w-4 h-4',
           checked && (sm ? 'translate-x-3' : 'translate-x-4'),
-          checked ? 'bg-th-on-accent dark:bg-th-hi' : 'bg-th-surface dark:bg-th-hi2',
+          checked ? 'bg-th-on-accent' : 'bg-th-surface ring-1 ring-th-line-strong',
         )}
       />
     </button>

@@ -15,7 +15,9 @@ import {
   respondToClaudePrompt, promptSummary, openClaudeCliLogin,
 } from './useClaude';
 import { HeaderAction } from '../../components/HeaderAction';
-import { cn } from '@nish/ui';
+import {
+  Badge, Button, EmptyState, ErrorState, IconButton, Meter, Segmented, SkeletonLines, Textarea, cn, toneFor,
+} from '@nish/ui';
 
 /** WidgetShell header actions: New chat always; Stop only mid-stream. */
 export function ClaudeActions() {
@@ -133,7 +135,7 @@ function Popover({ anchor, onClose, children, wide = false }: {
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
       <div
-        className="fixed z-50 rounded-lg border border-th-line bg-th-surface shadow-pop p-2.5"
+        className="fixed z-50 rounded-lg border border-th-line bg-th-elevated shadow-pop p-2.5"
         style={{ left: pos.left, bottom: pos.bottom, width }}
       >
         {children}
@@ -176,8 +178,8 @@ function ModelEffortPanel({ anchor, onClose }: { anchor: HTMLElement | null; onC
             className={cn(
               'flex items-center justify-between px-2 py-1 rounded text-[11px] transition-colors',
               opt.value === chatModel
-                ? 'bg-th-elevated text-th-hi'
-                : 'text-th-hi2 hover:bg-th-elevated/60',
+                ? 'bg-th-overlay text-th-hi'
+                : 'text-th-hi2 hover:bg-th-overlay',
             )}
           >
             {opt.label}
@@ -206,12 +208,9 @@ function ModelEffortPanel({ anchor, onClose }: { anchor: HTMLElement | null; onC
         <span>low</span><span>med</span><span>high</span><span>xhigh</span><span>max</span>
       </div>
       {chatEffort && (
-        <button
-          onClick={() => setChatEffort(null)}
-          className="mt-1.5 text-[10px] text-th-hi3 hover:text-th-hi transition-colors"
-        >
+        <Button variant="link" size="xs" onClick={() => setChatEffort(null)} className="mt-1.5">
           Reset to CLI default
-        </button>
+        </Button>
       )}
       {sessionModel && (
         <p className="mt-2 pt-1.5 border-t border-th-line text-[9px] text-th-hi3 truncate">
@@ -235,10 +234,10 @@ function formatResetsIn(iso: string | null): string | null {
   return `resets in ${Math.floor(hours / 24)}d ${hours % 24}h`;
 }
 
-function usageBarColor(pct: number): string {
-  if (pct >= 90) return 'bg-th-loss-fill';
-  if (pct >= 70) return 'bg-th-warn-fill';
-  return 'bg-th-accent';
+/** Usage meters: info below 70%, then warn, then loss from 90%. */
+function usageTone(pct: number): 'info' | 'warn' | 'loss' {
+  const t = toneFor(pct, { warn: 70, loss: 90 });
+  return t === 'ok' ? 'info' : t;
 }
 
 function UsagePanel({ anchor, onClose }: { anchor: HTMLElement | null; onClose: () => void }) {
@@ -255,23 +254,19 @@ function UsagePanel({ anchor, onClose }: { anchor: HTMLElement | null; onClose: 
               {formatTokens(lastContext)} / {formatTokens(CLAUDE_CONTEXT_WINDOW)}
             </span>
           </div>
-          <div className="h-1.5 rounded-full bg-th-elevated overflow-hidden">
-            <div
-              className={cn('h-full rounded-full transition-all', usageBarColor(contextPct))}
-              style={{ width: `${Math.max(2, contextPct)}%` }}
-            />
-          </div>
+          <Meter value={contextPct} label="Context used" tone={usageTone(contextPct)} track="overlay" />
         </div>
       )}
       <p className="text-[9px] font-semibold uppercase tracking-wider text-th-hi3 mb-2">Usage</p>
       {usage.isLoading ? (
-        <div className="flex items-center gap-1.5 text-[11px] text-th-hi3 py-1">
-          <Loader2 size={11} className="animate-spin" /> Loading…
-        </div>
+        <SkeletonLines lines={2} className="p-0" />
       ) : usage.isError ? (
-        <p className="text-[10px] text-th-hi3 leading-relaxed py-0.5">
-          {usage.error instanceof Error ? usage.error.message : 'Failed to load usage'}
-        </p>
+        <ErrorState
+          compact
+          message={usage.error instanceof Error ? usage.error.message : 'Failed to load usage'}
+          onRetry={() => void usage.refetch()}
+          retrying={usage.isFetching}
+        />
       ) : usage.data && usage.data.windows.length > 0 ? (
         <div className="flex flex-col gap-2.5">
           {usage.data.windows.map((w) => {
@@ -282,12 +277,7 @@ function UsagePanel({ anchor, onClose }: { anchor: HTMLElement | null; onClose: 
                   <span className="text-[10px] text-th-hi2">{w.label}</span>
                   <span className="text-[10px] font-medium text-th-hi">{Math.round(w.utilization)}%</span>
                 </div>
-                <div className="h-1.5 rounded-full bg-th-elevated overflow-hidden">
-                  <div
-                    className={cn('h-full rounded-full transition-all', usageBarColor(w.utilization))}
-                    style={{ width: `${Math.max(2, w.utilization)}%` }}
-                  />
-                </div>
+                <Meter value={w.utilization} label={`${w.label} used`} tone={usageTone(w.utilization)} track="overlay" />
                 {resets && <p className="mt-0.5 text-[9px] text-th-hi3">{resets}</p>}
               </div>
             );
@@ -317,7 +307,7 @@ function SlashMenu({ query, selected, onPick }: {
   }, [meta.data, query]);
 
   return (
-    <div className="absolute bottom-full left-0 right-0 mb-1.5 z-50 rounded-lg border border-th-line bg-th-surface shadow-pop py-1 max-h-44 overflow-y-auto">
+    <div className="absolute bottom-full left-0 right-0 mb-1.5 z-50 rounded-lg border border-th-line bg-th-elevated shadow-pop py-1 max-h-44 overflow-y-auto">
       {items.length === 0 ? (
         <p className="px-2.5 py-1.5 text-[10px] text-th-hi3">
           {meta.data && meta.data.slashCommands.length === 0
@@ -334,15 +324,13 @@ function SlashMenu({ query, selected, onPick }: {
             className={cn(
               'w-full flex items-center gap-2 px-2.5 py-1 text-left text-[11px] transition-colors',
               i === selected % Math.max(1, items.length)
-                ? 'bg-th-elevated text-th-hi'
-                : 'text-th-hi2 hover:bg-th-elevated/60',
+                ? 'bg-th-overlay text-th-hi'
+                : 'text-th-hi2 hover:bg-th-overlay',
             )}
           >
             <span className="font-mono">/{c.name}</span>
             {c.isSkill && (
-              <span className="ml-auto px-1 py-px rounded bg-th-accent/15 text-th-accent text-[8px] uppercase tracking-wider">
-                skill
-              </span>
+              <Badge tone="accent" size="xs" variant="tag" className="ml-auto">skill</Badge>
             )}
           </button>
         ))
@@ -396,18 +384,9 @@ function CardButton({ primary = false, disabled, onClick, children }: {
   children: React.ReactNode;
 }) {
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={cn(
-        'px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors disabled:opacity-40',
-        primary
-          ? 'bg-th-accent/20 text-th-accent hover:bg-th-accent/30'
-          : 'bg-th-elevated text-th-hi2 hover:bg-th-overlay hover:text-th-hi',
-      )}
-    >
+    <Button size="xs" variant={primary ? 'soft' : 'subtle'} onClick={onClick} disabled={disabled}>
       {children}
-    </button>
+    </Button>
   );
 }
 
@@ -456,11 +435,11 @@ function PromptCard({ part, live }: { part: ClaudePromptPart; live: boolean }) {
       respond({ behavior: 'allow', answers: finalSelected }, finalSelected.map((s) => s.join(', ')).join(' · '));
     };
     return (
-      <div className="my-1.5 rounded-lg border border-th-accent/30 bg-th-elevated/40 p-2 space-y-2">
+      <div className="my-1.5 rounded-lg border border-th-accent/30 bg-th-accent-soft p-2 space-y-2">
         {questions.map((q, qi) => (
           <div key={qi}>
             <p className="text-[11px] text-th-hi font-medium mb-1">
-              {q.header && <span className="px-1 py-px mr-1.5 rounded bg-th-accent/15 text-th-accent text-[9px] uppercase tracking-wider">{q.header}</span>}
+              {q.header && <Badge tone="accent" size="xs" variant="tag" className="mr-1.5">{q.header}</Badge>}
               {q.question}
             </p>
             <div className="flex flex-col gap-1">
@@ -482,7 +461,7 @@ function PromptCard({ part, live }: { part: ClaudePromptPart; live: boolean }) {
                     }}
                     className={cn(
                       'text-left px-2 py-1 rounded-md text-[11px] transition-colors disabled:opacity-40',
-                      isOn ? 'bg-th-accent/20 text-th-accent' : 'bg-th-elevated text-th-hi2 hover:bg-th-overlay hover:text-th-hi',
+                      isOn ? 'bg-th-accent-soft text-th-accent ring-1 ring-th-accent/40' : 'bg-th-elevated text-th-hi2 hover:bg-th-overlay hover:text-th-hi',
                     )}
                   >
                     <span className="font-medium">{opt.label}</span>
@@ -505,7 +484,7 @@ function PromptCard({ part, live }: { part: ClaudePromptPart; live: boolean }) {
 
   if (part.request.kind === 'plan') {
     return (
-      <div className="my-1.5 rounded-lg border border-th-accent/30 bg-th-elevated/40 p-2">
+      <div className="my-1.5 rounded-lg border border-th-accent/30 bg-th-accent-soft p-2">
         <p className="flex items-center gap-1.5 text-[11px] font-medium text-th-hi mb-1">
           <ClipboardCheck size={12} className="text-th-accent" /> Claude proposed a plan
         </p>
@@ -525,7 +504,7 @@ function PromptCard({ part, live }: { part: ClaudePromptPart; live: boolean }) {
   }
 
   return (
-    <div className="my-1.5 rounded-lg border border-th-accent/30 bg-th-elevated/40 p-2">
+    <div className="my-1.5 rounded-lg border border-th-accent/30 bg-th-accent-soft p-2">
       <p className="flex items-center gap-1.5 text-[11px] text-th-hi min-w-0">
         <ShieldQuestion size={12} className="shrink-0 text-th-accent" />
         <span className="font-medium shrink-0">{part.request.toolName}</span>
@@ -606,14 +585,9 @@ function MessageBubble({ msg, streaming }: { msg: ClaudeChatMessage; streaming: 
             {msg.durationMs !== undefined && <span>{(msg.durationMs / 1000).toFixed(1)}s</span>}
             {msg.outputTokens !== undefined && <span>· {formatTokens(msg.outputTokens)} tok</span>}
             {text && (
-              <button
-                onClick={copy}
-                title="Copy response"
-                aria-label="Copy response"
-                className="flex items-center gap-0.5 hover:text-th-hi transition-colors"
-              >
+              <IconButton label={copied ? 'Copied' : 'Copy response'} size="xs" onClick={copy} className="size-5">
                 {copied ? <Check size={10} className="text-th-ok" /> : <Copy size={10} />}
-              </button>
+              </IconButton>
             )}
           </div>
         )
@@ -634,27 +608,19 @@ function ModeSwitch() {
   const chatMode = useClaudeStore((s) => s.chatMode);
   const setChatMode = useClaudeStore((s) => s.setChatMode);
   return (
-    <div className="flex items-center rounded-md bg-th-elevated p-px" role="radiogroup" aria-label="Mode">
-      {MODES.map((m) => (
-        <button
-          key={m.value}
-          role="radio"
-          aria-checked={chatMode === m.value}
-          title={`${m.title} (shift+tab cycles)`}
-          onClick={() => setChatMode(m.value)}
-          className={cn(
-            'px-1.5 py-px rounded text-[9px] transition-colors',
-            chatMode === m.value
-              ? m.value === 'auto'
-                ? 'bg-th-warn-soft text-th-warn'
-                : 'bg-th-overlay text-th-hi'
-              : 'text-th-hi3 hover:text-th-hi2',
-          )}
-        >
-          {m.label}
-        </button>
-      ))}
-    </div>
+    <Segmented
+      label="Mode"
+      size="xs"
+      value={chatMode}
+      onChange={setChatMode}
+      options={MODES.map((m) => ({ value: m.value, label: m.label, title: `${m.title} (shift+tab cycles)` }))}
+      // Auto (bypass permissions) keeps its warn look while selected. Local until
+      // Segmented options take a `tone` (ui gap).
+      className={cn(
+        chatMode === 'auto' &&
+          '[&>[aria-checked=true]]:bg-th-warn-soft [&>[aria-checked=true]]:text-th-warn [&>[aria-checked=true]]:ring-th-warn/40',
+      )}
+    />
   );
 }
 
@@ -763,20 +729,20 @@ export function ClaudeWidget() {
 
   if (status.data?.available === false) {
     return (
-      <div className="h-full flex flex-col items-center justify-center gap-3 p-4 text-center">
-        <p className="text-th-hi3 text-xs leading-relaxed max-w-64">
-          Claude Code not found — install it from claude.com/claude-code, then log in.
-        </p>
-        {window.electron && (
-          <button
-            onClick={() => void openClaudeCliLogin()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-th-elevated hover:bg-th-overlay text-th-hi text-[11px] transition-colors"
-          >
-            <Terminal size={12} />
-            Log in to Claude CLI
-          </button>
-        )}
-      </div>
+      <EmptyState
+        compact
+        className="h-full"
+        icon={<Terminal size={16} />}
+        title="Claude Code not found"
+        detail="Install it from claude.com/claude-code, then log in."
+        action={
+          window.electron ? (
+            <Button size="sm" icon={<Terminal size={12} />} onClick={() => void openClaudeCliLogin()}>
+              Log in to Claude CLI
+            </Button>
+          ) : undefined
+        }
+      />
     );
   }
 
@@ -798,11 +764,13 @@ export function ClaudeWidget() {
         className="flex-1 min-h-0 overflow-y-auto px-2.5 pt-2 space-y-2.5"
       >
         {messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center gap-1.5">
-            <span className="text-th-accent text-lg">✻</span>
-            <p className="text-th-hi3 text-xs">Ask Claude anything</p>
-            <p className="text-th-hi3 text-[9px]">/ for commands &amp; skills · shift+tab cycles mode</p>
-          </div>
+          <EmptyState
+            compact
+            className="h-full"
+            icon={<span className="text-th-accent text-lg">✻</span>}
+            title="Ask Claude anything"
+            detail="/ for commands & skills · shift+tab cycles mode"
+          />
         ) : (
           messages.map((msg) => (
             <MessageBubble
@@ -819,39 +787,31 @@ export function ClaudeWidget() {
         {slashQuery !== null && (
           <SlashMenu query={slashQuery} selected={slashSel} onPick={pickSlash} />
         )}
-        <textarea
+        <Textarea
+          size="sm"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={onComposerKeyDown}
           placeholder={isStreaming ? 'Streaming… (esc to stop)' : 'Ask Claude — / for commands'}
+          aria-label="Message Claude"
           rows={2}
           spellCheck={false}
-          className="flex-1 resize-none rounded-lg bg-th-elevated px-2.5 py-1.5 text-xs text-th-hi placeholder:text-th-ghost focus:outline-none focus:ring-1 focus:ring-th-accent/40"
+          className="flex-1 resize-none"
         />
         {isStreaming ? (
-          <button
-            onClick={stop}
-            title="Stop"
-            aria-label="Stop"
-            className="shrink-0 flex items-center justify-center w-7 h-7 rounded-lg bg-th-elevated text-th-loss hover:bg-th-loss-soft transition-colors"
-          >
+          <IconButton label="Stop" size="sm" variant="subtle" tone="danger" onClick={stop} className="text-th-loss">
             <Square size={12} />
-          </button>
+          </IconButton>
         ) : (
-          <button
+          <IconButton
+            label="Send"
+            size="sm"
+            variant={draft.trim() ? 'soft' : 'subtle'}
             onClick={handleSend}
             disabled={!draft.trim()}
-            title="Send"
-            aria-label="Send"
-            className={cn(
-              'shrink-0 flex items-center justify-center w-7 h-7 rounded-lg transition-colors',
-              draft.trim()
-                ? 'bg-th-accent/15 text-th-accent hover:bg-th-accent/25'
-                : 'bg-th-elevated text-th-hi3 cursor-default',
-            )}
           >
             <SendHorizontal size={12} />
-          </button>
+          </IconButton>
         )}
       </div>
 
@@ -859,32 +819,30 @@ export function ClaudeWidget() {
       <div className="relative shrink-0 px-2.5 pb-1.5 flex items-center gap-1.5">
         <ModeSwitch />
         <div className="ml-auto flex items-center gap-0.5">
-          <button
+          <Button
             ref={modelBtnRef}
+            variant="ghost"
+            size="xs"
             onClick={() => setPanel(panel === 'model' ? null : 'model')}
             title="Model & effort"
             aria-label="Model & effort"
-            className={cn(
-              'flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] transition-colors',
-              panel === 'model' ? 'bg-th-elevated text-th-hi' : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated/60',
-            )}
+            aria-expanded={panel === 'model'}
+            icon={<SlidersHorizontal size={10} />}
+            className={cn('text-3xs', panel === 'model' ? 'bg-th-elevated text-th-hi' : 'text-th-hi3')}
           >
-            <SlidersHorizontal size={10} />
             {modelLabel(chatModel)}
             {chatEffort && ` · ${chatEffort}`}
-          </button>
-          <button
+          </Button>
+          <IconButton
             ref={usageBtnRef}
+            label="Usage"
+            size="xs"
+            active={panel === 'usage'}
+            aria-expanded={panel === 'usage'}
             onClick={() => setPanel(panel === 'usage' ? null : 'usage')}
-            title="Usage"
-            aria-label="Usage"
-            className={cn(
-              'flex items-center justify-center w-5 h-5 rounded-md transition-colors',
-              panel === 'usage' ? 'bg-th-elevated text-th-hi' : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated/60',
-            )}
           >
             <PieChart size={11} />
-          </button>
+          </IconButton>
         </div>
         {panel === 'model' && <ModelEffortPanel anchor={modelBtnRef.current} onClose={() => setPanel(null)} />}
         {panel === 'usage' && <UsagePanel anchor={usageBtnRef.current} onClose={() => setPanel(null)} />}

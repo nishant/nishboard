@@ -4,7 +4,7 @@ import { useDeferredSlider } from '../../hooks/useDeferredSlider';
 import { ErrorState } from '../../components/ErrorState';
 import { RefreshAction } from '../../components/RefreshAction';
 import type { AudioDevice, AudioSession } from '@dash/shared';
-import { SkeletonLines } from '@nish/ui';
+import { SkeletonLines, cn } from '@nish/ui';
 
 /** WidgetShell header actions for the sound tile. */
 export function SoundActions() {
@@ -56,18 +56,18 @@ function DeviceItem({
     <button
       onClick={() => !device.isDefault && onSwitch(device.id)}
       disabled={device.isDefault || switching}
-      className={[
+      className={cn(
         'w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-colors flex items-center gap-2',
         device.isDefault
-          ? 'bg-th-overlay/50 text-th-hi cursor-default'
+          ? 'bg-th-elevated text-th-hi cursor-default'
           : 'text-th-hi2 hover:bg-th-elevated hover:text-th-hi',
-      ].join(' ')}
+      )}
     >
       <span
-        className={[
+        className={cn(
           'h-1.5 w-1.5 rounded-full shrink-0',
           device.isDefault ? 'bg-th-ok-fill' : 'bg-th-ghost',
-        ].join(' ')}
+        )}
       />
       <span className="truncate">{device.name}</span>
     </button>
@@ -125,10 +125,10 @@ export function SoundWidget() {
         <div className="flex items-center justify-between">
           <button
             onClick={() => setMute.mutate(!muted)}
-            className={[
+            className={cn(
               'flex items-center gap-1.5 text-xs font-medium transition-colors',
-              muted ? 'text-th-loss hover:text-th-loss' : 'text-th-hi hover:text-th-hi',
-            ].join(' ')}
+              muted ? 'text-th-loss' : 'text-th-hi',
+            )}
           >
             <VolumeIcon vol={vol} muted={muted} />
             Volume

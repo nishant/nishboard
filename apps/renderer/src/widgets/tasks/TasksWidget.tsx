@@ -46,7 +46,7 @@ export function TasksWidget() {
                 onClick={() => toggleTask(t.id)}
                 className={cn(
                   'shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors',
-                  t.done ? 'bg-th-accent border-th-accent text-th-bg' : 'border-th-ghost hover:border-th-hi2',
+                  t.done ? 'bg-th-accent border-th-accent text-th-on-accent' : 'border-th-ghost hover:border-th-hi2',
                 )}
                 title={t.done ? 'Mark not done' : 'Mark done'}
               >

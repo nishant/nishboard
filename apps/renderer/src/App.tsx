@@ -143,7 +143,7 @@ export function App() {
         <div className="flex-1 min-h-0">
           <DashboardGrid />
         </div>
-        {/* Above Settings (z-200) and the palette, like the old in-app toasts. */}
+        {/* Above every dialog (shared Modal is z-50) and the command palette (z-[400]). */}
         <Toaster className="z-[450]" />
         <CommandPalette />
         {/* App-lifetime Discord webview — overlays the widget tile's rect and

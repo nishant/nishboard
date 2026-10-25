@@ -27,7 +27,7 @@ import { cn } from '@nish/ui';
 // NEVER unmounts and NEVER display:none — so the guest (and its in-memory
 // auth token, see discordStore) survives: signed in + voice for the whole
 // app session. z-30: above grid tiles, below menus (z-40+) and every portal
-// (modals z-[200], toasts z-[300], palette z-[400]).
+// (shared Modal/ConfirmDialog z-50, palette z-[400], toasts z-[450]).
 
 type LoadStatus = 'loading' | 'ready' | 'error';
 
@@ -207,7 +207,7 @@ export function DiscordHost() {
         />
 
         {unread > 0 && (
-          <div className="absolute top-1.5 right-1.5 z-10 pointer-events-none px-1.5 py-0.5 rounded-full bg-th-loss text-th-on-loss text-[10px] font-semibold leading-none">
+          <div className="absolute top-1.5 right-1.5 z-10 pointer-events-none px-1.5 py-0.5 rounded-full bg-th-loss-fill text-th-on-loss text-[10px] font-semibold leading-none">
             {unread}
           </div>
         )}

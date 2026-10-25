@@ -84,7 +84,7 @@ export function CountdownWidget() {
                   <span className={cn('text-xs truncate', passed ? 'text-th-hi3' : 'text-th-hi')}>{e.label || 'Event'}</span>
                   <span className="text-th-hi3 text-[10px] truncate">{fmtDate(e.at, clock24h)}</span>
                 </div>
-                <span className={cn('text-sm tabular-nums shrink-0', passed ? 'text-th-warn' : 'text-th-accent')}>
+                <span className={cn('text-sm tabular-nums shrink-0', passed ? 'text-th-warn' : 'text-th-hi')}>
                   {passed ? 'now' : fmtRemaining(remaining)}
                 </span>
                 <button

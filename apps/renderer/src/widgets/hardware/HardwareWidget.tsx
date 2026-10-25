@@ -11,7 +11,7 @@ import { RefreshAction } from '../../components/RefreshAction';
 import { useDragScroll } from '../../hooks/useDragScroll';
 import { fmtUptime } from '../../lib/time';
 import type { HardwareData } from '@dash/shared';
-import { SkeletonLines } from '@nish/ui';
+import { SkeletonLines, cn } from '@nish/ui';
 import { tk } from '../../lib/tokens';
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -105,7 +105,7 @@ const CpuCard = memo(function CpuCard({ cpu, history, view }: { cpu: HardwareDat
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {cpu.tempCelsius !== null && (
-            <span className={`text-xs font-mono ${tempColor(cpu.tempCelsius)}`}>{cpu.tempCelsius}°C</span>
+            <span className={cn('text-xs font-mono', tempColor(cpu.tempCelsius))}>{cpu.tempCelsius}°C</span>
           )}
           <span className="text-sm font-semibold text-th-hi tabular-nums">{cpu.usagePercent}%</span>
         </div>
@@ -149,7 +149,7 @@ const GpuCard = memo(function GpuCard({ gpu, history, view }: { gpu: HardwareDat
         <span className="text-xs text-th-hi2 font-medium truncate max-w-[160px]">{gpu.name}</span>
         <div className="flex items-center gap-2 shrink-0">
           {gpu.tempCelsius !== null && (
-            <span className={`text-xs font-mono ${tempColor(gpu.tempCelsius)}`}>{gpu.tempCelsius}°C</span>
+            <span className={cn('text-xs font-mono', tempColor(gpu.tempCelsius))}>{gpu.tempCelsius}°C</span>
           )}
           <span className="text-sm font-semibold text-th-hi tabular-nums">{gpu.usagePercent}%</span>
         </div>
@@ -311,7 +311,7 @@ const NetworkCard = memo(function NetworkCard({ network, history, view }: {
 
 const BatteryCard = memo(function BatteryCard({ battery }: { battery: NonNullable<HardwareData['battery']> }) {
   const Icon = battery.charging ? BatteryCharging : Battery;
-  const pctColor = battery.percent <= 20 ? tk('loss-fill') : battery.percent <= 40 ? tk('warn-fill') : tk('accent');
+  const pctColor = battery.percent <= 20 ? tk('loss-fill') : battery.percent <= 40 ? tk('warn-fill') : tk('ok-fill');
   const textColor = battery.percent <= 20 ? 'text-th-loss' : battery.percent <= 40 ? 'text-th-warn' : 'text-th-hi';
 
   return (
@@ -322,7 +322,7 @@ const BatteryCard = memo(function BatteryCard({ battery }: { battery: NonNullabl
           <span className="text-xs text-th-hi2">Battery</span>
           {battery.charging && <span className="text-[10px] text-th-ok">Charging</span>}
         </div>
-        <span className={`text-sm font-semibold tabular-nums ${textColor}`}>{battery.percent}%</span>
+        <span className={cn('text-sm font-semibold tabular-nums', textColor)}>{battery.percent}%</span>
       </div>
       <UsageBar pct={battery.percent} color={pctColor} />
     </Card>
@@ -373,15 +373,16 @@ function ConfigPanel({
               className="sr-only peer"
             />
             <div
-              className={`w-4 h-4 rounded border flex items-center justify-center transition-colors cursor-pointer peer-focus-visible:ring-2 peer-focus-visible:ring-th-accent ${
+              className={cn(
+                'w-4 h-4 rounded border flex items-center justify-center transition-colors cursor-pointer peer-focus-visible:ring-2 peer-focus-visible:ring-th-accent',
                 visible[section]
-                  ? 'bg-th-hi border-th-hi'
-                  : 'bg-transparent border-th-ghost group-hover:border-th-hi3'
-              }`}
+                  ? 'bg-th-accent border-th-accent'
+                  : 'bg-transparent border-th-ghost group-hover:border-th-hi3',
+              )}
             >
               {visible[section] && (
                 <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                  <path d="M1 4l2.5 2.5L9 1" stroke={tk('bg')} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M1 4l2.5 2.5L9 1" stroke={tk('on-accent')} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               )}
             </div>
@@ -422,9 +423,10 @@ function ProcessPanel() {
             <button
               key={s}
               onClick={() => setProcSort(s)}
-              className={`px-2 py-0.5 rounded text-[10px] uppercase transition-colors ${
-                procSort === s ? 'bg-th-overlay text-th-hi' : 'text-th-hi3 hover:text-th-hi2'
-              }`}
+              className={cn(
+                'px-2 py-0.5 rounded text-[10px] uppercase transition-colors',
+                procSort === s ? 'bg-th-overlay text-th-hi' : 'text-th-hi3 hover:text-th-hi2',
+              )}
             >
               {s}
             </button>
@@ -445,10 +447,10 @@ function ProcessPanel() {
               <span className="text-th-hi2 truncate flex-1 min-w-0 font-mono">
                 {p.name}{p.count > 1 && <span className="text-th-hi3"> ×{p.count}</span>}
               </span>
-              <span className={`w-14 text-right tabular-nums shrink-0 ${procSort === 'cpu' ? 'text-th-hi' : 'text-th-hi3'}`}>
+              <span className={cn('w-14 text-right tabular-nums shrink-0', procSort === 'cpu' ? 'text-th-hi' : 'text-th-hi3')}>
                 {p.cpuPercent.toFixed(1)}%
               </span>
-              <span className={`w-16 text-right tabular-nums shrink-0 ${procSort === 'ram' ? 'text-th-hi' : 'text-th-hi3'}`}>
+              <span className={cn('w-16 text-right tabular-nums shrink-0', procSort === 'ram' ? 'text-th-hi' : 'text-th-hi3')}>
                 {p.memMb >= 1024 ? `${(p.memMb / 1024).toFixed(1)} GB` : `${p.memMb} MB`}
               </span>
             </div>

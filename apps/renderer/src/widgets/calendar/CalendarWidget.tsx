@@ -3,6 +3,7 @@ import { LogIn, LogOut, X } from 'lucide-react';
 import type { CalendarEventData } from '@dash/shared';
 import { useElementSize } from '../../hooks/useElementSize';
 import { HeaderAction } from '../../components/HeaderAction';
+import { cn } from '@nish/ui';
 import {
   useCalendarAuthStatus, useCalendarConnect, useCalendarLogout,
   useCalendarEvents, useAddCalendarEvent,
@@ -85,7 +86,7 @@ function MonthView({
 
   return (
     <div className="flex flex-col min-w-0 min-h-0">
-      <p className={`text-[11px] font-semibold text-center mb-1.5 shrink-0 ${isCurrent ? 'text-th-hi' : 'text-th-hi3'}`}>
+      <p className={cn('text-[11px] font-semibold text-center mb-1.5 shrink-0', isCurrent ? 'text-th-hi' : 'text-th-hi3')}>
         {label} {year}
       </p>
       <div className="grid grid-cols-7 shrink-0 mb-0.5">
@@ -103,18 +104,20 @@ function MonthView({
             <div
               key={i}
               onClick={iso === null ? undefined : () => onDayClick(iso)}
-              className={`relative flex items-center justify-center text-[11px] h-6 rounded-full ${
+              className={cn(
+                'relative flex items-center justify-center text-[11px] h-6 rounded-full',
                 d === null ? 'invisible' :
                 isToday ? 'bg-th-invert-bg text-th-invert-text font-bold cursor-pointer' :
-                'text-th-hi2 cursor-pointer hover:bg-th-elevated'
-              }`}
+                'text-th-hi2 cursor-pointer hover:bg-th-elevated',
+              )}
             >
               {d ?? ''}
               {iso !== null && eventDays.has(iso) && (
                 <span
-                  className={`absolute bottom-0.5 left-1/2 -translate-x-1/2 w-[3px] h-[3px] rounded-full ${
-                    isToday ? 'bg-th-invert-text' : 'bg-th-hi'
-                  }`}
+                  className={cn(
+                    'absolute bottom-0.5 left-1/2 -translate-x-1/2 w-[3px] h-[3px] rounded-full',
+                    isToday ? 'bg-th-invert-text' : 'bg-th-accent',
+                  )}
                 />
               )}
             </div>
@@ -156,7 +159,7 @@ function DayPanel({
   return (
     <div className="absolute inset-0 z-20 bg-th-surface/95 backdrop-blur-sm rounded-lg p-3 flex flex-col">
       <div className="flex items-center justify-between shrink-0 mb-2">
-        <p className="text-[12px] font-semibold text-th-hi">{heading}</p>
+        <p className="text-xs font-semibold text-th-hi">{heading}</p>
         <button
           onClick={onClose}
           title="Close"

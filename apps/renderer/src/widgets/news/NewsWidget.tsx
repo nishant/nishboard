@@ -80,7 +80,7 @@ export function NewsWidget() {
         {items.length <= 8 ? (
           <div className="flex gap-1">
             {items.map((_, i) => (
-              <span key={i} className={cn('w-1 h-1 rounded-full transition-colors', i === safeIdx ? 'bg-th-hi2' : 'bg-th-overlay')} />
+              <span key={i} className={cn('w-1 h-1 rounded-full transition-colors', i === safeIdx ? 'bg-th-hi3' : 'bg-th-line-strong')} />
             ))}
           </div>
         ) : (

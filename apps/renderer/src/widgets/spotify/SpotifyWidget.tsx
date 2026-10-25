@@ -19,7 +19,7 @@ import { useDeferredSlider } from '../../hooks/useDeferredSlider';
 import { useElementSize } from '../../hooks/useElementSize';
 import { HeaderAction } from '../../components/HeaderAction';
 import type { TrackData, SpotifyPlaylist, SpotifyDevice, SpotifyTrackItem } from '@dash/shared';
-import { SkeletonLines } from '@nish/ui';
+import { SkeletonLines, cn } from '@nish/ui';
 
 // ── Size variant ──────────────────────────────────────────────────────────────
 
@@ -117,7 +117,7 @@ function ScrollingText({ text, className }: { text: string; className?: string }
 
   return (
     <div ref={containerRef} className="overflow-hidden w-full">
-      <span ref={textRef} className={`inline-block whitespace-nowrap ${className ?? ''}`}>
+      <span ref={textRef} className={cn('inline-block whitespace-nowrap', className)}>
         {text}
       </span>
     </div>
@@ -180,7 +180,7 @@ function ProgressBar({
         />
         <div className="w-full h-full rounded-full bg-th-overlay">
           <div
-            className="h-full rounded-full bg-th-hi group-hover:bg-th-ok-fill transition-colors"
+            className="h-full rounded-full bg-th-hi2 group-hover:bg-th-ok-fill transition-colors"
             style={{ width: `${pct}%` }}
           />
         </div>
@@ -233,7 +233,7 @@ function VolumeSlider({
       <input
         type="range" min={0} max={100}
         {...sliderProps}
-        className={`${sliderW} h-1 rounded-full appearance-none cursor-pointer bg-th-overlay accent-th-accent`}
+        className={cn(sliderW, 'h-1 rounded-full appearance-none cursor-pointer bg-th-overlay accent-th-accent')}
       />
     </div>
   );
@@ -259,11 +259,12 @@ function DeviceBar({
         <button
           key={dev.id}
           onClick={() => onSelect(dev.id)}
-          className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border transition-colors ${
+          className={cn(
+            'flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border transition-colors',
             selectedId === dev.id
               ? 'bg-th-ok-soft border-th-ok/40 text-th-ok'
-              : 'bg-th-elevated border-th-line text-th-hi2 hover:text-th-hi'
-          }`}
+              : 'bg-th-elevated border-th-line text-th-hi2 hover:text-th-hi',
+          )}
         >
           <DeviceIcon type={dev.type} />
           <span className="max-w-[80px] truncate">{dev.name}</span>
@@ -360,9 +361,10 @@ function TrackRow({
     <button
       onClick={onPlay}
       disabled={track.isLocal}
-      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors group ${
-        track.isLocal ? 'opacity-40 cursor-not-allowed' : 'hover:bg-th-elevated'
-      }`}
+      className={cn(
+        'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors group',
+        track.isLocal ? 'opacity-40 cursor-not-allowed' : 'hover:bg-th-elevated',
+      )}
     >
       <span className="text-th-hi3 text-[10px] w-5 text-right shrink-0 tabular-nums">{index + 1}</span>
       {track.imageUrl ? (
@@ -569,7 +571,7 @@ function LikeButton({ trackId, type, size }: { trackId: string; type: TrackData[
     <button
       onClick={() => save.mutate({ trackId, saved: !isSaved })}
       disabled={saved.isPending}
-      className={`transition-colors p-0.5 ${isSaved ? 'text-th-ok' : 'text-th-hi3 hover:text-th-hi'}`}
+      className={cn('transition-colors p-0.5', isSaved ? 'text-th-ok' : 'text-th-hi3 hover:text-th-hi')}
       title={isSaved ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
     >
       <Heart size={size} fill={isSaved ? 'currentColor' : 'none'} />
@@ -650,7 +652,7 @@ function NowPlayingView({
   const controls = (
     <div className="flex items-center justify-between">
       <button onClick={() => shuffle.mutate(!data.shuffleState)}
-        className={`transition-colors ${activeClass(data.shuffleState)}`} title="Shuffle">
+        className={cn('transition-colors', activeClass(data.shuffleState))} title="Shuffle">
         <Shuffle size={srSz} />
       </button>
       <div className="flex items-center gap-3">
@@ -664,7 +666,7 @@ function NowPlayingView({
           <SkipBack size={skipSz} />
         </button>
         <button onClick={handlePlayPause}
-          className={`${playBtnCls} rounded-full bg-th-hi hover:bg-th-hi/80 text-th-bg flex items-center justify-center`}
+          className={cn(playBtnCls, 'rounded-full bg-th-invert-bg hover:bg-th-invert-bg/90 text-th-invert-text flex items-center justify-center')}
           title={data.isPlaying ? 'Pause' : 'Play'}>
           {data.isPlaying
             ? <Pause size={playIconSz} fill="currentColor" />
@@ -681,7 +683,7 @@ function NowPlayingView({
         </button>
       </div>
       <button onClick={() => repeat.mutate(nextRepeatState(data.repeatState))}
-        className={`transition-colors ${activeClass(data.repeatState !== 'off')}`}
+        className={cn('transition-colors', activeClass(data.repeatState !== 'off'))}
         title={`Repeat: ${data.repeatState}`}>
         <RepeatIcon state={data.repeatState} />
       </button>
@@ -708,7 +710,7 @@ function NowPlayingView({
           <div className="min-w-0 flex-1">
             <ScrollingText
               text={data.trackName || '—'}
-              className={`font-medium text-th-hi leading-tight ${size === 'xl' ? 'text-base' : 'text-sm'}`}
+              className={cn('font-medium text-th-hi leading-tight', size === 'xl' ? 'text-base' : 'text-sm')}
             />
             <div className="mt-0.5">
               <ScrollingText text={data.artistName} className="text-xs text-th-hi2" />
@@ -723,10 +725,10 @@ function NowPlayingView({
             <img
               src={data.albumArtUrl}
               alt={data.trackName}
-              className={`h-full ${artMaxH} aspect-square object-cover rounded-lg shadow-pop`}
+              className={cn('h-full aspect-square object-cover rounded-lg shadow-pop', artMaxH)}
             />
           ) : (
-            <div className={`h-full ${artMaxH} aspect-square rounded-lg bg-th-elevated flex items-center justify-center`}>
+            <div className={cn('h-full aspect-square rounded-lg bg-th-elevated flex items-center justify-center', artMaxH)}>
               {isPodcast
                 ? <Mic2 size={size === 'xl' ? 48 : 32} className="text-th-hi3" />
                 : <Music size={size === 'xl' ? 48 : 32} className="text-th-hi3" />}
@@ -756,9 +758,9 @@ function NowPlayingView({
   // filling the container height naturally at any compact size
   const artEl = data.albumArtUrl ? (
     <img src={data.albumArtUrl} alt={data.trackName}
-      className={`${compactArtCls} rounded-md object-cover shrink-0`} />
+      className={cn(compactArtCls, 'rounded-md object-cover shrink-0')} />
   ) : (
-    <div className={`${compactArtCls} rounded-md bg-th-elevated shrink-0 flex items-center justify-center`}>
+    <div className={cn(compactArtCls, 'rounded-md bg-th-elevated shrink-0 flex items-center justify-center')}>
       {isPodcast
         ? <Mic2 size={compactMusicSz} className="text-th-hi3" />
         : <Music size={compactMusicSz} className="text-th-hi3" />}
@@ -770,7 +772,7 @@ function NowPlayingView({
   const compactJustify = size === 'xs' ? 'justify-center gap-3' : 'justify-between';
 
   return (
-    <div className={`flex-1 flex flex-col ${compactJustify} px-4 pb-4 pt-2`}>
+    <div className={cn('flex-1 flex flex-col px-4 pb-4 pt-2', compactJustify)}>
       {/* Top: art + track info */}
       <div className="flex gap-3 items-center min-w-0">
         {artEl}
@@ -958,9 +960,7 @@ export function SpotifyWidget() {
 
   if (!status.data?.authenticated) {
     return (
-      <div className="rounded-lg border border-th-line bg-th-surface h-full">
-        <ConnectView onConnect={handleConnect} />
-      </div>
+      <ConnectView onConnect={handleConnect} />
     );
   }
 
@@ -971,7 +971,7 @@ export function SpotifyWidget() {
     <>
       <div
         ref={setContainerEl}
-        className="rounded-lg border border-th-line bg-th-surface h-full flex flex-col overflow-hidden"
+        className="h-full flex flex-col overflow-hidden"
       >
         <div className="flex-1 min-h-0 flex flex-col">
           {showPlaylists ? (
