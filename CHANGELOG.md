@@ -4,6 +4,23 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #129] fix: @nish/ui v0.2.2 (clearer theme toggle, 44px dialog close on touch)
+
+**Branch:** `fix/nish-ui-0.2.2` → `master`
+**Date:** 2026-10-25
+
+### Changed
+- `@nish/ui` `v0.2.1` → `v0.2.2`.
+- The System / Light / Dark switch (`ThemeModeSwitch`, in the Themes menu and Settings → App → Appearance) is the shared `Segmented`: the selected mode takes the accent tint and ring instead of a white chip, which was hard to pick out on light themes.
+- Settings' `SegmentedRow` (close button, weather alert notify, units, density, low power) uses the shared `Segmented` instead of its own button row, so those choices are a radio group with arrow-key movement and 44px touch targets.
+- `Modal`'s close button (Settings, delete confirmation) is 44px on touch screens.
+
+### Notes
+- The Claude widget's Ask / Auto / Plan switch stays local: Auto's warn tint and the composer footer's small size aren't something `Segmented` offers.
+- While a preset or Custom is active no mode is checked, and `Segmented` then takes every option out of the Tab order (`tabIndex=-1`), so the mode switch is mouse-only until a mode is picked. Follow-up for nishant/ui.
+
+---
+
 ## [PR #128] feat: shared nish.software theme (@nish/ui) + React 19 / Vite 8 / Tailwind 4
 
 **Branch:** `ui/nish-ui` → `master`
