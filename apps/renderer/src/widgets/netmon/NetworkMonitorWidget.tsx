@@ -170,8 +170,8 @@ const ThroughputCard = memo(function ThroughputCard({ totals, ifaces, history, v
           <span className="text-xs text-th-hi2 font-medium">Throughput</span>
         </div>
         <div className="flex gap-3 text-[10px] tabular-nums">
-          <span className="text-th-chart-5">↑ {totals.upMbps.toFixed(1)} Mbps</span>
-          <span className="text-th-chart-2">↓ {totals.downMbps.toFixed(1)} Mbps</span>
+          <span className="text-th-sky">↑ {totals.upMbps.toFixed(1)} Mbps</span>
+          <span className="text-th-emerald">↓ {totals.downMbps.toFixed(1)} Mbps</span>
         </div>
       </div>
 

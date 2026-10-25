@@ -233,8 +233,8 @@ const DiskCard = memo(function DiskCard({ disks, diskUsage, history, view }: {
           <span className="text-xs text-th-hi2 font-medium">Disk I/O</span>
         </div>
         <div className="flex gap-3 text-[10px] tabular-nums">
-          <span className="text-th-chart-2">R {fmt(d.readMBs)} MB/s</span>
-          <span className="text-th-chart-7">W {fmt(d.writeMBs)} MB/s</span>
+          <span className="text-th-emerald">R {fmt(d.readMBs)} MB/s</span>
+          <span className="text-th-amber">W {fmt(d.writeMBs)} MB/s</span>
         </div>
       </div>
 
@@ -280,8 +280,8 @@ const NetworkCard = memo(function NetworkCard({ network, history, view }: {
           <span className="text-xs text-th-hi2 font-medium">Network</span>
         </div>
         <div className="flex gap-3 text-[10px] tabular-nums">
-          <span className="text-th-chart-5">↑ {fmt(totalUp)} Mbps</span>
-          <span className="text-th-chart-2">↓ {fmt(totalDown)} Mbps</span>
+          <span className="text-th-sky">↑ {fmt(totalUp)} Mbps</span>
+          <span className="text-th-emerald">↓ {fmt(totalDown)} Mbps</span>
         </div>
       </div>
 
