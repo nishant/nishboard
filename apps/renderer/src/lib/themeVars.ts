@@ -9,7 +9,7 @@ export type Scheme = 'dark' | 'light';
 export const NISH_COLOR_ROLES = [
   'bg', 'surface', 'elevated', 'overlay', 'line', 'line-strong',
   'hi', 'hi2', 'hi3', 'ghost', 'accent', 'accent2', 'on-accent',
-  'ok', 'loss', 'warn', 'info', 'scrim', 'invert-bg', 'invert-text',
+  'ok', 'loss', 'warn', 'info', 'ok-fill', 'loss-fill', 'warn-fill', 'info-fill', 'scrim', 'invert-bg', 'invert-text',
   'chart-1', 'chart-2', 'chart-3', 'chart-4', 'chart-5', 'chart-6', 'chart-7', 'chart-8',
   'emerald', 'indigo', 'amber', 'lime', 'rose', 'sky', 'violet', 'teal',
 ] as const;
@@ -40,6 +40,12 @@ export interface ThemeBase {
 const STATUS: Record<Scheme, Record<'ok' | 'loss' | 'warn' | 'info' | 'accent2', string>> = {
   dark: { ok: '#34d399', loss: '#f87171', warn: '#fbbf24', info: '#38bdf8', accent2: '#c084fc' },
   light: { ok: '#065f46', loss: '#a91b1b', warn: '#92400e', info: '#075985', accent2: '#7e22ce' },
+};
+// Bars, meters and chart lines. Dark themes reuse the status colors; light ones get
+// @nish/ui's brighter fills, since the text-safe colors look muddy as large fills.
+const FILL: Record<Scheme, Record<'ok' | 'loss' | 'warn' | 'info', string> | null> = {
+  dark: null,
+  light: { ok: '#059669', loss: '#dc2626', warn: '#c96d06', info: '#0284c7' },
 };
 const CHART: Record<Scheme, string[]> = {
   dark: ['#8b93ff', '#34d399', '#fbbf24', '#fb7185', '#38bdf8', '#c084fc', '#fb923c', '#a3e635'],
@@ -129,6 +135,10 @@ export function deriveThemeColors(base: ThemeBase): ThemeColors {
     loss: readable(status.loss),
     warn: readable(status.warn),
     info: readable(status.info),
+    'ok-fill': FILL[scheme]?.ok ?? readable(status.ok),
+    'loss-fill': FILL[scheme]?.loss ?? readable(status.loss),
+    'warn-fill': FILL[scheme]?.warn ?? readable(status.warn),
+    'info-fill': FILL[scheme]?.info ?? readable(status.info),
     scrim: scheme === 'dark' ? '#000000' : hi,
     'invert-bg': base.invertBg ?? hi,
     'invert-text': base.invertText ?? base.surface,
