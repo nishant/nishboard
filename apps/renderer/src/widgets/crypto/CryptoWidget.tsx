@@ -38,7 +38,7 @@ function CoinCard({ coin }: { coin: CryptoCoinData }) {
       </div>
       <span className="text-th-hi text-lg leading-none tabular-nums">${fmtPrice(coin.priceUsd)}</span>
       {points.length > 1 && (
-        <div className="h-8 -mx-1">
+        <div className="crypto-spark h-8 -mx-1">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={points} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
               <Area dataKey="v" stroke={color} strokeWidth={1.2} fill={color} fillOpacity={0.12} dot={false} isAnimationActive={false} />
@@ -138,7 +138,9 @@ export function CryptoWidget() {
     <div className="relative h-full flex flex-col overflow-hidden">
       {editing && <WatchlistModal onClose={() => setEditing(false)} />}
 
-      <div className="flex-1 overflow-y-auto p-2">
+      {/* crypto-list: a size container, so a tile too short for a whole card
+          drops the sparklines instead of cutting them off (index.css). */}
+      <div className="crypto-list flex-1 min-h-0 overflow-y-auto p-2">
         {watchlist.length === 0 ? (
           <EmptyState compact title="No coins — add one with the pencil" />
         ) : isLoading ? (

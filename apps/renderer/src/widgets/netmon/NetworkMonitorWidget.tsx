@@ -90,14 +90,15 @@ const LatencyCard = memo(function LatencyCard({ stats, spark, view }: {
 }) {
   return (
     <Card>
-      <div className="flex items-center justify-between mb-1.5">
-        <div className="flex items-center gap-1.5">
-          <Radio size={12} className="text-th-sky" />
-          <span className="text-xs text-th-hi2 font-medium font-mono truncate max-w-[160px]">{stats.host}</span>
+      {/* @container: in a narrow tile the avg drops out before the host truncates. */}
+      <div className="@container flex items-center justify-between gap-2 mb-1.5">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <Radio size={12} className="text-th-sky shrink-0" />
+          <span className="text-xs text-th-hi2 font-medium font-mono truncate max-w-[160px]" title={stats.host}>{stats.host}</span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {stats.avgMs !== null && (
-            <span className="text-[10px] text-th-hi3 tabular-nums">avg {fmtMs(stats.avgMs)} ms</span>
+            <span className="text-[10px] text-th-hi3 tabular-nums @max-[11rem]:hidden">avg {fmtMs(stats.avgMs)} ms</span>
           )}
           {stats.latestMs !== null ? (
             <span className={`text-sm font-semibold tabular-nums ${latClass(stats.latestMs)}`}>

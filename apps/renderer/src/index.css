@@ -77,6 +77,18 @@ body {
 }
 
 /* Hide scrollbar but keep scroll functionality (cross-platform, incl. Windows Electron) */
+/* Crypto widget: in a tile too short for a whole coin card (sparkline included),
+   hide the sparklines so the name, change and price fit instead of the card
+   being cut off mid-chart. */
+.crypto-list {
+  container: crypto-list / size;
+}
+@container crypto-list (height < 7.1875rem) { /* a wrapped-header card with its sparkline is 115px */
+  .crypto-spark {
+    display: none;
+  }
+}
+
 .scrollbar-none {
   -ms-overflow-style: none; /* IE/Edge */
   scrollbar-width: none; /* Firefox */
