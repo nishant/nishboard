@@ -27,7 +27,7 @@ function latClass(ms: number): string {
 }
 
 function latHex(ms: number): string {
-  if (ms < 30) return tk('ok-fill');
+  if (ms < 30) return tk('chart-1');
   if (ms < 80) return tk('warn-fill');
   return tk('loss-fill');
 }
@@ -145,7 +145,7 @@ const QualityCard = memo(function QualityCard({ hosts }: { hosts: PingHostStats[
                 jitter {h.jitterMs !== null ? `${h.jitterMs.toFixed(1)} ms` : '—'} · loss {h.lossPct.toFixed(0)}%
               </span>
             </div>
-            <UsageBar pct={h.lossPct} color={h.lossPct >= 5 ? tk('loss-fill') : tk('ok-fill')} />
+            <UsageBar pct={h.lossPct} color={h.lossPct >= 5 ? tk('loss-fill') : tk('chart-1')} />
           </div>
         ))}
       </div>
