@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { X } from 'lucide-react';
+import { Toaster } from '@nish/ui';
 import { ThemeManager } from '../App';
 import { WIDGET_REGISTRY } from './DashboardGrid';
 import { DiscordHost } from '../widgets/discord/DiscordHost';
@@ -31,7 +32,7 @@ export function PopoutShell({ widgetId }: { widgetId: WidgetId }) {
       <ThemeManager />
       <div className="app-shell h-screen w-screen bg-th-bg overflow-hidden flex flex-col">
         <div className="app-region-drag flex items-center gap-2 px-3 py-1.5 border-b border-th-line bg-th-surface select-none shrink-0">
-          <span className="text-[10px] font-medium text-th-3 uppercase tracking-widest truncate">
+          <span className="text-[10px] font-medium text-th-hi3 uppercase tracking-widest truncate">
             {WIDGET_TITLES[widgetId]}
           </span>
           <div className="app-region-no-drag ml-auto flex items-center gap-0.5">
@@ -50,6 +51,7 @@ export function PopoutShell({ widgetId }: { widgetId: WidgetId }) {
         {/* A popped-out Discord gets its own host in THIS window (separate
             renderer — the main window's host hides meanwhile). */}
         {widgetId === 'discord' && <DiscordHost />}
+        <Toaster className="z-[450]" />
       </div>
     </QueryClientProvider>
   );
