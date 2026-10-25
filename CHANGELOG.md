@@ -4,6 +4,31 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #128] feat: shared nish.software theme (@nish/ui) + React 19 / Vite 8 / Tailwind 4
+
+**Branch:** `ui/nish-ui` → `master`
+**Date:** 2026-10-25
+
+### Context
+Every *.nish.software app now shares one theme package, `@nish/ui` (tokens, light/dark + presets, theme switching, small components). Nishboard had its own `--t-*` palette, raw palette classes (`red-400`, `emerald-400`, hex in widgets) and local copies of the shared components.
+
+### Changed
+- Renderer stack: React 19.3, Vite 8, Tailwind 4 via `@tailwindcss/vite` (no `tailwind.config.ts` / PostCSS / autoprefixer), Recharts 3, vitest 4. react-grid-layout stays on 1.5.3 (works on React 19 — it passes `nodeRef` to react-draggable, so no `findDOMNode`; 2.x is an API rewrite) with react-resizable 4.
+- Every color is a `@nish/ui` role class (`bg-th-surface`, `text-th-hi2`, `text-th-loss`, `bg-th-scrim/60`, …). Hardware / Net Monitor / Stocks / Crypto / World Clock chart and SVG colors read `--nish-*` through `tk()` (`lib/tokens.ts`) and follow theme switches live. Ghost-colored body text moved to `hi3` so it passes WCAG AA in every theme.
+- Shared components replace local copies: `SkeletonLines`/`Skeleton` (was `WidgetSkeleton`), `EmptyState`, `ErrorState` (thin wrapper keeps the query-key Retry), `Toaster` + `toast()` (`lib/alerts.ts` `toast(title, body, kind)` kept on top of it; error toasts now stay until dismissed), `cn`, and `Modal`/`Button`/`Select` for Settings and the delete confirmation (focus trap, Escape, scrim).
+- Themes: System / Light / Dark switch at the top of the Themes menu and in Settings → App → Appearance (plus a preset picker). Presets: the shared Slate (dark), Terminal, Mocha, Ocean, High contrast, and Nishboard's own Rose, Forest, Sunset, Dracula, Nord, Solarized, Crimson, Neon, Sandstorm, Arctic, now defined as full `--nish-*` sets (`lib/appPresets.ts` → generated `styles/app-themes.css`). Custom themes derive the full role set from the 4 picked colors and stay readable.
+- Bars, meters, status dots and chart lines use `@nish/ui`'s `-fill` status colors (brighter than the text ones in light themes). Settings switches: a light knob on a neutral track when off, accent track when on, in every theme.
+- Narrow windows: under 520px the titlebar brand hides and the clock joins the row instead of sitting under the menu buttons; small Crypto cards wrap the change % under the name.
+- The saved theme is applied before first paint (inline `theme-init` in `index.html`), and popout windows follow theme changes made in the main window.
+
+### Migration
+- `dashboard-theme` store v0 → v1: `midnight` → `dark`, `slate` (light in Nishboard) → `light`, `ocean`/`contrast`/`mocha` → the shared presets of the same name, the other presets keep their ids, unknown → `dark`.
+
+### Notes
+- Nishboard's own presets and Custom are registered with `@nish/ui`'s `registerThemes` / `window.__nishExtraThemes` (v0.1.2), so the shared `theme-init.js` paints them before first paint; `src/theme-init-app.js` only feeds it the app ids, the store's saved choice (with the v0 id mapping) and the Custom colors.
+
+---
+
 ## [PR #127] feat: widgets menu categories + reordering, and disable-widgets in Settings
 
 **Branch:** `feat/widget-menu-categories` → `master`

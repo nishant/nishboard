@@ -10,11 +10,14 @@ import type { WidgetId } from '../lib/layouts';
 import { useQueryClient } from '@tanstack/react-query';
 import { exportSettings, importSettings } from '../lib/backup';
 import { apiClient } from '../lib/apiClient';
-import { cn } from '../lib/utils';
 import { ToggleRow, SegmentedRow } from './settings/controls';
 import { openClaudeCliLogin } from '../widgets/claude/useClaude';
 import { AlertsPanel } from './settings/AlertsPanel';
 import { useOverlayStore } from '../store/overlayStore';
+import { useThemeStore } from '../store/themeStore';
+import { CUSTOM_THEME, THEMES, THEME_PRESETS } from '../themes';
+import { ThemeModeSwitch } from './ThemeModeSwitch';
+import { Button, Modal, Select, cn } from '@nish/ui';
 
 // Group defs by service
 const SERVICES = Array.from(new Set(CREDENTIAL_DEFS.map((d) => d.service)));
@@ -48,7 +51,7 @@ function CredentialRow({
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-3">
-        <span className="text-th-3 text-[11px] w-28 shrink-0">{label}</span>
+        <span className="text-th-hi3 text-[11px] w-28 shrink-0">{label}</span>
 
         {showInput ? (
           <div className="flex-1 flex items-center gap-1.5">
@@ -63,11 +66,11 @@ function CredentialRow({
               placeholder={isSet ? 'New value…' : '—'}
               autoFocus={isSet}
               spellCheck={false}
-              className="flex-1 bg-th-elevated border border-th-line rounded-lg px-3 py-1.5 text-th-hi text-[11px] font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-3 transition-colors"
+              className="flex-1 bg-th-elevated border border-th-line rounded-lg px-3 py-1.5 text-th-hi text-[11px] font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-hi3 transition-colors"
             />
             <button
               onClick={() => setVisible((v) => !v)}
-              className="text-th-ghost hover:text-th-2 transition-colors shrink-0 p-1"
+              className="text-th-hi3 hover:text-th-hi2 transition-colors shrink-0 p-1"
               tabIndex={-1}
               title={visible ? 'Hide' : 'Show'}
             >
@@ -76,7 +79,7 @@ function CredentialRow({
             {isSet && (
               <button
                 onClick={() => onEdit(undefined)}
-                className="text-th-ghost hover:text-th-2 transition-colors shrink-0 p-1"
+                className="text-th-hi3 hover:text-th-hi2 transition-colors shrink-0 p-1"
                 title="Keep the saved value"
               >
                 <X size={13} />
@@ -85,10 +88,10 @@ function CredentialRow({
           </div>
         ) : pendingClear ? (
           <div className="flex-1 flex items-center gap-2">
-            <span className="text-amber-400 text-[11px]">Will be removed on save</span>
+            <span className="text-th-warn text-[11px]">Will be removed on save</span>
             <button
               onClick={() => onEdit(undefined)}
-              className="text-th-ghost hover:text-th-2 text-[10px] underline transition-colors"
+              className="text-th-hi3 hover:text-th-hi2 text-[10px] underline transition-colors"
             >
               Undo
             </button>
@@ -96,17 +99,17 @@ function CredentialRow({
         ) : (
           <div className="flex-1 flex items-center gap-2">
             <span className="text-th-hi text-[11px] font-mono tracking-widest">••••••••</span>
-            <span className="text-th-ghost text-[10px]">saved</span>
+            <span className="text-th-hi3 text-[10px]">saved</span>
             <div className="ml-auto flex items-center gap-1">
               <button
                 onClick={() => onEdit({ mode: 'set', value: '' })}
-                className="px-2 py-0.5 rounded text-[10px] text-th-2 bg-th-elevated hover:bg-th-overlay transition-colors"
+                className="px-2 py-0.5 rounded text-[10px] text-th-hi2 bg-th-elevated hover:bg-th-overlay transition-colors"
               >
                 Replace
               </button>
               <button
                 onClick={() => onEdit({ mode: 'clear' })}
-                className="px-2 py-0.5 rounded text-[10px] text-th-ghost hover:text-red-400 bg-th-elevated transition-colors"
+                className="px-2 py-0.5 rounded text-[10px] text-th-hi3 hover:text-th-loss bg-th-elevated transition-colors"
               >
                 Clear
               </button>
@@ -115,7 +118,7 @@ function CredentialRow({
         )}
       </div>
       {hint && (
-        <p className="text-th-ghost text-[10px] leading-relaxed pl-[calc(7rem+0.75rem)]">{hint}</p>
+        <p className="text-th-hi3 text-[10px] leading-relaxed pl-[calc(7rem+0.75rem)]">{hint}</p>
       )}
     </div>
   );
@@ -124,8 +127,8 @@ function CredentialRow({
 function BuiltinRow({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="text-th-3 text-[11px] w-28 shrink-0">{label}</span>
-      <div className="flex items-center gap-1.5 text-th-ghost text-[11px]">
+      <span className="text-th-hi3 text-[11px] w-28 shrink-0">{label}</span>
+      <div className="flex items-center gap-1.5 text-th-hi3 text-[11px]">
         <Lock size={11} className="shrink-0" />
         <span>Pre-configured</span>
       </div>
@@ -159,9 +162,9 @@ function AboutSection() {
 
   return (
     <div className="flex flex-col gap-3">
-      <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">About</span>
+      <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">About</span>
       <div className="flex items-center gap-3">
-        <span className="text-th-3 text-[11px] w-28 shrink-0">Version</span>
+        <span className="text-th-hi3 text-[11px] w-28 shrink-0">Version</span>
         <span className="text-th-hi text-[11px] font-mono">{version ?? '…'}</span>
         <button
           onClick={() => void check()}
@@ -193,7 +196,7 @@ function AboutSection() {
               )}
             </>
           ) : (
-            <span className="text-th-ghost">{result.message ?? 'You are up to date.'}</span>
+            <span className="text-th-hi3">{result.message ?? 'You are up to date.'}</span>
           )}
         </div>
       )}
@@ -237,14 +240,14 @@ function AutoExportRow() {
         </button>
         {dir && (
           <>
-            <span className="text-th-3 text-[10px] font-mono truncate flex-1 min-w-0" title={dir}>{dir}</span>
-            <button onClick={() => void disable()} className="text-th-ghost hover:text-red-400 text-[10px] underline shrink-0 transition-colors">
+            <span className="text-th-hi3 text-[10px] font-mono truncate flex-1 min-w-0" title={dir}>{dir}</span>
+            <button onClick={() => void disable()} className="text-th-hi3 hover:text-th-loss text-[10px] underline shrink-0 transition-colors">
               Disable
             </button>
           </>
         )}
       </div>
-      <p className="text-th-ghost text-[10px] leading-relaxed">
+      <p className="text-th-hi3 text-[10px] leading-relaxed">
         {dir
           ? 'Settings auto-save to this folder on every change (2s debounce, atomic write).'
           : 'Pick a Google Drive / OneDrive / Dropbox folder to keep a continuously synced settings backup.'}
@@ -273,7 +276,7 @@ function SystemPrefsSection() {
 
   return (
     <div className="flex flex-col gap-3">
-      <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">System</span>
+      <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">System</span>
       <SegmentedRow<AppPrefsData['closeAction']>
         label="Close button"
         value={prefs.closeAction}
@@ -286,7 +289,7 @@ function SystemPrefsSection() {
         checked={prefs.globalHotkey}
         onChange={(v) => void update({ globalHotkey: v })}
       />
-      <p className="text-th-ghost text-[10px] leading-relaxed">
+      <p className="text-th-hi3 text-[10px] leading-relaxed">
         The tray icon is always available: show/hide, Spotify play/pause, restart server, quit.
       </p>
     </div>
@@ -312,15 +315,15 @@ function WidgetsSection() {
 
   return (
     <div className="flex flex-col gap-3">
-      <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">Widgets</span>
-      <p className="text-th-ghost text-[10px] leading-relaxed">
+      <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Widgets</span>
+      <p className="text-th-hi3 text-[10px] leading-relaxed">
         Disabled widgets disappear everywhere — the Widgets menu, the layout editor, the grid,
         and the command palette. Re-enabling doesn&apos;t pin the widget back; pin it from the
         Widgets menu.
       </p>
       {WIDGET_CATEGORIES.map((category) => (
         <div key={category.id} className="flex flex-col gap-2">
-          <span className="text-th-3 text-[10px] uppercase tracking-wider font-medium">
+          <span className="text-th-hi3 text-[10px] uppercase tracking-wider font-medium">
             {category.label}
           </span>
           <div className="flex flex-col gap-2 pl-2">
@@ -335,6 +338,44 @@ function WidgetsSection() {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ── Appearance (theme) ────────────────────────────────────────────────────────
+
+function AppearanceSection() {
+  const theme = useThemeStore((s) => s.theme);
+  const setTheme = useThemeStore((s) => s.setTheme);
+  const isPreset = THEME_PRESETS.some((t) => t.id === theme) || theme === 'custom';
+  return (
+    <div className="flex flex-col gap-3">
+      <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Appearance</span>
+      <div className="flex items-center gap-3">
+        <span className="text-th-hi3 text-[11px] w-28 shrink-0">Theme</span>
+        <ThemeModeSwitch showLabels />
+      </div>
+      <div className="flex items-center gap-3">
+        <label htmlFor="theme-preset" className="text-th-hi3 text-[11px] w-28 shrink-0">Preset</label>
+        <Select
+          id="theme-preset"
+          value={isPreset ? theme : ''}
+          onChange={(e) => {
+            const id = THEMES.find((t) => t.id === e.target.value)?.id;
+            if (id) setTheme(id);
+          }}
+          className="max-w-56 [&_select]:h-7 [&_select]:text-[11px]"
+        >
+          <option value="">{isPreset ? 'Preset…' : 'None (System / Light / Dark)'}</option>
+          {[...THEME_PRESETS, CUSTOM_THEME].map((t) => (
+            <option key={t.id} value={t.id}>{t.name}</option>
+          ))}
+        </Select>
+      </div>
+      <p className="text-th-hi3 text-[10px] leading-relaxed">
+        Light and Dark are the shared nish.software themes; System follows your OS. Custom colors are edited from the
+        Themes menu in the title bar.
+      </p>
     </div>
   );
 }
@@ -394,12 +435,14 @@ function AppSettingsPanel() {
 
   return (
     <div className="flex flex-col gap-6">
+      <AppearanceSection />
+
       {/* Weather */}
       <div className="flex flex-col gap-3">
-        <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">Weather</span>
+        <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Weather</span>
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center gap-3">
-            <span className="text-th-3 text-[11px] w-28 shrink-0">Locations (ZIP)</span>
+            <span className="text-th-hi3 text-[11px] w-28 shrink-0">Locations (ZIP)</span>
             <input
               value={zipsText}
               onChange={(e) => setZipsText(e.target.value.replace(/[^0-9,\s]/g, ''))}
@@ -408,10 +451,10 @@ function AppSettingsPanel() {
               placeholder="Auto (by IP)"
               inputMode="numeric"
               spellCheck={false}
-              className="flex-1 bg-th-elevated border border-th-line rounded-lg px-3 py-1.5 text-th-hi text-[11px] font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-3 transition-colors"
+              className="flex-1 bg-th-elevated border border-th-line rounded-lg px-3 py-1.5 text-th-hi text-[11px] font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-hi3 transition-colors"
             />
           </div>
-          <p className="text-th-ghost text-[10px] leading-relaxed pl-[calc(7rem+0.75rem)]">
+          <p className="text-th-hi3 text-[10px] leading-relaxed pl-[calc(7rem+0.75rem)]">
             One or more 5-digit US ZIPs, comma-separated — the weather widget's ‹ › cycles
             between them. Leave blank to detect automatically.
           </p>
@@ -426,7 +469,7 @@ function AppSettingsPanel() {
           ]}
           onChange={setWeatherAlertNotify}
         />
-        <p className="text-th-ghost text-[10px] leading-relaxed">
+        <p className="text-th-hi3 text-[10px] leading-relaxed">
           New NWS weather alerts chime, toast, and send a native notification.
           Severe = Extreme/Severe alerts only.
         </p>
@@ -434,7 +477,7 @@ function AppSettingsPanel() {
 
       {/* Twitch */}
       <div className="flex flex-col gap-3">
-        <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">Twitch</span>
+        <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Twitch</span>
         <ToggleRow
           label="Go-live alerts"
           description="Chime, toast, and native notification when a followed channel goes live. Needs a connected Twitch account (widget → Connect)."
@@ -445,7 +488,7 @@ function AppSettingsPanel() {
 
       {/* YouTube */}
       <div className="flex flex-col gap-3">
-        <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">YouTube</span>
+        <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">YouTube</span>
         <ToggleRow
           label="Hide YouTube Shorts"
           description="Filter Shorts (≤60s) out of every YouTube tab — Subs, Trending, Search, and the rest."
@@ -462,26 +505,26 @@ function AppSettingsPanel() {
 
       {/* Claude */}
       <div className="flex flex-col gap-3">
-        <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">Claude</span>
+        <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Claude</span>
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center gap-3">
-            <span className="text-th-3 text-[11px] w-28 shrink-0">Workspace</span>
+            <span className="text-th-hi3 text-[11px] w-28 shrink-0">Workspace</span>
             <input
               value={claudeWorkspaceDir}
               onChange={(e) => setClaudeWorkspaceDir(e.target.value)}
               placeholder="~/.dash (default)"
               spellCheck={false}
-              className="flex-1 bg-th-elevated border border-th-line rounded-lg px-3 py-1.5 text-th-hi text-[11px] font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-3 transition-colors"
+              className="flex-1 bg-th-elevated border border-th-line rounded-lg px-3 py-1.5 text-th-hi text-[11px] font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-hi3 transition-colors"
             />
           </div>
-          <p className="text-th-ghost text-[10px] leading-relaxed pl-[calc(7rem+0.75rem)]">
+          <p className="text-th-hi3 text-[10px] leading-relaxed pl-[calc(7rem+0.75rem)]">
             Where the Claude widget's CLI runs — file operations are relative to this folder.
             Absolute path or ~-prefixed.
           </p>
         </div>
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center gap-3">
-            <span className="text-th-3 text-[11px] w-28 shrink-0">Extra folders</span>
+            <span className="text-th-hi3 text-[11px] w-28 shrink-0">Extra folders</span>
             <input
               value={claudeDirsText}
               onChange={(e) => setClaudeDirsText(e.target.value)}
@@ -489,10 +532,10 @@ function AppSettingsPanel() {
               onKeyDown={(e) => { if (e.key === 'Enter') commitClaudeDirs(); }}
               placeholder="~ (home)"
               spellCheck={false}
-              className="flex-1 bg-th-elevated border border-th-line rounded-lg px-3 py-1.5 text-th-hi text-[11px] font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-3 transition-colors"
+              className="flex-1 bg-th-elevated border border-th-line rounded-lg px-3 py-1.5 text-th-hi text-[11px] font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-hi3 transition-colors"
             />
           </div>
-          <p className="text-th-ghost text-[10px] leading-relaxed pl-[calc(7rem+0.75rem)]">
+          <p className="text-th-hi3 text-[10px] leading-relaxed pl-[calc(7rem+0.75rem)]">
             Comma-separated folders Claude may also read/write (beyond the workspace).
             Default ~ = your whole home directory. In Ask mode writes still prompt;
             ⚠ in Auto mode Claude can change anything in these folders without asking.
@@ -500,7 +543,7 @@ function AppSettingsPanel() {
         </div>
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center gap-3">
-            <span className="text-th-3 text-[11px] w-28 shrink-0">CLI login</span>
+            <span className="text-th-hi3 text-[11px] w-28 shrink-0">CLI login</span>
             <button
               onClick={() => void openClaudeCliLogin()}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-th-elevated hover:bg-th-overlay text-th-hi text-[11px] transition-colors"
@@ -509,7 +552,7 @@ function AppSettingsPanel() {
               Log in to Claude CLI
             </button>
           </div>
-          <p className="text-th-ghost text-[10px] leading-relaxed pl-[calc(7rem+0.75rem)]">
+          <p className="text-th-hi3 text-[10px] leading-relaxed pl-[calc(7rem+0.75rem)]">
             Opens a terminal running <code className="bg-th-elevated px-1 py-0.5 rounded">claude auth login</code> —
             finish sign-in in the browser (bills your Claude subscription, not API keys).
             The terminal closes itself once you&apos;re logged in.
@@ -519,7 +562,7 @@ function AppSettingsPanel() {
 
       {/* Units & time */}
       <div className="flex flex-col gap-3">
-        <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">Units &amp; time</span>
+        <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Units &amp; time</span>
         <SegmentedRow<TempUnit>
           label="Temperature"
           value={tempUnit}
@@ -542,7 +585,7 @@ function AppSettingsPanel() {
 
       {/* Top bar */}
       <div className="flex flex-col gap-3">
-        <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">Top bar</span>
+        <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Top bar</span>
         <ToggleRow
           label="Show temperature"
           description="Display the current temperature next to the clock."
@@ -559,10 +602,10 @@ function AppSettingsPanel() {
 
       {/* Display */}
       <div className="flex flex-col gap-3">
-        <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">Display</span>
+        <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Display</span>
 
         <div className="flex items-center gap-3">
-          <span className="text-th-3 text-[11px] w-28 shrink-0">UI scale</span>
+          <span className="text-th-hi3 text-[11px] w-28 shrink-0">UI scale</span>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setUiScale(clampScale(uiScale - 0.1))}
@@ -582,7 +625,7 @@ function AppSettingsPanel() {
               <Plus size={12} />
             </button>
             {uiScale !== 1 && (
-              <button onClick={() => setUiScale(1)} className="ml-1 text-th-ghost hover:text-th-2 text-[10px] transition-colors">
+              <button onClick={() => setUiScale(1)} className="ml-1 text-th-hi3 hover:text-th-hi2 text-[10px] transition-colors">
                 Reset
               </button>
             )}
@@ -605,7 +648,7 @@ function AppSettingsPanel() {
 
       {/* Power */}
       <div className="flex flex-col gap-3">
-        <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">Power</span>
+        <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Power</span>
         <SegmentedRow<LowPowerMode>
           label="Low-power mode"
           value={lowPower}
@@ -616,7 +659,7 @@ function AppSettingsPanel() {
           ]}
           onChange={setLowPower}
         />
-        <p className="text-th-ghost text-[10px] leading-relaxed">
+        <p className="text-th-hi3 text-[10px] leading-relaxed">
           Slows all widget refresh rates 4×. Auto engages only while on battery
           (requires the Hardware widget for battery detection). Polling always
           pauses while the window is hidden, regardless of this setting.
@@ -625,7 +668,7 @@ function AppSettingsPanel() {
 
       {/* Backup */}
       <div className="flex flex-col gap-3">
-        <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">Backup</span>
+        <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Backup</span>
         <div className="flex items-center gap-2">
           <button
             onClick={exportSettings}
@@ -642,9 +685,9 @@ function AppSettingsPanel() {
           <input ref={fileRef} type="file" accept="application/json,.json" onChange={onImportFile} className="hidden" />
         </div>
         {importError && (
-          <p className="text-red-400 text-[10px] leading-relaxed">{importError}</p>
+          <p className="text-th-loss text-[10px] leading-relaxed">{importError}</p>
         )}
-        <p className="text-th-ghost text-[10px] leading-relaxed">
+        <p className="text-th-hi3 text-[10px] leading-relaxed">
           Layout, theme &amp; preferences (not API keys). Import replaces local settings and reloads — handy for syncing two machines.
         </p>
         <AutoExportRow />
@@ -731,12 +774,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     return () => { cancelled = true; };
   }, []);
 
-  // Close on Escape
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
+  // Escape, backdrop click and focus trapping come from @nish/ui's Modal.
 
   // Payload for saveAll: non-empty string = set/replace, '' = clear, absent = keep.
   // Replace-mode rows with nothing typed yet are skipped (nothing to save).
@@ -787,49 +825,61 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
 
   const tabBtn = (t: Tab, text: string) => (
     <button
+      role="tab"
+      aria-selected={tab === t}
       onClick={() => setTab(t)}
       className={cn(
-        'px-3 py-1.5 text-[11px] font-medium border-b-2 -mb-px transition-colors',
+        'px-3 py-2 text-[11px] font-medium border-b-2 -mb-px transition-colors',
         tab === t
           ? 'border-th-accent text-th-hi'
-          : 'border-transparent text-th-ghost hover:text-th-2',
+          : 'border-transparent text-th-hi3 hover:text-th-hi2',
       )}
     >
       {text}
     </button>
   );
 
+  const footer =
+    tab === 'dev' ? (
+      <div className="flex w-full items-center justify-between gap-3">
+        {saveState === 'error' ? (
+          <span className="text-th-loss text-[11px]">Failed to save — the server didn't restart cleanly. Try again.</span>
+        ) : saveState === 'saving' ? (
+          <span className="text-th-hi3 text-[11px]">Restarting server with new keys…</span>
+        ) : (
+          <span />
+        )}
+        <Button
+          size="sm"
+          variant={saveState === 'saved' ? 'secondary' : 'primary'}
+          onClick={handleSave}
+          disabled={saveState === 'saving' || loading || !hasChanges}
+          loading={saveState === 'saving'}
+          icon={saveState === 'saved' ? <Check size={12} className="text-th-ok" /> : undefined}
+        >
+          {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved' : 'Save'}
+        </Button>
+      </div>
+    ) : undefined;
+
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60">
-      <div className="bg-th-surface border border-th-line rounded-2xl shadow-2xl w-[480px] max-h-[80vh] flex flex-col overflow-hidden">
-
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-th-line shrink-0">
-          <span className="text-th-hi font-semibold text-sm">Settings</span>
-          <button
-            onClick={onClose}
-            className="text-th-ghost hover:text-th-hi transition-colors"
-          >
-            <X size={15} />
-          </button>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex items-center gap-1 px-5 border-b border-th-line shrink-0">
+    <Modal title="Settings" onClose={onClose} className="sm:max-w-[480px]" footer={footer}>
+        {/* Tabs — pinned while the body scrolls */}
+        <div role="tablist" className="sticky top-0 z-10 -mx-5 mb-4 flex items-center gap-1 border-b border-th-line bg-th-surface px-5">
           {tabBtn('app', 'App')}
           {tabBtn('alerts', 'Alerts')}
           {tabBtn('dev', 'Developer')}
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-6">
+        <div className="flex flex-col gap-6">
           {tab === 'app' ? (
             <AppSettingsPanel />
           ) : tab === 'alerts' ? (
             <AlertsPanel />
           ) : loading ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 size={18} className="text-th-ghost animate-spin" />
+              <Loader2 size={18} className="text-th-hi3 animate-spin" />
             </div>
           ) : (
             <>
@@ -837,7 +887,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                 const defs = CREDENTIAL_DEFS.filter((d) => d.service === service);
                 return (
                   <div key={service} className="flex flex-col gap-3">
-                    <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">
+                    <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">
                       {service}
                     </span>
                     {defs.map((def) =>
@@ -862,12 +912,12 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
 
               {/* Info note */}
               {!encryptionAvailable && (
-                <p className="text-amber-400 text-[10px] leading-relaxed border-t border-th-line pt-4">
+                <p className="text-th-warn text-[10px] leading-relaxed border-t border-th-line pt-4">
                   OS keychain unavailable — keys will be stored unencrypted on this device's disk.
                 </p>
               )}
               <p className={cn(
-                'text-th-ghost text-[10px] leading-relaxed',
+                'text-th-hi3 text-[10px] leading-relaxed',
                 encryptionAvailable && 'border-t border-th-line pt-4',
               )}>
                 Spotify uses sign-in — no key needed. Weather, Hardware, and Sound require no API keys.
@@ -880,36 +930,6 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           )}
         </div>
 
-        {/* Footer — only the Developer tab has a Save button (App settings auto-persist) */}
-        {tab === 'dev' && (
-          <div className="px-5 py-3 border-t border-th-line shrink-0 flex items-center justify-between">
-            {saveState === 'error' && (
-              <span className="text-red-400 text-[11px]">Failed to save — the server didn't restart cleanly. Try again.</span>
-            )}
-            {saveState === 'saving' && (
-              <span className="text-th-ghost text-[11px]">Restarting server with new keys…</span>
-            )}
-            {saveState !== 'error' && saveState !== 'saving' && <span />}
-
-            <button
-              onClick={handleSave}
-              disabled={saveState === 'saving' || loading || !hasChanges}
-              className={cn(
-                'flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-medium transition-colors',
-                saveState === 'saved'
-                  ? 'bg-emerald-500/20 text-emerald-400 cursor-default'
-                  : 'bg-th-overlay hover:bg-th-overlay/70 text-th-hi disabled:opacity-40 disabled:cursor-not-allowed',
-              )}
-            >
-              {saveState === 'saving' && <Loader2 size={12} className="animate-spin" />}
-              {saveState === 'saved'  && <Check size={12} />}
-              {saveState === 'saving' ? 'Saving…'
-                : saveState === 'saved' ? 'Saved'
-                : 'Save'}
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
+    </Modal>
   );
 }

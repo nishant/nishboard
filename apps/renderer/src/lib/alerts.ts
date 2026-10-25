@@ -1,8 +1,9 @@
 // Asset-free alert sound (Web Audio) + native desktop notification + in-app toast.
 // Used by the Timer / Alarm / Countdown widgets when something fires.
 
-import { useToastStore } from '../store/toastStore';
-import type { ToastKind } from '../store/toastStore';
+import { toast as nishToast } from '@nish/ui';
+
+export type ToastKind = 'info' | 'success' | 'error';
 
 let ctx: AudioContext | null = null;
 
@@ -36,9 +37,10 @@ export function playAlarm(): void {
   }
 }
 
-/** In-app transient toast (bottom-right). No sound, no native notification. */
+/** In-app toast (bottom-right) via @nish/ui's Toaster. No sound, no native
+ *  notification. Errors stay until dismissed; the rest fade after 4s. */
 export function toast(title: string, body?: string, kind: ToastKind = 'info'): void {
-  useToastStore.getState().push({ title, body, kind });
+  nishToast[kind](title, body);
 }
 
 /** Fire a full alert: chime + in-app toast + native notification (native kept

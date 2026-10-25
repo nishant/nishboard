@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { Palette, ArrowLeft, ChevronRight, Plus } from 'lucide-react';
 import { useThemeStore } from '../../store/themeStore';
 import type { CustomColors, SavedCustomTheme } from '../../store/themeStore';
-import { THEMES } from '../../themes';
+import { CUSTOM_THEME, THEMES, THEME_PRESETS } from '../../themes';
+import { ThemeModeSwitch } from '../ThemeModeSwitch';
 import { parseHex } from '../../lib/colorUtils';
-import { cn } from '../../lib/utils';
 import {
   Backdrop, menuBtn, menuPanel, noDragStyle,
   SubmenuHeader, SaveAsForm, SavedItemRow, ConfirmDeleteDialog,
 } from './primitives';
+import { cn } from '@nish/ui';
 
 // ── ColorPicker ───────────────────────────────────────────────────────────────
 
@@ -40,7 +41,7 @@ function ColorPicker({
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-th-3 text-[10px] w-[58px] shrink-0 leading-none">{label}</span>
+      <span className="text-th-hi3 text-[10px] w-[58px] shrink-0 leading-none">{label}</span>
 
       {/* Native color picker visually replaced by a styled swatch */}
       <label
@@ -75,7 +76,7 @@ function ColorPicker({
         className={cn(
           'flex-1 bg-th-elevated border rounded px-2 py-0.5 text-[10px] font-mono text-th-hi',
           'placeholder:text-th-ghost focus:outline-none transition-colors',
-          error ? 'border-red-400' : 'border-th-line focus:border-th-3',
+          error ? 'border-th-loss' : 'border-th-line focus:border-th-hi3',
         )}
       />
     </div>
@@ -105,7 +106,7 @@ function CustomEditor({
       <div className="flex items-center gap-1.5">
         <button
           onClick={onBack}
-          className="text-th-ghost hover:text-th-hi transition-colors p-0.5 -ml-0.5"
+          className="text-th-hi3 hover:text-th-hi transition-colors p-0.5 -ml-0.5"
         >
           <ArrowLeft size={12} />
         </button>
@@ -145,7 +146,7 @@ function CustomEditor({
         onUpdate={onUpdate}
       />
 
-      <p className="text-th-ghost text-[9px] leading-tight -mt-1">
+      <p className="text-th-hi3 text-[9px] leading-tight -mt-1">
         Semantic colors (stocks, hardware) are preserved.
       </p>
     </div>
@@ -207,7 +208,7 @@ export function ThemeMenu({ compact }: { compact: boolean }) {
         {!compact && 'Themes'}
         <span
           className={compact
-            ? 'absolute bottom-0.5 right-0.5 h-1.5 w-1.5 rounded-full ring-1 ring-th-bar'
+            ? 'absolute bottom-0.5 right-0.5 h-1.5 w-1.5 rounded-full ring-1 ring-th-bg'
             : 'h-2 w-2 rounded-full shrink-0 ring-1 ring-th-line'}
           style={{ background: activeSwatch }}
         />
@@ -218,42 +219,50 @@ export function ThemeMenu({ compact }: { compact: boolean }) {
           <Backdrop onClose={handleClose} />
 
           <div
-            className={cn(menuPanel, panel !== 'list' && 'min-w-[248px]')}
+            className={cn(menuPanel, 'min-w-[220px] max-h-[calc(100vh-48px)] overflow-y-auto', panel !== 'list' && 'min-w-[248px]')}
             style={noDragStyle}
           >
-            {/* ── Main theme list ── */}
-            {panel === 'list' && THEMES.map((t) => {
-              const swatch = t.id === 'custom' ? customColors.primary : t.swatch;
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => {
-                    if (t.id === 'custom') {
-                      setTheme('custom');
-                      setPanel('custom-list');
-                    } else {
-                      setTheme(t.id);
-                      handleClose();
-                    }
-                  }}
-                  className={cn(
-                    'w-full flex items-center gap-2.5 px-3 py-1.5 text-[11px] transition-colors',
-                    theme === t.id
-                      ? 'text-th-hi bg-th-elevated'
-                      : 'text-th-2 hover:text-th-hi hover:bg-th-elevated/60',
-                  )}
-                >
-                  <span
-                    className="h-3 w-3 rounded-full shrink-0 ring-1 ring-white/10"
-                    style={{ background: swatch }}
-                  />
-                  {t.name}
-                  {t.id === 'custom' && (
-                    <ChevronRight size={10} className="ml-auto text-th-ghost" />
-                  )}
-                </button>
-              );
-            })}
+            {/* ── Mode switch + preset list ── */}
+            {panel === 'list' && (
+              <>
+                <div className="px-2 pt-1 pb-2">
+                  <ThemeModeSwitch showLabels className="w-full" />
+                </div>
+                <p className="px-3 pt-1 pb-0.5 text-th-hi3 text-[10px] uppercase tracking-wider font-medium">Presets</p>
+                {[...THEME_PRESETS, CUSTOM_THEME].map((t) => {
+                  const swatch = t.id === 'custom' ? customColors.primary : t.swatch;
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => {
+                        if (t.id === 'custom') {
+                          setTheme('custom');
+                          setPanel('custom-list');
+                        } else {
+                          setTheme(t.id);
+                          handleClose();
+                        }
+                      }}
+                      className={cn(
+                        'w-full flex items-center gap-2.5 px-3 py-1.5 text-[11px] transition-colors',
+                        theme === t.id
+                          ? 'text-th-hi bg-th-elevated'
+                          : 'text-th-hi2 hover:text-th-hi hover:bg-th-elevated/60',
+                      )}
+                    >
+                      <span
+                        className="h-3 w-3 rounded-full shrink-0 ring-1 ring-th-line-strong"
+                        style={{ background: swatch }}
+                      />
+                      {t.name}
+                      {t.id === 'custom' && (
+                        <ChevronRight size={10} className="ml-auto text-th-hi3" />
+                      )}
+                    </button>
+                  );
+                })}
+              </>
+            )}
 
             {/* ── Custom themes submenu ── */}
             {panel === 'custom-list' && (
@@ -263,7 +272,7 @@ export function ThemeMenu({ compact }: { compact: boolean }) {
                 {/* Create new — always first */}
                 <button
                   onClick={() => setPanel('editor')}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-th-2 hover:text-th-hi hover:bg-th-elevated/60 transition-colors mt-0.5"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-th-hi2 hover:text-th-hi hover:bg-th-elevated/60 transition-colors mt-0.5"
                 >
                   <Plus size={11} className="shrink-0" />
                   Create new
@@ -280,7 +289,7 @@ export function ThemeMenu({ compact }: { compact: boolean }) {
                         active={activeCustomId === t.id && theme === 'custom'}
                         icon={
                           <span
-                            className="h-3 w-3 rounded-full shrink-0 ring-1 ring-white/10"
+                            className="h-3 w-3 rounded-full shrink-0 ring-1 ring-th-line-strong"
                             style={{ background: t.colors.primary }}
                           />
                         }

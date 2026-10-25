@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { ThemeId } from '../themes';
+import { isThemeId, migrateThemeId, type ThemeId } from '../themes';
 
 export interface CustomColors {
   primary:   string; // '#rrggbb' — page background
@@ -15,10 +15,12 @@ export interface SavedCustomTheme {
   colors: CustomColors;
 }
 
+// The Custom editor's starting point: user data (the colors they then edit),
+// not UI colors — the same neutral dark the old default theme used.
 const DEFAULT_CUSTOM: CustomColors = {
-  primary:   '#18181b', // zinc-900
-  secondary: '#27272a', // zinc-800
-  tertiary:  '#3f3f46', // zinc-700
+  primary:   '#18181b',
+  secondary: '#27272a',
+  tertiary:  '#3f3f46',
   text:      '#ffffff',
 };
 
@@ -41,10 +43,23 @@ interface ThemeState {
   updateCustomTheme: (id: string) => void;
 }
 
+/** First run (nothing saved yet): adopt a choice already made through @nish/ui
+ *  (`nish-theme`), else follow the OS ('system'), which is also what the pre-paint
+ *  script shows, so a fresh install never flips light → dark on load. A saved
+ *  choice always wins over this (persist rehydrates over it). */
+function initialTheme(): ThemeId {
+  try {
+    const shared = localStorage.getItem('nish-theme');
+    return isThemeId(shared) ? shared : 'system';
+  } catch {
+    return 'system';
+  }
+}
+
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set) => ({
-      theme: 'midnight',
+      theme: initialTheme(),
       customColors: DEFAULT_CUSTOM,
       savedCustomThemes: [],
       activeCustomId: null,
@@ -85,6 +100,17 @@ export const useThemeStore = create<ThemeState>()(
           theme: 'custom',
         })),
     }),
-    { name: 'dashboard-theme' },
+    {
+      name: 'dashboard-theme',
+      // v1: themes moved onto @nish/ui. midnight → dark, slate (light here) →
+      // light; ocean/contrast/mocha keep their ids (now the shared presets);
+      // the other presets keep theirs as app-local presets.
+      version: 1,
+      migrate: (persisted, version) => {
+        const state = (persisted ?? {}) as Partial<ThemeState>;
+        if (version < 1) return { ...state, theme: migrateThemeId(state.theme) };
+        return state;
+      },
+    },
   ),
 );

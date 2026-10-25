@@ -5,7 +5,7 @@ import { WIDGET_CATEGORIES, WIDGET_TITLES } from '../../lib/layouts';
 import type { WidgetId } from '../../lib/layouts';
 import { orderedCategoryWidgets, useWidgetUiStore } from '../../store/widgetUiStore';
 import { useAppSettingsStore } from '../../store/settingsStore';
-import { cn } from '../../lib/utils';
+import { Button, Modal, cn } from '@nish/ui';
 
 // WebkitAppRegion is a non-standard Electron CSS property missing from React's
 // CSSProperties — the cast is unavoidable.
@@ -27,11 +27,11 @@ export const menuBtn = (open: boolean, compact: boolean) =>
       : 'flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] transition-colors',
     open
       ? 'bg-th-elevated text-th-hi'
-      : 'text-th-ghost hover:text-th-hi hover:bg-th-elevated/60',
+      : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated/60',
   );
 
 export const menuPanel =
-  'absolute right-0 top-full mt-1 z-50 bg-th-surface border border-th-line rounded-lg shadow-xl py-1 min-w-[148px]';
+  'absolute right-0 top-full mt-1 z-50 bg-th-surface border border-th-line rounded-lg shadow-pop py-1 min-w-[148px]';
 
 /** Back-arrow + uppercase label header used by every submenu panel. */
 export function SubmenuHeader({ label, onBack }: { label: string; onBack: () => void }) {
@@ -39,11 +39,11 @@ export function SubmenuHeader({ label, onBack }: { label: string; onBack: () => 
     <div className="flex items-center gap-1.5 px-3 pt-1 pb-2 border-b border-th-line">
       <button
         onClick={onBack}
-        className="text-th-ghost hover:text-th-hi transition-colors p-0.5 -ml-0.5"
+        className="text-th-hi3 hover:text-th-hi transition-colors p-0.5 -ml-0.5"
       >
         <ArrowLeft size={12} />
       </button>
-      <span className="text-th-3 text-[10px] uppercase tracking-wider font-medium">{label}</span>
+      <span className="text-th-hi3 text-[10px] uppercase tracking-wider font-medium">{label}</span>
     </div>
   );
 }
@@ -64,7 +64,7 @@ function MoveButton({
       disabled={atBoundary}
       title={direction === -1 ? 'Move up' : 'Move down'}
       className={cn(
-        'p-0.5 rounded transition-colors shrink-0 text-th-ghost hover:text-th-2',
+        'p-0.5 rounded transition-colors shrink-0 text-th-hi3 hover:text-th-hi2',
         atBoundary ? 'opacity-0 pointer-events-none' : 'opacity-0 group-hover:opacity-100',
       )}
     >
@@ -100,7 +100,7 @@ export function WidgetPinList({
         if (ids.length === 0) return null;
         return (
           <div key={category.id}>
-            <p className="px-3 pt-1.5 pb-0.5 text-th-3 text-[10px] uppercase tracking-wider font-medium">
+            <p className="px-3 pt-1.5 pb-0.5 text-th-hi3 text-[10px] uppercase tracking-wider font-medium">
               {category.label}
             </p>
             {ids.map((id, idx) => {
@@ -109,7 +109,7 @@ export function WidgetPinList({
                 <div key={id} className="flex items-center gap-0.5 pl-3 pr-1 group">
                   <span className={cn(
                     'flex-1 px-2 py-1 text-[11px] min-w-0 truncate',
-                    visible ? 'text-th-2' : 'text-th-ghost',
+                    visible ? 'text-th-hi2' : 'text-th-hi3',
                   )}>
                     {WIDGET_TITLES[id]}
                   </span>
@@ -129,8 +129,8 @@ export function WidgetPinList({
                     className={cn(
                       'p-1 rounded transition-colors shrink-0',
                       visible
-                        ? 'text-th-2 hover:text-red-400'
-                        : 'text-th-ghost hover:text-th-2 opacity-0 group-hover:opacity-100',
+                        ? 'text-th-hi2 hover:text-th-loss'
+                        : 'text-th-hi3 hover:text-th-hi2 opacity-0 group-hover:opacity-100',
                     )}
                   >
                     <Pin size={10} className={visible ? 'fill-current' : ''} />
@@ -179,7 +179,7 @@ export function SaveAsForm({
         </button>
       ) : (
         <>
-          <span className="text-th-ghost text-[9px] uppercase tracking-wider">Save as</span>
+          <span className="text-th-hi3 text-[9px] uppercase tracking-wider">Save as</span>
           <div className="flex gap-1.5">
             <input
               type="text"
@@ -188,7 +188,7 @@ export function SaveAsForm({
               onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
               placeholder={placeholder}
               maxLength={32}
-              className="flex-1 bg-th-elevated border border-th-line rounded px-2 py-1 text-[10px] text-th-hi placeholder:text-th-ghost focus:outline-none focus:border-th-3 transition-colors"
+              className="flex-1 bg-th-elevated border border-th-line rounded px-2 py-1 text-[10px] text-th-hi placeholder:text-th-ghost focus:outline-none focus:border-th-hi3 transition-colors"
             />
             <button
               onClick={handleSave}
@@ -226,7 +226,7 @@ export function SavedItemRow({
           'flex-1 flex items-center gap-2 px-2 py-1.5 text-[11px] rounded transition-colors min-w-0',
           active
             ? 'text-th-hi bg-th-elevated'
-            : 'text-th-2 hover:text-th-hi hover:bg-th-elevated/60',
+            : 'text-th-hi2 hover:text-th-hi hover:bg-th-elevated/60',
         )}
       >
         {icon}
@@ -239,8 +239,8 @@ export function SavedItemRow({
           className={cn(
             'p-1 rounded transition-colors shrink-0',
             pinned
-              ? 'text-th-2 hover:text-red-400'
-              : 'text-th-ghost hover:text-th-2 opacity-0 group-hover:opacity-100',
+              ? 'text-th-hi2 hover:text-th-loss'
+              : 'text-th-hi3 hover:text-th-hi2 opacity-0 group-hover:opacity-100',
           )}
         >
           <Pin size={10} className={pinned ? 'fill-current' : ''} />
@@ -249,7 +249,7 @@ export function SavedItemRow({
       <button
         onClick={onDelete}
         title={`Delete "${name}"`}
-        className="p-1 rounded text-th-ghost hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 shrink-0"
+        className="p-1 rounded text-th-hi3 hover:text-th-loss transition-colors opacity-0 group-hover:opacity-100 shrink-0"
       >
         <X size={11} />
       </button>
@@ -257,7 +257,7 @@ export function SavedItemRow({
   );
 }
 
-/** Fixed delete-confirmation dialog — shared by layouts and themes. */
+/** Delete-confirmation dialog (@nish/ui Modal) — shared by layouts and themes. */
 export function ConfirmDeleteDialog({
   kind, name, onConfirm, onCancel,
 }: {
@@ -268,33 +268,25 @@ export function ConfirmDeleteDialog({
   onCancel: () => void;
 }) {
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60"
-      style={noDragStyle}
-    >
-      <div className="bg-th-surface border border-th-line rounded-xl p-5 w-72 shadow-2xl flex flex-col gap-4">
-        <div className="flex flex-col gap-1.5">
-          <span className="text-th-hi text-sm font-semibold">Delete {kind}?</span>
-          <span className="text-th-3 text-[11px] leading-relaxed">
-            <span className="text-th-hi font-medium">"{name}"</span> will be
-            permanently removed. This cannot be undone.
-          </span>
-        </div>
-        <div className="flex gap-2 justify-end">
-          <button
-            onClick={onCancel}
-            className="px-3 py-1.5 text-[11px] text-th-2 hover:text-th-hi bg-th-elevated hover:bg-th-overlay rounded-lg transition-colors"
-          >
+    <Modal
+      title={`Delete ${kind}?`}
+      onClose={onCancel}
+      className="sm:max-w-xs"
+      footer={
+        <>
+          <Button size="sm" variant="secondary" onClick={onCancel}>
             Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className="px-3 py-1.5 text-[11px] font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
-          >
+          </Button>
+          <Button size="sm" variant="danger" onClick={onConfirm}>
             Delete
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </>
+      }
+    >
+      <p className="text-xs leading-relaxed text-th-hi2" style={noDragStyle}>
+        <span className="font-medium text-th-hi">&ldquo;{name}&rdquo;</span> will be permanently removed. This cannot be
+        undone.
+      </p>
+    </Modal>
   );
 }

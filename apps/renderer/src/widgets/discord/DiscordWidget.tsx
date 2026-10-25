@@ -62,7 +62,7 @@ export function DiscordWidget() {
   if (!inElectron) {
     return (
       <div className="h-full flex items-center justify-center p-4">
-        <p className="text-th-ghost text-xs text-center">
+        <p className="text-th-hi3 text-xs text-center">
           Discord embeds only inside the desktop app.
         </p>
       </div>

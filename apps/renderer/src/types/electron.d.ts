@@ -7,5 +7,8 @@ declare global {
     // must say so or every `window.electron?.` guard is type-theater while
     // unguarded call sites crash outside Electron.
     electron?: ElectronAPI;
+    /** App-local theme ids → scheme, set by src/theme-init-app.js before
+     *  @nish/ui's theme-init.js runs (see vite.config.ts). */
+    __nishExtraThemes?: Record<string, 'dark' | 'light'>;
   }
 }

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { LayoutGrid, ChevronDown } from 'lucide-react';
 import { useLayoutStore } from '../../store/layoutStore';
-import { cn } from '../../lib/utils';
 import { Backdrop, noDragStyle } from './primitives';
+import { cn } from '@nish/ui';
 
 /** One titlebar quick-switch chip — a pinned preset (name-keyed) or a pinned
  *  saved custom layout (id-keyed). */
@@ -59,7 +59,7 @@ export function PinnedLayoutsMenu() {
           'flex items-center gap-1 pl-1.5 pr-1 py-0.5 rounded text-[11px] font-medium transition-colors max-w-[140px]',
           open
             ? 'bg-th-elevated text-th-hi'
-            : 'text-th-ghost hover:text-th-hi hover:bg-th-elevated/60',
+            : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated/60',
         )}
         title="Switch pinned layout"
       >
@@ -71,7 +71,7 @@ export function PinnedLayoutsMenu() {
       {open && (
         <>
           <Backdrop onClose={() => setOpen(false)} />
-          <div className="absolute left-0 top-full mt-1 z-50 bg-th-surface border border-th-line rounded-lg shadow-xl py-1 min-w-[140px]">
+          <div className="absolute left-0 top-full mt-1 z-50 bg-th-surface border border-th-line rounded-lg shadow-pop py-1 min-w-[140px]">
             {entries.map((e) => (
               <button
                 key={e.key}
@@ -80,7 +80,7 @@ export function PinnedLayoutsMenu() {
                   'w-full text-left px-3 py-1.5 text-[11px] transition-colors',
                   e.active
                     ? 'bg-th-elevated text-th-hi'
-                    : 'text-th-2 hover:bg-th-elevated/60 hover:text-th-hi',
+                    : 'text-th-hi2 hover:bg-th-elevated/60 hover:text-th-hi',
                 )}
               >
                 {e.label}
@@ -108,7 +108,7 @@ export function InlinePinnedLayouts() {
             'px-2 py-0.5 rounded text-[11px] font-medium transition-colors truncate',
             e.active
               ? 'bg-th-elevated text-th-hi'
-              : 'text-th-ghost hover:text-th-hi hover:bg-th-elevated/60',
+              : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated/60',
           )}
         >
           {e.label}

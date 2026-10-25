@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/reac
 import { Titlebar } from './components/Titlebar';
 import { DashboardGrid } from './components/DashboardGrid';
 import { DiscordHost } from './widgets/discord/DiscordHost';
-import { ToastHost } from './components/ToastHost';
+import { onThemeChange, Toaster } from '@nish/ui';
 import { CommandPalette } from './components/CommandPalette';
 import { AlertsEvaluator } from './components/AlertsEvaluator';
 import { WeatherAlertNotifier } from './components/WeatherAlertNotifier';
@@ -12,7 +12,9 @@ import { useThemeStore } from './store/themeStore';
 import { useAppSettingsStore } from './store/settingsStore';
 import { usePowerStore } from './store/powerStore';
 import { usePopoutStore } from './store/popoutStore';
-import { buildCustomVars, CUSTOM_VAR_KEYS } from './lib/colorUtils';
+import { buildCustomVars } from './lib/colorUtils';
+import { applyAppTheme } from './lib/appTheme';
+import { isThemeId } from './themes';
 import { initAutoExport } from './lib/autoExport';
 
 const queryClient = new QueryClient({
@@ -90,23 +92,38 @@ export function ThemeManager() {
     document.documentElement.dataset.platform = window.electron?.platform ?? 'web';
   }, []);
 
-  // Named themes: [data-theme="x"] CSS blocks. Custom theme: no CSS block —
-  // JS injects the vars on <html> instead.
+  // Every theme goes through @nish/ui (lib/appTheme.ts registers Nishboard's
+  // own). The pre-paint init script already applied the saved one; this keeps
+  // it in step with live changes.
   useLayoutEffect(() => {
-    const el = document.documentElement;
-    el.dataset.theme = theme;
-    if (theme === 'custom') {
-      const vars = buildCustomVars(
-        customColors.primary,
-        customColors.secondary,
-        customColors.tertiary,
-        customColors.text,
-      );
-      Object.entries(vars).forEach(([k, v]) => el.style.setProperty(k, v));
-    } else {
-      CUSTOM_VAR_KEYS.forEach((k) => el.style.removeProperty(k));
-    }
+    const custom =
+      theme === 'custom'
+        ? buildCustomVars(customColors.primary, customColors.secondary, customColors.tertiary, customColors.text)
+        : undefined;
+    applyAppTheme(theme, custom);
   }, [theme, customColors]);
+
+  // A choice made through @nish/ui directly (the mode switch, another window
+  // saving `nish-theme`) lands in the store, which stays the source of truth.
+  // 'system' following the OS is handled by @nish/ui's own watcher.
+  useEffect(
+    () =>
+      onThemeChange((choice) => {
+        const s = useThemeStore.getState();
+        if (choice !== s.theme && isThemeId(choice)) s.setTheme(choice);
+      }),
+    [],
+  );
+
+  // Popouts are separate windows on the same origin: pick up a theme changed in
+  // another window instead of keeping the one they opened with.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'dashboard-theme') void useThemeStore.persist.rehydrate();
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   return null;
 }
@@ -126,7 +143,8 @@ export function App() {
         <div className="flex-1 min-h-0">
           <DashboardGrid />
         </div>
-        <ToastHost />
+        {/* Above Settings (z-200) and the palette, like the old in-app toasts. */}
+        <Toaster className="z-[450]" />
         <CommandPalette />
         {/* App-lifetime Discord webview — overlays the widget tile's rect and
             merely hides when the tile is gone, so the session never drops. */}

@@ -2,10 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { Clipboard, Search, Pause, Play, Trash2, X } from 'lucide-react';
 import { useClipboardUiStore } from '../../store/clipboardUiStore';
 import { HeaderAction } from '../../components/HeaderAction';
-import { EmptyState } from '../../components/EmptyState';
 import { toast } from '../../lib/alerts';
 import { relTimeAgo } from '../../lib/time';
 import type { ClipboardEntryData } from '@dash/shared';
+import { EmptyState } from '@nish/ui';
 
 /** WidgetShell header actions: pause/resume capture + clear history. */
 export function ClipboardActions() {
@@ -60,7 +60,7 @@ export function ClipboardWidget() {
   }
 
   if (!inElectron) {
-    return <EmptyState icon={<Clipboard size={16} />} message="Clipboard history works in the desktop app" />;
+    return <EmptyState compact icon={<Clipboard size={16} />} title="Clipboard history works in the desktop app" />;
   }
 
   const q = query.trim().toLowerCase();
@@ -70,7 +70,7 @@ export function ClipboardWidget() {
     <div className="h-full flex flex-col">
       {/* Search */}
       <div className="flex items-center gap-1.5 px-3 py-2 border-b border-th-line shrink-0">
-        <Search size={11} className="text-th-ghost shrink-0" />
+        <Search size={11} className="text-th-hi3 shrink-0" />
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -78,22 +78,23 @@ export function ClipboardWidget() {
           className="flex-1 min-w-0 bg-transparent text-th-hi text-xs placeholder:text-th-ghost focus:outline-none"
         />
         {query && (
-          <button onClick={() => setQuery('')} className="text-th-ghost hover:text-th-2 transition-colors shrink-0">
+          <button onClick={() => setQuery('')} className="text-th-hi3 hover:text-th-hi2 transition-colors shrink-0">
             <X size={11} />
           </button>
         )}
-        {paused && <span className="text-amber-400 text-[10px] shrink-0">paused</span>}
+        {paused && <span className="text-th-warn text-[10px] shrink-0">paused</span>}
       </div>
 
       {/* Entries */}
       <div className="flex-1 min-h-0 overflow-y-auto">
         {entries.length === 0 ? (
           <EmptyState
+            compact
             icon={<Clipboard size={16} />}
-            message={paused ? 'Capture paused' : 'Copy something — it shows up here (in-memory only)'}
+            title={paused ? 'Capture paused' : 'Copy something — it shows up here (in-memory only)'}
           />
         ) : filtered.length === 0 ? (
-          <EmptyState message="No matches" />
+          <EmptyState compact title="No matches" />
         ) : (
           filtered.map((entry) => (
             <button
@@ -102,10 +103,10 @@ export function ClipboardWidget() {
               className="w-full text-left px-3 py-2 hover:bg-th-elevated/60 transition-colors border-b border-th-line/40"
               title="Click to copy"
             >
-              <p className="text-th-2 text-[11px] leading-snug line-clamp-2 break-all whitespace-pre-wrap">
+              <p className="text-th-hi2 text-[11px] leading-snug line-clamp-2 break-all whitespace-pre-wrap">
                 {entry.text}
               </p>
-              <p className="text-th-ghost text-[10px] mt-0.5">{relTimeAgo(new Date(entry.at).toISOString())}</p>
+              <p className="text-th-hi3 text-[10px] mt-0.5">{relTimeAgo(new Date(entry.at).toISOString())}</p>
             </button>
           ))
         )}

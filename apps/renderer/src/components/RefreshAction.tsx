@@ -1,7 +1,7 @@
 import { RotateCw } from 'lucide-react';
 import { useIsFetching, useQueryClient } from '@tanstack/react-query';
 import { HeaderAction } from './HeaderAction';
-import { cn } from '../lib/utils';
+import { cn } from '@nish/ui';
 
 /** Standard per-widget refresh header action — refetches the widget's queries
  *  by key prefix and spins while anything under that key is in flight. */

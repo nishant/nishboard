@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import type { DiscordScreenShareRequestData } from '@dash/shared';
 import { HeaderAction } from '../../components/HeaderAction';
-import { cn } from '../../lib/utils';
 import { useDiscordStore } from '../../store/discordStore';
 import {
   DISCORD_APP_URL,
@@ -18,6 +17,7 @@ import type {
   WebviewDidFailLoadEvent,
   WebviewPageTitleUpdatedEvent,
 } from './lib';
+import { cn } from '@nish/ui';
 
 // App-lifetime home of the Discord <webview> (persist:discord partition).
 // Mounted ONCE per window (App / discord PopoutShell), position:fixed, and
@@ -207,7 +207,7 @@ export function DiscordHost() {
         />
 
         {unread > 0 && (
-          <div className="absolute top-1.5 right-1.5 z-10 pointer-events-none px-1.5 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-semibold leading-none">
+          <div className="absolute top-1.5 right-1.5 z-10 pointer-events-none px-1.5 py-0.5 rounded-full bg-th-loss text-th-on-loss text-[10px] font-semibold leading-none">
             {unread}
           </div>
         )}
@@ -215,14 +215,14 @@ export function DiscordHost() {
         {status === 'loading' && (
           // Discord's own dark chrome color — the splash must not flash the
           // app theme (white in light mode) before the guest paints.
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#313338]">
-            <div className="h-4 w-28 rounded bg-white/10 animate-pulse" />
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-brand-discord">
+            <div className="h-4 w-28 rounded bg-brand-discord-ink/10 animate-pulse" />
           </div>
         )}
 
         {status === 'error' && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-th-surface p-4">
-            <p className="text-th-ghost text-xs">Discord failed to load</p>
+            <p className="text-th-hi3 text-xs">Discord failed to load</p>
             <button
               onClick={() => {
                 setStatus('loading');
@@ -238,7 +238,7 @@ export function DiscordHost() {
         {shareReq && (
           <div className="absolute inset-0 z-20 flex flex-col gap-2 bg-th-surface/95 backdrop-blur-sm p-3">
             <div className="flex items-center justify-between shrink-0">
-              <span className="text-xs font-medium text-th-3 uppercase tracking-widest">
+              <span className="text-xs font-medium text-th-hi3 uppercase tracking-widest">
                 Share your screen
               </span>
               <HeaderAction title="Cancel" onClick={() => answerShare(null)}>
@@ -252,7 +252,7 @@ export function DiscordHost() {
                   onClick={() => answerShare(s.id)}
                   className="flex flex-col gap-1 rounded-md border border-th-line hover:border-th-hi/40 bg-th-elevated/40 p-1.5 text-left transition-colors"
                 >
-                  <img src={s.thumbnail} alt="" className="w-full aspect-video object-cover rounded bg-black/40" />
+                  <img src={s.thumbnail} alt="" className="w-full aspect-video object-cover rounded bg-th-scrim/40" />
                   <span className="flex items-center gap-1 min-w-0">
                     {s.appIcon && <img src={s.appIcon} alt="" className="w-3.5 h-3.5 shrink-0" />}
                     <span className="truncate text-[11px] text-th-hi">{s.name}</span>
@@ -266,13 +266,13 @@ export function DiscordHost() {
         {signOutPrompt && (
           <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-th-surface/95 backdrop-blur-sm p-4">
             <p className="text-th-hi text-xs font-medium">Sign out of Discord?</p>
-            <p className="text-th-ghost text-[11px] text-center">
+            <p className="text-th-hi3 text-[11px] text-center">
               Clears the embedded session — you'll log in again next time.
             </p>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => void confirmSignOut()}
-                className="px-3 py-1.5 rounded-full bg-red-500/15 hover:bg-red-500/25 text-red-400 text-[11px] transition-colors"
+                className="px-3 py-1.5 rounded-full bg-th-loss-soft hover:bg-th-loss-soft text-th-loss text-[11px] transition-colors"
               >
                 Sign out
               </button>

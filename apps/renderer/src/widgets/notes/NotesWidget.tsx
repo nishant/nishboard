@@ -3,10 +3,10 @@ import { Eye, Pencil, Plus, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useNotesStore } from '../../store/notesStore';
+import { cn } from '@nish/ui';
 
 // Module-level so the plugin array stays referentially stable across renders.
 const MD_PLUGINS = [remarkGfm];
-import { cn } from '../../lib/utils';
 
 /** Inline rename input — mounted in place of the tab label while renaming. */
 function RenameInput({ initial, onCommit }: { initial: string; onCommit: (title: string) => void }) {
@@ -25,7 +25,7 @@ function RenameInput({ initial, onCommit }: { initial: string; onCommit: (title:
       }}
       onClick={(e) => e.stopPropagation()}
       spellCheck={false}
-      className="w-20 bg-transparent text-th-hi text-[10px] focus:outline-none border-b border-th-3"
+      className="w-20 bg-transparent text-th-hi text-[10px] focus:outline-none border-b border-th-hi3"
     />
   );
 }
@@ -58,7 +58,7 @@ export function NotesWidget() {
                 onDoubleClick={() => setRenamingId(n.id)}
                 className={cn(
                   'group/tab flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-md text-[10px] cursor-pointer select-none shrink-0 transition-colors',
-                  isActive ? 'bg-th-elevated text-th-hi' : 'text-th-ghost hover:text-th-2 hover:bg-th-elevated/50',
+                  isActive ? 'bg-th-elevated text-th-hi' : 'text-th-hi3 hover:text-th-hi2 hover:bg-th-elevated/50',
                 )}
                 title={isActive ? 'Double-click to rename' : n.title}
               >
@@ -80,8 +80,8 @@ export function NotesWidget() {
                     className={cn(
                       'p-0.5 rounded transition-colors',
                       confirmingId === n.id
-                        ? 'text-red-400 bg-red-500/15'
-                        : 'text-th-ghost hover:text-red-400',
+                        ? 'text-th-loss bg-th-loss-soft'
+                        : 'text-th-hi3 hover:text-th-loss',
                     )}
                     title={confirmingId === n.id ? 'Click again to delete' : 'Delete note'}
                   >
@@ -93,7 +93,7 @@ export function NotesWidget() {
           })}
           <button
             onClick={addNote}
-            className="p-1 rounded text-th-ghost hover:text-th-2 hover:bg-th-elevated/60 transition-colors shrink-0"
+            className="p-1 rounded text-th-hi3 hover:text-th-hi2 hover:bg-th-elevated/60 transition-colors shrink-0"
             title="New note"
           >
             <Plus size={11} />
@@ -102,7 +102,7 @@ export function NotesWidget() {
 
         <button
           onClick={() => setRendered(!rendered)}
-          className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] text-th-ghost hover:text-th-2 hover:bg-th-elevated/60 transition-colors shrink-0"
+          className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] text-th-hi3 hover:text-th-hi2 hover:bg-th-elevated/60 transition-colors shrink-0"
           title={rendered ? 'Edit' : 'Preview'}
         >
           {rendered ? <><Pencil size={11} /> Edit</> : <><Eye size={11} /> Preview</>}
@@ -112,10 +112,10 @@ export function NotesWidget() {
       {/* Body */}
       <div className="flex-1 min-h-0 px-2 pb-2 pt-1.5">
         {rendered ? (
-          <div className="md-render h-full overflow-y-auto text-th-2 text-xs leading-relaxed">
+          <div className="md-render h-full overflow-y-auto text-th-hi2 text-xs leading-relaxed">
             {active.content.trim()
               ? <ReactMarkdown remarkPlugins={MD_PLUGINS}>{active.content}</ReactMarkdown>
-              : <span className="text-th-ghost">Nothing to preview</span>}
+              : <span className="text-th-hi3">Nothing to preview</span>}
           </div>
         ) : (
           <textarea
@@ -125,7 +125,7 @@ export function NotesWidget() {
             onChange={(e) => setContent(e.target.value)}
             placeholder="Jot something… markdown supported"
             spellCheck={false}
-            className="w-full h-full resize-none bg-transparent text-th-2 text-xs leading-relaxed placeholder:text-th-ghost focus:outline-none"
+            className="w-full h-full resize-none bg-transparent text-th-hi2 text-xs leading-relaxed placeholder:text-th-ghost focus:outline-none"
           />
         )}
       </div>

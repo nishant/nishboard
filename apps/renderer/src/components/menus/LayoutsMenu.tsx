@@ -4,11 +4,11 @@ import { PRESETS } from '../../lib/layouts';
 import { useLayoutStore } from '../../store/layoutStore';
 import type { SavedCustomLayout } from '../../store/layoutStore';
 import type { WidgetId } from '../../lib/layouts';
-import { cn } from '../../lib/utils';
 import {
   Backdrop, menuBtn, menuPanel, noDragStyle,
   SubmenuHeader, WidgetPinList, SaveAsForm, SavedItemRow, ConfirmDeleteDialog,
 } from './primitives';
+import { cn } from '@nish/ui';
 
 // ── Tile editor (pin/unpin + save) ────────────────────────────────────────────
 
@@ -35,7 +35,7 @@ function CustomLayoutEditor({
       <div className="flex items-center gap-1.5">
         <button
           onClick={onBack}
-          className="text-th-ghost hover:text-th-hi transition-colors p-0.5 -ml-0.5"
+          className="text-th-hi3 hover:text-th-hi transition-colors p-0.5 -ml-0.5"
         >
           <ArrowLeft size={12} />
         </button>
@@ -44,7 +44,7 @@ function CustomLayoutEditor({
         </span>
       </div>
 
-      <p className="text-th-ghost text-[9px] leading-tight">
+      <p className="text-th-hi3 text-[9px] leading-tight">
         Drag &amp; resize tiles on the dashboard. Toggle which tiles are pinned below, then save.
       </p>
 
@@ -138,7 +138,7 @@ export function LayoutsMenu({ compact }: { compact: boolean }) {
                           'flex-1 text-left px-2 py-1 rounded text-[11px] transition-colors',
                           activePreset === preset.name
                             ? 'text-th-hi bg-th-elevated'
-                            : 'text-th-2 hover:text-th-hi hover:bg-th-elevated/60',
+                            : 'text-th-hi2 hover:text-th-hi hover:bg-th-elevated/60',
                         )}
                       >
                         {preset.name}
@@ -149,8 +149,8 @@ export function LayoutsMenu({ compact }: { compact: boolean }) {
                         className={cn(
                           'p-1 rounded transition-colors shrink-0',
                           pinned
-                            ? 'text-th-2 hover:text-red-400'
-                            : 'text-th-ghost hover:text-th-2 opacity-0 group-hover:opacity-100',
+                            ? 'text-th-hi2 hover:text-th-loss'
+                            : 'text-th-hi3 hover:text-th-hi2 opacity-0 group-hover:opacity-100',
                         )}
                       >
                         <Pin size={10} className={pinned ? 'fill-current' : ''} />
@@ -167,12 +167,12 @@ export function LayoutsMenu({ compact }: { compact: boolean }) {
                     'w-full flex items-center gap-2 px-3 py-1.5 text-[11px] transition-colors',
                     activeCustomLayoutId
                       ? 'text-th-hi bg-th-elevated'
-                      : 'text-th-2 hover:text-th-hi hover:bg-th-elevated/60',
+                      : 'text-th-hi2 hover:text-th-hi hover:bg-th-elevated/60',
                   )}
                 >
                   <LayoutGrid size={11} className="shrink-0" />
                   Custom
-                  <ChevronRight size={10} className="ml-auto text-th-ghost" />
+                  <ChevronRight size={10} className="ml-auto text-th-hi3" />
                 </button>
               </>
             )}
@@ -185,7 +185,7 @@ export function LayoutsMenu({ compact }: { compact: boolean }) {
                 {/* Create new — always first */}
                 <button
                   onClick={() => setPanel('editor')}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-th-2 hover:text-th-hi hover:bg-th-elevated/60 transition-colors mt-0.5"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-th-hi2 hover:text-th-hi hover:bg-th-elevated/60 transition-colors mt-0.5"
                 >
                   <Plus size={11} className="shrink-0" />
                   Create new
@@ -202,7 +202,7 @@ export function LayoutsMenu({ compact }: { compact: boolean }) {
                           key={cl.id}
                           name={cl.name}
                           active={activeCustomLayoutId === cl.id}
-                          icon={<LayoutGrid size={11} className="shrink-0 text-th-ghost" />}
+                          icon={<LayoutGrid size={11} className="shrink-0 text-th-hi3" />}
                           onApply={() => { applyCustomLayout(cl.id); setEditTarget(cl); setPanel('editor'); }}
                           onDelete={() => setDeleteTarget(cl)}
                           pinned={pinned}

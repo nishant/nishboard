@@ -4,7 +4,8 @@ import { useAlertsStore, describeRule, DEFAULT_COOLDOWN_MIN } from '../../store/
 import type { AlertRule, AlertRuleKind, NewAlertRule } from '../../store/alertsStore';
 import { useStocksStore } from '../../store/stocksStore';
 import { useCryptoStore } from '../../store/cryptoStore';
-import { cn } from '../../lib/utils';
+import { cn } from '@nish/ui';
+import { Switch } from './controls';
 
 const KIND_LABELS: Record<AlertRuleKind, string> = {
   'stock-price': 'Stock price',
@@ -14,7 +15,7 @@ const KIND_LABELS: Record<AlertRuleKind, string> = {
 };
 
 const inputCls =
-  'bg-th-elevated border border-th-line rounded-lg px-2.5 py-1.5 text-th-hi text-[11px] placeholder:text-th-ghost focus:outline-none focus:border-th-3 transition-colors';
+  'bg-th-elevated border border-th-line rounded-lg px-2.5 py-1.5 text-th-hi text-[11px] placeholder:text-th-ghost focus:outline-none focus:border-th-hi3 transition-colors';
 
 function NumField({
   value, onChange, placeholder, suffix, width = 'w-24',
@@ -34,7 +35,7 @@ function NumField({
         inputMode="decimal"
         className={cn(inputCls, width, 'font-mono')}
       />
-      {suffix && <span className="text-th-ghost text-[10px]">{suffix}</span>}
+      {suffix && <span className="text-th-hi3 text-[10px]">{suffix}</span>}
     </div>
   );
 }
@@ -49,29 +50,14 @@ function RuleRow({ rule }: { rule: AlertRule }) {
 
   return (
     <div className="flex items-center gap-2.5 group">
-      <button
-        role="switch"
-        aria-checked={rule.enabled}
-        onClick={() => toggleRule(rule.id)}
-        className={cn(
-          'relative w-7 h-4 rounded-full transition-colors shrink-0',
-          rule.enabled ? 'bg-th-accent' : 'bg-th-overlay',
-        )}
-      >
-        <span
-          className={cn(
-            'absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform',
-            rule.enabled && 'translate-x-3',
-          )}
-        />
-      </button>
+      <Switch size="sm" checked={rule.enabled} onChange={() => toggleRule(rule.id)} />
       <div className="flex flex-col min-w-0 flex-1">
-        <span className={cn('text-[11px] truncate', rule.enabled ? 'text-th-hi' : 'text-th-ghost')}>
+        <span className={cn('text-[11px] truncate', rule.enabled ? 'text-th-hi' : 'text-th-hi3')}>
           {describeRule(rule)}
         </span>
-        <span className="text-th-ghost text-[10px]">
+        <span className="text-th-hi3 text-[10px]">
           {stranded ? (
-            <span className="text-amber-400">not in watchlist — won't fire</span>
+            <span className="text-th-warn">not in watchlist — won't fire</span>
           ) : (
             `cooldown ${rule.cooldownMin}min`
           )}
@@ -79,7 +65,7 @@ function RuleRow({ rule }: { rule: AlertRule }) {
       </div>
       <button
         onClick={() => removeRule(rule.id)}
-        className="text-th-ghost hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all shrink-0 p-1"
+        className="text-th-hi3 hover:text-th-loss opacity-0 group-hover:opacity-100 transition-all shrink-0 p-1"
         title="Delete rule"
       >
         <X size={13} />
@@ -151,9 +137,9 @@ export function AlertsPanel() {
     <div className="flex flex-col gap-6">
       {/* Existing rules */}
       <div className="flex flex-col gap-3">
-        <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">Rules</span>
+        <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Rules</span>
         {rules.length === 0 ? (
-          <div className="flex items-center gap-2 text-th-ghost text-[11px]">
+          <div className="flex items-center gap-2 text-th-hi3 text-[11px]">
             <BellOff size={13} />
             <span>No alert rules yet — add one below.</span>
           </div>
@@ -164,10 +150,10 @@ export function AlertsPanel() {
 
       {/* Add rule */}
       <div className="flex flex-col gap-3">
-        <span className="text-th-2 text-xs font-semibold uppercase tracking-wider">Add rule</span>
+        <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Add rule</span>
 
         <div className="flex items-center gap-3">
-          <span className="text-th-3 text-[11px] w-28 shrink-0">Type</span>
+          <span className="text-th-hi3 text-[11px] w-28 shrink-0">Type</span>
           <select
             value={kind}
             onChange={(e) => setKind(e.target.value as AlertRuleKind)}
@@ -181,7 +167,7 @@ export function AlertsPanel() {
 
         {kind === 'stock-price' && (
           <div className="flex items-center gap-3">
-            <span className="text-th-3 text-[11px] w-28 shrink-0">Condition</span>
+            <span className="text-th-hi3 text-[11px] w-28 shrink-0">Condition</span>
             <div className="flex items-center gap-2 flex-wrap">
               <input
                 value={symbol}
@@ -202,7 +188,7 @@ export function AlertsPanel() {
 
         {(kind === 'crypto-price' || kind === 'crypto-change') && (
           <div className="flex items-center gap-3">
-            <span className="text-th-3 text-[11px] w-28 shrink-0">Condition</span>
+            <span className="text-th-hi3 text-[11px] w-28 shrink-0">Condition</span>
             <div className="flex items-center gap-2 flex-wrap">
               <select value={coinId} onChange={(e) => setCoinId(e.target.value)} className={cn(inputCls, 'w-28')}>
                 {cryptoWatchlist.length === 0 && <option value="">— no coins —</option>}
@@ -222,17 +208,17 @@ export function AlertsPanel() {
 
         {kind === 'cpu-sustained' && (
           <div className="flex items-center gap-3">
-            <span className="text-th-3 text-[11px] w-28 shrink-0">Condition</span>
+            <span className="text-th-hi3 text-[11px] w-28 shrink-0">Condition</span>
             <div className="flex items-center gap-2 flex-wrap">
               <NumField value={cpuPct} onChange={setCpuPct} placeholder="90" suffix="%" width="w-16" />
-              <span className="text-th-ghost text-[10px]">for</span>
+              <span className="text-th-hi3 text-[10px]">for</span>
               <NumField value={minutes} onChange={setMinutes} placeholder="5" suffix="min" width="w-16" />
             </div>
           </div>
         )}
 
         <div className="flex items-center gap-3">
-          <span className="text-th-3 text-[11px] w-28 shrink-0">Cooldown</span>
+          <span className="text-th-hi3 text-[11px] w-28 shrink-0">Cooldown</span>
           <NumField value={cooldown} onChange={setCooldown} placeholder="30" suffix="min between fires" width="w-16" />
         </div>
 
@@ -247,7 +233,7 @@ export function AlertsPanel() {
           </button>
         </div>
 
-        <p className="text-th-ghost text-[10px] leading-relaxed">
+        <p className="text-th-hi3 text-[10px] leading-relaxed">
           Alerts chime, toast, and send a native notification. They're edge-triggered — a rule
           fires when its condition becomes true, then re-arms once it's false again. Adding a
           stock alert also adds the ticker to the Stocks watchlist (rules only evaluate
@@ -268,7 +254,7 @@ function DirPicker({ dir, setDir }: { dir: 'above' | 'below'; setDir: (d: 'above
           onClick={() => setDir(d)}
           className={cn(
             'px-2.5 py-1 rounded text-[10px] transition-colors',
-            dir === d ? 'bg-th-overlay text-th-hi' : 'text-th-ghost hover:text-th-2',
+            dir === d ? 'bg-th-overlay text-th-hi' : 'text-th-hi3 hover:text-th-hi2',
           )}
         >
           {d}

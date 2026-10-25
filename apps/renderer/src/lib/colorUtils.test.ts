@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { buildCustomVars, CUSTOM_VAR_KEYS, hexToArr, parseHex } from './colorUtils';
+import { COLOR_ROLES } from '@nish/ui';
+import { buildCustomVars, hexToArr, parseHex } from './colorUtils';
+import { contrast, NISH_COLOR_ROLES } from './themeVars';
 
 describe('parseHex', () => {
   it('normalizes 6-digit hex with or without the hash', () => {
@@ -35,31 +37,36 @@ describe('hexToArr', () => {
 });
 
 describe('buildCustomVars', () => {
-  const vars = buildCustomVars('#101010', '#202020', '#303030', '#f0f0f0');
+  const custom = buildCustomVars('#101010', '#202020', '#303030', '#f0f0f0');
 
-  it('emits exactly the CUSTOM_VAR_KEYS set', () => {
-    expect(Object.keys(vars).sort()).toEqual([...CUSTOM_VAR_KEYS].sort());
+  it('emits a --nish-* value for every @nish/ui color role', () => {
+    expect(NISH_COLOR_ROLES).toEqual(COLOR_ROLES);
+    expect(Object.keys(custom.vars).sort()).toEqual(COLOR_ROLES.map((r) => `--nish-${r}`).sort());
   });
 
   it('maps the anchor colours directly', () => {
-    expect(vars['--t-bg']).toBe('16 16 16'); // primary
-    expect(vars['--t-elevated']).toBe('32 32 32'); // secondary
-    expect(vars['--t-overlay']).toBe('48 48 48'); // tertiary
-    expect(vars['--t-hi']).toBe('240 240 240'); // text
+    expect(custom.vars['--nish-bg']).toBe('#101010'); // primary
+    expect(custom.vars['--nish-elevated']).toBe('#202020'); // secondary
+    expect(custom.vars['--nish-overlay']).toBe('#303030'); // tertiary
+    expect(custom.vars['--nish-hi']).toBe('#f0f0f0'); // text
     // Inverted pair swaps primary and text.
-    expect(vars['--t-invert-bg']).toBe('240 240 240');
-    expect(vars['--t-invert-text']).toBe('16 16 16');
+    expect(custom.vars['--nish-invert-bg']).toBe('#f0f0f0');
+    expect(custom.vars['--nish-invert-text']).toBe('#101010');
   });
 
-  it('every value is an "r g b" triple in range', () => {
-    for (const v of Object.values(vars)) {
-      const parts = v.split(' ').map(Number);
-      expect(parts).toHaveLength(3);
-      for (const n of parts) {
-        expect(n).toBeGreaterThanOrEqual(0);
-        expect(n).toBeLessThanOrEqual(255);
-        expect(Number.isInteger(n)).toBe(true);
-      }
+  it('every value is a #rrggbb hex', () => {
+    for (const v of Object.values(custom.vars)) expect(v).toMatch(/^#[0-9a-f]{6}$/);
+  });
+
+  it('picks light or dark from the background', () => {
+    expect(custom.scheme).toBe('dark');
+    expect(buildCustomVars('#fafafa', '#ffffff', '#dddddd', '#111111').scheme).toBe('light');
+  });
+
+  it('keeps text tiers readable even from low-contrast picks', () => {
+    const muddy = buildCustomVars('#202020', '#2a2a2a', '#333333', '#555555');
+    for (const role of ['hi', 'hi2', 'hi3', 'accent', 'ok', 'loss']) {
+      expect(contrast(muddy.vars[`--nish-${role}`], muddy.vars['--nish-elevated'])).toBeGreaterThanOrEqual(4.5);
     }
   });
 });

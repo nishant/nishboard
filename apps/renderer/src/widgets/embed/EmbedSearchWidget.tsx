@@ -1,8 +1,8 @@
 import { useState, useRef } from 'react';
 import { Search, X, ArrowLeft, ChevronRight, ListVideo } from 'lucide-react';
 import { useElementSize } from '../../hooks/useElementSize';
-import { cn } from '../../lib/utils';
 import type { EmbedItem, EmbedFolder, EmbedFoldersState, EmbedServiceAdapter, EmbedBrowse, EmbedSearchState } from './types';
+import { cn } from '@nish/ui';
 
 // Stable no-op hooks so BrowseHome can call the (optional) folder hooks
 // unconditionally — the selection is fixed per adapter, so hook order is stable.
@@ -16,7 +16,7 @@ type View = 'home' | 'search';
 const CONTROL_BAR_H = 44;
 
 function LiveDot() {
-  return <span className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0 animate-pulse" />;
+  return <span className="h-1.5 w-1.5 rounded-full bg-th-loss-fill shrink-0 animate-pulse" />;
 }
 
 // ── Home screen ───────────────────────────────────────────────────────────────
@@ -35,12 +35,12 @@ function HomeScreen({
   if (compact) {
     return (
       <div className="flex items-center justify-center h-full gap-3">
-        <div className="text-th-ghost">
+        <div className="text-th-hi3">
           <adapter.Icon size={iconH} />
         </div>
         <button
           onClick={onSearch}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-th-line hover:border-th-3 text-th-3 hover:text-th-hi transition-colors text-[10px]"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-th-line hover:border-th-hi3 text-th-hi3 hover:text-th-hi transition-colors text-[10px]"
         >
           <Search size={10} />
           Search
@@ -51,15 +51,15 @@ function HomeScreen({
 
   return (
     <div className="flex flex-col items-center justify-center h-full gap-5">
-      <div className="flex items-center gap-2.5 text-th-ghost">
+      <div className="flex items-center gap-2.5 text-th-hi3">
         <adapter.Icon size={iconH} />
-        <span className="font-semibold tracking-tight text-th-ghost" style={{ fontSize: textSize }}>
+        <span className="font-semibold tracking-tight text-th-hi3" style={{ fontSize: textSize }}>
           {adapter.serviceName}
         </span>
       </div>
       <button
         onClick={onSearch}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-th-line hover:border-th-3 hover:bg-th-elevated/50 text-th-3 hover:text-th-hi transition-colors text-[11px]"
+        className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-th-line hover:border-th-hi3 hover:bg-th-elevated/50 text-th-hi3 hover:text-th-hi transition-colors text-[11px]"
       >
         <Search size={12} />
         {adapter.homeCta}
@@ -87,14 +87,14 @@ function FolderRow({ folder, onOpen }: { folder: EmbedFolder; onOpen: () => void
         />
       ) : (
         <div className="w-16 h-9 rounded shrink-0 bg-th-elevated flex items-center justify-center">
-          <ListVideo size={14} className="text-th-3" />
+          <ListVideo size={14} className="text-th-hi3" />
         </div>
       )}
       <div className="min-w-0 flex-1">
         <p className="text-th-hi text-[11px] leading-snug line-clamp-2 font-medium">{folder.title}</p>
-        {folder.subtitle && <p className="text-th-3 text-[10px] mt-0.5 truncate">{folder.subtitle}</p>}
+        {folder.subtitle && <p className="text-th-hi3 text-[10px] mt-0.5 truncate">{folder.subtitle}</p>}
       </div>
-      <ChevronRight size={13} className="text-th-ghost shrink-0" />
+      <ChevronRight size={13} className="text-th-hi3 shrink-0" />
     </button>
   );
 }
@@ -130,27 +130,27 @@ function BrowseHome({
         <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-th-line shrink-0">
           <button
             onClick={() => onOpenFolder(null)}
-            className="text-th-ghost hover:text-th-2 transition-colors shrink-0"
+            className="text-th-hi3 hover:text-th-hi2 transition-colors shrink-0"
             title="Back"
           >
             <ArrowLeft size={12} />
           </button>
-          <span className="text-th-2 text-[11px] font-medium truncate">{folder.title}</span>
+          <span className="text-th-hi2 text-[11px] font-medium truncate">{folder.title}</span>
           <button
             onClick={onSearch}
-            className="ml-auto shrink-0 p-1 rounded text-th-ghost hover:text-th-hi transition-colors"
+            className="ml-auto shrink-0 p-1 rounded text-th-hi3 hover:text-th-hi transition-colors"
             title={adapter.searchPlaceholder}
           >
             <Search size={12} />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto min-h-0">
-          {isFetching && !items && <p className="text-th-ghost text-xs text-center py-6">Loading…</p>}
-          {isError && <p className="text-red-400/70 text-xs text-center py-6 px-4">{adapter.errorHint}</p>}
+          {isFetching && !items && <p className="text-th-hi3 text-xs text-center py-6">Loading…</p>}
+          {isError && <p className="text-th-loss text-xs text-center py-6 px-4">{adapter.errorHint}</p>}
           {items?.map((item) => (
             <ResultRow key={item.id} item={item} thumbShape={adapter.thumbShape} onPlay={() => onPlay(item)} />
           ))}
-          {items?.length === 0 && <p className="text-th-ghost text-xs text-center py-6">Nothing here</p>}
+          {items?.length === 0 && <p className="text-th-hi3 text-xs text-center py-6">Nothing here</p>}
         </div>
       </div>
     );
@@ -172,7 +172,7 @@ function BrowseHome({
             onClick={() => setTabId(t.id)}
             className={cn(
               'px-2 py-0.5 rounded-full text-[10px] shrink-0 transition-colors',
-              tabId === t.id ? 'bg-th-elevated text-th-hi' : 'text-th-ghost hover:text-th-2',
+              tabId === t.id ? 'bg-th-elevated text-th-hi' : 'text-th-hi3 hover:text-th-hi2',
             )}
           >
             {t.label}
@@ -180,7 +180,7 @@ function BrowseHome({
         ))}
         <button
           onClick={onSearch}
-          className="ml-auto shrink-0 p-1 rounded text-th-ghost hover:text-th-hi transition-colors"
+          className="ml-auto shrink-0 p-1 rounded text-th-hi3 hover:text-th-hi transition-colors"
           title={adapter.searchPlaceholder}
         >
           <Search size={12} />
@@ -188,13 +188,13 @@ function BrowseHome({
       </div>
       <div className="flex-1 overflow-y-auto min-h-0">
         {!items && !folders && !isFetching && !isError && hint && (
-          <p className="text-th-ghost text-xs text-center py-6 px-4">{hint}</p>
+          <p className="text-th-hi3 text-xs text-center py-6 px-4">{hint}</p>
         )}
         {isFetching && !items && !folders && (
-          <p className="text-th-ghost text-xs text-center py-6">Loading…</p>
+          <p className="text-th-hi3 text-xs text-center py-6">Loading…</p>
         )}
         {isError && (
-          <p className="text-red-400/70 text-xs text-center py-6 px-4">{adapter.errorHint}</p>
+          <p className="text-th-loss text-xs text-center py-6 px-4">{adapter.errorHint}</p>
         )}
         {folders?.map((f) => (
           <FolderRow key={f.id} folder={f} onOpen={() => onOpenFolder(f)} />
@@ -209,7 +209,7 @@ function BrowseHome({
           />
         ))}
         {empty && (
-          <p className="text-th-ghost text-xs text-center py-6">Nothing here right now</p>
+          <p className="text-th-hi3 text-xs text-center py-6">Nothing here right now</p>
         )}
       </div>
     </div>
@@ -230,7 +230,7 @@ function SearchBar({
 }) {
   return (
     <div className="flex items-center gap-1.5 px-3 py-2 border-b border-th-line shrink-0">
-      <button onClick={onBack} className="text-th-ghost hover:text-th-2 transition-colors shrink-0">
+      <button onClick={onBack} className="text-th-hi3 hover:text-th-hi2 transition-colors shrink-0">
         <ArrowLeft size={12} />
       </button>
       <input
@@ -239,18 +239,18 @@ function SearchBar({
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter') onSubmit(); }}
         placeholder={placeholder}
-        className="flex-1 bg-transparent text-th-hi text-xs placeholder-zinc-600 outline-none"
+        className="flex-1 bg-transparent text-th-hi text-xs placeholder:text-th-ghost outline-none"
         autoFocus
       />
       {value && (
-        <button onClick={() => onChange('')} className="text-th-ghost hover:text-th-2 transition-colors">
+        <button onClick={() => onChange('')} className="text-th-hi3 hover:text-th-hi2 transition-colors">
           <X size={11} />
         </button>
       )}
       <button
         onClick={onSubmit}
         disabled={!value.trim() || loading}
-        className="text-th-3 hover:text-th-hi disabled:opacity-30 transition-colors"
+        className="text-th-hi3 hover:text-th-hi disabled:opacity-30 transition-colors"
       >
         <ChevronRight size={14} />
       </button>
@@ -305,13 +305,13 @@ function ResultRow({
                 onOpenChannel!({ id: `channel:${item.channel!.id}`, title: item.channel!.title });
               }
             }}
-            className="inline-block text-th-3 text-[10px] mt-0.5 truncate max-w-full hover:text-th-hi hover:underline"
+            className="inline-block text-th-hi3 text-[10px] mt-0.5 truncate max-w-full hover:text-th-hi hover:underline"
             title={`${item.channel!.title} — videos`}
           >
             {item.subtitle}
           </span>
         ) : (
-          <p className="text-th-3 text-[10px] mt-0.5 truncate">{item.subtitle}</p>
+          <p className="text-th-hi3 text-[10px] mt-0.5 truncate">{item.subtitle}</p>
         )}
       </div>
     </button>
@@ -355,15 +355,15 @@ export function EmbedSearchWidget({ adapter }: { adapter: EmbedServiceAdapter })
     <>
       {!submittedQuery && (
         <div className="flex flex-col items-center justify-center h-full gap-2 p-6">
-          <Search size={18} className="text-th-ghost" />
-          <p className="text-th-ghost text-xs text-center">{adapter.emptyHint}</p>
+          <Search size={18} className="text-th-hi3" />
+          <p className="text-th-hi3 text-xs text-center">{adapter.emptyHint}</p>
         </div>
       )}
       {submittedQuery && isFetching && !items && (
-        <p className="text-th-ghost text-xs text-center py-6">Searching…</p>
+        <p className="text-th-hi3 text-xs text-center py-6">Searching…</p>
       )}
       {isError && (
-        <p className="text-red-400/70 text-xs text-center py-6">{adapter.errorHint}</p>
+        <p className="text-th-loss text-xs text-center py-6">{adapter.errorHint}</p>
       )}
       {items?.map((item) => (
         <ResultRow
@@ -375,7 +375,7 @@ export function EmbedSearchWidget({ adapter }: { adapter: EmbedServiceAdapter })
         />
       ))}
       {items?.length === 0 && (
-        <p className="text-th-ghost text-xs text-center py-6">No results</p>
+        <p className="text-th-hi3 text-xs text-center py-6">No results</p>
       )}
     </>
   );
@@ -427,19 +427,19 @@ export function EmbedSearchWidget({ adapter }: { adapter: EmbedServiceAdapter })
                 {selectedItem.isLive && <LiveDot />}
                 <p className="text-th-hi text-[11px] font-medium truncate">{selectedItem.title}</p>
               </div>
-              <p className="text-th-ghost text-[10px] truncate">{selectedItem.subtitle}</p>
+              <p className="text-th-hi3 text-[10px] truncate">{selectedItem.subtitle}</p>
             </div>
             <button
               onClick={() => setView('search')}
               title="Search"
-              className="text-th-ghost hover:text-th-hi transition-colors shrink-0"
+              className="text-th-hi3 hover:text-th-hi transition-colors shrink-0"
             >
               <Search size={13} />
             </button>
             <button
               onClick={goHome}
               title={adapter.closeLabel}
-              className="text-th-ghost hover:text-th-hi transition-colors shrink-0"
+              className="text-th-hi3 hover:text-th-hi transition-colors shrink-0"
             >
               <X size={13} />
             </button>

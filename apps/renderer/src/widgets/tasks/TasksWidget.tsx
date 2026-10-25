@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { Plus, Check, X } from 'lucide-react';
 import { useTasksStore } from '../../store/tasksStore';
-import { cn } from '../../lib/utils';
-import { EmptyState } from '../../components/EmptyState';
+import { EmptyState, cn } from '@nish/ui';
 
 export function TasksWidget() {
   const { tasks, addTask, toggleTask, removeTask, clearCompleted } = useTasksStore();
@@ -24,7 +23,7 @@ export function TasksWidget() {
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
           placeholder="Add a task…"
-          className="flex-1 bg-th-elevated border border-th-line rounded-lg px-2.5 py-1.5 text-th-hi text-xs placeholder:text-th-ghost focus:outline-none focus:border-th-3 transition-colors"
+          className="flex-1 bg-th-elevated border border-th-line rounded-lg px-2.5 py-1.5 text-th-hi text-xs placeholder:text-th-ghost focus:outline-none focus:border-th-hi3 transition-colors"
         />
         <button
           onClick={submit}
@@ -39,7 +38,7 @@ export function TasksWidget() {
       {/* List */}
       <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-0.5">
         {tasks.length === 0 ? (
-          <EmptyState message="No tasks" />
+          <EmptyState compact title="No tasks" />
         ) : (
           tasks.map((t) => (
             <div key={t.id} className="group flex items-center gap-2 px-1.5 py-1 rounded hover:bg-th-elevated/50">
@@ -47,18 +46,18 @@ export function TasksWidget() {
                 onClick={() => toggleTask(t.id)}
                 className={cn(
                   'shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors',
-                  t.done ? 'bg-th-accent border-th-accent text-th-bg' : 'border-th-ghost hover:border-th-2',
+                  t.done ? 'bg-th-accent border-th-accent text-th-bg' : 'border-th-ghost hover:border-th-hi2',
                 )}
                 title={t.done ? 'Mark not done' : 'Mark done'}
               >
                 {t.done && <Check size={11} />}
               </button>
-              <span className={cn('flex-1 text-xs break-words', t.done ? 'line-through text-th-ghost' : 'text-th-2')}>
+              <span className={cn('flex-1 text-xs break-words', t.done ? 'line-through text-th-hi3' : 'text-th-hi2')}>
                 {t.text}
               </span>
               <button
                 onClick={() => removeTask(t.id)}
-                className="shrink-0 p-0.5 rounded text-th-ghost hover:text-red-400 opacity-0 group-hover:opacity-100 transition"
+                className="shrink-0 p-0.5 rounded text-th-hi3 hover:text-th-loss opacity-0 group-hover:opacity-100 transition"
                 title="Delete"
               >
                 <X size={12} />
@@ -70,10 +69,10 @@ export function TasksWidget() {
 
       {/* Footer */}
       {tasks.length > 0 && (
-        <div className="shrink-0 flex items-center justify-between text-[10px] text-th-ghost px-1">
+        <div className="shrink-0 flex items-center justify-between text-[10px] text-th-hi3 px-1">
           <span>{remaining} left</span>
           {doneCount > 0 && (
-            <button onClick={clearCompleted} className="hover:text-th-2 transition-colors">
+            <button onClick={clearCompleted} className="hover:text-th-hi2 transition-colors">
               Clear completed
             </button>
           )}

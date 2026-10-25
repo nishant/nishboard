@@ -3,9 +3,8 @@ import { X, Plus } from 'lucide-react';
 import { useCountdownStore } from '../../store/countdownStore';
 import { useAppSettingsStore } from '../../store/settingsStore';
 import { fireAlert } from '../../lib/alerts';
-import { cn } from '../../lib/utils';
 import { fmtRemaining, hourFormat } from '../../lib/time';
-import { EmptyState } from '../../components/EmptyState';
+import { EmptyState, cn } from '@nish/ui';
 
 function fmtDate(at: number, clock24h: boolean): string {
   return new Date(at).toLocaleString('en-US', {
@@ -54,13 +53,13 @@ export function CountdownWidget() {
           value={label}
           onChange={(e) => setLabel(e.target.value)}
           placeholder="Event"
-          className="flex-1 min-w-0 bg-th-elevated border border-th-line rounded-lg px-2 py-1.5 text-th-hi text-[11px] placeholder:text-th-ghost focus:outline-none focus:border-th-3"
+          className="flex-1 min-w-0 bg-th-elevated border border-th-line rounded-lg px-2 py-1.5 text-th-hi text-[11px] placeholder:text-th-ghost focus:outline-none focus:border-th-hi3"
         />
         <input
           type="datetime-local"
           value={when}
           onChange={(e) => setWhen(e.target.value)}
-          className="bg-th-elevated border border-th-line rounded-lg px-2 py-1.5 text-th-hi text-[10px] tabular-nums focus:outline-none focus:border-th-3"
+          className="bg-th-elevated border border-th-line rounded-lg px-2 py-1.5 text-th-hi text-[10px] tabular-nums focus:outline-none focus:border-th-hi3"
         />
         <button
           onClick={submit}
@@ -74,7 +73,7 @@ export function CountdownWidget() {
 
       <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-1.5">
         {events.length === 0 ? (
-          <EmptyState message="No events" />
+          <EmptyState compact title="No events" />
         ) : (
           events.map((e) => {
             const remaining = e.at - now;
@@ -82,15 +81,15 @@ export function CountdownWidget() {
             return (
               <div key={e.id} className="group flex items-center gap-2 px-2 py-1.5 rounded-lg bg-th-elevated/40">
                 <div className="flex flex-col flex-1 min-w-0">
-                  <span className={cn('text-xs truncate', passed ? 'text-th-ghost' : 'text-th-hi')}>{e.label || 'Event'}</span>
-                  <span className="text-th-ghost text-[10px] truncate">{fmtDate(e.at, clock24h)}</span>
+                  <span className={cn('text-xs truncate', passed ? 'text-th-hi3' : 'text-th-hi')}>{e.label || 'Event'}</span>
+                  <span className="text-th-hi3 text-[10px] truncate">{fmtDate(e.at, clock24h)}</span>
                 </div>
-                <span className={cn('text-sm tabular-nums shrink-0', passed ? 'text-amber-500/70' : 'text-th-accent')}>
+                <span className={cn('text-sm tabular-nums shrink-0', passed ? 'text-th-warn' : 'text-th-accent')}>
                   {passed ? 'now' : fmtRemaining(remaining)}
                 </span>
                 <button
                   onClick={() => removeEvent(e.id)}
-                  className="shrink-0 p-1 rounded text-th-ghost hover:text-red-400 opacity-0 group-hover:opacity-100 transition"
+                  className="shrink-0 p-1 rounded text-th-hi3 hover:text-th-loss opacity-0 group-hover:opacity-100 transition"
                   title="Delete"
                 >
                   <X size={13} />

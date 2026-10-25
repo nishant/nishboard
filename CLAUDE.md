@@ -7,7 +7,7 @@ Personal ambient desktop dashboard for Nish, running all day on a secondary moni
 
 ## Stack (non-negotiable)
 - **Shell:** Electron 33 (`electronVersion` pinned in `electron-builder.yml`), TypeScript main process
-- **Frontend:** React 18 + TypeScript strict, Vite, Tailwind CSS, shadcn/ui, Zustand, TanStack Query v5, Recharts
+- **Frontend:** React 19 + TypeScript strict, Vite 8, Tailwind CSS 4 + `@nish/ui` (shared nish.software theme + components), Zustand, TanStack Query v5, Recharts 3, react-grid-layout 1.5 (pinned: 2.x is an API rewrite)
 - **Backend:** Fastify + TypeScript, runs as child process on localhost:7432
 - **Monorepo:** Turborepo + pnpm workspaces
 - **Packages:** `apps/renderer`, `apps/main`, `packages/server`, `packages/shared`
@@ -73,6 +73,11 @@ Three places a key can live — checked in this order at runtime:
 - **Windows window is opaque, NOT transparent** — a `transparent: true` frameless window on Windows disables Aero Snap (drag-to-top/side maximize), double-click-titlebar maximize, AND the hardware-accelerated resize path (janky corner drags). We deliberately keep the Windows `BrowserWindow` opaque (`backgroundColor` set, no `transparent`) so all native window behavior works; the cost is square corners instead of CSS-rounded ones. Don't reintroduce `transparent: true` for cosmetics. The custom titlebar's `-webkit-app-region: drag` region is what gives native double-click-maximize + drag-snap once the window is opaque; the maximize button uses the `app:toggle-maximize` IPC.
 - Always label Windows-only vs macOS-only branches explicitly.
 
+## Theming (`@nish/ui`)
+- The renderer's colors, base styles, Inter font and the shared components (`Button`, `Modal`, `Select`, `Skeleton`/`SkeletonLines`, `EmptyState`, `ErrorState`, `Toaster`/`toast`, `cn`) come from `@nish/ui` (`github:nishant/ui#vX.Y.Z`). `src/index.css` is `@import 'tailwindcss'; @import '@nish/ui/tailwind.css';`.
+- **Colors are role classes only**: `bg-th-bg|surface|elevated|overlay`, `border-th-line|line-strong`, `text-th-hi|hi2|hi3`, `bg-th-accent` + `text-th-on-accent`, `text-th-ok|loss|warn|info` (+ `-soft` tints) for text, and their `-fill` versions (`bg-th-warn-fill`, `tk('loss-fill')`) for bars, meters, dots and chart lines (the text colors look muddy as fills in light themes), `bg-th-scrim/60`, hues `th-indigo…th-teal`, series `th-chart-1..8`. Never raw palette classes (`red-400`, `zinc-800`) or hex in components; `text-th-ghost` is for placeholders/decoration, not readable text. Strings that need a color value (Recharts, SVG, style props) use `tk('role')` from `lib/tokens.ts` (a live `var(--nish-*)`). Third-party brand marks live as `--color-brand-*` in `index.css`.
+- Theme choice lives in `themeStore` (`dashboard-theme`, v1): `system` (a fresh install's default, so first paint and React agree), the shared themes (`dark`, `light`, `slate`, `terminal`, `mocha`, `ocean`, `contrast`), Nishboard's own presets (`lib/appPresets.ts` → `pnpm --filter @dash/renderer gen:themes` writes `src/styles/app-themes.css`; `lib/themeVars.ts` derives every role and enforces contrast) and `custom`. `lib/appTheme.ts` registers Nishboard's own ids with `registerThemes` and applies every choice through `setThemeChoice` (so `nish-theme` holds the real id); `ThemeManager` copies choices made through `@nish/ui` (`useTheme`, other windows) back into the store. Before first paint, `vite.config.ts` inlines `src/theme-init-app.js` (sets `window.__nishExtraThemes`, mirrors the store's choice into `nish-theme`, applies Custom colors) followed by @nish/ui's `theme-init.js`, which does the painting. v0 ids migrate: `midnight`→`dark`, `slate` (was light here)→`light`.
+
 ## Code Conventions
 - Strict TypeScript — no `any`, no untyped `as` casts
 - Named exports only (no default exports on hooks/stores)
@@ -84,7 +89,7 @@ Three places a key can live — checked in this order at runtime:
 
 ## Testing
 - `pnpm test` = turbo → per-package `vitest run`. Tests are colocated `*.test.ts` next to their source (renderer allows `.test.tsx`).
-- **vitest is pinned to v3** — v4 needs vite 6; the renderer pins vite 5.
+- **vitest:** the renderer runs vitest 4 (Vite 8); `apps/main` and `packages/server` stay on vitest 3 (no Vite there).
 - Renderer tests run in **jsdom** with the same aliases as vite.config.ts; zustand persist stores are tested by seeding localStorage (`{state, version}` envelope) then `vi.resetModules()` + dynamic import.
 - Main-process tests alias `electron` → `apps/main/test/electron-stub.ts` (module-scope `import { app } from 'electron'` would otherwise crash under node). Keep the stub's exports in sync with what main modules destructure. `apps/main/tsconfig.json` excludes tests from the build so they never reach the packaged `dist/`.
 - Server upstreams all go through global `fetch` → stub with `vi.stubGlobal('fetch', …)`. `lib/env.ts` parses `BUILTINS_JSON` at module load — set the env var **before** a fresh `vi.resetModules()` import.

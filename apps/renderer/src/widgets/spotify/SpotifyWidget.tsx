@@ -17,9 +17,9 @@ import { SpotifySearchDialog } from './SpotifySearchDialog';
 import { fmtMs } from '../../lib/time';
 import { useDeferredSlider } from '../../hooks/useDeferredSlider';
 import { useElementSize } from '../../hooks/useElementSize';
-import { WidgetSkeleton } from '../../components/Skeleton';
 import { HeaderAction } from '../../components/HeaderAction';
 import type { TrackData, SpotifyPlaylist, SpotifyDevice, SpotifyTrackItem } from '@dash/shared';
+import { SkeletonLines } from '@nish/ui';
 
 // ── Size variant ──────────────────────────────────────────────────────────────
 
@@ -167,7 +167,7 @@ function ProgressBar({
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-th-3 text-[10px] w-7 text-right tabular-nums">{fmtMs(localMs)}</span>
+      <span className="text-th-hi3 text-[10px] w-7 text-right tabular-nums">{fmtMs(localMs)}</span>
       <div className="flex-1 relative h-1 group cursor-pointer">
         <input
           type="range" min={0} max={durationMs} value={localMs}
@@ -180,12 +180,12 @@ function ProgressBar({
         />
         <div className="w-full h-full rounded-full bg-th-overlay">
           <div
-            className="h-full rounded-full bg-th-hi group-hover:bg-[#1DB954] transition-colors"
+            className="h-full rounded-full bg-th-hi group-hover:bg-th-ok-fill transition-colors"
             style={{ width: `${pct}%` }}
           />
         </div>
       </div>
-      <span className="text-th-3 text-[10px] w-7 tabular-nums">{fmtMs(durationMs)}</span>
+      <span className="text-th-hi3 text-[10px] w-7 tabular-nums">{fmtMs(durationMs)}</span>
     </div>
   );
 }
@@ -223,7 +223,7 @@ function VolumeSlider({
     <div className="flex items-center gap-1.5">
       <button
         onClick={handleMuteToggle}
-        className="text-th-3 hover:text-th-hi transition-colors"
+        className="text-th-hi3 hover:text-th-hi transition-colors"
         title={local === 0 ? 'Unmute' : 'Mute'}
       >
         {local === 0
@@ -249,7 +249,7 @@ function DeviceBar({
   onSelect: (id: string) => void;
 }) {
   if (devices.length === 0) return (
-    <p className="text-amber-500/70 text-[10px] px-3 pb-1.5">
+    <p className="text-th-warn text-[10px] px-3 pb-1.5">
       Open Spotify on a device to enable playback
     </p>
   );
@@ -261,13 +261,13 @@ function DeviceBar({
           onClick={() => onSelect(dev.id)}
           className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border transition-colors ${
             selectedId === dev.id
-              ? 'bg-[#1DB954]/15 border-[#1DB954]/40 text-[#1DB954]'
-              : 'bg-th-elevated border-th-line text-th-2 hover:text-th-hi'
+              ? 'bg-th-ok-soft border-th-ok/40 text-th-ok'
+              : 'bg-th-elevated border-th-line text-th-hi2 hover:text-th-hi'
           }`}
         >
           <DeviceIcon type={dev.type} />
           <span className="max-w-[80px] truncate">{dev.name}</span>
-          {dev.isActive && <span className="w-1 h-1 rounded-full bg-[#1DB954] shrink-0" />}
+          {dev.isActive && <span className="w-1 h-1 rounded-full bg-th-ok-fill shrink-0" />}
         </button>
       ))}
     </div>
@@ -298,18 +298,18 @@ function PlaylistRow({
       {/* Thumbnail — click opens track list */}
       <button onClick={onOpen} className="shrink-0 rounded overflow-hidden">
         {isLiked ? (
-          <div className="w-10 h-10 rounded flex items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600">
-            <Heart size={16} className="text-white fill-white" />
+          <div className="w-10 h-10 rounded flex items-center justify-center bg-linear-to-br from-th-indigo to-th-violet">
+            <Heart size={16} className="text-th-on-accent fill-current" />
           </div>
         ) : isRecent ? (
-          <div className="w-10 h-10 rounded flex items-center justify-center bg-gradient-to-br from-emerald-600 to-teal-700">
-            <History size={16} className="text-white" />
+          <div className="w-10 h-10 rounded flex items-center justify-center bg-linear-to-br from-th-emerald to-th-teal">
+            <History size={16} className="text-th-on-accent" />
           </div>
         ) : playlist.imageUrl ? (
           <img src={playlist.imageUrl} alt={playlist.name} className="w-10 h-10 object-cover" />
         ) : (
           <div className="w-10 h-10 rounded bg-th-overlay flex items-center justify-center">
-            <Music size={14} className="text-th-3" />
+            <Music size={14} className="text-th-hi3" />
           </div>
         )}
       </button>
@@ -317,7 +317,7 @@ function PlaylistRow({
       {/* Name + count — click opens track list */}
       <button onClick={onOpen} className="min-w-0 flex-1 text-left">
         <p className="text-xs text-th-hi truncate font-medium leading-tight">{playlist.name}</p>
-        <p className="text-[10px] text-th-3">
+        <p className="text-[10px] text-th-hi3">
           {playlist.trackCount >= 0 ? `${playlist.trackCount} tracks` : ''}
         </p>
       </button>
@@ -327,14 +327,14 @@ function PlaylistRow({
         <div className="flex items-center gap-1 shrink-0">
           <button
             onClick={(e) => { e.stopPropagation(); onShuffle(); }}
-            className="p-1 rounded text-th-3 hover:text-[#1DB954] hover:bg-th-overlay transition-colors"
+            className="p-1 rounded text-th-hi3 hover:text-th-ok hover:bg-th-overlay transition-colors"
             title="Shuffle play"
           >
             <Shuffle size={11} />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onPlay(); }}
-            className="p-1 rounded text-th-3 hover:text-[#1DB954] hover:bg-th-overlay transition-colors"
+            className="p-1 rounded text-th-hi3 hover:text-th-ok hover:bg-th-overlay transition-colors"
             title="Play"
           >
             <Play size={11} />
@@ -364,21 +364,21 @@ function TrackRow({
         track.isLocal ? 'opacity-40 cursor-not-allowed' : 'hover:bg-th-elevated'
       }`}
     >
-      <span className="text-th-ghost text-[10px] w-5 text-right shrink-0 tabular-nums">{index + 1}</span>
+      <span className="text-th-hi3 text-[10px] w-5 text-right shrink-0 tabular-nums">{index + 1}</span>
       {track.imageUrl ? (
         <img src={track.imageUrl} alt={track.trackName} className="w-7 h-7 rounded shrink-0 object-cover" />
       ) : (
         <div className="w-7 h-7 rounded bg-th-elevated flex items-center justify-center shrink-0">
           {track.type === 'episode'
-            ? <Mic2 size={10} className="text-th-ghost" />
-            : <Music size={10} className="text-th-ghost" />}
+            ? <Mic2 size={10} className="text-th-hi3" />
+            : <Music size={10} className="text-th-hi3" />}
         </div>
       )}
       <div className="min-w-0 flex-1">
         <p className="text-[11px] text-th-hi truncate leading-tight">{track.trackName}</p>
-        <p className="text-[10px] text-th-3 truncate">{track.artistName}</p>
+        <p className="text-[10px] text-th-hi3 truncate">{track.artistName}</p>
       </div>
-      <span className="text-th-ghost text-[10px] tabular-nums shrink-0">{fmtMs(track.durationMs)}</span>
+      <span className="text-th-hi3 text-[10px] tabular-nums shrink-0">{fmtMs(track.durationMs)}</span>
     </button>
   );
 }
@@ -449,25 +449,25 @@ function PlaylistPanel({
       <div className="flex items-center gap-2 px-3 pt-2 pb-1.5 shrink-0">
         <button
           onClick={() => { if (showingTracks) setSelectedPlaylist(null); else onBack(); }}
-          className="text-th-3 hover:text-th-hi transition-colors"
+          className="text-th-hi3 hover:text-th-hi transition-colors"
         >
           <ArrowLeft size={13} />
         </button>
-        <span className="text-th-2 text-xs font-medium truncate">
+        <span className="text-th-hi2 text-xs font-medium truncate">
           {showingTracks ? selectedPlaylist!.name : 'Your Playlists'}
         </span>
         {showingTracks && selectedPlaylist!.uri !== '' && (
           <div className="ml-auto flex items-center gap-1 shrink-0">
             <button
               onClick={() => handlePlayContext(selectedPlaylist!, true)}
-              className="p-1 rounded text-th-3 hover:text-[#1DB954] hover:bg-th-overlay transition-colors"
+              className="p-1 rounded text-th-hi3 hover:text-th-ok hover:bg-th-overlay transition-colors"
               title="Shuffle play"
             >
               <Shuffle size={12} />
             </button>
             <button
               onClick={() => handlePlayContext(selectedPlaylist!, false)}
-              className="p-1 rounded text-th-3 hover:text-[#1DB954] hover:bg-th-overlay transition-colors"
+              className="p-1 rounded text-th-hi3 hover:text-th-ok hover:bg-th-overlay transition-colors"
               title="Play from beginning"
             >
               <Play size={12} />
@@ -487,7 +487,7 @@ function PlaylistPanel({
 
       {/* Playback error (e.g. no active device) */}
       {playError && (
-        <p className="text-amber-500/80 text-[10px] px-3 pb-1.5">{playError}</p>
+        <p className="text-th-warn text-[10px] px-3 pb-1.5">{playError}</p>
       )}
 
       {/* Scrollable content */}
@@ -495,10 +495,10 @@ function PlaylistPanel({
         {!showingTracks ? (
           <>
             {playlists.isLoading && (
-              <p className="text-th-ghost text-xs text-center py-4">Loading…</p>
+              <p className="text-th-hi3 text-xs text-center py-4">Loading…</p>
             )}
             {playlists.isError && (
-              <p className="text-red-400/70 text-xs text-center py-4">Failed — re-auth if scopes changed</p>
+              <p className="text-th-loss text-xs text-center py-4">Failed — re-auth if scopes changed</p>
             )}
             {allPlaylists.map((pl) => (
               <PlaylistRow
@@ -511,16 +511,16 @@ function PlaylistPanel({
             ))}
             <div ref={playlistSentinel} className="h-2" />
             {playlists.isFetchingNextPage && (
-              <p className="text-th-ghost text-[10px] text-center pb-1">Loading more…</p>
+              <p className="text-th-hi3 text-[10px] text-center pb-1">Loading more…</p>
             )}
           </>
         ) : (
           <>
             {tracks.isLoading && (
-              <p className="text-th-ghost text-xs text-center py-4">Loading tracks…</p>
+              <p className="text-th-hi3 text-xs text-center py-4">Loading tracks…</p>
             )}
             {tracks.isError && (
-              <p className="text-red-400/70 text-xs text-center py-4">Failed to load tracks</p>
+              <p className="text-th-loss text-xs text-center py-4">Failed to load tracks</p>
             )}
             {allTracks.map((track, i) => (
               <TrackRow
@@ -532,7 +532,7 @@ function PlaylistPanel({
             ))}
             <div ref={trackSentinel} className="h-2" />
             {tracks.isFetchingNextPage && (
-              <p className="text-th-ghost text-[10px] text-center pb-1">Loading more…</p>
+              <p className="text-th-hi3 text-[10px] text-center pb-1">Loading more…</p>
             )}
           </>
         )}
@@ -569,7 +569,7 @@ function LikeButton({ trackId, type, size }: { trackId: string; type: TrackData[
     <button
       onClick={() => save.mutate({ trackId, saved: !isSaved })}
       disabled={saved.isPending}
-      className={`transition-colors p-0.5 ${isSaved ? 'text-[#1DB954]' : 'text-th-3 hover:text-th-hi'}`}
+      className={`transition-colors p-0.5 ${isSaved ? 'text-th-ok' : 'text-th-hi3 hover:text-th-hi'}`}
       title={isSaved ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
     >
       <Heart size={size} fill={isSaved ? 'currentColor' : 'none'} />
@@ -609,7 +609,7 @@ function NowPlayingView({
   const handleSkipFwd = () => seek.mutate(Math.min(data.durationMs, localProgressRef.current + 15_000));
 
   const activeClass = (flag: boolean) =>
-    flag ? 'text-[#1DB954]' : 'text-th-3 hover:text-th-hi';
+    flag ? 'text-th-ok' : 'text-th-hi3 hover:text-th-hi';
 
   const isPodcast = data.type === 'episode';
 
@@ -636,11 +636,11 @@ function NowPlayingView({
     <div className="flex items-center gap-1 shrink-0">
       <LikeButton trackId={data.trackId} type={data.type} size={13} />
       <button onClick={onOpenPlaylists}
-        className="text-th-3 hover:text-th-hi transition-colors p-0.5" title="Browse playlists">
+        className="text-th-hi3 hover:text-th-hi transition-colors p-0.5" title="Browse playlists">
         <ListMusic size={14} />
       </button>
       <button onClick={onOpenSearch}
-        className="text-th-3 hover:text-th-hi transition-colors p-0.5" title="Search">
+        className="text-th-hi3 hover:text-th-hi transition-colors p-0.5" title="Search">
         <Search size={13} />
       </button>
     </div>
@@ -655,12 +655,12 @@ function NowPlayingView({
       </button>
       <div className="flex items-center gap-3">
         <button onClick={handleRewind}
-          className="text-th-3 hover:text-th-hi transition-colors relative" title="Rewind 15s">
+          className="text-th-hi3 hover:text-th-hi transition-colors relative" title="Rewind 15s">
           <RotateCcw size={seekSz} />
           <span className="absolute inset-0 flex items-center justify-center text-[6px] font-bold text-current mt-1.5 ml-0.5">15</span>
         </button>
         <button onClick={() => previous.mutate()}
-          className="text-th-2 hover:text-th-hi transition-colors" title="Previous">
+          className="text-th-hi2 hover:text-th-hi transition-colors" title="Previous">
           <SkipBack size={skipSz} />
         </button>
         <button onClick={handlePlayPause}
@@ -671,11 +671,11 @@ function NowPlayingView({
             : <Play size={playIconSz} fill="currentColor" className="ml-0.5" />}
         </button>
         <button onClick={() => next.mutate()}
-          className="text-th-2 hover:text-th-hi transition-colors" title="Next">
+          className="text-th-hi2 hover:text-th-hi transition-colors" title="Next">
           <SkipForward size={skipSz} />
         </button>
         <button onClick={handleSkipFwd}
-          className="text-th-3 hover:text-th-hi transition-colors relative" title="Skip forward 15s">
+          className="text-th-hi3 hover:text-th-hi transition-colors relative" title="Skip forward 15s">
           <RotateCw size={seekSz} />
           <span className="absolute inset-0 flex items-center justify-center text-[6px] font-bold text-current mt-1.5 mr-0.5">15</span>
         </button>
@@ -711,7 +711,7 @@ function NowPlayingView({
               className={`font-medium text-th-hi leading-tight ${size === 'xl' ? 'text-base' : 'text-sm'}`}
             />
             <div className="mt-0.5">
-              <ScrollingText text={data.artistName} className="text-xs text-th-2" />
+              <ScrollingText text={data.artistName} className="text-xs text-th-hi2" />
             </div>
           </div>
           {actionIcons}
@@ -723,23 +723,23 @@ function NowPlayingView({
             <img
               src={data.albumArtUrl}
               alt={data.trackName}
-              className={`h-full ${artMaxH} aspect-square object-cover rounded-lg shadow-lg`}
+              className={`h-full ${artMaxH} aspect-square object-cover rounded-lg shadow-pop`}
             />
           ) : (
             <div className={`h-full ${artMaxH} aspect-square rounded-lg bg-th-elevated flex items-center justify-center`}>
               {isPodcast
-                ? <Mic2 size={size === 'xl' ? 48 : 32} className="text-th-ghost" />
-                : <Music size={size === 'xl' ? 48 : 32} className="text-th-ghost" />}
+                ? <Mic2 size={size === 'xl' ? 48 : 32} className="text-th-hi3" />
+                : <Music size={size === 'xl' ? 48 : 32} className="text-th-hi3" />}
             </div>
           )}
         </div>
 
         {/* Album / podcast label */}
         {!isPodcast && data.albumName && (
-          <p className="text-th-ghost text-[10px] truncate text-center shrink-0 -mt-1">{data.albumName}</p>
+          <p className="text-th-hi3 text-[10px] truncate text-center shrink-0 -mt-1">{data.albumName}</p>
         )}
         {isPodcast && (
-          <p className="text-[10px] text-purple-400/70 text-center shrink-0 -mt-1">Podcast</p>
+          <p className="text-[10px] text-th-violet text-center shrink-0 -mt-1">Podcast</p>
         )}
 
         <div className="shrink-0">{progressBar}</div>
@@ -760,8 +760,8 @@ function NowPlayingView({
   ) : (
     <div className={`${compactArtCls} rounded-md bg-th-elevated shrink-0 flex items-center justify-center`}>
       {isPodcast
-        ? <Mic2 size={compactMusicSz} className="text-th-ghost" />
-        : <Music size={compactMusicSz} className="text-th-ghost" />}
+        ? <Mic2 size={compactMusicSz} className="text-th-hi3" />
+        : <Music size={compactMusicSz} className="text-th-hi3" />}
     </div>
   );
 
@@ -777,12 +777,12 @@ function NowPlayingView({
         <div className="min-w-0 flex-1">
           <ScrollingText text={data.trackName || '—'} className="text-th-hi text-sm font-medium leading-tight" />
           <div className="mt-0.5">
-            <ScrollingText text={data.artistName} className="text-th-2 text-xs" />
+            <ScrollingText text={data.artistName} className="text-th-hi2 text-xs" />
           </div>
           {!isPodcast && data.albumName && (
-            <ScrollingText text={data.albumName} className="text-th-ghost text-xs" />
+            <ScrollingText text={data.albumName} className="text-th-hi3 text-xs" />
           )}
-          {isPodcast && <p className="text-[10px] text-purple-400/70 mt-0.5">Podcast</p>}
+          {isPodcast && <p className="text-[10px] text-th-violet mt-0.5">Podcast</p>}
         </div>
         <div className="self-start mt-0.5">{actionIcons}</div>
       </div>
@@ -811,9 +811,9 @@ function NotPlayingView({
   return (
     <div className="h-full flex flex-col items-center justify-center gap-3 p-6">
       <div className="w-12 h-12 rounded-lg bg-th-elevated flex items-center justify-center">
-        <Music size={20} className="text-th-ghost" />
+        <Music size={20} className="text-th-hi3" />
       </div>
-      <p className="text-th-3 text-xs">Nothing playing</p>
+      <p className="text-th-hi3 text-xs">Nothing playing</p>
       <div className="flex items-center gap-2">
         <button
           onClick={onOpenPlaylists}
@@ -865,31 +865,31 @@ export function SpotifyActions() {
 
       {confirming && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-th-scrim/60"
           onClick={() => setConfirming(false)}
         >
           <div
-            className="bg-th-surface border border-th-line rounded-xl p-6 w-80 shadow-2xl flex flex-col gap-4"
+            className="bg-th-surface border border-th-line rounded-xl p-6 w-80 shadow-modal flex flex-col gap-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3">
-              <AlertTriangle size={18} className="text-red-400 shrink-0" />
+              <AlertTriangle size={18} className="text-th-loss shrink-0" />
               <p className="text-th-hi text-sm font-medium">Disconnect Spotify?</p>
             </div>
-            <p className="text-th-3 text-xs leading-relaxed">
+            <p className="text-th-hi3 text-xs leading-relaxed">
               This will clear your saved tokens. You'll need to reconnect to see what's playing.
             </p>
             <div className="flex gap-2 justify-end">
               <button
                 onClick={() => setConfirming(false)}
-                className="px-3 py-1.5 text-xs rounded-lg border border-th-line text-th-3 hover:text-th-hi hover:border-th-hi transition-colors"
+                className="px-3 py-1.5 text-xs rounded-lg border border-th-line text-th-hi3 hover:text-th-hi hover:border-th-hi transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={() => { logout.mutate(); setConfirming(false); }}
                 disabled={logout.isPending}
-                className="px-3 py-1.5 text-xs rounded-lg bg-red-500 hover:bg-red-600 text-white font-medium transition-colors disabled:opacity-50"
+                className="px-3 py-1.5 text-xs rounded-lg bg-th-loss hover:bg-th-loss/90 text-th-on-loss font-medium transition-colors disabled:opacity-50"
               >
                 Disconnect
               </button>
@@ -906,16 +906,16 @@ export function SpotifyActions() {
 function ConnectView({ onConnect }: { onConnect: () => void }) {
   return (
     <div className="h-full flex flex-col items-center justify-center gap-4 p-6">
-      <div className="w-14 h-14 rounded-full bg-[#1DB954]/10 flex items-center justify-center">
-        <Music size={24} className="text-[#1DB954]" />
+      <div className="w-14 h-14 rounded-full bg-th-ok-soft flex items-center justify-center">
+        <Music size={24} className="text-th-ok" />
       </div>
       <div className="text-center">
         <p className="text-th-hi font-medium text-sm">Spotify</p>
-        <p className="text-th-3 text-xs mt-1">Connect your account to see what's playing</p>
+        <p className="text-th-hi3 text-xs mt-1">Connect your account to see what's playing</p>
       </div>
       <button
         onClick={onConnect}
-        className="px-4 py-2 rounded-full bg-[#1DB954] hover:bg-[#1ed760] text-black text-xs font-bold transition-colors"
+        className="px-4 py-2 rounded-full bg-brand-spotify hover:bg-brand-spotify/90 text-brand-spotify-ink text-xs font-bold transition-colors"
       >
         Connect Spotify
       </button>
@@ -953,7 +953,7 @@ export function SpotifyWidget() {
   }, [authUrlQuery]);
 
   if (status.isLoading) {
-    return <WidgetSkeleton lines={3} />;
+    return <SkeletonLines lines={3} className="h-full overflow-hidden" />;
   }
 
   if (!status.data?.authenticated) {

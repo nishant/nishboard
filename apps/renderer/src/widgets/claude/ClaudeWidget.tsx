@@ -15,7 +15,7 @@ import {
   respondToClaudePrompt, promptSummary, openClaudeCliLogin,
 } from './useClaude';
 import { HeaderAction } from '../../components/HeaderAction';
-import { cn } from '../../lib/utils';
+import { cn } from '@nish/ui';
 
 /** WidgetShell header actions: New chat always; Stop only mid-stream. */
 export function ClaudeActions() {
@@ -75,7 +75,7 @@ function Shimmer({ startedAt, waiting = false }: { startedAt: number; waiting?: 
     <div className="flex items-center gap-1.5 py-0.5 text-[11px] select-none">
       <span className="claude-spark text-th-accent">✻</span>
       <span className="claude-shimmer font-medium">{waiting ? 'Waiting for you' : `${word}…`}</span>
-      <span className="text-th-ghost text-[9px]">
+      <span className="text-th-hi3 text-[9px]">
         {waiting ? 'answer above to continue' : `${secs}s · esc to stop`}
       </span>
     </div>
@@ -133,7 +133,7 @@ function Popover({ anchor, onClose, children, wide = false }: {
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
       <div
-        className="fixed z-50 rounded-lg border border-th-line bg-th-surface shadow-xl p-2.5"
+        className="fixed z-50 rounded-lg border border-th-line bg-th-surface shadow-pop p-2.5"
         style={{ left: pos.left, bottom: pos.bottom, width }}
       >
         {children}
@@ -167,7 +167,7 @@ function ModelEffortPanel({ anchor, onClose }: { anchor: HTMLElement | null; onC
 
   return (
     <Popover anchor={anchor} onClose={onClose}>
-      <p className="text-[9px] font-semibold uppercase tracking-wider text-th-3 mb-1.5">Model</p>
+      <p className="text-[9px] font-semibold uppercase tracking-wider text-th-hi3 mb-1.5">Model</p>
       <div className="flex flex-col gap-0.5">
         {MODEL_OPTIONS.map((opt) => (
           <button
@@ -177,7 +177,7 @@ function ModelEffortPanel({ anchor, onClose }: { anchor: HTMLElement | null; onC
               'flex items-center justify-between px-2 py-1 rounded text-[11px] transition-colors',
               opt.value === chatModel
                 ? 'bg-th-elevated text-th-hi'
-                : 'text-th-2 hover:bg-th-elevated/60',
+                : 'text-th-hi2 hover:bg-th-elevated/60',
             )}
           >
             {opt.label}
@@ -186,9 +186,9 @@ function ModelEffortPanel({ anchor, onClose }: { anchor: HTMLElement | null; onC
         ))}
       </div>
 
-      <p className="text-[9px] font-semibold uppercase tracking-wider text-th-3 mt-2.5 mb-1">
+      <p className="text-[9px] font-semibold uppercase tracking-wider text-th-hi3 mt-2.5 mb-1">
         Effort{' '}
-        <span className={cn('normal-case tracking-normal', chatEffort ? 'text-th-accent' : 'text-th-ghost')}>
+        <span className={cn('normal-case tracking-normal', chatEffort ? 'text-th-accent' : 'text-th-hi3')}>
           — {chatEffort ?? 'default'}
         </span>
       </p>
@@ -202,19 +202,19 @@ function ModelEffortPanel({ anchor, onClose }: { anchor: HTMLElement | null; onC
         className={cn('w-full accent-th-accent', !chatEffort && 'opacity-50')}
         aria-label="Effort level"
       />
-      <div className="flex justify-between text-[8px] text-th-ghost px-0.5">
+      <div className="flex justify-between text-[8px] text-th-hi3 px-0.5">
         <span>low</span><span>med</span><span>high</span><span>xhigh</span><span>max</span>
       </div>
       {chatEffort && (
         <button
           onClick={() => setChatEffort(null)}
-          className="mt-1.5 text-[10px] text-th-ghost hover:text-th-hi transition-colors"
+          className="mt-1.5 text-[10px] text-th-hi3 hover:text-th-hi transition-colors"
         >
           Reset to CLI default
         </button>
       )}
       {sessionModel && (
-        <p className="mt-2 pt-1.5 border-t border-th-line text-[9px] text-th-ghost truncate">
+        <p className="mt-2 pt-1.5 border-t border-th-line text-[9px] text-th-hi3 truncate">
           Session model: {sessionModel}
         </p>
       )}
@@ -236,8 +236,8 @@ function formatResetsIn(iso: string | null): string | null {
 }
 
 function usageBarColor(pct: number): string {
-  if (pct >= 90) return 'bg-red-400';
-  if (pct >= 70) return 'bg-amber-400';
+  if (pct >= 90) return 'bg-th-loss-fill';
+  if (pct >= 70) return 'bg-th-warn-fill';
   return 'bg-th-accent';
 }
 
@@ -250,7 +250,7 @@ function UsagePanel({ anchor, onClose }: { anchor: HTMLElement | null; onClose: 
       {lastContext !== null && contextPct !== null && (
         <div className="mb-2.5">
           <div className="flex items-baseline justify-between mb-0.5">
-            <span className="text-[10px] text-th-2">Context — this chat</span>
+            <span className="text-[10px] text-th-hi2">Context — this chat</span>
             <span className="text-[10px] font-medium text-th-hi">
               {formatTokens(lastContext)} / {formatTokens(CLAUDE_CONTEXT_WINDOW)}
             </span>
@@ -263,13 +263,13 @@ function UsagePanel({ anchor, onClose }: { anchor: HTMLElement | null; onClose: 
           </div>
         </div>
       )}
-      <p className="text-[9px] font-semibold uppercase tracking-wider text-th-3 mb-2">Usage</p>
+      <p className="text-[9px] font-semibold uppercase tracking-wider text-th-hi3 mb-2">Usage</p>
       {usage.isLoading ? (
-        <div className="flex items-center gap-1.5 text-[11px] text-th-ghost py-1">
+        <div className="flex items-center gap-1.5 text-[11px] text-th-hi3 py-1">
           <Loader2 size={11} className="animate-spin" /> Loading…
         </div>
       ) : usage.isError ? (
-        <p className="text-[10px] text-th-ghost leading-relaxed py-0.5">
+        <p className="text-[10px] text-th-hi3 leading-relaxed py-0.5">
           {usage.error instanceof Error ? usage.error.message : 'Failed to load usage'}
         </p>
       ) : usage.data && usage.data.windows.length > 0 ? (
@@ -279,7 +279,7 @@ function UsagePanel({ anchor, onClose }: { anchor: HTMLElement | null; onClose: 
             return (
               <div key={w.key}>
                 <div className="flex items-baseline justify-between mb-0.5">
-                  <span className="text-[10px] text-th-2">{w.label}</span>
+                  <span className="text-[10px] text-th-hi2">{w.label}</span>
                   <span className="text-[10px] font-medium text-th-hi">{Math.round(w.utilization)}%</span>
                 </div>
                 <div className="h-1.5 rounded-full bg-th-elevated overflow-hidden">
@@ -288,13 +288,13 @@ function UsagePanel({ anchor, onClose }: { anchor: HTMLElement | null; onClose: 
                     style={{ width: `${Math.max(2, w.utilization)}%` }}
                   />
                 </div>
-                {resets && <p className="mt-0.5 text-[9px] text-th-ghost">{resets}</p>}
+                {resets && <p className="mt-0.5 text-[9px] text-th-hi3">{resets}</p>}
               </div>
             );
           })}
         </div>
       ) : (
-        <p className="text-[10px] text-th-ghost">No usage windows reported.</p>
+        <p className="text-[10px] text-th-hi3">No usage windows reported.</p>
       )}
     </Popover>
   );
@@ -317,9 +317,9 @@ function SlashMenu({ query, selected, onPick }: {
   }, [meta.data, query]);
 
   return (
-    <div className="absolute bottom-full left-0 right-0 mb-1.5 z-50 rounded-lg border border-th-line bg-th-surface shadow-xl py-1 max-h-44 overflow-y-auto">
+    <div className="absolute bottom-full left-0 right-0 mb-1.5 z-50 rounded-lg border border-th-line bg-th-surface shadow-pop py-1 max-h-44 overflow-y-auto">
       {items.length === 0 ? (
-        <p className="px-2.5 py-1.5 text-[10px] text-th-ghost">
+        <p className="px-2.5 py-1.5 text-[10px] text-th-hi3">
           {meta.data && meta.data.slashCommands.length === 0
             ? 'Commands appear after your first chat.'
             : 'No matching commands.'}
@@ -335,7 +335,7 @@ function SlashMenu({ query, selected, onPick }: {
               'w-full flex items-center gap-2 px-2.5 py-1 text-left text-[11px] transition-colors',
               i === selected % Math.max(1, items.length)
                 ? 'bg-th-elevated text-th-hi'
-                : 'text-th-2 hover:bg-th-elevated/60',
+                : 'text-th-hi2 hover:bg-th-elevated/60',
             )}
           >
             <span className="font-mono">/{c.name}</span>
@@ -370,17 +370,17 @@ function ToolChip({ part, live }: { part: ClaudeToolPart; live: boolean }) {
   return (
     <div className="flex items-center gap-1.5 my-1 px-2 py-1 rounded-md bg-th-elevated/60 text-[11px] max-w-full">
       {part.status === 'error' ? (
-        <X size={11} className="shrink-0 text-red-400" />
+        <X size={11} className="shrink-0 text-th-loss" />
       ) : running ? (
         <Loader2 size={11} className="shrink-0 animate-spin text-th-accent" />
       ) : (
-        <Check size={11} className="shrink-0 text-emerald-400" />
+        <Check size={11} className="shrink-0 text-th-ok" />
       )}
       <span className="shrink-0 font-medium text-th-hi">{part.name}</span>
       {part.detail && (
         <>
-          <span className="shrink-0 text-th-ghost">·</span>
-          <span className="truncate font-mono text-th-ghost">{part.detail}</span>
+          <span className="shrink-0 text-th-hi3">·</span>
+          <span className="truncate font-mono text-th-hi3">{part.detail}</span>
         </>
       )}
     </div>
@@ -403,7 +403,7 @@ function CardButton({ primary = false, disabled, onClick, children }: {
         'px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors disabled:opacity-40',
         primary
           ? 'bg-th-accent/20 text-th-accent hover:bg-th-accent/30'
-          : 'bg-th-elevated text-th-2 hover:bg-th-overlay hover:text-th-hi',
+          : 'bg-th-elevated text-th-hi2 hover:bg-th-overlay hover:text-th-hi',
       )}
     >
       {children}
@@ -433,10 +433,10 @@ function PromptCard({ part, live }: { part: ClaudePromptPart; live: boolean }) {
     const ok = part.status === 'allowed';
     return (
       <div className="flex items-center gap-1.5 my-1 px-2 py-1 rounded-md bg-th-elevated/60 text-[11px] max-w-full">
-        {ok ? <Check size={11} className="shrink-0 text-emerald-400" /> : <X size={11} className="shrink-0 text-th-ghost" />}
+        {ok ? <Check size={11} className="shrink-0 text-th-ok" /> : <X size={11} className="shrink-0 text-th-hi3" />}
         <span className="shrink-0 font-medium text-th-hi">{status}</span>
-        <span className="shrink-0 text-th-ghost">·</span>
-        <span className="truncate text-th-ghost">
+        <span className="shrink-0 text-th-hi3">·</span>
+        <span className="truncate text-th-hi3">
           {promptSummary(part.request)}
           {part.resolution ? ` — ${part.resolution}` : ''}
         </span>
@@ -482,11 +482,11 @@ function PromptCard({ part, live }: { part: ClaudePromptPart; live: boolean }) {
                     }}
                     className={cn(
                       'text-left px-2 py-1 rounded-md text-[11px] transition-colors disabled:opacity-40',
-                      isOn ? 'bg-th-accent/20 text-th-accent' : 'bg-th-elevated text-th-2 hover:bg-th-overlay hover:text-th-hi',
+                      isOn ? 'bg-th-accent/20 text-th-accent' : 'bg-th-elevated text-th-hi2 hover:bg-th-overlay hover:text-th-hi',
                     )}
                   >
                     <span className="font-medium">{opt.label}</span>
-                    {opt.description && <span className="block text-[10px] text-th-ghost">{opt.description}</span>}
+                    {opt.description && <span className="block text-[10px] text-th-hi3">{opt.description}</span>}
                   </button>
                 );
               })}
@@ -509,7 +509,7 @@ function PromptCard({ part, live }: { part: ClaudePromptPart; live: boolean }) {
         <p className="flex items-center gap-1.5 text-[11px] font-medium text-th-hi mb-1">
           <ClipboardCheck size={12} className="text-th-accent" /> Claude proposed a plan
         </p>
-        <div className="md-render max-h-48 overflow-y-auto text-[11px] text-th-2 leading-relaxed pr-1">
+        <div className="md-render max-h-48 overflow-y-auto text-[11px] text-th-hi2 leading-relaxed pr-1">
           <ReactMarkdown remarkPlugins={MD_PLUGINS} components={MD_COMPONENTS}>{part.request.plan}</ReactMarkdown>
         </div>
         <div className="mt-1.5 flex gap-1.5">
@@ -530,7 +530,7 @@ function PromptCard({ part, live }: { part: ClaudePromptPart; live: boolean }) {
         <ShieldQuestion size={12} className="shrink-0 text-th-accent" />
         <span className="font-medium shrink-0">{part.request.toolName}</span>
         {part.request.detail && (
-          <span className="truncate font-mono text-th-ghost">· {part.request.detail}</span>
+          <span className="truncate font-mono text-th-hi3">· {part.request.detail}</span>
         )}
       </p>
       <div className="mt-1.5 flex gap-1.5">
@@ -545,11 +545,11 @@ function PromptCard({ part, live }: { part: ClaudePromptPart; live: boolean }) {
 function ThinkingBlock({ text }: { text: string }) {
   return (
     <details className="my-1 group/think">
-      <summary className="flex items-center gap-1 cursor-pointer select-none text-[10px] text-th-ghost hover:text-th-2 transition-colors list-none [&::-webkit-details-marker]:hidden">
+      <summary className="flex items-center gap-1 cursor-pointer select-none text-[10px] text-th-hi3 hover:text-th-hi2 transition-colors list-none [&::-webkit-details-marker]:hidden">
         <ChevronRight size={10} className="transition-transform group-open/think:rotate-90" />
         <span className="text-th-accent/70">✻</span> Thinking
       </summary>
-      <div className="mt-1 pl-3 border-l border-th-line text-[11px] text-th-ghost italic whitespace-pre-wrap break-words">
+      <div className="mt-1 pl-3 border-l border-th-line text-[11px] text-th-hi3 italic whitespace-pre-wrap break-words">
         {text}
       </div>
     </details>
@@ -581,7 +581,7 @@ function MessageBubble({ msg, streaming }: { msg: ClaudeChatMessage; streaming: 
   };
 
   return (
-    <div className="max-w-full text-xs text-th-2 leading-relaxed space-y-0.5 group/msg">
+    <div className="max-w-full text-xs text-th-hi2 leading-relaxed space-y-0.5 group/msg">
       {msg.parts.map((part, i) =>
         part.kind === 'tool' ? (
           <ToolChip key={part.id} part={part} live={streaming} />
@@ -602,7 +602,7 @@ function MessageBubble({ msg, streaming }: { msg: ClaudeChatMessage; streaming: 
         />
       ) : (
         (msg.durationMs !== undefined || text) && (
-          <div className="flex items-center gap-1.5 pt-0.5 text-[9px] text-th-ghost opacity-0 group-hover/msg:opacity-100 focus-within:opacity-100 transition-opacity">
+          <div className="flex items-center gap-1.5 pt-0.5 text-[9px] text-th-hi3 opacity-0 group-hover/msg:opacity-100 focus-within:opacity-100 transition-opacity">
             {msg.durationMs !== undefined && <span>{(msg.durationMs / 1000).toFixed(1)}s</span>}
             {msg.outputTokens !== undefined && <span>· {formatTokens(msg.outputTokens)} tok</span>}
             {text && (
@@ -612,7 +612,7 @@ function MessageBubble({ msg, streaming }: { msg: ClaudeChatMessage; streaming: 
                 aria-label="Copy response"
                 className="flex items-center gap-0.5 hover:text-th-hi transition-colors"
               >
-                {copied ? <Check size={10} className="text-emerald-400" /> : <Copy size={10} />}
+                {copied ? <Check size={10} className="text-th-ok" /> : <Copy size={10} />}
               </button>
             )}
           </div>
@@ -646,9 +646,9 @@ function ModeSwitch() {
             'px-1.5 py-px rounded text-[9px] transition-colors',
             chatMode === m.value
               ? m.value === 'auto'
-                ? 'bg-amber-400/20 text-amber-300'
+                ? 'bg-th-warn-soft text-th-warn'
                 : 'bg-th-overlay text-th-hi'
-              : 'text-th-ghost hover:text-th-2',
+              : 'text-th-hi3 hover:text-th-hi2',
           )}
         >
           {m.label}
@@ -764,7 +764,7 @@ export function ClaudeWidget() {
   if (status.data?.available === false) {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-3 p-4 text-center">
-        <p className="text-th-ghost text-xs leading-relaxed max-w-64">
+        <p className="text-th-hi3 text-xs leading-relaxed max-w-64">
           Claude Code not found — install it from claude.com/claude-code, then log in.
         </p>
         {window.electron && (
@@ -800,8 +800,8 @@ export function ClaudeWidget() {
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center gap-1.5">
             <span className="text-th-accent text-lg">✻</span>
-            <p className="text-th-ghost text-xs">Ask Claude anything</p>
-            <p className="text-th-ghost/60 text-[9px]">/ for commands &amp; skills · shift+tab cycles mode</p>
+            <p className="text-th-hi3 text-xs">Ask Claude anything</p>
+            <p className="text-th-hi3 text-[9px]">/ for commands &amp; skills · shift+tab cycles mode</p>
           </div>
         ) : (
           messages.map((msg) => (
@@ -833,7 +833,7 @@ export function ClaudeWidget() {
             onClick={stop}
             title="Stop"
             aria-label="Stop"
-            className="shrink-0 flex items-center justify-center w-7 h-7 rounded-lg bg-th-elevated text-red-400 hover:bg-red-400/10 transition-colors"
+            className="shrink-0 flex items-center justify-center w-7 h-7 rounded-lg bg-th-elevated text-th-loss hover:bg-th-loss-soft transition-colors"
           >
             <Square size={12} />
           </button>
@@ -847,7 +847,7 @@ export function ClaudeWidget() {
               'shrink-0 flex items-center justify-center w-7 h-7 rounded-lg transition-colors',
               draft.trim()
                 ? 'bg-th-accent/15 text-th-accent hover:bg-th-accent/25'
-                : 'bg-th-elevated text-th-ghost cursor-default',
+                : 'bg-th-elevated text-th-hi3 cursor-default',
             )}
           >
             <SendHorizontal size={12} />
@@ -866,7 +866,7 @@ export function ClaudeWidget() {
             aria-label="Model & effort"
             className={cn(
               'flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] transition-colors',
-              panel === 'model' ? 'bg-th-elevated text-th-hi' : 'text-th-ghost hover:text-th-hi hover:bg-th-elevated/60',
+              panel === 'model' ? 'bg-th-elevated text-th-hi' : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated/60',
             )}
           >
             <SlidersHorizontal size={10} />
@@ -880,7 +880,7 @@ export function ClaudeWidget() {
             aria-label="Usage"
             className={cn(
               'flex items-center justify-center w-5 h-5 rounded-md transition-colors',
-              panel === 'usage' ? 'bg-th-elevated text-th-hi' : 'text-th-ghost hover:text-th-hi hover:bg-th-elevated/60',
+              panel === 'usage' ? 'bg-th-elevated text-th-hi' : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated/60',
             )}
           >
             <PieChart size={11} />

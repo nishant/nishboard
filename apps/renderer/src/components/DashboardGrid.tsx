@@ -31,8 +31,8 @@ import { DiscordWidget, DiscordActions } from '../widgets/discord/DiscordWidget'
 import { TITLEBAR_H } from './Titlebar';
 import { WIDGET_TITLES } from '../lib/layouts';
 import type { WidgetId } from '../lib/layouts';
-import { cn } from '../lib/utils';
 import { HeaderAction } from './HeaderAction';
+import { cn } from '@nish/ui';
 
 const GridLayout = WidthProvider(ReactGridLayout);
 
@@ -83,8 +83,8 @@ function PopoutAction({ id }: { id: WidgetId }) {
 function PoppedPlaceholder({ id }: { id: WidgetId }) {
   return (
     <div className="h-full flex flex-col items-center justify-center gap-3 p-4">
-      <ExternalLink size={18} className="text-th-ghost" />
-      <p className="text-th-ghost text-xs">Popped out</p>
+      <ExternalLink size={18} className="text-th-hi3" />
+      <p className="text-th-hi3 text-xs">Popped out</p>
       <button
         onClick={() => window.electron?.popout?.close(id)}
         className="px-3 py-1.5 rounded-full bg-th-elevated hover:bg-th-overlay text-th-hi text-[11px] transition-colors"

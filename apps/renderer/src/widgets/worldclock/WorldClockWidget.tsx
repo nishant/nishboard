@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { useWorldClockStore } from '../../store/worldClockStore';
 import { useAppSettingsStore } from '../../store/settingsStore';
-import { cn } from '../../lib/utils';
 import { hourFormat } from '../../lib/time';
-import { EmptyState } from '../../components/EmptyState';
+import { EmptyState, cn } from '@nish/ui';
+import { tk } from '../../lib/tokens';
 
 const COMMON_ZONES: { tz: string; label: string }[] = [
   { tz: 'Pacific/Honolulu', label: 'Honolulu' },
@@ -73,15 +73,15 @@ function AnalogClock({ tz, now, size = 56 }: { tz: string; now: Date; size?: num
   };
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <circle cx={c} cy={c} r={c - 1} fill="rgb(var(--t-elevated))" stroke="rgb(var(--t-line))" strokeWidth="1.5" />
+      <circle cx={c} cy={c} r={c - 1} fill={tk('elevated')} stroke={tk('line-strong')} strokeWidth="1.5" />
       {Array.from({ length: 12 }, (_, i) => {
         const a = (i * 30 - 90) * (Math.PI / 180);
-        return <circle key={i} cx={c + (c - 4) * Math.cos(a)} cy={c + (c - 4) * Math.sin(a)} r={i % 3 === 0 ? 1.3 : 0.7} fill="rgb(var(--t-ghost))" />;
+        return <circle key={i} cx={c + (c - 4) * Math.cos(a)} cy={c + (c - 4) * Math.sin(a)} r={i % 3 === 0 ? 1.3 : 0.7} fill={tk('hi3')} />;
       })}
-      {hand((h % 12) * 30 + m * 0.5, c * 0.5, 2, 'rgb(var(--t-hi))', 'h')}
-      {hand(m * 6 + s * 0.1, c * 0.72, 1.5, 'rgb(var(--t-2))', 'm')}
-      {hand(s * 6, c * 0.8, 0.8, 'rgb(var(--t-accent))', 's')}
-      <circle cx={c} cy={c} r={1.6} fill="rgb(var(--t-accent))" />
+      {hand((h % 12) * 30 + m * 0.5, c * 0.5, 2, tk('hi'), 'h')}
+      {hand(m * 6 + s * 0.1, c * 0.72, 1.5, tk('hi2'), 'm')}
+      {hand(s * 6, c * 0.8, 0.8, tk('accent'), 's')}
+      <circle cx={c} cy={c} r={1.6} fill={tk('accent')} />
     </svg>
   );
 }
@@ -100,7 +100,7 @@ function ClockList({
   const now = new Date();
 
   if (zones.length === 0) {
-    return <EmptyState message="No clocks — add one" />;
+    return <EmptyState compact title="No clocks — add one" />;
   }
 
   if (view === 'digital') {
@@ -110,11 +110,11 @@ function ClockList({
           <div key={tz} className="group flex items-center gap-2 px-1.5 py-1 rounded hover:bg-th-elevated/50">
             <div className="flex flex-col min-w-0">
               <span className="text-th-hi text-sm tabular-nums leading-tight">{digitalTime(tz, now, clock24h)}</span>
-              <span className="text-th-ghost text-[10px] truncate">{zoneLabel(tz)} · {dayLabel(tz, now)}</span>
+              <span className="text-th-hi3 text-[10px] truncate">{zoneLabel(tz)} · {dayLabel(tz, now)}</span>
             </div>
             <button
               onClick={() => removeZone(tz)}
-              className="ml-auto shrink-0 p-0.5 rounded text-th-ghost hover:text-red-400 opacity-0 group-hover:opacity-100 transition"
+              className="ml-auto shrink-0 p-0.5 rounded text-th-hi3 hover:text-th-loss opacity-0 group-hover:opacity-100 transition"
               title="Remove"
             >
               <X size={12} />
@@ -130,10 +130,10 @@ function ClockList({
       {zones.map((tz) => (
         <div key={tz} className="group relative flex flex-col items-center gap-0.5 w-full">
           <AnalogClock tz={tz} now={now} />
-          <span className="text-th-ghost text-[10px] truncate max-w-full">{zoneLabel(tz)}</span>
+          <span className="text-th-hi3 text-[10px] truncate max-w-full">{zoneLabel(tz)}</span>
           <button
             onClick={() => removeZone(tz)}
-            className="absolute top-0 right-0 p-0.5 rounded text-th-ghost hover:text-red-400 opacity-0 group-hover:opacity-100 transition"
+            className="absolute top-0 right-0 p-0.5 rounded text-th-hi3 hover:text-th-loss opacity-0 group-hover:opacity-100 transition"
             title="Remove"
           >
             <X size={11} />
@@ -159,7 +159,7 @@ export function WorldClockWidget() {
               onClick={() => setView(v)}
               className={cn(
                 'px-2 py-0.5 rounded text-[10px] capitalize transition-colors',
-                view === v ? 'bg-th-overlay text-th-hi' : 'text-th-ghost hover:text-th-2',
+                view === v ? 'bg-th-overlay text-th-hi' : 'text-th-hi3 hover:text-th-hi2',
               )}
             >
               {v}
@@ -169,7 +169,7 @@ export function WorldClockWidget() {
         <select
           value=""
           onChange={(e) => { if (e.target.value) addZone(e.target.value); }}
-          className="ml-auto bg-th-elevated border border-th-line rounded-lg px-2 py-1 text-[10px] text-th-2 focus:outline-none focus:border-th-3"
+          className="ml-auto bg-th-elevated border border-th-line rounded-lg px-2 py-1 text-[10px] text-th-hi2 focus:outline-none focus:border-th-hi3"
           title="Add timezone"
         >
           <option value="">+ Add</option>
