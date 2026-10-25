@@ -1,42 +1,53 @@
-export type ThemeId =
-  | 'midnight'
-  | 'slate'
-  | 'ocean'
-  | 'contrast'
-  | 'rose'
-  | 'forest'
-  | 'sunset'
-  | 'dracula'
-  | 'nord'
-  | 'solarized'
-  | 'crimson'
-  | 'mocha'
-  | 'neon'
-  | 'sandstorm'
-  | 'arctic'
-  | 'custom';
+import { PRESETS, type ThemeName } from '@nish/ui';
+import { APP_PRESETS, type AppPresetId } from './lib/appPresets';
+import { LEGACY_THEME_IDS } from './lib/legacyThemes';
+
+/** A theme choice: follow the OS, one of the shared @nish/ui themes, one of
+ *  Nishboard's own presets, or the user's Custom colors. */
+export type ThemeId = 'system' | ThemeName | AppPresetId | 'custom';
 
 export interface ThemeDef {
   id: ThemeId;
   name: string;
-  swatch: string; // preview dot color (plain CSS color, not a token)
+  /** Preview dot color (plain CSS color, not a token). */
+  swatch: string;
+  /** 'mode' = System / Light / Dark; 'preset' = everything else. */
+  kind: 'mode' | 'preset' | 'custom';
 }
 
-export const THEMES: ThemeDef[] = [
-  { id: 'midnight',  name: 'Midnight',  swatch: '#27272a' },
-  { id: 'slate',     name: 'Slate',     swatch: '#f1f5f9' },
-  { id: 'ocean',     name: 'Ocean',     swatch: '#0a2338' },
-  { id: 'contrast',  name: 'Contrast',  swatch: '#facc15' }, // yellow accent — distinct from dark bg themes
-  { id: 'rose',      name: 'Rose',      swatch: '#3f1c32' },
-  { id: 'forest',    name: 'Forest',    swatch: '#14261c' },
-  { id: 'sunset',    name: 'Sunset',    swatch: '#301a0f' },
-  { id: 'dracula',   name: 'Dracula',   swatch: '#bd93f9' }, // purple accent — clearly distinct from Midnight
-  { id: 'nord',      name: 'Nord',      swatch: '#88c0d0' }, // frost cyan — clearly distinct from Midnight
-  { id: 'solarized', name: 'Solarized', swatch: '#fdf6e3' },
-  { id: 'crimson',   name: 'Crimson',   swatch: '#2e1014' },
-  { id: 'mocha',     name: 'Mocha',     swatch: '#32271e' },
-  { id: 'neon',      name: 'Neon',      swatch: '#1a142c' },
-  { id: 'sandstorm', name: 'Sandstorm', swatch: '#f5f0e6' },
-  { id: 'arctic',    name: 'Arctic',    swatch: '#f0f7ff' },
-  { id: 'custom',    name: 'Custom',    swatch: '#52525b' }, // placeholder; overridden dynamically
+const shared = (id: ThemeName) => PRESETS.find((p) => p.id === id)!;
+
+/** System / Light / Dark — the segmented control in the Themes menu and Settings. */
+export const THEME_MODES: ThemeDef[] = [
+  { id: 'system', name: 'System', swatch: `linear-gradient(135deg, ${shared('light').colors.bg} 50%, ${shared('dark').colors.bg} 50%)`, kind: 'mode' },
+  { id: 'light', name: 'Light', swatch: shared('light').colors.bg, kind: 'mode' },
+  { id: 'dark', name: 'Dark', swatch: shared('dark').colors.bg, kind: 'mode' },
 ];
+
+/** Every named preset: the shared ones first, then Nishboard's own. */
+export const THEME_PRESETS: ThemeDef[] = [
+  ...PRESETS.filter((p) => p.id !== 'dark' && p.id !== 'light').map(
+    (p): ThemeDef => ({ id: p.id, name: p.label, swatch: p.colors.accent, kind: 'preset' }),
+  ),
+  ...APP_PRESETS.map((p): ThemeDef => ({ id: p.id, name: p.name, swatch: p.swatch, kind: 'preset' })),
+];
+
+/** Its swatch is the user's background color; this one only shows before they pick. */
+export const CUSTOM_THEME: ThemeDef = { id: 'custom', name: 'Custom', swatch: shared('dark').colors.overlay, kind: 'custom' };
+
+export const THEMES: ThemeDef[] = [...THEME_MODES, ...THEME_PRESETS, CUSTOM_THEME];
+
+export const DEFAULT_THEME: ThemeId = 'dark';
+
+
+const KNOWN = new Set<string>(THEMES.map((t) => t.id));
+
+export function isThemeId(v: unknown): v is ThemeId {
+  return typeof v === 'string' && KNOWN.has(v);
+}
+
+/** Map a persisted pre-1 theme id to today's ids; unknown ids fall back to dark. */
+export function migrateThemeId(v: unknown): ThemeId {
+  const mapped = typeof v === 'string' ? (LEGACY_THEME_IDS[v] ?? v) : v;
+  return isThemeId(mapped) ? mapped : DEFAULT_THEME;
+}

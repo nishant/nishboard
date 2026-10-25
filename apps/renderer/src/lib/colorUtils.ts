@@ -1,3 +1,5 @@
+import { deriveThemeColors, hexToRgb, mixHex, schemeFor, toCssVars, type Scheme } from './themeVars';
+
 /** Parse '#rrggbb', '#rgb', or 'rgb(r,g,b)' → '#rrggbb' | null */
 export function parseHex(input: string): string | null {
   const s = input.trim();
@@ -22,59 +24,45 @@ export function parseHex(input: string): string | null {
   return null;
 }
 
-type Rgb = [number, number, number];
-
 /** '#rrggbb' → [r, g, b] */
-export function hexToArr(hex: string): Rgb {
-  const h = hex.replace('#', '');
-  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+export function hexToArr(hex: string): [number, number, number] {
+  return hexToRgb(hex);
 }
 
-/** [r,g,b] → 'r g b' CSS var triple */
-function triple(rgb: Rgb): string {
-  return rgb.join(' ');
+/** localStorage key the pre-paint init script reads the Custom theme from. */
+export const CUSTOM_VARS_KEY = 'dashboard-theme-custom-vars';
+
+export interface CustomThemeVars {
+  scheme: Scheme;
+  /** `--nish-*` → '#rrggbb' for every @nish/ui color role. */
+  vars: Record<string, string>;
 }
 
-/** '#rrggbb' → 'r g b' */
-function hex2triple(hex: string): string {
-  return triple(hexToArr(hex));
-}
-
-/** Linear mix; t=1 → fully fg */
-function mix(fg: Rgb, bg: Rgb, t: number): string {
-  return triple(fg.map((v, i) => Math.round(v * t + bg[i] * (1 - t))) as Rgb);
-}
-
-/** All 13 CSS var triples for the custom theme from 4 user colours. */
+/** The full @nish/ui color set for the Custom theme, from the user's 4 colors.
+ *  Light or dark follows the background; text tiers and the accent are nudged
+ *  only as far as readable contrast needs. Status colors (gains, losses,
+ *  warnings) come from the matching shared theme, so they stay recognizable. */
 export function buildCustomVars(
   primary: string,
   secondary: string,
   tertiary: string,
   textColor: string,
-): Record<string, string> {
-  const p  = hexToArr(primary);
-  const s  = hexToArr(secondary);
-  const tx = hexToArr(textColor);
-
-  return {
-    '--t-bg':           hex2triple(primary),
-    '--t-bar':          hex2triple(primary),
-    '--t-surface':      mix(s, p, 0.35),       // blend primary → secondary
-    '--t-elevated':     hex2triple(secondary),
-    '--t-overlay':      hex2triple(tertiary),
-    '--t-line':         hex2triple(tertiary),
-    '--t-hi':           hex2triple(textColor),
-    '--t-2':            mix(tx, p, 0.72),
-    '--t-3':            mix(tx, p, 0.50),
-    '--t-ghost':        mix(tx, p, 0.32),
-    '--t-accent':       hex2triple(secondary),
-    '--t-invert-bg':    hex2triple(textColor),
-    '--t-invert-text':  hex2triple(primary),
-  };
+): CustomThemeVars {
+  const scheme = schemeFor(primary);
+  const colors = deriveThemeColors({
+    scheme,
+    bg: primary,
+    surface: mixHex(secondary, primary, 0.35), // blend primary → secondary
+    elevated: secondary,
+    overlay: tertiary,
+    line: tertiary,
+    hi: textColor,
+    hi2: mixHex(textColor, primary, 0.72),
+    hi3: mixHex(textColor, primary, 0.5),
+    ghost: mixHex(textColor, primary, 0.32),
+    accent: secondary,
+    invertBg: textColor,
+    invertText: primary,
+  });
+  return { scheme, vars: toCssVars(colors) };
 }
-
-export const CUSTOM_VAR_KEYS = [
-  '--t-bg', '--t-bar', '--t-surface', '--t-elevated', '--t-overlay',
-  '--t-line', '--t-hi', '--t-2', '--t-3', '--t-ghost',
-  '--t-accent', '--t-invert-bg', '--t-invert-text',
-] as const;
