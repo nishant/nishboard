@@ -75,7 +75,7 @@ Everything lives on a **draggable, resizable grid** (react-grid-layout) with bui
 | Layer | Tech |
 |---|---|
 | **Shell** | Electron 33 (frameless), TypeScript main process |
-| **Frontend** | React 18 · Vite · Tailwind CSS · shadcn/ui · Zustand · TanStack Query v5 · Recharts |
+| **Frontend** | React 19 · Vite 8 · Tailwind CSS 4 · @nish/ui · Zustand · TanStack Query v5 · Recharts 3 |
 | **Backend** | Fastify + TypeScript, spawned as a child process on `localhost:7432` |
 | **Monorepo** | Turborepo + pnpm workspaces |
 | **Language** | TypeScript everywhere, strict mode — no `any`, no untyped casts |
