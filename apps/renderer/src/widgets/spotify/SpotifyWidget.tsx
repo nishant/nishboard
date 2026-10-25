@@ -180,7 +180,7 @@ function ProgressBar({
         />
         <div className="w-full h-full rounded-full bg-th-overlay">
           <div
-            className="h-full rounded-full bg-th-hi group-hover:bg-th-ok transition-colors"
+            className="h-full rounded-full bg-th-hi group-hover:bg-th-ok-fill transition-colors"
             style={{ width: `${pct}%` }}
           />
         </div>
@@ -267,7 +267,7 @@ function DeviceBar({
         >
           <DeviceIcon type={dev.type} />
           <span className="max-w-[80px] truncate">{dev.name}</span>
-          {dev.isActive && <span className="w-1 h-1 rounded-full bg-th-ok shrink-0" />}
+          {dev.isActive && <span className="w-1 h-1 rounded-full bg-th-ok-fill shrink-0" />}
         </button>
       ))}
     </div>

@@ -66,7 +66,7 @@ function DeviceItem({
       <span
         className={[
           'h-1.5 w-1.5 rounded-full shrink-0',
-          device.isDefault ? 'bg-th-ok' : 'bg-th-ghost',
+          device.isDefault ? 'bg-th-ok-fill' : 'bg-th-ghost',
         ].join(' ')}
       />
       <span className="truncate">{device.name}</span>

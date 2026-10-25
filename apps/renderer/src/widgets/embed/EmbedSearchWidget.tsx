@@ -16,7 +16,7 @@ type View = 'home' | 'search';
 const CONTROL_BAR_H = 44;
 
 function LiveDot() {
-  return <span className="h-1.5 w-1.5 rounded-full bg-th-loss shrink-0 animate-pulse" />;
+  return <span className="h-1.5 w-1.5 rounded-full bg-th-loss-fill shrink-0 animate-pulse" />;
 }
 
 // ── Home screen ───────────────────────────────────────────────────────────────

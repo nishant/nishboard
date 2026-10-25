@@ -76,7 +76,7 @@ function CoreGrid({ coreUsage }: { coreUsage: number[] }) {
               className="w-full rounded-sm"
               style={{
                 height: `${load}%`,
-                backgroundColor: load >= 85 ? tk('loss') : load >= 60 ? tk('warn') : tk('chart-1'),
+                backgroundColor: load >= 85 ? tk('loss-fill') : load >= 60 ? tk('warn-fill') : tk('chart-1'),
                 transition: 'height 0.3s',
               }}
             />
@@ -208,7 +208,7 @@ const RamCard = memo(function RamCard({ ram, history, view }: { ram: HardwareDat
             <span>Swap</span>
             <span>{fmt(ram.swapUsedMb / 1024)} / {fmt(ram.swapTotalMb / 1024)} GB</span>
           </div>
-          <UsageBar pct={Math.round((ram.swapUsedMb / ram.swapTotalMb) * 100)} color={tk('warn')} />
+          <UsageBar pct={Math.round((ram.swapUsedMb / ram.swapTotalMb) * 100)} color={tk('warn-fill')} />
         </div>
       )}
     </Card>
@@ -229,19 +229,19 @@ const DiskCard = memo(function DiskCard({ disks, diskUsage, history, view }: {
     <Card>
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center gap-1.5">
-          <HardDrive size={12} className="text-th-chart-7" />
+          <HardDrive size={12} className="text-th-warn" />
           <span className="text-xs text-th-hi2 font-medium">Disk I/O</span>
         </div>
         <div className="flex gap-3 text-[10px] tabular-nums">
           <span className="text-th-chart-2">R {fmt(d.readMBs)} MB/s</span>
-          <span className="text-th-chart-7">W {fmt(d.writeMBs)} MB/s</span>
+          <span className="text-th-warn">W {fmt(d.writeMBs)} MB/s</span>
         </div>
       </div>
 
       {view === 'sparks' && (
         <div className="space-y-1">
           <Spark data={history.diskRead} color={tk('chart-2')} />
-          <Spark data={history.diskWrite} color={tk('chart-7')} />
+          <Spark data={history.diskWrite} color={tk('warn-fill')} />
         </div>
       )}
 
@@ -253,7 +253,7 @@ const DiskCard = memo(function DiskCard({ disks, diskUsage, history, view }: {
                 <span className="font-mono">{du.mount}</span>
                 <span>{fmt(du.usedGb, 0)} / {fmt(du.totalGb, 0)} GB · {du.usePercent}%</span>
               </div>
-              <UsageBar pct={du.usePercent} color={du.usePercent >= 85 ? tk('loss') : tk('chart-7')} />
+              <UsageBar pct={du.usePercent} color={du.usePercent >= 85 ? tk('loss-fill') : tk('warn-fill')} />
             </div>
           ))}
         </div>
@@ -311,7 +311,7 @@ const NetworkCard = memo(function NetworkCard({ network, history, view }: {
 
 const BatteryCard = memo(function BatteryCard({ battery }: { battery: NonNullable<HardwareData['battery']> }) {
   const Icon = battery.charging ? BatteryCharging : Battery;
-  const pctColor = battery.percent <= 20 ? tk('loss') : battery.percent <= 40 ? tk('warn') : tk('ok');
+  const pctColor = battery.percent <= 20 ? tk('loss-fill') : battery.percent <= 40 ? tk('warn-fill') : tk('ok-fill');
   const textColor = battery.percent <= 20 ? 'text-th-loss' : battery.percent <= 40 ? 'text-th-warn' : 'text-th-ok';
 
   return (

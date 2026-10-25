@@ -105,7 +105,7 @@ function StockDetailPanel({ ticker, onClose }: { ticker: string; onClose: () => 
   const first = bars[0]?.c ?? 0;
   const last = bars[bars.length - 1]?.c ?? 0;
   const up = last >= first;
-  const color = up ? tk('ok') : tk('loss');
+  const color = up ? tk('ok-fill') : tk('loss-fill');
   const gradId = `stk-${ticker}`;
   const rangeLabel = range === 'daily' ? 'Daily · ~2mo' : 'Intraday';
 
@@ -295,10 +295,10 @@ export function StocksWidget() {
   // No pulse: the dot marks the market session, not a live feed — prices
   // refresh on a 5-minute poll (deliberate; keeps Alpaca usage minimal).
   const sessionDot: Record<MarketSession, string> = {
-    open:         'bg-th-ok',
-    'after-hours': 'bg-th-warn',
-    'pre-market':  'bg-th-warn',
-    closed:       'bg-th-loss',
+    open:         'bg-th-ok-fill',
+    'after-hours': 'bg-th-warn-fill',
+    'pre-market':  'bg-th-warn-fill',
+    closed:       'bg-th-loss-fill',
   };
   const sessionLabel: Record<MarketSession, string> = {
     open:         'Market Open',

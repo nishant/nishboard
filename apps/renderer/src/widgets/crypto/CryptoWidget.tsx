@@ -20,7 +20,7 @@ function fmtPrice(n: number): string {
 
 function CoinCard({ coin }: { coin: CryptoCoinData }) {
   const up = coin.change24hPercent >= 0;
-  const color = up ? tk('ok') : tk('loss');
+  const color = up ? tk('ok-fill') : tk('loss-fill');
   const points = coin.sparkline7d.map((v) => ({ v }));
 
   return (

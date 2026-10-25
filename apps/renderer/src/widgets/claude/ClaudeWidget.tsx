@@ -236,8 +236,8 @@ function formatResetsIn(iso: string | null): string | null {
 }
 
 function usageBarColor(pct: number): string {
-  if (pct >= 90) return 'bg-th-loss';
-  if (pct >= 70) return 'bg-th-warn';
+  if (pct >= 90) return 'bg-th-loss-fill';
+  if (pct >= 70) return 'bg-th-warn-fill';
   return 'bg-th-accent';
 }
 

@@ -362,7 +362,7 @@ function MemberAvatar({ name, avatarUrl, size, speaking = false }: {
       className={cn(
         'shrink-0 rounded-full overflow-hidden flex items-center justify-center bg-th-elevated transition-shadow',
         // Green speaking ring — the whole point of the voice roster.
-        speaking && 'ring-2 ring-th-ok',
+        speaking && 'ring-2 ring-th-ok-fill',
       )}
       style={{ width: size, height: size }}
     >

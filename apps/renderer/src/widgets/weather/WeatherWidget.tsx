@@ -39,10 +39,10 @@ function formatSun(iso: string, clock24h: boolean): string {
 }
 
 const AQI_LEVELS = [
-  { max: 50,       label: 'Good',           dot: 'bg-th-ok' },
+  { max: 50,       label: 'Good',           dot: 'bg-th-ok-fill' },
   { max: 100,      label: 'Moderate',       dot: 'bg-th-amber' },
   { max: 150,      label: 'Unhealthy (SG)', dot: 'bg-th-chart-7' },
-  { max: 200,      label: 'Unhealthy',      dot: 'bg-th-loss' },
+  { max: 200,      label: 'Unhealthy',      dot: 'bg-th-loss-fill' },
   { max: 300,      label: 'Very unhealthy', dot: 'bg-th-violet' },
   { max: Infinity, label: 'Hazardous',      dot: 'bg-th-rose' },
 ] as const;
@@ -250,7 +250,7 @@ export function WeatherWidget() {
                   className="h-6 w-1 rounded-full bg-th-elevated overflow-hidden flex flex-col justify-end"
                   data-precip={h.precipChance}
                 >
-                  <span className="w-full bg-th-info/40" style={{ height: `${h.precipChance}%` }} />
+                  <span className="w-full bg-th-info-fill/40" style={{ height: `${h.precipChance}%` }} />
                 </span>
               </div>
             );
@@ -270,7 +270,7 @@ export function WeatherWidget() {
                 <WeatherIcon icon={dMeta.icon} className="w-4 h-4 text-th-hi2 shrink-0" />
                 <div className="flex-1 h-1 bg-th-elevated rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-th-info/40 rounded-full"
+                    className="h-full bg-th-info-fill/40 rounded-full"
                     style={{ width: `${d.precipChance}%` }}
                   />
                 </div>
