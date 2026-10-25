@@ -24,12 +24,14 @@ function CoinCard({ coin }: { coin: CryptoCoinData }) {
   const points = coin.sparkline7d.map((v) => ({ v }));
 
   return (
-    <div className="bg-th-elevated/50 rounded-lg p-2.5 flex flex-col gap-1.5">
-      <div className="flex items-center gap-1.5 min-w-0">
+    // @container: in a small tile the change % wraps under the name instead of
+    // running past the card's right edge.
+    <div className="@container bg-th-elevated/50 rounded-lg p-2.5 flex flex-col gap-1.5 min-w-0">
+      <div className="flex items-center gap-x-1.5 gap-y-0.5 min-w-0 @max-[8rem]:flex-wrap">
         <img src={coin.image} alt="" className="w-4 h-4 rounded-full shrink-0" />
         <span className="text-th-hi text-xs font-medium truncate flex-1 min-w-0">{coin.name}</span>
         <span className="text-th-hi3 text-[10px] uppercase shrink-0">{coin.symbol}</span>
-        <span className={`flex items-center gap-0.5 text-[10px] tabular-nums shrink-0 ${up ? 'text-th-ok' : 'text-th-loss'}`}>
+        <span className={`flex items-center gap-0.5 text-[10px] tabular-nums shrink-0 @max-[8rem]:basis-full ${up ? 'text-th-ok' : 'text-th-loss'}`}>
           {up ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
           {up ? '+' : ''}{coin.change24hPercent.toFixed(2)}%
         </span>

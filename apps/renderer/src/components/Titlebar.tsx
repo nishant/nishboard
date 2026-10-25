@@ -81,15 +81,17 @@ export function Titlebar() {
     >
       {/* Left: brand + pinned layouts (inline when wide, dropdown when compact) */}
       <div className="flex items-center gap-1.5 min-w-0">
-        <span className="text-th-hi3 text-[11px] font-semibold tracking-[0.2em] uppercase shrink-0">
+        <span className="text-th-hi3 text-[11px] font-semibold tracking-[0.2em] uppercase shrink-0 max-[520px]:hidden">
           nishboard
         </span>
         {compact ? <PinnedLayoutsMenu /> : <InlinePinnedLayouts />}
       </div>
 
-      {/* Center: clock — absolute so it's always perfectly centred */}
-      <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none">
-        <span className="text-th-hi3 text-[11px] tabular-nums">
+      {/* Center: clock — absolute so it's always perfectly centred. In a popout-
+          narrow window there is no room for that: the brand hides and the clock
+          joins the row, so it can never sit under the menu buttons. */}
+      <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none max-[520px]:static max-[520px]:translate-x-0 max-[520px]:flex-1 max-[520px]:min-w-0 max-[520px]:px-2 max-[520px]:text-center max-[520px]:truncate">
+        <span className="text-th-hi3 text-[11px] tabular-nums whitespace-nowrap">
           {clock}{showTempInClock && temp != null ? ` · ${temp}°` : ''}
         </span>
       </div>
