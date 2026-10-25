@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { DEFAULT_THEME, isThemeId, migrateThemeId, type ThemeId } from '../themes';
+import { isThemeId, migrateThemeId, type ThemeId } from '../themes';
 
 export interface CustomColors {
   primary:   string; // '#rrggbb' — page background
@@ -44,13 +44,15 @@ interface ThemeState {
 }
 
 /** First run (nothing saved yet): adopt a choice already made through @nish/ui
- *  (`nish-theme`), else the dark default. */
+ *  (`nish-theme`), else follow the OS ('system'), which is also what the pre-paint
+ *  script shows, so a fresh install never flips light → dark on load. A saved
+ *  choice always wins over this (persist rehydrates over it). */
 function initialTheme(): ThemeId {
   try {
     const shared = localStorage.getItem('nish-theme');
-    return isThemeId(shared) ? shared : DEFAULT_THEME;
+    return isThemeId(shared) ? shared : 'system';
   } catch {
-    return DEFAULT_THEME;
+    return 'system';
   }
 }
 

@@ -48,9 +48,16 @@ describe('dashboard-theme v0 → v1 migration (themes moved onto @nish/ui)', () 
     expect(store.getState().theme).toBe('light');
   });
 
-  it('defaults to dark with nothing saved', async () => {
+  it('follows the OS with nothing saved', async () => {
     const store = await loadStore();
-    expect(store.getState().theme).toBe('dark');
+    expect(store.getState().theme).toBe('system');
+  });
+
+  it.each(['dark', 'light', 'rose', 'custom'])('keeps a saved v1 %s', async (theme) => {
+    seed(theme, 1);
+    localStorage.setItem('nish-theme', 'system');
+    const store = await loadStore();
+    expect(store.getState().theme).toBe(theme);
   });
 });
 

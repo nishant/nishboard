@@ -37,6 +37,8 @@ export const CUSTOM_THEME: ThemeDef = { id: 'custom', name: 'Custom', swatch: sh
 
 export const THEMES: ThemeDef[] = [...THEME_MODES, ...THEME_PRESETS, CUSTOM_THEME];
 
+/** Where an unknown saved (v0) id lands. A fresh install starts on 'system'
+ *  instead (store/themeStore.ts). */
 export const DEFAULT_THEME: ThemeId = 'dark';
 
 
