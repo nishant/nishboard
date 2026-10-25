@@ -7,8 +7,8 @@ import path from 'path';
 export default defineConfig({
   resolve: {
     alias: {
-      '@dash/shared': path.resolve(__dirname, '../../packages/shared/src/index.ts'),
-      '@': path.resolve(__dirname, './src'),
+      '@dash/shared': path.resolve(import.meta.dirname, '../../packages/shared/src/index.ts'),
+      '@': path.resolve(import.meta.dirname, './src'),
     },
   },
   test: {
