@@ -61,8 +61,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared
       '@nish/ui':
-        specifier: github:nishant/ui#v0.1.0
-        version: https://codeload.github.com/nishant/ui/tar.gz/600cd5c89931d1fabbaf799601d7b8f8557ab0e4(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        specifier: github:nishant/ui#v0.1.1
+        version: https://codeload.github.com/nishant/ui/tar.gz/7a9501cc084007a6f06ad39630c055d34f706e40(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@tanstack/react-query':
         specifier: ^5.62.0
         version: 5.100.14(react@19.3.1)
@@ -747,12 +747,17 @@ packages:
     resolution: {integrity: sha512-9QOtNffcOF/c1seMCDnjckb3R9WHcG34tky+FHpNKKCW0wc/scYLwMtO+ptyGUfMW0/b/n4qRiALlaFHc9Oj7Q==}
     engines: {node: '>= 10.0.0'}
 
-  '@nish/ui@https://codeload.github.com/nishant/ui/tar.gz/600cd5c89931d1fabbaf799601d7b8f8557ab0e4':
-    resolution: {gitHosted: true, tarball: https://codeload.github.com/nishant/ui/tar.gz/600cd5c89931d1fabbaf799601d7b8f8557ab0e4}
-    version: 0.1.0
+  '@nish/ui@https://codeload.github.com/nishant/ui/tar.gz/7a9501cc084007a6f06ad39630c055d34f706e40':
+    resolution: {gitHosted: true, integrity: sha512-A5esWUAqarlDz3k+PCV5rYGUZkckRSAVa7T5tY2rTfQEr4u6REV8YkWLKjElsNNXCJsJhodc8Tqbx3ZRITtPAQ==, tarball: https://codeload.github.com/nishant/ui/tar.gz/7a9501cc084007a6f06ad39630c055d34f706e40}
+    version: 0.1.1
     peerDependencies:
       react: '>=19'
       react-dom: '>=19'
+    peerDependenciesMeta:
+      react:
+        optional: true
+      react-dom:
+        optional: true
 
   '@npmcli/fs@2.1.2':
     resolution: {integrity: sha512-yOJKRvohFOaLqipNtwYB9WugyZKhC/DZC4VYPmpaCzDBrA8YpK3qHZ8/HGscMnE4GqbkLNuVcCnxkeQEdGt6LQ==}
@@ -4701,12 +4706,13 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@nish/ui@https://codeload.github.com/nishant/ui/tar.gz/600cd5c89931d1fabbaf799601d7b8f8557ab0e4(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
+  '@nish/ui@https://codeload.github.com/nishant/ui/tar.gz/7a9501cc084007a6f06ad39630c055d34f706e40(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
       clsx: 2.1.1
+      tailwind-merge: 3.7.0
+    optionalDependencies:
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
-      tailwind-merge: 3.7.0
 
   '@npmcli/fs@2.1.2':
     dependencies:

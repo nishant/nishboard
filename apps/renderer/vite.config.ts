@@ -20,13 +20,7 @@ function themeInit(): Plugin {
     name: 'nishboard-theme-init',
     transformIndexHtml() {
       const schemes = JSON.stringify(Object.fromEntries(PRESETS.map((p) => [p.id, p.scheme])));
-      // @nish/ui v0.1.0 ships `var THEMES = __THEMES__;` unreplaced (its build
-      // replaced the first occurrence, in a comment), which throws before the
-      // theme is applied. Fill it in here until the package is fixed.
-      const shared = readFileSync(require.resolve('@nish/ui/theme-init.js'), 'utf8').replace(
-        /var THEMES = __THEMES__;/,
-        `var THEMES = ${schemes};`,
-      );
+      const shared = readFileSync(require.resolve('@nish/ui/theme-init.js'), 'utf8');
       const app = readFileSync(path.resolve(import.meta.dirname, 'src/theme-init-app.js'), 'utf8')
         .replace('__NISH__', schemes)
         .replace('__APP__', JSON.stringify(Object.fromEntries(APP_PRESETS.map((p) => [p.id, p.base.scheme]))))
