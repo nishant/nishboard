@@ -5,6 +5,7 @@ import type { AlertRule, AlertRuleKind, NewAlertRule } from '../../store/alertsS
 import { useStocksStore } from '../../store/stocksStore';
 import { useCryptoStore } from '../../store/cryptoStore';
 import { cn } from '@nish/ui';
+import { Switch } from './controls';
 
 const KIND_LABELS: Record<AlertRuleKind, string> = {
   'stock-price': 'Stock price',
@@ -49,22 +50,7 @@ function RuleRow({ rule }: { rule: AlertRule }) {
 
   return (
     <div className="flex items-center gap-2.5 group">
-      <button
-        role="switch"
-        aria-checked={rule.enabled}
-        onClick={() => toggleRule(rule.id)}
-        className={cn(
-          'relative w-7 h-4 rounded-full transition-colors shrink-0',
-          rule.enabled ? 'bg-th-accent' : 'bg-th-overlay',
-        )}
-      >
-        <span
-          className={cn(
-            'absolute top-0.5 left-0.5 w-3 h-3 rounded-full transition-transform shadow-card',
-            rule.enabled ? 'translate-x-3 bg-th-on-accent dark:bg-th-hi' : 'bg-th-hi2',
-          )}
-        />
-      </button>
+      <Switch size="sm" checked={rule.enabled} onChange={() => toggleRule(rule.id)} />
       <div className="flex flex-col min-w-0 flex-1">
         <span className={cn('text-[11px] truncate', rule.enabled ? 'text-th-hi' : 'text-th-hi3')}>
           {describeRule(rule)}

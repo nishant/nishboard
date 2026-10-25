@@ -4,6 +4,45 @@ import { cn } from '@nish/ui';
 // Shared Settings row controls, extracted from SettingsModal so panels in
 // other files (Alerts tab, weather notify row) can reuse them.
 
+/** On/off switch. Off: a light knob on a neutral track in every theme (a dark
+ *  knob read as "on" in light themes). On: accent track, knob slid right. */
+export function Switch({
+  checked,
+  onChange,
+  size = 'md',
+  className,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  size?: 'sm' | 'md';
+  className?: string;
+}) {
+  const sm = size === 'sm';
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={cn(
+        'relative rounded-full transition-colors shrink-0',
+        sm ? 'w-7 h-4' : 'w-9 h-5',
+        checked ? 'bg-th-accent' : 'bg-th-line-strong',
+        className,
+      )}
+    >
+      <span
+        className={cn(
+          'absolute top-0.5 left-0.5 rounded-full transition-transform shadow-card',
+          sm ? 'w-3 h-3' : 'w-4 h-4',
+          checked && (sm ? 'translate-x-3' : 'translate-x-4'),
+          checked ? 'bg-th-on-accent dark:bg-th-hi' : 'bg-th-surface dark:bg-th-hi2',
+        )}
+      />
+    </button>
+  );
+}
+
 export function ToggleRow({
   label,
   description,
@@ -17,22 +56,7 @@ export function ToggleRow({
 }) {
   return (
     <div className="flex items-start gap-3">
-      <button
-        role="switch"
-        aria-checked={checked}
-        onClick={() => onChange(!checked)}
-        className={cn(
-          'relative w-9 h-5 rounded-full transition-colors shrink-0 mt-0.5',
-          checked ? 'bg-th-accent' : 'bg-th-overlay',
-        )}
-      >
-        <span
-          className={cn(
-            'absolute top-0.5 left-0.5 w-4 h-4 rounded-full transition-transform shadow-card',
-            checked ? 'translate-x-4 bg-th-on-accent dark:bg-th-hi' : 'bg-th-hi2',
-          )}
-        />
-      </button>
+      <Switch checked={checked} onChange={onChange} className="mt-0.5" />
       <div className="flex flex-col">
         <span className="text-th-hi text-[11px]">{label}</span>
         {description && (
