@@ -4,6 +4,19 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #131] fix: @nish/ui v0.2.4 (wrapping dialog titles, 44px toast dismiss on touch)
+
+**Branch:** `fix/nish-ui-0.2.4` → `master`
+**Date:** 2026-10-25
+
+### Fixed
+- `@nish/ui` `v0.2.3` → `v0.2.4`. `Modal` titles (Settings, delete confirmation) wrap to two lines instead of cutting off after one, and the toast's Dismiss button is 44px on touch screens (it was 30px).
+
+### Notes
+- The release also adds `Textarea`, `Checkbox`, a `Modal` `subtitle` and a `Skeleton` `style`; none is adopted here, so this is a dependency bump only.
+
+---
+
 ## [PR #130] fix: @nish/ui v0.2.3 (theme switch reachable by keyboard while a preset is active)
 
 **Branch:** `fix/nish-ui-0.2.3` → `master`
