@@ -4,28 +4,25 @@ import tailwindcss from '@tailwindcss/vite';
 import { readFileSync } from 'fs';
 import { createRequire } from 'module';
 import path from 'path';
-import { PRESETS } from '@nish/ui/theme';
 import { APP_PRESETS } from './src/lib/appPresets.ts';
 import { LEGACY_THEME_IDS } from './src/lib/legacyThemes.ts';
 
 const require = createRequire(import.meta.url);
 
-/** Inlines @nish/ui's theme-init.js and Nishboard's own follow-up
- *  (src/theme-init-app.js) at the top of <head>, so the saved theme is on <html>
- *  before the first paint. Inline, not a file: the packaged app loads from
- *  file://, and a render-blocking inline script is the one thing that cannot
- *  arrive late. */
+/** Inlines Nishboard's prelude (src/theme-init-app.js: app-local theme ids on
+ *  window.__nishExtraThemes, the saved choice, Custom colors) and then @nish/ui's
+ *  theme-init.js at the top of <head>, so the saved theme is on <html> before the
+ *  first paint. Inline, not a file: the packaged app loads from file://, and a
+ *  render-blocking inline script is the one thing that cannot arrive late. */
 function themeInit(): Plugin {
   return {
     name: 'nishboard-theme-init',
     transformIndexHtml() {
-      const schemes = JSON.stringify(Object.fromEntries(PRESETS.map((p) => [p.id, p.scheme])));
-      const shared = readFileSync(require.resolve('@nish/ui/theme-init.js'), 'utf8');
       const app = readFileSync(path.resolve(import.meta.dirname, 'src/theme-init-app.js'), 'utf8')
-        .replace('__NISH__', schemes)
         .replace('__APP__', JSON.stringify(Object.fromEntries(APP_PRESETS.map((p) => [p.id, p.base.scheme]))))
         .replace('__LEGACY__', JSON.stringify(LEGACY_THEME_IDS));
-      return [{ tag: 'script', children: `${shared}\n${app}`, injectTo: 'head-prepend' }];
+      const shared = readFileSync(require.resolve('@nish/ui/theme-init.js'), 'utf8');
+      return [{ tag: 'script', children: `${app}\n${shared}`, injectTo: 'head-prepend' }];
     },
   };
 }

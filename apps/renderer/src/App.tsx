@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/reac
 import { Titlebar } from './components/Titlebar';
 import { DashboardGrid } from './components/DashboardGrid';
 import { DiscordHost } from './widgets/discord/DiscordHost';
-import { Toaster } from '@nish/ui';
+import { onThemeChange, Toaster } from '@nish/ui';
 import { CommandPalette } from './components/CommandPalette';
 import { AlertsEvaluator } from './components/AlertsEvaluator';
 import { WeatherAlertNotifier } from './components/WeatherAlertNotifier';
@@ -14,6 +14,7 @@ import { usePowerStore } from './store/powerStore';
 import { usePopoutStore } from './store/popoutStore';
 import { buildCustomVars } from './lib/colorUtils';
 import { applyAppTheme } from './lib/appTheme';
+import { isThemeId } from './themes';
 import { initAutoExport } from './lib/autoExport';
 
 const queryClient = new QueryClient({
@@ -91,9 +92,9 @@ export function ThemeManager() {
     document.documentElement.dataset.platform = window.electron?.platform ?? 'web';
   }, []);
 
-  // Shared themes go through @nish/ui (data-theme + nish-theme); app presets and
-  // Custom paint on top — see lib/appTheme.ts. The pre-paint init script already
-  // did this once; this keeps it in step with live changes.
+  // Every theme goes through @nish/ui (lib/appTheme.ts registers Nishboard's
+  // own). The pre-paint init script already applied the saved one; this keeps
+  // it in step with live changes.
   useLayoutEffect(() => {
     const custom =
       theme === 'custom'
@@ -102,14 +103,17 @@ export function ThemeManager() {
     applyAppTheme(theme, custom);
   }, [theme, customColors]);
 
-  // 'system' follows the OS live.
-  useEffect(() => {
-    if (theme !== 'system') return;
-    const mq = window.matchMedia('(prefers-color-scheme: light)');
-    const onChange = () => applyAppTheme('system');
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, [theme]);
+  // A choice made through @nish/ui directly (the mode switch, another window
+  // saving `nish-theme`) lands in the store, which stays the source of truth.
+  // 'system' following the OS is handled by @nish/ui's own watcher.
+  useEffect(
+    () =>
+      onThemeChange((choice) => {
+        const s = useThemeStore.getState();
+        if (choice !== s.theme && isThemeId(choice)) s.setTheme(choice);
+      }),
+    [],
+  );
 
   // Popouts are separate windows on the same origin: pick up a theme changed in
   // another window instead of keeping the one they opened with.

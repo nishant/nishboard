@@ -23,7 +23,7 @@ Every *.nish.software app now shares one theme package, `@nish/ui` (tokens, ligh
 - `dashboard-theme` store v0 → v1: `midnight` → `dark`, `slate` (light in Nishboard) → `light`, `ocean`/`contrast`/`mocha` → the shared presets of the same name, the other presets keep their ids, unknown → `dark`.
 
 ### Notes
-- `@nish/ui` v0.1.0's `dist/theme-init.js` ships `var THEMES = __THEMES__;` unreplaced; `vite.config.ts` fills it in until the package is fixed.
+- Nishboard's own presets and Custom are registered with `@nish/ui`'s `registerThemes` / `window.__nishExtraThemes` (v0.1.2), so the shared `theme-init.js` paints them before first paint; `src/theme-init-app.js` only feeds it the app ids, the store's saved choice (with the v0 id mapping) and the Custom colors.
 
 ---
 
