@@ -1,4 +1,4 @@
-import { cn } from '@nish/ui';
+import { cn, Segmented } from '@nish/ui';
 
 
 // Shared Settings row controls, extracted from SettingsModal so panels in
@@ -81,20 +81,7 @@ export function SegmentedRow<T extends string>({
   return (
     <div className="flex items-center gap-3">
       <span className="text-th-hi3 text-[11px] w-28 shrink-0">{label}</span>
-      <div className="flex rounded-lg bg-th-elevated p-0.5">
-        {options.map((o) => (
-          <button
-            key={o.value}
-            onClick={() => onChange(o.value)}
-            className={cn(
-              'px-2.5 py-1 rounded text-[10px] transition-colors',
-              value === o.value ? 'bg-th-overlay text-th-hi' : 'text-th-hi3 hover:text-th-hi2',
-            )}
-          >
-            {o.label}
-          </button>
-        ))}
-      </div>
+      <Segmented<T> label={label} value={value} options={options} onChange={onChange} />
     </div>
   );
 }
