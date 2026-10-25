@@ -4,6 +4,19 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #130] fix: @nish/ui v0.2.3 (theme switch reachable by keyboard while a preset is active)
+
+**Branch:** `fix/nish-ui-0.2.3` → `master`
+**Date:** 2026-10-25
+
+### Fixed
+- `@nish/ui` `v0.2.2` → `v0.2.3`. While a preset or Custom theme is active, none of System / Light / Dark is checked; `Segmented` used to take every option out of the Tab order then, so the theme switch was mouse-only (the follow-up noted in #129). It now keeps the first option as the Tab stop, and the arrow keys start from the ends.
+
+### Notes
+- Checked with Playwright against `vite preview` with the Rose preset active: one Tab from the Themes button lands on System, and ArrowRight selects it.
+
+---
+
 ## [PR #129] fix: @nish/ui v0.2.2 (clearer theme toggle, 44px dialog close on touch)
 
 **Branch:** `fix/nish-ui-0.2.2` → `master`
