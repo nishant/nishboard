@@ -221,7 +221,7 @@ export function CommandPalette() {
         </div>
       }
       footer={
-        <p className="text-th-hi3 text-3xs">
+        <p className="w-full text-th-hi3 text-3xs">
           ↑↓ navigate · Enter run · type &quot;timer 25m&quot;, &quot;task …&quot;, &quot;volume 40&quot;
         </p>
       }
