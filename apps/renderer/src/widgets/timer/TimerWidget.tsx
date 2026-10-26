@@ -4,8 +4,7 @@ import { useTimersStore } from '../../store/timersStore';
 import { useAppSettingsStore } from '../../store/settingsStore';
 import { fireAlert } from '../../lib/alerts';
 import { fmtDuration, relTimeUntil, hourFormat } from '../../lib/time';
-import { Card, EmptyState, IconButton, TabPanel, Tabs, cn } from '@nish/ui';
-import { Input } from '../../components/nishGaps';
+import { Card, EmptyState, IconButton, TabPanel, Tabs, cn, Input } from '@nish/ui';
 
 type Tab = 'timer' | 'alarm';
 

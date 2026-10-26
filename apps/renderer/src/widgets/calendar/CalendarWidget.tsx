@@ -3,8 +3,7 @@ import { LogIn, LogOut, X } from 'lucide-react';
 import type { CalendarEventData } from '@dash/shared';
 import { useElementSize } from '../../hooks/useElementSize';
 import { HeaderAction } from '../../components/HeaderAction';
-import { Button, EmptyState, IconButton, cn } from '@nish/ui';
-import { Input } from '../../components/nishGaps';
+import { Button, EmptyState, IconButton, cn, Input } from '@nish/ui';
 import {
   useCalendarAuthStatus, useCalendarConnect, useCalendarLogout,
   useCalendarEvents, useAddCalendarEvent,
@@ -168,7 +167,7 @@ function DayPanel({
     <div className="absolute inset-0 z-20 bg-th-surface/95 backdrop-blur-sm rounded-lg p-3 flex flex-col">
       <div className="flex items-center justify-between shrink-0 mb-2">
         <p className="text-xs font-semibold text-th-hi">{heading}</p>
-        <IconButton label="Close day view" size="xs" onClick={onClose} className="size-[22px] rounded">
+        <IconButton label="Close day view" size="2xs" onClick={onClose}>
           <X size={12} />
         </IconButton>
       </div>

@@ -5,8 +5,7 @@ import { WIDGET_CATEGORIES, WIDGET_TITLES } from '../../lib/layouts';
 import type { WidgetId } from '../../lib/layouts';
 import { orderedCategoryWidgets, useWidgetUiStore } from '../../store/widgetUiStore';
 import { useAppSettingsStore } from '../../store/settingsStore';
-import { Button, IconButton, Popover, cn, Label } from '@nish/ui';
-import { Input, menuRowClass } from '../nishGaps';
+import { Button, IconButton, Input, Popover, cn, Label, menuItemClass } from '@nish/ui';
 
 // WebkitAppRegion is a non-standard Electron CSS property missing from React's
 // CSSProperties — the cast is unavoidable.
@@ -52,12 +51,14 @@ export const MenuTrigger = forwardRef<HTMLButtonElement, {
 
 /** A titlebar menu panel: the shared Popover (portal, Escape, outside press,
  *  focus return), right-aligned under its trigger, dense, and outside the
- *  Electron drag region. */
+ *  Electron drag region. `dismissOnOutside={false}` keeps it open on outside
+ *  presses (Escape and Tab-out still close it). */
 export function MenuPopover({
-  open, onOpenChange, anchor, label, className, children,
+  open, onOpenChange, dismissOnOutside, anchor, label, className, children,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  dismissOnOutside?: boolean;
   anchor: RefObject<HTMLElement | null>;
   label: string;
   className?: string;
@@ -67,6 +68,7 @@ export function MenuPopover({
     <Popover
       open={open}
       onOpenChange={onOpenChange}
+      dismissOnOutside={dismissOnOutside}
       anchor={anchor}
       align="end"
       aria-label={label}
@@ -81,7 +83,7 @@ export function MenuPopover({
 export function SubmenuHeader({ label, onBack }: { label: string; onBack: () => void }) {
   return (
     <div className="flex items-center gap-1.5 px-3 pt-1 pb-2 border-b border-th-line">
-      <IconButton label="Back" size="xs" onClick={onBack} className="size-5 -ml-0.5">
+      <IconButton label="Back" size="2xs" onClick={onBack} className="-ml-0.5">
         <ArrowLeft size={12} />
       </IconButton>
       <Label className="text-3xs">{label}</Label>
@@ -102,10 +104,10 @@ function MoveButton({
   return (
     <IconButton
       label={direction === -1 ? 'Move up' : 'Move down'}
-      size="xs"
+      size="2xs"
       onClick={onMove}
       disabled={atBoundary}
-      className={cn('size-5', atBoundary ? 'opacity-0 pointer-events-none' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100')}
+      className={atBoundary ? 'opacity-0 pointer-events-none' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100'}
     >
       <Icon size={11} />
     </IconButton>
@@ -164,13 +166,10 @@ export function WidgetPinList({
                   />
                   <IconButton
                     label={`${visible ? unpinTitle : pinTitle}: ${WIDGET_TITLES[id]}`}
-                    size="xs"
+                    size="2xs"
                     onClick={() => (visible ? hideWidget(id) : showWidget(id))}
                     aria-pressed={visible}
-                    className={cn(
-                      'size-5',
-                      visible ? 'text-th-hi2 hover:text-th-loss' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100',
-                    )}
+                    className={visible ? 'text-th-hi2 hover:text-th-loss' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100'}
                   >
                     <Pin size={10} className={visible ? 'fill-current' : ''} />
                   </IconButton>
@@ -257,7 +256,7 @@ export function SavedItemRow({
       <button
         onClick={onApply}
         aria-current={active || undefined}
-        className={cn(menuRowClass(active), 'flex-1 w-auto px-2 rounded min-w-0')}
+        className={menuItemClass({ active, className: 'flex-1 w-auto px-2 rounded min-w-0 text-2xs' })}
       >
         {icon}
         <span className="truncate">{name}</span>
@@ -265,20 +264,20 @@ export function SavedItemRow({
       {onTogglePin && (
         <IconButton
           label={pinned ? 'Unpin from bar' : 'Pin to bar'}
-          size="xs"
+          size="2xs"
           onClick={onTogglePin}
           aria-pressed={pinned}
-          className={cn('size-5', pinned ? 'text-th-hi2 hover:text-th-loss' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100')}
+          className={pinned ? 'text-th-hi2 hover:text-th-loss' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100'}
         >
           <Pin size={10} className={pinned ? 'fill-current' : ''} />
         </IconButton>
       )}
       <IconButton
         label={`Delete "${name}"`}
-        size="xs"
+        size="2xs"
         tone="danger"
         onClick={onDelete}
-        className="size-5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
+        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
       >
         <X size={11} />
       </IconButton>

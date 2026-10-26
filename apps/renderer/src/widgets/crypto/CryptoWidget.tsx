@@ -7,8 +7,7 @@ import { ErrorState } from '../../components/ErrorState';
 import { HeaderAction } from '../../components/HeaderAction';
 import { RefreshAction } from '../../components/RefreshAction';
 import type { CryptoCoinData } from '@dash/shared';
-import { Card, EmptyState, IconButton, Modal, SkeletonLines, Sparkline, cn } from '@nish/ui';
-import { Input } from '../../components/nishGaps';
+import { Card, EmptyState, IconButton, Modal, SkeletonLines, Sparkline, cn, Input } from '@nish/ui';
 
 function fmtPrice(n: number): string {
   if (n >= 1000) return n.toLocaleString('en-US', { maximumFractionDigits: 0 });

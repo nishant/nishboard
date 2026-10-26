@@ -18,8 +18,9 @@ export function WidgetShell({ title, children, actions, className, collapsed = f
   // chevron is FIRST so its position is stable across widgets.
   const actionRow = (onToggleCollapse || actions) && (
     <div
-      // Hover-revealed action row — stays visible while any action has focus
-      className="ml-auto flex items-center gap-0.5 opacity-0 group-hover/wsh:opacity-100 focus-within:opacity-100 transition-opacity"
+      // Hover-revealed action row — stays visible while any action has focus.
+      // min-h-5.5 (22px) keeps the header at TITLEBAR_PX with 20px (2xs) actions.
+      className="ml-auto flex min-h-5.5 items-center gap-0.5 opacity-0 group-hover/wsh:opacity-100 focus-within:opacity-100 transition-opacity"
       style={{ cursor: 'default' }}
       onMouseDown={(e) => e.stopPropagation()}
     >

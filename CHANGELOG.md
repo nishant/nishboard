@@ -4,6 +4,29 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #133] refactor: @nish/ui v0.4.0 (shared pieces replace the local gap wrappers)
+
+**Branch:** `refactor/ds-ui-v0.4.0` → `master`
+**Date:** 2026-10-25
+
+### Context
+PR #132 covered seven things @nish/ui v0.3.0 lacked with thin local wrappers and reported them upstream. All seven shipped in @nish/ui v0.4.0 (gap round 1), so the wrappers go.
+
+### Changed
+- `@nish/ui` v0.3.0 → v0.4.0 (codeload tag); lockfile regenerated; `gen:themes` re-run (no change).
+- Input, Select, SearchInput and the Claude composer Textarea come straight from `@nish/ui`: v0.4.0 keys the 16px iOS rule on `pointer-coarse`, so the 420px popouts keep their dense field text without a wrapper.
+- Row-level icon buttons (menus, Launcher, Tasks, World Clock, Weather, Claude copy, Calendar day-view close) and `HeaderAction` use `IconButton size="2xs"` (20px) instead of `size-5` / `size-[22px]` overrides. WidgetShell's action row and the popout titlebar hold `min-h-5.5` (22px), so `TITLEBAR_PX` is unchanged.
+- Titlebar menu rows (Themes, Layouts, saved items) use `menuItemClass()`.
+- The custom-layout tile editor uses `Popover dismissOnOutside={false}` while it is open; the capture keydown/pointerdown listeners are gone. Escape and Tab-out still close it.
+- Hardware swap uses `Meter tone="neutral"`.
+- The Claude mode switch: Auto uses `SegmentedOption.tone="warn"` instead of a className override, and the three mode hints are `tip`s (a Tooltip on hover and keyboard focus) instead of `title`.
+- Timer and YouTube/Twitch browse tabs use `Tabs size="xs"`.
+
+### Removed
+- `components/nishGaps.tsx` (Input/Select/SearchInput wrappers, `menuRowClass`, `METER_NEUTRAL`).
+
+---
+
 ## [PR #132] feat: @nish/ui v0.3.0 shared components, menus and native theme sync
 
 **Branch:** `refactor/ds-adoption` → `master`

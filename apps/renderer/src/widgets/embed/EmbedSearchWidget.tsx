@@ -2,8 +2,7 @@ import { useState, useRef } from 'react';
 import { Search, X, ArrowLeft, ChevronRight, ListVideo } from 'lucide-react';
 import { useElementSize } from '../../hooks/useElementSize';
 import type { EmbedItem, EmbedFolder, EmbedFoldersState, EmbedServiceAdapter, EmbedBrowse, EmbedSearchState } from './types';
-import { Button, EmptyState, ErrorState, IconButton, SkeletonLines, StatusDot, Tabs } from '@nish/ui';
-import { SearchInput } from '../../components/nishGaps';
+import { Button, EmptyState, ErrorState, IconButton, SkeletonLines, StatusDot, Tabs, SearchInput } from '@nish/ui';
 
 // Stable no-op hooks so BrowseHome can call the (optional) folder hooks
 // unconditionally — the selection is fixed per adapter, so hook order is stable.
@@ -154,7 +153,7 @@ function BrowseHome({
         <Tabs
           label="Browse"
           variant="pill"
-          size="sm"
+          size="xs"
           value={tabId}
           onChange={setTabId}
           items={browse.tabs.map((t) => ({ value: t.id, label: t.label }))}

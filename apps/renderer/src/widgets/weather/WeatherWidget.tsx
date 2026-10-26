@@ -160,7 +160,7 @@ export function WeatherWidget() {
           <p className="text-th-hi2 text-sm mt-1">{meta.label}</p>
           <div className="flex items-center gap-0.5 mt-0.5">
             {multiLoc && (
-              <IconButton label="Previous location" size="xs" onClick={() => cycle(-1)} className="size-5">
+              <IconButton label="Previous location" size="2xs" onClick={() => cycle(-1)}>
                 <ChevronLeft size={12} />
               </IconButton>
             )}
@@ -169,7 +169,7 @@ export function WeatherWidget() {
               {multiLoc && <span className="ml-1 tabular-nums">{zipIdx % zips.length + 1}/{zips.length}</span>}
             </p>
             {multiLoc && (
-              <IconButton label="Next location" size="xs" onClick={() => cycle(1)} className="size-5">
+              <IconButton label="Next location" size="2xs" onClick={() => cycle(1)}>
                 <ChevronRight size={12} />
               </IconButton>
             )}

@@ -4,8 +4,7 @@ import { useAlertsStore, describeRule, DEFAULT_COOLDOWN_MIN } from '../../store/
 import type { AlertRule, AlertRuleKind, NewAlertRule } from '../../store/alertsStore';
 import { useStocksStore } from '../../store/stocksStore';
 import { useCryptoStore } from '../../store/cryptoStore';
-import { Button, EmptyState, Field, IconButton, Segmented, Switch, cn } from '@nish/ui';
-import { Input, Select } from '../nishGaps';
+import { Button, EmptyState, Field, IconButton, Segmented, Switch, cn, Input, Select } from '@nish/ui';
 
 const KIND_LABELS: Record<AlertRuleKind, string> = {
   'stock-price': 'Stock price',

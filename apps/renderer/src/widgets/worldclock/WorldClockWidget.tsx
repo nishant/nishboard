@@ -3,8 +3,7 @@ import { X } from 'lucide-react';
 import { useWorldClockStore } from '../../store/worldClockStore';
 import { useAppSettingsStore } from '../../store/settingsStore';
 import { hourFormat } from '../../lib/time';
-import { EmptyState, IconButton, Segmented } from '@nish/ui';
-import { Select } from '../../components/nishGaps';
+import { EmptyState, IconButton, Segmented, Select } from '@nish/ui';
 import { tk } from '../../lib/tokens';
 
 const COMMON_ZONES: { tz: string; label: string }[] = [
@@ -115,10 +114,10 @@ function ClockList({
             </div>
             <IconButton
               label={`Remove ${zoneLabel(tz)}`}
-              size="xs"
+              size="2xs"
               tone="danger"
               onClick={() => removeZone(tz)}
-              className="ml-auto size-5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
+              className="ml-auto opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
             >
               <X size={12} />
             </IconButton>
@@ -136,10 +135,10 @@ function ClockList({
           <span className="text-th-hi3 text-3xs truncate max-w-full">{zoneLabel(tz)}</span>
           <IconButton
             label={`Remove ${zoneLabel(tz)}`}
-            size="xs"
+            size="2xs"
             tone="danger"
             onClick={() => removeZone(tz)}
-            className="absolute top-0 right-0 size-5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
+            className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
           >
             <X size={11} />
           </IconButton>

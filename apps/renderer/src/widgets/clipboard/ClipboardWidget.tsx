@@ -5,8 +5,7 @@ import { HeaderAction } from '../../components/HeaderAction';
 import { toast } from '../../lib/alerts';
 import { relTimeAgo } from '../../lib/time';
 import type { ClipboardEntryData } from '@dash/shared';
-import { Badge, EmptyState } from '@nish/ui';
-import { SearchInput } from '../../components/nishGaps';
+import { Badge, EmptyState, SearchInput } from '@nish/ui';
 
 /** WidgetShell header actions: pause/resume capture + clear history. */
 export function ClipboardActions() {

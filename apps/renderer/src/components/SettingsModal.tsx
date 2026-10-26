@@ -16,8 +16,7 @@ import { AlertsPanel } from './settings/AlertsPanel';
 import { useOverlayStore } from '../store/overlayStore';
 import { useThemeStore } from '../store/themeStore';
 import { CUSTOM_THEME, THEMES, THEME_PRESETS } from '../themes';
-import { Badge, Button, Callout, Field, IconButton, Modal, SkeletonLines, Switch, TabPanel, Tabs, ThemeToggle, Tooltip, cn, Label } from '@nish/ui';
-import { Input, Select } from './nishGaps';
+import { Badge, Button, Callout, Field, IconButton, Modal, SkeletonLines, Switch, TabPanel, Tabs, ThemeToggle, Tooltip, cn, Label, Input, Select } from '@nish/ui';
 
 // Group defs by service
 const SERVICES = Array.from(new Set(CREDENTIAL_DEFS.map((d) => d.service)));

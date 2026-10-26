@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useMemo, memo } from 'react';
 import { Play, Plus, Music, Mic2, Check } from 'lucide-react';
-import { EmptyState, ErrorState, IconButton, Modal, Spinner, cn, Label } from '@nish/ui';
-import { SearchInput } from '../../components/nishGaps';
+import { EmptyState, ErrorState, IconButton, Modal, Spinner, cn, Label, SearchInput } from '@nish/ui';
 import {
   useDebouncedValue, useSpotifySearch, useDevices,
   usePlayTrack, useQueueTrack,

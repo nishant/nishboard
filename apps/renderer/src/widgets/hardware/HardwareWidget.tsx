@@ -11,7 +11,6 @@ import { useDragScroll } from '../../hooks/useDragScroll';
 import { fmtUptime } from '../../lib/time';
 import type { HardwareData } from '@dash/shared';
 import { Card, Checkbox, Meter, Segmented, SkeletonLines, Sparkline, Spinner, cn, type MeterTone, type SparklineTone, Label } from '@nish/ui';
-import { METER_NEUTRAL } from '../../components/nishGaps';
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -49,8 +48,8 @@ function Spark({ data, tone, label, max }: { data: number[]; tone: SparklineTone
 
 // ── Usage bar ────────────────────────────────────────────────────────────
 
-function UsageBar({ pct, tone, label, className }: { pct: number; tone: MeterTone; label: string; className?: string }) {
-  return <Meter value={pct} label={label} tone={tone} size="md" track="overlay" className={cn('h-2', className)} />;
+function UsageBar({ pct, tone, label }: { pct: number; tone: MeterTone; label: string }) {
+  return <Meter value={pct} label={label} tone={tone} size="md" track="overlay" className="h-2" />;
 }
 
 // ── Per-core mini bars ────────────────────────────────────────────────────
@@ -191,7 +190,7 @@ const RamCard = memo(function RamCard({ ram, history, view }: { ram: HardwareDat
             <span>Swap</span>
             <span>{fmt(ram.swapUsedMb / 1024)} / {fmt(ram.swapTotalMb / 1024)} GB</span>
           </div>
-          <UsageBar pct={Math.round((ram.swapUsedMb / ram.swapTotalMb) * 100)} tone="accent" label="Swap used" className={METER_NEUTRAL} />
+          <UsageBar pct={Math.round((ram.swapUsedMb / ram.swapTotalMb) * 100)} tone="neutral" label="Swap used" />
         </div>
       )}
     </Card>

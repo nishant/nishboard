@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@dash/shared": "workspace:*",
-    "@nish/ui": "https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v0.3.0",
+    "@nish/ui": "https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v0.4.0",
     "@tanstack/react-query": "^5.62.0",
     "lucide-react": "^1.16.0",
     "react": "^19.3.1",

@@ -35,7 +35,7 @@ export function PopoutShell({ widgetId }: { widgetId: WidgetId }) {
           <span className="text-3xs font-medium text-th-hi3 uppercase tracking-widest truncate">
             {WIDGET_TITLES[widgetId]}
           </span>
-          <div className="app-region-no-drag ml-auto flex items-center gap-0.5">
+          <div className="app-region-no-drag ml-auto flex min-h-5.5 items-center gap-0.5">
             {Actions && <Actions />}
             <HeaderAction
               title="Close popout"

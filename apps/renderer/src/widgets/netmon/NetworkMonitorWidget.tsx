@@ -7,8 +7,7 @@ import { HeaderAction } from '../../components/HeaderAction';
 import { RefreshAction } from '../../components/RefreshAction';
 import { useDragScroll } from '../../hooks/useDragScroll';
 import type { NetworkMonitorData, PingHostStats } from '@dash/shared';
-import { Button, Card, Meter, SkeletonLines, Sparkline, Spinner, cn, type MeterTone, type SparklineTone, Label } from '@nish/ui';
-import { Input } from '../../components/nishGaps';
+import { Button, Card, Meter, SkeletonLines, Sparkline, Spinner, cn, type MeterTone, type SparklineTone, Label, Input } from '@nish/ui';
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 

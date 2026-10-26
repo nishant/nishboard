@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { LayoutGrid, Pin, ArrowLeft, ChevronRight, Plus } from 'lucide-react';
 import { PRESETS } from '../../lib/layouts';
 import { useLayoutStore } from '../../store/layoutStore';
@@ -8,8 +8,7 @@ import {
   MenuPopover, MenuTrigger,
   SubmenuHeader, WidgetPinList, SaveAsForm, SavedItemRow, deleteBody,
 } from './primitives';
-import { ConfirmDialog, IconButton, cn } from '@nish/ui';
-import { menuRowClass } from '../nishGaps';
+import { ConfirmDialog, IconButton, cn, menuItemClass } from '@nish/ui';
 
 // ── Tile editor (pin/unpin + save) ────────────────────────────────────────────
 
@@ -34,7 +33,7 @@ function CustomLayoutEditor({
     <div className="px-3 py-2 flex flex-col gap-3">
       {/* Header */}
       <div className="flex items-center gap-1.5">
-        <IconButton label="Back" size="xs" onClick={onBack} className="size-5 -ml-0.5">
+        <IconButton label="Back" size="2xs" onClick={onBack} className="-ml-0.5">
           <ArrowLeft size={12} />
         </IconButton>
         <span className="text-th-hi text-2xs font-semibold">
@@ -108,27 +107,8 @@ export function LayoutsMenu({ compact }: { compact: boolean }) {
     setDeleteTarget(null);
   }
 
-  // The tile editor keeps the panel open while the dashboard grid is dragged
-  // and resized, so presses outside it are ignored there; Escape still closes.
-  // (Popover reports one close for Escape and outside presses alike: remember
-  // which key fired last.)
-  const escapeRef = useRef(false);
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { escapeRef.current = e.key === 'Escape'; };
-    const onDown = () => { escapeRef.current = false; };
-    document.addEventListener('keydown', onKey, true);
-    document.addEventListener('pointerdown', onDown, true);
-    return () => {
-      document.removeEventListener('keydown', onKey, true);
-      document.removeEventListener('pointerdown', onDown, true);
-    };
-  }, [open]);
-
   function handleOpenChange(next: boolean) {
-    if (next) return;
-    if (panel === 'editor' && !escapeRef.current) return;
-    handleClose();
+    if (!next) handleClose();
   }
 
   return (
@@ -147,6 +127,9 @@ export function LayoutsMenu({ compact }: { compact: boolean }) {
       <MenuPopover
         open={open}
         onOpenChange={handleOpenChange}
+        // The tile editor stays open while the dashboard grid is dragged and
+        // resized outside it; Escape (and Tab-out) still close it.
+        dismissOnOutside={panel !== 'editor'}
         anchor={triggerRef}
         label="Layouts"
         className={cn(panel !== 'list' && 'min-w-[220px]')}
@@ -162,16 +145,16 @@ export function LayoutsMenu({ compact }: { compact: boolean }) {
                     type="button"
                     onClick={() => { applyPreset(preset.name); handleClose(); }}
                     aria-current={activePreset === preset.name || undefined}
-                    className={cn(menuRowClass(activePreset === preset.name), 'flex-1 w-auto px-2 py-1 rounded')}
+                    className={menuItemClass({ active: activePreset === preset.name, className: 'flex-1 w-auto px-2 py-1 rounded text-2xs' })}
                   >
                     {preset.name}
                   </button>
                   <IconButton
                     label={pinned ? 'Unpin from bar' : 'Pin to bar'}
-                    size="xs"
+                    size="2xs"
                     aria-pressed={pinned}
                     onClick={() => (pinned ? unpinPreset(preset.name) : pinPreset(preset.name))}
-                    className={cn('size-5', pinned ? 'text-th-hi2 hover:text-th-loss' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100')}
+                    className={pinned ? 'text-th-hi2 hover:text-th-loss' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100'}
                   >
                     <Pin size={10} className={pinned ? 'fill-current' : ''} />
                   </IconButton>
@@ -184,7 +167,7 @@ export function LayoutsMenu({ compact }: { compact: boolean }) {
             <button
               type="button"
               onClick={() => setPanel('custom-list')}
-              className={menuRowClass(!!activeCustomLayoutId)}
+              className={menuItemClass({ active: !!activeCustomLayoutId, className: 'text-2xs' })}
             >
               <LayoutGrid size={11} className="shrink-0" />
               Custom
@@ -202,7 +185,7 @@ export function LayoutsMenu({ compact }: { compact: boolean }) {
             <button
               type="button"
               onClick={() => setPanel('editor')}
-              className={cn(menuRowClass(), 'mt-0.5')}
+              className={menuItemClass({ className: 'mt-0.5 text-2xs' })}
             >
               <Plus size={11} className="shrink-0" />
               Create new

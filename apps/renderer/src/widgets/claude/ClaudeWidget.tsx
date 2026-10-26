@@ -588,7 +588,7 @@ function MessageBubble({ msg, streaming }: { msg: ClaudeChatMessage; streaming: 
             {msg.durationMs !== undefined && <span>{(msg.durationMs / 1000).toFixed(1)}s</span>}
             {msg.outputTokens !== undefined && <span>· {formatTokens(msg.outputTokens)} tok</span>}
             {text && (
-              <IconButton label={copied ? 'Copied' : 'Copy response'} size="xs" onClick={copy} className="size-5">
+              <IconButton label={copied ? 'Copied' : 'Copy response'} size="2xs" onClick={copy}>
                 {copied ? <Check size={10} className="text-th-ok" /> : <Copy size={10} />}
               </IconButton>
             )}
@@ -602,9 +602,10 @@ function MessageBubble({ msg, streaming }: { msg: ClaudeChatMessage; streaming: 
 // ── Composer footer ───────────────────────────────────────────────────────────
 
 const MODES = [
-  { value: 'ask', label: 'Ask', title: 'Reads run freely — writes & commands ask you first' },
-  { value: 'auto', label: 'Auto', title: '⚠ Tools run autonomously (bypass permissions)' },
-  { value: 'plan', label: 'Plan', title: 'Research + a plan — approve it before changes' },
+  { value: 'ask', label: 'Ask', tip: 'Reads run freely — writes & commands ask you first' },
+  // Auto (bypass permissions) keeps the warn look while selected.
+  { value: 'auto', label: 'Auto', tip: '⚠ Tools run autonomously (bypass permissions)', tone: 'warn' },
+  { value: 'plan', label: 'Plan', tip: 'Research + a plan — approve it before changes' },
 ] as const;
 
 function ModeSwitch() {
@@ -616,13 +617,12 @@ function ModeSwitch() {
       size="xs"
       value={chatMode}
       onChange={setChatMode}
-      options={MODES.map((m) => ({ value: m.value, label: m.label, title: `${m.title} (shift+tab cycles)` }))}
-      // Auto (bypass permissions) keeps its warn look while selected. Local until
-      // Segmented options take a `tone` (ui gap).
-      className={cn(
-        chatMode === 'auto' &&
-          '[&>[aria-checked=true]]:bg-th-warn-soft [&>[aria-checked=true]]:text-th-warn [&>[aria-checked=true]]:ring-th-warn/40',
-      )}
+      options={MODES.map((m) => ({
+        value: m.value,
+        label: m.label,
+        tip: `${m.tip} (shift+tab cycles)`,
+        tone: 'tone' in m ? m.tone : undefined,
+      }))}
     />
   );
 }
@@ -807,7 +807,7 @@ export function ClaudeWidget() {
           }
           rows={2}
           spellCheck={false}
-          className="flex-1 resize-none text-xs"
+          className="flex-1 resize-none"
         />
         {isStreaming ? (
           <IconButton label="Stop" size="sm" variant="subtle" tone="danger" onClick={stop} className="text-th-loss">
