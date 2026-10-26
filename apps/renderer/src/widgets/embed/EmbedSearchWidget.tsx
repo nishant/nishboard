@@ -84,8 +84,8 @@ function FolderRow({ folder, onOpen }: { folder: EmbedFolder; onOpen: () => void
         </div>
       )}
       <div className="min-w-0 flex-1">
-        <p className="text-th-hi text-[11px] leading-snug line-clamp-2 font-medium">{folder.title}</p>
-        {folder.subtitle && <p className="text-th-hi3 text-[10px] mt-0.5 truncate">{folder.subtitle}</p>}
+        <p className="text-th-hi text-2xs leading-snug line-clamp-2 font-medium">{folder.title}</p>
+        {folder.subtitle && <p className="text-th-hi3 text-3xs mt-0.5 truncate">{folder.subtitle}</p>}
       </div>
       <ChevronRight size={13} className="text-th-hi3 shrink-0" />
     </button>
@@ -124,7 +124,7 @@ function BrowseHome({
           <IconButton label="Back" size="xs" onClick={() => onOpenFolder(null)}>
             <ArrowLeft size={12} />
           </IconButton>
-          <span className="text-th-hi2 text-[11px] font-medium truncate">{folder.title}</span>
+          <span className="text-th-hi2 text-2xs font-medium truncate">{folder.title}</span>
           <IconButton label={adapter.searchPlaceholder} size="xs" onClick={onSearch} className="ml-auto">
             <Search size={12} />
           </IconButton>
@@ -252,7 +252,7 @@ function ResultRow({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           {item.isLive && <LiveDot />}
-          <p className="text-th-hi text-[11px] leading-snug line-clamp-2 font-medium">{item.title}</p>
+          <p className="text-th-hi text-2xs leading-snug line-clamp-2 font-medium">{item.title}</p>
         </div>
         {channelClickable ? (
           <span
@@ -268,13 +268,13 @@ function ResultRow({
                 onOpenChannel!({ id: `channel:${item.channel!.id}`, title: item.channel!.title });
               }
             }}
-            className="inline-block text-th-hi3 text-[10px] mt-0.5 truncate max-w-full hover:text-th-hi hover:underline"
+            className="inline-block text-th-hi3 text-3xs mt-0.5 truncate max-w-full hover:text-th-hi hover:underline"
             title={`${item.channel!.title} — videos`}
           >
             {item.subtitle}
           </span>
         ) : (
-          <p className="text-th-hi3 text-[10px] mt-0.5 truncate">{item.subtitle}</p>
+          <p className="text-th-hi3 text-3xs mt-0.5 truncate">{item.subtitle}</p>
         )}
       </div>
     </button>
@@ -379,9 +379,9 @@ export function EmbedSearchWidget({ adapter }: { adapter: EmbedServiceAdapter })
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
                 {selectedItem.isLive && <LiveDot />}
-                <p className="text-th-hi text-[11px] font-medium truncate">{selectedItem.title}</p>
+                <p className="text-th-hi text-2xs font-medium truncate">{selectedItem.title}</p>
               </div>
-              <p className="text-th-hi3 text-[10px] truncate">{selectedItem.subtitle}</p>
+              <p className="text-th-hi3 text-3xs truncate">{selectedItem.subtitle}</p>
             </div>
             <IconButton label="Search" size="xs" onClick={() => setView('search')}>
               <Search size={13} />

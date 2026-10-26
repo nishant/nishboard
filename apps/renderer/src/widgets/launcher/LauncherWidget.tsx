@@ -7,7 +7,7 @@ import { useLauncherUiStore } from '../../store/launcherUiStore';
 import { HeaderAction } from '../../components/HeaderAction';
 import { toast } from '../../lib/alerts';
 import type { LauncherGroupData, LauncherItemData, LauncherStateData } from '@dash/shared';
-import { Button, Card, EmptyState, IconButton, Modal } from '@nish/ui';
+import { Button, Card, EmptyState, IconButton, Modal, Label } from '@nish/ui';
 import { Input, Select } from '../../components/nishGaps';
 
 const EMPTY_STATE: LauncherStateData = { groups: [], items: [] };
@@ -180,7 +180,7 @@ function EditModal({
 
           {groups.length > 0 && (
             <>
-              <p className="text-th-hi3 text-[10px] uppercase tracking-wider mt-2 mb-0.5">Groups</p>
+              <Label className="block text-3xs mt-2 mb-0.5">Groups</Label>
               {groups.map((g) => (
                 <Card key={g.id} variant="inset" padding="none" className="flex items-center gap-2 px-2.5 py-1 group">
                   {renamingId === g.id ? (
@@ -194,7 +194,7 @@ function EditModal({
                       {g.label}
                     </span>
                   )}
-                  <span className="text-th-hi3 text-[10px] shrink-0">
+                  <span className="text-th-hi3 text-3xs shrink-0">
                     {items.filter((it) => it.group === g.id).length} items
                   </span>
                   <IconButton
@@ -254,7 +254,7 @@ function EditModal({
             </IconButton>
           </div>
           <div className="flex items-center justify-between gap-2">
-            <p className="text-th-hi3 text-[10px] leading-relaxed">
+            <p className="text-th-hi3 text-3xs leading-relaxed">
               App paths stay in the main process — the dashboard launches by id.
             </p>
             <Button
@@ -298,7 +298,7 @@ function ItemGrid({ items }: { items: LauncherItemData[] }) {
           title={it.label}
         >
           <ItemIcon item={it} size={18} />
-          <span className="text-[10px] leading-tight truncate max-w-full">{it.label}</span>
+          <span className="text-3xs leading-tight truncate max-w-full">{it.label}</span>
         </button>
       ))}
     </div>
@@ -335,7 +335,7 @@ export function LauncherWidget() {
                   <button
                     onClick={() => toggleCollapsed(g.id)}
                     aria-expanded={!isCollapsed}
-                    className="flex items-center gap-1 text-th-hi3 hover:text-th-hi2 text-[10px] uppercase tracking-wider transition-colors min-w-0"
+                    className="flex items-center gap-1 text-th-hi3 hover:text-th-hi2 text-3xs uppercase tracking-wider transition-colors min-w-0"
                     title={isCollapsed ? 'Expand' : 'Collapse'}
                   >
                     {isCollapsed ? <ChevronRight size={11} className="shrink-0" /> : <ChevronDown size={11} className="shrink-0" />}

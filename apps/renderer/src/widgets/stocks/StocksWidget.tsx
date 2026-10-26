@@ -10,7 +10,7 @@ import { ErrorState } from '../../components/ErrorState';
 import { HeaderAction } from '../../components/HeaderAction';
 import { RefreshAction } from '../../components/RefreshAction';
 import type { StockQuote } from '@dash/shared';
-import { Card, IconButton, Modal, Skeleton, SkeletonLines, StatusDot, cardClass, cn, type StatusTone } from '@nish/ui';
+import { Card, IconButton, Modal, Skeleton, SkeletonLines, StatusDot, cardClass, cn, type StatusTone, Label } from '@nish/ui';
 import { Input } from '../../components/nishGaps';
 import { tk } from '../../lib/tokens';
 
@@ -119,7 +119,7 @@ function StockDetailPanel({ ticker, onClose }: { ticker: string; onClose: () => 
         <span className="font-mono font-bold text-th-hi text-sm">{ticker}</span>
         {bars.length > 0 && (
           <>
-            <span className="text-th-hi3 text-[10px] uppercase tracking-wider">{rangeLabel}</span>
+            <Label className="text-3xs">{rangeLabel}</Label>
             <span className={cn('ml-auto font-mono text-xs tabular-nums', up ? 'text-th-ok' : 'text-th-loss')}>
               {fmtPrice(last)}
             </span>
@@ -165,7 +165,7 @@ function StockDetailPanel({ ticker, onClose }: { ticker: string; onClose: () => 
 
         {/* News */}
         <div className="flex flex-col gap-2">
-          <span className="text-th-hi3 text-[10px] uppercase tracking-widest">Recent News</span>
+          <Label className="text-3xs tracking-widest">Recent News</Label>
           {isLoading ? null : news.length === 0 ? (
             <span className="text-th-hi3 text-xs">No recent news</span>
           ) : (
@@ -180,7 +180,7 @@ function StockDetailPanel({ ticker, onClose }: { ticker: string; onClose: () => 
                   {n.headline}
                   <ExternalLink className="w-2.5 h-2.5 shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition" />
                 </span>
-                <span className="text-th-hi3 text-[10px]">{n.source}{n.createdAt && ` · ${relTimeAgo(n.createdAt)}`}</span>
+                <span className="text-th-hi3 text-3xs">{n.source}{n.createdAt && ` · ${relTimeAgo(n.createdAt)}`}</span>
               </button>
             ))
           )}
@@ -245,7 +245,7 @@ function WatchlistModal({ onClose }: { onClose: () => void }) {
           ))}
         </div>
 
-        <p className="text-th-hi3 text-[10px]">
+        <p className="text-th-hi3 text-3xs">
           Note: US equities only (Alpaca IEX feed). Futures/crypto tickers not supported.
         </p>
       </div>
@@ -315,7 +315,7 @@ export function StocksWidget() {
 
       <div className="flex items-center px-3 py-1.5 border-b border-th-line shrink-0">
         <span
-          className="text-[10px] flex items-center gap-1.5 text-th-hi3"
+          className="text-3xs flex items-center gap-1.5 text-th-hi3"
           title="Prices refresh every 5 minutes"
         >
           <StatusDot tone={sessionTone[session]} size="xs" />

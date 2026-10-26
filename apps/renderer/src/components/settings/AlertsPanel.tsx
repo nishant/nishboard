@@ -36,7 +36,7 @@ function NumField({
         aria-label={label}
         className={cn(width, 'font-mono')}
       />
-      {suffix && <span className="text-th-hi3 text-[10px]" aria-hidden="true">{suffix}</span>}
+      {suffix && <span className="text-th-hi3 text-3xs" aria-hidden="true">{suffix}</span>}
     </div>
   );
 }
@@ -53,10 +53,10 @@ function RuleRow({ rule }: { rule: AlertRule }) {
     <div className="flex items-center gap-2.5 group">
       <Switch size="sm" checked={rule.enabled} onChange={() => toggleRule(rule.id)} aria-label={`Enable: ${describeRule(rule)}`} />
       <div className="flex flex-col min-w-0 flex-1">
-        <span className={cn('text-[11px] truncate', rule.enabled ? 'text-th-hi' : 'text-th-hi3')}>
+        <span className={cn('text-2xs truncate', rule.enabled ? 'text-th-hi' : 'text-th-hi3')}>
           {describeRule(rule)}
         </span>
-        <span className="text-th-hi3 text-[10px]">
+        <span className="text-th-hi3 text-3xs">
           {stranded ? (
             <span className="text-th-warn">not in watchlist — won't fire</span>
           ) : (
@@ -162,7 +162,7 @@ export function AlertsPanel() {
 
         {kind === 'stock-price' && (
           <div className="flex items-center gap-3">
-            <span className="text-th-hi3 text-[11px] w-28 shrink-0">Condition</span>
+            <span className="text-th-hi3 text-2xs w-28 shrink-0">Condition</span>
             <div className="flex items-center gap-2 flex-wrap">
               <Input
                 size="sm"
@@ -185,7 +185,7 @@ export function AlertsPanel() {
 
         {(kind === 'crypto-price' || kind === 'crypto-change') && (
           <div className="flex items-center gap-3">
-            <span className="text-th-hi3 text-[11px] w-28 shrink-0">Condition</span>
+            <span className="text-th-hi3 text-2xs w-28 shrink-0">Condition</span>
             <div className="flex items-center gap-2 flex-wrap">
               <Select size="sm" value={coinId} onChange={(e) => setCoinId(e.target.value)} aria-label="Coin" className="w-28">
                 {cryptoWatchlist.length === 0 && <option value="">— no coins —</option>}
@@ -205,17 +205,17 @@ export function AlertsPanel() {
 
         {kind === 'cpu-sustained' && (
           <div className="flex items-center gap-3">
-            <span className="text-th-hi3 text-[11px] w-28 shrink-0">Condition</span>
+            <span className="text-th-hi3 text-2xs w-28 shrink-0">Condition</span>
             <div className="flex items-center gap-2 flex-wrap">
               <NumField value={cpuPct} onChange={setCpuPct} placeholder="90" suffix="%" label="CPU percent" width="w-16" />
-              <span className="text-th-hi3 text-[10px]">for</span>
+              <span className="text-th-hi3 text-3xs">for</span>
               <NumField value={minutes} onChange={setMinutes} placeholder="5" suffix="min" label="Minutes sustained" width="w-16" />
             </div>
           </div>
         )}
 
         <div className="flex items-center gap-3">
-          <span className="text-th-hi3 text-[11px] w-28 shrink-0">Cooldown</span>
+          <span className="text-th-hi3 text-2xs w-28 shrink-0">Cooldown</span>
           <NumField value={cooldown} onChange={setCooldown} placeholder="30" suffix="min between fires" label="Cooldown in minutes" width="w-16" />
         </div>
 
@@ -226,7 +226,7 @@ export function AlertsPanel() {
           </Button>
         </div>
 
-        <p className="text-th-hi3 text-[10px] leading-relaxed">
+        <p className="text-th-hi3 text-3xs leading-relaxed">
           Alerts chime, toast, and send a native notification. They're edge-triggered — a rule
           fires when its condition becomes true, then re-arms once it's false again. Adding a
           stock alert also adds the ticker to the Stocks watchlist (rules only evaluate

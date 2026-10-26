@@ -87,12 +87,12 @@ function MonthView({
 
   return (
     <div className="flex flex-col min-w-0 min-h-0">
-      <p className={cn('text-[11px] font-semibold text-center mb-1.5 shrink-0', isCurrent ? 'text-th-hi' : 'text-th-hi3')}>
+      <p className={cn('text-2xs font-semibold text-center mb-1.5 shrink-0', isCurrent ? 'text-th-hi' : 'text-th-hi3')}>
         {label} {year}
       </p>
       <div className="grid grid-cols-7 shrink-0 mb-0.5">
         {DOW.map((d) => (
-          <span key={d} className="text-center text-[9px] font-medium text-th-hi3 uppercase tracking-wide">
+          <span key={d} className="text-center text-3xs font-medium text-th-hi3 uppercase tracking-wide">
             {d}
           </span>
         ))}
@@ -113,7 +113,7 @@ function MonthView({
                 if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onDayClick(iso); }
               }}
               className={cn(
-                'relative flex items-center justify-center text-[11px] h-6 rounded-full',
+                'relative flex items-center justify-center text-2xs h-6 rounded-full',
                 d === null ? 'invisible' :
                 isToday ? 'bg-th-invert-bg text-th-invert-text font-bold cursor-pointer' :
                 'text-th-hi2 cursor-pointer hover:bg-th-elevated',
@@ -187,13 +187,13 @@ function DayPanel({
         <>
           <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5">
             {allDay.map((e) => (
-              <div key={e.id} className="px-2 py-1 rounded bg-th-elevated text-[11px] text-th-hi">
+              <div key={e.id} className="px-2 py-1 rounded bg-th-elevated text-2xs text-th-hi">
                 {e.title}
                 {e.location && <span className="text-th-hi3 ml-1.5">{e.location}</span>}
               </div>
             ))}
             {timed.map((e) => (
-              <div key={e.id} className="flex items-baseline gap-1.5 px-0.5 text-[11px]">
+              <div key={e.id} className="flex items-baseline gap-1.5 px-0.5 text-2xs">
                 <span className="text-th-hi3 tabular-nums shrink-0">
                   {new Date(e.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>

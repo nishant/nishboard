@@ -111,7 +111,7 @@ function ClockList({
           <div key={tz} className="group flex items-center gap-2 px-1.5 py-1 rounded hover:bg-th-elevated">
             <div className="flex flex-col min-w-0">
               <span className="text-th-hi text-sm tabular-nums leading-tight">{digitalTime(tz, now, clock24h)}</span>
-              <span className="text-th-hi3 text-[10px] truncate">{zoneLabel(tz)} · {dayLabel(tz, now)}</span>
+              <span className="text-th-hi3 text-3xs truncate">{zoneLabel(tz)} · {dayLabel(tz, now)}</span>
             </div>
             <IconButton
               label={`Remove ${zoneLabel(tz)}`}
@@ -133,7 +133,7 @@ function ClockList({
       {zones.map((tz) => (
         <div key={tz} className="group relative flex flex-col items-center gap-0.5 w-full">
           <AnalogClock tz={tz} now={now} />
-          <span className="text-th-hi3 text-[10px] truncate max-w-full">{zoneLabel(tz)}</span>
+          <span className="text-th-hi3 text-3xs truncate max-w-full">{zoneLabel(tz)}</span>
           <IconButton
             label={`Remove ${zoneLabel(tz)}`}
             size="xs"

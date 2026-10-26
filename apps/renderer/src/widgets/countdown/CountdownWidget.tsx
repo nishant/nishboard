@@ -82,7 +82,7 @@ export function CountdownWidget() {
               <Card key={e.id} variant="inset" padding="none" className="group flex items-center gap-2 px-2 py-1.5">
                 <div className="flex flex-col flex-1 min-w-0">
                   <span className={cn('text-xs truncate', passed ? 'text-th-hi3' : 'text-th-hi')}>{e.label || 'Event'}</span>
-                  <span className="text-th-hi3 text-[10px] truncate">{fmtDate(e.at, clock24h)}</span>
+                  <span className="text-th-hi3 text-3xs truncate">{fmtDate(e.at, clock24h)}</span>
                 </div>
                 <span className={cn('text-sm tabular-nums shrink-0', passed ? 'text-th-warn' : 'text-th-hi')}>
                   {passed ? 'now' : fmtRemaining(remaining)}

@@ -167,7 +167,7 @@ function ProgressBar({
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-th-hi3 text-[10px] w-7 text-right tabular-nums">{fmtMs(localMs)}</span>
+      <span className="text-th-hi3 text-3xs w-7 text-right tabular-nums">{fmtMs(localMs)}</span>
       <div className="flex-1 relative h-1 group cursor-pointer">
         <input
           type="range" min={0} max={durationMs} value={localMs}
@@ -186,7 +186,7 @@ function ProgressBar({
           />
         </div>
       </div>
-      <span className="text-th-hi3 text-[10px] w-7 tabular-nums">{fmtMs(durationMs)}</span>
+      <span className="text-th-hi3 text-3xs w-7 tabular-nums">{fmtMs(durationMs)}</span>
     </div>
   );
 }
@@ -252,7 +252,7 @@ function DeviceBar({
   onSelect: (id: string) => void;
 }) {
   if (devices.length === 0) return (
-    <p className="text-th-warn text-[10px] px-3 pb-1.5">
+    <p className="text-th-warn text-3xs px-3 pb-1.5">
       Open Spotify on a device to enable playback
     </p>
   );
@@ -263,7 +263,7 @@ function DeviceBar({
           key={dev.id}
           onClick={() => onSelect(dev.id)}
           className={cn(
-            'flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border transition-colors',
+            'flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs border transition-colors',
             selectedId === dev.id
               ? 'bg-th-ok-soft border-th-ok/40 text-th-ok'
               : 'bg-th-elevated border-th-line text-th-hi2 hover:text-th-hi',
@@ -321,7 +321,7 @@ function PlaylistRow({
       {/* Name + count — click opens track list */}
       <button onClick={onOpen} className="min-w-0 flex-1 text-left">
         <p className="text-xs text-th-hi truncate font-medium leading-tight">{playlist.name}</p>
-        <p className="text-[10px] text-th-hi3">
+        <p className="text-3xs text-th-hi3">
           {playlist.trackCount >= 0 ? `${playlist.trackCount} tracks` : ''}
         </p>
       </button>
@@ -361,7 +361,7 @@ function TrackRow({
         track.isLocal ? 'opacity-40 cursor-not-allowed' : 'hover:bg-th-elevated',
       )}
     >
-      <span className="text-th-hi3 text-[10px] w-5 text-right shrink-0 tabular-nums">{index + 1}</span>
+      <span className="text-th-hi3 text-3xs w-5 text-right shrink-0 tabular-nums">{index + 1}</span>
       {track.imageUrl ? (
         <img src={track.imageUrl} alt={track.trackName} className="w-7 h-7 rounded shrink-0 object-cover" />
       ) : (
@@ -372,10 +372,10 @@ function TrackRow({
         </div>
       )}
       <div className="min-w-0 flex-1">
-        <p className="text-[11px] text-th-hi truncate leading-tight">{track.trackName}</p>
-        <p className="text-[10px] text-th-hi3 truncate">{track.artistName}</p>
+        <p className="text-2xs text-th-hi truncate leading-tight">{track.trackName}</p>
+        <p className="text-3xs text-th-hi3 truncate">{track.artistName}</p>
       </div>
-      <span className="text-th-hi3 text-[10px] tabular-nums shrink-0">{fmtMs(track.durationMs)}</span>
+      <span className="text-th-hi3 text-3xs tabular-nums shrink-0">{fmtMs(track.durationMs)}</span>
     </button>
   );
 }
@@ -473,7 +473,7 @@ function PlaylistPanel({
 
       {/* Playback error (e.g. no active device) */}
       {playError && (
-        <p className="text-th-warn text-[10px] px-3 pb-1.5">{playError}</p>
+        <p className="text-th-warn text-3xs px-3 pb-1.5">{playError}</p>
       )}
 
       {/* Scrollable content */}
@@ -500,7 +500,7 @@ function PlaylistPanel({
             ))}
             <div ref={playlistSentinel} className="h-2" />
             {playlists.isFetchingNextPage && (
-              <p className="text-th-hi3 text-[10px] text-center pb-1">Loading more…</p>
+              <p className="text-th-hi3 text-3xs text-center pb-1">Loading more…</p>
             )}
           </>
         ) : (
@@ -524,7 +524,7 @@ function PlaylistPanel({
             ))}
             <div ref={trackSentinel} className="h-2" />
             {tracks.isFetchingNextPage && (
-              <p className="text-th-hi3 text-[10px] text-center pb-1">Loading more…</p>
+              <p className="text-th-hi3 text-3xs text-center pb-1">Loading more…</p>
             )}
           </>
         )}
@@ -728,10 +728,10 @@ function NowPlayingView({
 
         {/* Album / podcast label */}
         {!isPodcast && data.albumName && (
-          <p className="text-th-hi3 text-[10px] truncate text-center shrink-0 -mt-1">{data.albumName}</p>
+          <p className="text-th-hi3 text-3xs truncate text-center shrink-0 -mt-1">{data.albumName}</p>
         )}
         {isPodcast && (
-          <p className="text-[10px] text-th-violet text-center shrink-0 -mt-1">Podcast</p>
+          <p className="text-3xs text-th-violet text-center shrink-0 -mt-1">Podcast</p>
         )}
 
         <div className="shrink-0">{progressBar}</div>
@@ -774,7 +774,7 @@ function NowPlayingView({
           {!isPodcast && data.albumName && (
             <ScrollingText text={data.albumName} className="text-th-hi3 text-xs" />
           )}
-          {isPodcast && <p className="text-[10px] text-th-violet mt-0.5">Podcast</p>}
+          {isPodcast && <p className="text-3xs text-th-violet mt-0.5">Podcast</p>}
         </div>
         <div className="self-start mt-0.5">{actionIcons}</div>
       </div>

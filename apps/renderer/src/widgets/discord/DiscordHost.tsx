@@ -207,7 +207,7 @@ export function DiscordHost() {
         />
 
         {unread > 0 && (
-          <div className="absolute top-1.5 right-1.5 z-10 pointer-events-none px-1.5 py-0.5 rounded-full bg-th-loss-fill text-th-on-loss text-[10px] font-semibold leading-none">
+          <div className="absolute top-1.5 right-1.5 z-10 pointer-events-none px-1.5 py-0.5 rounded-full bg-th-loss-fill text-th-on-loss text-3xs font-semibold leading-none">
             {unread}
           </div>
         )}
@@ -253,7 +253,7 @@ export function DiscordHost() {
                   <img src={s.thumbnail} alt="" className="w-full aspect-video object-cover rounded bg-th-scrim/40" />
                   <span className="flex items-center gap-1 min-w-0">
                     {s.appIcon && <img src={s.appIcon} alt="" className="w-3.5 h-3.5 shrink-0" />}
-                    <span className="truncate text-[11px] text-th-hi">{s.name}</span>
+                    <span className="truncate text-2xs text-th-hi">{s.name}</span>
                   </span>
                 </button>
               ))}

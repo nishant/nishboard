@@ -7,7 +7,7 @@ import { HeaderAction } from '../../components/HeaderAction';
 import { RefreshAction } from '../../components/RefreshAction';
 import { useDragScroll } from '../../hooks/useDragScroll';
 import type { NetworkMonitorData, PingHostStats } from '@dash/shared';
-import { Button, Card, Meter, SkeletonLines, Sparkline, Spinner, cn, type MeterTone, type SparklineTone } from '@nish/ui';
+import { Button, Card, Meter, SkeletonLines, Sparkline, Spinner, cn, type MeterTone, type SparklineTone, Label } from '@nish/ui';
 import { Input } from '../../components/nishGaps';
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -71,7 +71,7 @@ const LatencyCard = memo(function LatencyCard({ stats, spark, view }: {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {stats.avgMs !== null && (
-            <span className="text-[10px] text-th-hi3 tabular-nums @max-[11rem]:hidden">avg {fmtMs(stats.avgMs)} ms</span>
+            <span className="text-3xs text-th-hi3 tabular-nums @max-[11rem]:hidden">avg {fmtMs(stats.avgMs)} ms</span>
           )}
           {stats.latestMs !== null ? (
             <span className={cn('text-sm font-semibold tabular-nums', latClass(stats.latestMs))}>
@@ -86,7 +86,7 @@ const LatencyCard = memo(function LatencyCard({ stats, spark, view }: {
       </div>
 
       {stats.samples < MIN_SAMPLES ? (
-        <div className="flex items-center gap-2 py-1 text-th-hi3 text-[10px]">
+        <div className="flex items-center gap-2 py-1 text-th-hi3 text-3xs">
           <Spinner size="xs" /> Sampling…
         </div>
       ) : view === 'sparks' ? (
@@ -114,7 +114,7 @@ const QualityCard = memo(function QualityCard({ hosts }: { hosts: PingHostStats[
       <div className="space-y-1.5">
         {hosts.map((h) => (
           <div key={h.host}>
-            <div className="flex justify-between text-[10px] text-th-hi3 mb-0.5">
+            <div className="flex justify-between text-3xs text-th-hi3 mb-0.5">
               <span className="font-mono">{h.host}</span>
               <span className="tabular-nums">
                 jitter {h.jitterMs !== null ? `${h.jitterMs.toFixed(1)} ms` : '—'} · loss {h.lossPct.toFixed(0)}%
@@ -143,7 +143,7 @@ const ThroughputCard = memo(function ThroughputCard({ totals, ifaces, history, v
           <Wifi size={12} className="text-th-sky" />
           <span className="text-xs text-th-hi2 font-medium">Throughput</span>
         </div>
-        <div className="flex gap-3 text-[10px] tabular-nums">
+        <div className="flex gap-3 text-3xs tabular-nums">
           <span className="text-th-sky">↑ {totals.upMbps.toFixed(1)} Mbps</span>
           <span className="text-th-emerald">↓ {totals.downMbps.toFixed(1)} Mbps</span>
         </div>
@@ -159,11 +159,11 @@ const ThroughputCard = memo(function ThroughputCard({ totals, ifaces, history, v
       {ifaces.length > 0 ? (
         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
           {ifaces.map((n) => (
-            <span key={n.iface} className="text-[10px] text-th-hi3 font-mono">{n.iface}</span>
+            <span key={n.iface} className="text-3xs text-th-hi3 font-mono">{n.iface}</span>
           ))}
         </div>
       ) : (
-        <span className="text-[10px] text-th-hi3">No active interfaces</span>
+        <span className="text-3xs text-th-hi3">No active interfaces</span>
       )}
     </Card>
   );
@@ -181,7 +181,7 @@ function ConfigPanel() {
 
   return (
     <Card variant="inset" padding="sm" className="border-th-line">
-      <p className="text-[10px] text-th-hi3 mb-2 uppercase tracking-wide">Ping targets</p>
+      <Label className="block text-3xs mb-2 tracking-wide">Ping targets</Label>
       <div className="flex flex-col gap-2">
         {([0, 1] as const).map((i) => (
           <Input
@@ -268,7 +268,7 @@ export function NetworkMonitorWidget() {
 
       {/* Footer */}
       <div className="flex items-center justify-between px-0.5 shrink-0 mt-auto pt-1">
-        <span className="text-[10px] text-th-hi3">Ping every 2s · last {WINDOW_LABEL}</span>
+        <span className="text-3xs text-th-hi3">Ping every 2s · last {WINDOW_LABEL}</span>
         {query.isFetching && <Spinner size="xs" label="Refreshing" className="text-th-hi3" />}
       </div>
     </div>

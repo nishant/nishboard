@@ -24,7 +24,7 @@ import {
   useDiscordVoiceSettings,
 } from './useDiscordNative';
 import { applyMessageEvent, applySpeaking, formatMessageTime, guildInitials } from './nativeLib';
-import { Button, EmptyState, IconButton, SkeletonLines, cn } from '@nish/ui';
+import { Button, EmptyState, IconButton, SkeletonLines, cn, Label } from '@nish/ui';
 
 // Native Discord mode: guild rail → channel list → read-only live chat feed,
 // plus a voice footer (join/leave/mute/deafen + speaking rings). Everything is
@@ -192,7 +192,7 @@ function GuildRail({ guilds, activeId, onSelect }: {
           {g.iconUrl ? (
             <img src={g.iconUrl} alt="" className="w-full h-full object-cover" />
           ) : (
-            <span className="w-full h-full flex items-center justify-center bg-th-elevated text-th-hi text-[10px] font-semibold">
+            <span className="w-full h-full flex items-center justify-center bg-th-elevated text-th-hi text-3xs font-semibold">
               {guildInitials(g.name)}
             </span>
           )}
@@ -214,14 +214,14 @@ function ChannelList({ loading, textChannels, voiceChannels, activeChannelId, vo
     <div className="w-36 shrink-0 border-r border-th-line overflow-y-auto py-1.5 px-1">
       {loading && <SkeletonLines lines={3} className="p-1" />}
       {textChannels.length > 0 && (
-        <p className="px-1.5 pb-1 text-[9px] font-semibold uppercase tracking-widest text-th-hi3">Text</p>
+        <Label className="block px-1.5 pb-1 text-3xs font-semibold tracking-widest">Text</Label>
       )}
       {textChannels.map((c) => (
         <button
           key={c.id}
           onClick={() => onSelectText(c.id)}
           className={cn(
-            'w-full flex items-center gap-1 px-1.5 py-1 rounded text-left text-[11px] transition-colors',
+            'w-full flex items-center gap-1 px-1.5 py-1 rounded text-left text-2xs transition-colors',
             c.id === activeChannelId ? 'bg-th-elevated text-th-hi' : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated',
           )}
         >
@@ -230,7 +230,7 @@ function ChannelList({ loading, textChannels, voiceChannels, activeChannelId, vo
         </button>
       ))}
       {voiceChannels.length > 0 && (
-        <p className="px-1.5 pt-2 pb-1 text-[9px] font-semibold uppercase tracking-widest text-th-hi3">Voice</p>
+        <Label className="block px-1.5 pt-2 pb-1 text-3xs font-semibold tracking-widest">Voice</Label>
       )}
       {voiceChannels.map((c) => {
         const joined = voice?.channelId === c.id;
@@ -242,14 +242,14 @@ function ChannelList({ loading, textChannels, voiceChannels, activeChannelId, vo
               if (!joined) void selectDiscordVoice(c.id);
             }}
             className={cn(
-              'w-full flex items-center gap-1 px-1.5 py-1 rounded text-left text-[11px] transition-colors group',
+              'w-full flex items-center gap-1 px-1.5 py-1 rounded text-left text-2xs transition-colors group',
               joined ? 'text-th-ok bg-th-elevated' : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated',
             )}
           >
             <Volume2 size={10} className="shrink-0" />
             <span className="truncate flex-1">{c.name}</span>
             {!joined && (
-              <span className="hidden group-hover:inline group-focus-visible:inline text-[9px] text-th-hi3">Join</span>
+              <span className="hidden group-hover:inline group-focus-visible:inline text-3xs text-th-hi3">Join</span>
             )}
           </button>
         );
@@ -280,7 +280,7 @@ function ChatFeed({ channel, loading, messages, selfId }: {
     <>
       <div className="shrink-0 flex items-center gap-1.5 px-2 py-1.5 border-b border-th-line">
         <Hash size={11} className="text-th-hi3 shrink-0" />
-        <span className="text-th-hi text-[11px] font-medium truncate flex-1">{channel.name}</span>
+        <span className="text-th-hi text-2xs font-medium truncate flex-1">{channel.name}</span>
         <Button
           variant="ghost"
           size="xs"
@@ -300,7 +300,7 @@ function ChatFeed({ channel, loading, messages, selfId }: {
         ))}
       </div>
       <div className="shrink-0 px-2 py-1 border-t border-th-line">
-        <p className="text-th-hi3 text-[10px] select-none">
+        <p className="text-th-hi3 text-3xs select-none">
           Read-only feed — use “Reply in Discord” to answer.
         </p>
       </div>
@@ -313,17 +313,17 @@ function MessageRow({ message, self }: { message: DiscordMessageData; self: bool
     <div className="flex gap-1.5 px-1 py-0.5">
       <MemberAvatar name={message.author.username} avatarUrl={message.author.avatarUrl} size={18} />
       <div className="min-w-0 flex-1">
-        <span className={cn('text-[10px] font-semibold', self ? 'text-th-accent' : 'text-th-hi3')}>
+        <span className={cn('text-3xs font-semibold', self ? 'text-th-accent' : 'text-th-hi3')}>
           {message.author.username}
         </span>
-        <span className="text-th-hi3 text-[9px] ml-1.5">
+        <span className="text-th-hi3 text-3xs ml-1.5">
           {formatMessageTime(message.timestamp)}
           {message.edited && ' (edited)'}
         </span>
         {/* Plain text only — React escapes it; no markdown pipeline in v1. */}
-        <p className="text-th-hi text-[11px] whitespace-pre-wrap break-words leading-snug">{message.content}</p>
+        <p className="text-th-hi text-2xs whitespace-pre-wrap break-words leading-snug">{message.content}</p>
         {(message.attachmentCount > 0 || message.hasEmbeds) && (
-          <p className="text-th-hi3 text-[9px] italic">
+          <p className="text-th-hi3 text-3xs italic">
             {message.attachmentCount > 0 && `${message.attachmentCount} attachment${message.attachmentCount > 1 ? 's' : ''}`}
             {message.attachmentCount > 0 && message.hasEmbeds && ' · '}
             {message.hasEmbeds && 'embed'}
@@ -374,7 +374,7 @@ function VoiceFooter({ voice }: { voice: DiscordSelectedVoiceData }) {
   return (
     <div className="shrink-0 border-t border-th-line px-2 py-1.5 flex items-center gap-2">
       <Volume2 size={11} className="text-th-ok shrink-0" />
-      <span className="text-th-hi text-[10px] font-medium truncate">
+      <span className="text-th-hi text-3xs font-medium truncate">
         {voice.channelName ?? 'Voice'}
       </span>
       <div className="flex items-center -space-x-1 flex-1 min-w-0 pl-1">

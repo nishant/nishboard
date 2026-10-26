@@ -4,7 +4,7 @@ import { collectActions, matchParamCommand, refreshSources } from '../lib/comman
 import type { PaletteAction, ParamCommandMatch } from '../lib/commandRegistry';
 import { fuzzyScore } from '../lib/fuzzy';
 import { useOverlayStore } from '../store/overlayStore';
-import { EmptyState, Kbd, cn } from '@nish/ui';
+import { EmptyState, Kbd, cn, Label } from '@nish/ui';
 
 // In-app command palette (per scope: NOT a global shortcut).
 // Open with mod+K or double-Shift (<300ms). Recents float on an empty query.
@@ -223,7 +223,7 @@ export function CommandPalette() {
             return (
               <div key={key}>
                 {header && (
-                  <p className="px-4 pt-2 pb-1 text-th-hi3 text-[10px] uppercase tracking-widest">{header}</p>
+                  <Label className="block px-4 pt-2 pb-1 text-3xs tracking-widest">{header}</Label>
                 )}
                 <button
                   data-idx={i}
@@ -244,7 +244,7 @@ export function CommandPalette() {
           })}
         </div>
 
-        <div className="px-4 py-2 border-t border-th-line text-th-hi3 text-[10px] shrink-0">
+        <div className="px-4 py-2 border-t border-th-line text-th-hi3 text-3xs shrink-0">
           ↑↓ navigate · Enter run · type &quot;timer 25m&quot;, &quot;task …&quot;, &quot;volume 40&quot;
         </div>
       </div>

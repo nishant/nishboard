@@ -25,7 +25,7 @@ function RenameInput({ initial, onCommit }: { initial: string; onCommit: (title:
       }}
       onClick={(e) => e.stopPropagation()}
       spellCheck={false}
-      className="w-20 bg-transparent text-th-hi text-[10px] focus:outline-none border-b border-th-hi3"
+      className="w-20 bg-transparent text-th-hi text-3xs focus:outline-none border-b border-th-hi3"
     />
   );
 }
@@ -65,7 +65,7 @@ export function NotesWidget() {
                   else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActive(n.id); }
                 }}
                 className={cn(
-                  'group/tab flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-md text-[10px] cursor-pointer select-none shrink-0 transition-colors',
+                  'group/tab flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-md text-3xs cursor-pointer select-none shrink-0 transition-colors',
                   isActive ? 'bg-th-elevated text-th-hi' : 'text-th-hi3 hover:text-th-hi2 hover:bg-th-elevated',
                 )}
                 title={isActive ? 'Double-click (or F2) to rename' : n.title}

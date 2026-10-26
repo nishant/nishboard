@@ -101,10 +101,10 @@ export function ClipboardWidget() {
               className="w-full text-left px-3 py-2 hover:bg-th-elevated transition-colors border-b border-th-line"
               title="Click to copy"
             >
-              <p className="text-th-hi2 text-[11px] leading-snug line-clamp-2 break-all whitespace-pre-wrap">
+              <p className="text-th-hi2 text-2xs leading-snug line-clamp-2 break-all whitespace-pre-wrap">
                 {entry.text}
               </p>
-              <p className="text-th-hi3 text-[10px] mt-0.5">{relTimeAgo(new Date(entry.at).toISOString())}</p>
+              <p className="text-th-hi3 text-3xs mt-0.5">{relTimeAgo(new Date(entry.at).toISOString())}</p>
             </button>
           ))
         )}

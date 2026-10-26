@@ -17,7 +17,7 @@ export function SegmentedRow<T extends string>({
 }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="text-th-hi3 text-[11px] w-28 shrink-0" aria-hidden="true">{label}</span>
+      <span className="text-th-hi3 text-2xs w-28 shrink-0" aria-hidden="true">{label}</span>
       <Segmented<T> label={label} value={value} options={options} onChange={onChange} />
     </div>
   );

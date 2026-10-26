@@ -27,8 +27,8 @@ function CoinCard({ coin }: { coin: CryptoCoinData }) {
       <div className="flex items-center gap-x-1.5 gap-y-0.5 min-w-0 @max-[8rem]:flex-wrap">
         <img src={coin.image} alt="" className="w-4 h-4 rounded-full shrink-0" />
         <span className="text-th-hi text-xs font-medium truncate flex-1 min-w-0">{coin.name}</span>
-        <span className="text-th-hi3 text-[10px] uppercase shrink-0">{coin.symbol}</span>
-        <span className={cn('flex items-center gap-0.5 text-[10px] tabular-nums shrink-0 @max-[8rem]:basis-full', up ? 'text-th-ok' : 'text-th-loss')}>
+        <span className="text-th-hi3 text-3xs uppercase shrink-0">{coin.symbol}</span>
+        <span className={cn('flex items-center gap-0.5 text-3xs tabular-nums shrink-0 @max-[8rem]:basis-full', up ? 'text-th-ok' : 'text-th-loss')}>
           {up ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
           {up ? '+' : ''}{coin.change24hPercent.toFixed(2)}%
         </span>
@@ -104,7 +104,7 @@ function WatchlistModal({ onClose }: { onClose: () => void }) {
           ))}
         </div>
 
-        <p className="text-th-hi3 text-[10px]">
+        <p className="text-th-hi3 text-3xs">
           Use CoinGecko coin <em>ids</em> (the URL slug: coingecko.com/en/coins/<b>bitcoin</b>), not ticker symbols.
           Unknown ids are silently dropped from results.
         </p>

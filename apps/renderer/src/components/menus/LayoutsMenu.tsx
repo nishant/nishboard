@@ -36,12 +36,12 @@ function CustomLayoutEditor({
         <IconButton label="Back" size="xs" onClick={onBack} className="size-5 -ml-0.5">
           <ArrowLeft size={12} />
         </IconButton>
-        <span className="text-th-hi text-[11px] font-semibold">
+        <span className="text-th-hi text-2xs font-semibold">
           {editTarget ? `Edit "${editTarget.name}"` : 'Custom Layout'}
         </span>
       </div>
 
-      <p className="text-th-hi3 text-[9px] leading-tight">
+      <p className="text-th-hi3 text-3xs leading-tight">
         Drag &amp; resize tiles on the dashboard. Toggle which tiles are pinned below, then save.
       </p>
 
@@ -132,7 +132,7 @@ export function LayoutsMenu({ compact }: { compact: boolean }) {
                       <button
                         onClick={() => { applyPreset(preset.name); handleClose(); }}
                         className={cn(
-                          'flex-1 text-left px-2 py-1 rounded text-[11px] transition-colors',
+                          'flex-1 text-left px-2 py-1 rounded text-2xs transition-colors',
                           activePreset === preset.name
                             ? 'text-th-hi bg-th-elevated'
                             : 'text-th-hi2 hover:text-th-hi hover:bg-th-elevated',
@@ -158,7 +158,7 @@ export function LayoutsMenu({ compact }: { compact: boolean }) {
                 <button
                   onClick={() => setPanel('custom-list')}
                   className={cn(
-                    'w-full flex items-center gap-2 px-3 py-1.5 text-[11px] transition-colors',
+                    'w-full flex items-center gap-2 px-3 py-1.5 text-2xs transition-colors',
                     activeCustomLayoutId
                       ? 'text-th-hi bg-th-elevated'
                       : 'text-th-hi2 hover:text-th-hi hover:bg-th-elevated',
@@ -179,7 +179,7 @@ export function LayoutsMenu({ compact }: { compact: boolean }) {
                 {/* Create new — always first */}
                 <button
                   onClick={() => setPanel('editor')}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-th-hi2 hover:text-th-hi hover:bg-th-elevated transition-colors mt-0.5"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-2xs text-th-hi2 hover:text-th-hi hover:bg-th-elevated transition-colors mt-0.5"
                 >
                   <Plus size={11} className="shrink-0" />
                   Create new

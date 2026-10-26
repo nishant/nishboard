@@ -139,7 +139,7 @@ export function WeatherWidget() {
           className="shrink-0 rounded-lg px-2.5 py-1.5"
         >
           {alerts.length > 1 && (
-            <span className="text-[10px]" title={alerts.map((a) => a.headline || a.event).join('\n')}>
+            <span className="text-3xs" title={alerts.map((a) => a.headline || a.event).join('\n')}>
               +{alerts.length - 1} more alert{alerts.length - 1 > 1 ? 's' : ''}
             </span>
           )}

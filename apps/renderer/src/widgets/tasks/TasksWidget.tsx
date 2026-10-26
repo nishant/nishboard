@@ -66,7 +66,7 @@ export function TasksWidget() {
 
       {/* Footer */}
       {tasks.length > 0 && (
-        <div className="shrink-0 flex items-center justify-between text-[10px] text-th-hi3 px-1">
+        <div className="shrink-0 flex items-center justify-between text-3xs text-th-hi3 px-1">
           <span>{remaining} left</span>
           {doneCount > 0 && (
             <Button variant="link" size="xs" onClick={clearCompleted} className="text-th-hi3 hover:text-th-hi2">

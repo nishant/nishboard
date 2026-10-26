@@ -15,9 +15,7 @@ import {
   respondToClaudePrompt, promptSummary, openClaudeCliLogin,
 } from './useClaude';
 import { HeaderAction } from '../../components/HeaderAction';
-import {
-  Badge, Button, EmptyState, ErrorState, IconButton, Meter, Segmented, SkeletonLines, Textarea, cn, toneFor,
-} from '@nish/ui';
+import { Badge, Button, EmptyState, ErrorState, IconButton, Meter, Segmented, SkeletonLines, Textarea, cn, toneFor, Label } from '@nish/ui';
 
 /** WidgetShell header actions: New chat always; Stop only mid-stream. */
 export function ClaudeActions() {
@@ -74,10 +72,10 @@ function Shimmer({ startedAt, waiting = false }: { startedAt: number; waiting?: 
   }, []);
   const secs = Math.max(0, Math.floor((now - startedAt) / 1000));
   return (
-    <div className="flex items-center gap-1.5 py-0.5 text-[11px] select-none">
+    <div className="flex items-center gap-1.5 py-0.5 text-2xs select-none">
       <span className="claude-spark text-th-accent">✻</span>
       <span className="claude-shimmer font-medium">{waiting ? 'Waiting for you' : `${word}…`}</span>
-      <span className="text-th-hi3 text-[9px]">
+      <span className="text-th-hi3 text-3xs">
         {waiting ? 'answer above to continue' : `${secs}s · esc to stop`}
       </span>
     </div>
@@ -169,14 +167,14 @@ function ModelEffortPanel({ anchor, onClose }: { anchor: HTMLElement | null; onC
 
   return (
     <Popover anchor={anchor} onClose={onClose}>
-      <p className="text-[9px] font-semibold uppercase tracking-wider text-th-hi3 mb-1.5">Model</p>
+      <Label className="block text-3xs font-semibold mb-1.5">Model</Label>
       <div className="flex flex-col gap-0.5">
         {MODEL_OPTIONS.map((opt) => (
           <button
             key={opt.label}
             onClick={() => setChatModel(opt.value)}
             className={cn(
-              'flex items-center justify-between px-2 py-1 rounded text-[11px] transition-colors',
+              'flex items-center justify-between px-2 py-1 rounded text-2xs transition-colors',
               opt.value === chatModel
                 ? 'bg-th-overlay text-th-hi'
                 : 'text-th-hi2 hover:bg-th-overlay',
@@ -188,12 +186,12 @@ function ModelEffortPanel({ anchor, onClose }: { anchor: HTMLElement | null; onC
         ))}
       </div>
 
-      <p className="text-[9px] font-semibold uppercase tracking-wider text-th-hi3 mt-2.5 mb-1">
+      <Label className="block text-3xs font-semibold mt-2.5 mb-1">
         Effort{' '}
         <span className={cn('normal-case tracking-normal', chatEffort ? 'text-th-accent' : 'text-th-hi3')}>
           — {chatEffort ?? 'default'}
         </span>
-      </p>
+      </Label>
       <input
         type="range"
         min={0}
@@ -204,7 +202,7 @@ function ModelEffortPanel({ anchor, onClose }: { anchor: HTMLElement | null; onC
         className={cn('w-full accent-th-accent', !chatEffort && 'opacity-50')}
         aria-label="Effort level"
       />
-      <div className="flex justify-between text-[8px] text-th-hi3 px-0.5">
+      <div className="flex justify-between text-3xs text-th-hi3 px-0.5">
         <span>low</span><span>med</span><span>high</span><span>xhigh</span><span>max</span>
       </div>
       {chatEffort && (
@@ -213,7 +211,7 @@ function ModelEffortPanel({ anchor, onClose }: { anchor: HTMLElement | null; onC
         </Button>
       )}
       {sessionModel && (
-        <p className="mt-2 pt-1.5 border-t border-th-line text-[9px] text-th-hi3 truncate">
+        <p className="mt-2 pt-1.5 border-t border-th-line text-3xs text-th-hi3 truncate">
           Session model: {sessionModel}
         </p>
       )}
@@ -249,15 +247,15 @@ function UsagePanel({ anchor, onClose }: { anchor: HTMLElement | null; onClose: 
       {lastContext !== null && contextPct !== null && (
         <div className="mb-2.5">
           <div className="flex items-baseline justify-between mb-0.5">
-            <span className="text-[10px] text-th-hi2">Context — this chat</span>
-            <span className="text-[10px] font-medium text-th-hi">
+            <span className="text-3xs text-th-hi2">Context — this chat</span>
+            <span className="text-3xs font-medium text-th-hi">
               {formatTokens(lastContext)} / {formatTokens(CLAUDE_CONTEXT_WINDOW)}
             </span>
           </div>
           <Meter value={contextPct} label="Context used" tone={usageTone(contextPct)} track="overlay" />
         </div>
       )}
-      <p className="text-[9px] font-semibold uppercase tracking-wider text-th-hi3 mb-2">Usage</p>
+      <Label className="block text-3xs font-semibold mb-2">Usage</Label>
       {usage.isLoading ? (
         <SkeletonLines lines={2} className="p-0" />
       ) : usage.isError ? (
@@ -274,17 +272,17 @@ function UsagePanel({ anchor, onClose }: { anchor: HTMLElement | null; onClose: 
             return (
               <div key={w.key}>
                 <div className="flex items-baseline justify-between mb-0.5">
-                  <span className="text-[10px] text-th-hi2">{w.label}</span>
-                  <span className="text-[10px] font-medium text-th-hi">{Math.round(w.utilization)}%</span>
+                  <span className="text-3xs text-th-hi2">{w.label}</span>
+                  <span className="text-3xs font-medium text-th-hi">{Math.round(w.utilization)}%</span>
                 </div>
                 <Meter value={w.utilization} label={`${w.label} used`} tone={usageTone(w.utilization)} track="overlay" />
-                {resets && <p className="mt-0.5 text-[9px] text-th-hi3">{resets}</p>}
+                {resets && <p className="mt-0.5 text-3xs text-th-hi3">{resets}</p>}
               </div>
             );
           })}
         </div>
       ) : (
-        <p className="text-[10px] text-th-hi3">No usage windows reported.</p>
+        <p className="text-3xs text-th-hi3">No usage windows reported.</p>
       )}
     </Popover>
   );
@@ -309,7 +307,7 @@ function SlashMenu({ query, selected, onPick }: {
   return (
     <div className="absolute bottom-full left-0 right-0 mb-1.5 z-50 rounded-lg border border-th-line bg-th-elevated shadow-pop py-1 max-h-44 overflow-y-auto">
       {items.length === 0 ? (
-        <p className="px-2.5 py-1.5 text-[10px] text-th-hi3">
+        <p className="px-2.5 py-1.5 text-3xs text-th-hi3">
           {meta.data && meta.data.slashCommands.length === 0
             ? 'Commands appear after your first chat.'
             : 'No matching commands.'}
@@ -322,7 +320,7 @@ function SlashMenu({ query, selected, onPick }: {
             onClick={() => onPick(c.name)}
             onMouseDown={(e) => e.preventDefault()} // keep textarea focus
             className={cn(
-              'w-full flex items-center gap-2 px-2.5 py-1 text-left text-[11px] transition-colors',
+              'w-full flex items-center gap-2 px-2.5 py-1 text-left text-2xs transition-colors',
               i === selected % Math.max(1, items.length)
                 ? 'bg-th-overlay text-th-hi'
                 : 'text-th-hi2 hover:bg-th-overlay',
@@ -356,7 +354,7 @@ function filterSlashItems(all: Array<{ name: string; isSkill: boolean }>, query:
 function ToolChip({ part, live }: { part: ClaudeToolPart; live: boolean }) {
   const running = part.status === 'running' && live;
   return (
-    <div className="flex items-center gap-1.5 my-1 px-2 py-1 rounded-md bg-th-elevated text-[11px] max-w-full">
+    <div className="flex items-center gap-1.5 my-1 px-2 py-1 rounded-md bg-th-elevated text-2xs max-w-full">
       {part.status === 'error' ? (
         <X size={11} className="shrink-0 text-th-loss" />
       ) : running ? (
@@ -411,7 +409,7 @@ function PromptCard({ part, live }: { part: ClaudePromptPart; live: boolean }) {
     const status = part.status === 'pending' ? 'Expired' : PROMPT_STATUS_LABEL[part.status];
     const ok = part.status === 'allowed';
     return (
-      <div className="flex items-center gap-1.5 my-1 px-2 py-1 rounded-md bg-th-elevated text-[11px] max-w-full">
+      <div className="flex items-center gap-1.5 my-1 px-2 py-1 rounded-md bg-th-elevated text-2xs max-w-full">
         {ok ? <Check size={11} className="shrink-0 text-th-ok" /> : <X size={11} className="shrink-0 text-th-hi3" />}
         <span className="shrink-0 font-medium text-th-hi">{status}</span>
         <span className="shrink-0 text-th-hi3">·</span>
@@ -438,7 +436,7 @@ function PromptCard({ part, live }: { part: ClaudePromptPart; live: boolean }) {
       <div className="my-1.5 rounded-lg border border-th-accent/30 bg-th-accent-soft p-2 space-y-2">
         {questions.map((q, qi) => (
           <div key={qi}>
-            <p className="text-[11px] text-th-hi font-medium mb-1">
+            <p className="text-2xs text-th-hi font-medium mb-1">
               {q.header && <Badge tone="accent" size="xs" variant="tag" className="mr-1.5">{q.header}</Badge>}
               {q.question}
             </p>
@@ -460,12 +458,12 @@ function PromptCard({ part, live }: { part: ClaudePromptPart; live: boolean }) {
                       if (!q.multiSelect && questions.length === 1) submit(next);
                     }}
                     className={cn(
-                      'text-left px-2 py-1 rounded-md text-[11px] transition-colors disabled:opacity-40',
+                      'text-left px-2 py-1 rounded-md text-2xs transition-colors disabled:opacity-40',
                       isOn ? 'bg-th-accent-soft text-th-accent ring-1 ring-th-accent/40' : 'bg-th-elevated text-th-hi2 hover:bg-th-overlay hover:text-th-hi',
                     )}
                   >
                     <span className="font-medium">{opt.label}</span>
-                    {opt.description && <span className="block text-[10px] text-th-hi3">{opt.description}</span>}
+                    {opt.description && <span className="block text-3xs text-th-hi3">{opt.description}</span>}
                   </button>
                 );
               })}
@@ -485,10 +483,10 @@ function PromptCard({ part, live }: { part: ClaudePromptPart; live: boolean }) {
   if (part.request.kind === 'plan') {
     return (
       <div className="my-1.5 rounded-lg border border-th-accent/30 bg-th-accent-soft p-2">
-        <p className="flex items-center gap-1.5 text-[11px] font-medium text-th-hi mb-1">
+        <p className="flex items-center gap-1.5 text-2xs font-medium text-th-hi mb-1">
           <ClipboardCheck size={12} className="text-th-accent" /> Claude proposed a plan
         </p>
-        <div className="md-render max-h-48 overflow-y-auto text-[11px] text-th-hi2 leading-relaxed pr-1">
+        <div className="md-render max-h-48 overflow-y-auto text-2xs text-th-hi2 leading-relaxed pr-1">
           <ReactMarkdown remarkPlugins={MD_PLUGINS} components={MD_COMPONENTS}>{part.request.plan}</ReactMarkdown>
         </div>
         <div className="mt-1.5 flex gap-1.5">
@@ -505,7 +503,7 @@ function PromptCard({ part, live }: { part: ClaudePromptPart; live: boolean }) {
 
   return (
     <div className="my-1.5 rounded-lg border border-th-accent/30 bg-th-accent-soft p-2">
-      <p className="flex items-center gap-1.5 text-[11px] text-th-hi min-w-0">
+      <p className="flex items-center gap-1.5 text-2xs text-th-hi min-w-0">
         <ShieldQuestion size={12} className="shrink-0 text-th-accent" />
         <span className="font-medium shrink-0">{part.request.toolName}</span>
         {part.request.detail && (
@@ -524,11 +522,11 @@ function PromptCard({ part, live }: { part: ClaudePromptPart; live: boolean }) {
 function ThinkingBlock({ text }: { text: string }) {
   return (
     <details className="my-1 group/think">
-      <summary className="flex items-center gap-1 cursor-pointer select-none text-[10px] text-th-hi3 hover:text-th-hi2 transition-colors list-none [&::-webkit-details-marker]:hidden">
+      <summary className="flex items-center gap-1 cursor-pointer select-none text-3xs text-th-hi3 hover:text-th-hi2 transition-colors list-none [&::-webkit-details-marker]:hidden">
         <ChevronRight size={10} className="transition-transform group-open/think:rotate-90" />
         <span className="text-th-accent/70">✻</span> Thinking
       </summary>
-      <div className="mt-1 pl-3 border-l border-th-line text-[11px] text-th-hi3 italic whitespace-pre-wrap break-words">
+      <div className="mt-1 pl-3 border-l border-th-line text-2xs text-th-hi3 italic whitespace-pre-wrap break-words">
         {text}
       </div>
     </details>
@@ -581,7 +579,7 @@ function MessageBubble({ msg, streaming }: { msg: ClaudeChatMessage; streaming: 
         />
       ) : (
         (msg.durationMs !== undefined || text) && (
-          <div className="flex items-center gap-1.5 pt-0.5 text-[9px] text-th-hi3 opacity-0 group-hover/msg:opacity-100 focus-within:opacity-100 transition-opacity">
+          <div className="flex items-center gap-1.5 pt-0.5 text-3xs text-th-hi3 opacity-0 group-hover/msg:opacity-100 focus-within:opacity-100 transition-opacity">
             {msg.durationMs !== undefined && <span>{(msg.durationMs / 1000).toFixed(1)}s</span>}
             {msg.outputTokens !== undefined && <span>· {formatTokens(msg.outputTokens)} tok</span>}
             {text && (

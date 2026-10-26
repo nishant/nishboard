@@ -104,10 +104,10 @@ export function TimerWidget() {
               aria-label="Timer label" className="flex-1" />
             <Input size="xs" type="number" min={0} value={tMin} onChange={(e) => setTMin(e.target.value)}
               aria-label="Minutes" className="w-11 px-1.5 text-center tabular-nums" />
-            <span className="text-th-hi3 text-[10px]" aria-hidden="true">m</span>
+            <span className="text-th-hi3 text-3xs" aria-hidden="true">m</span>
             <Input size="xs" type="number" min={0} max={59} value={tSec} onChange={(e) => setTSec(e.target.value)}
               aria-label="Seconds" className="w-11 px-1.5 text-center tabular-nums" />
-            <span className="text-th-hi3 text-[10px]" aria-hidden="true">s</span>
+            <span className="text-th-hi3 text-3xs" aria-hidden="true">s</span>
             <IconButton label="Add timer" size="sm" variant="subtle" onClick={submitTimer}>
               <Plus size={14} />
             </IconButton>
@@ -123,7 +123,7 @@ export function TimerWidget() {
                 return (
                   <Card key={t.id} variant="inset" padding="none" className="group flex items-center gap-2 px-2 py-1.5">
                     <div className="flex flex-col min-w-0 flex-1">
-                      {t.label && <span className="text-th-hi3 text-[10px] truncate">{t.label}</span>}
+                      {t.label && <span className="text-th-hi3 text-3xs truncate">{t.label}</span>}
                       <span className={cn('text-xl tabular-nums leading-none', done ? 'text-th-accent' : 'text-th-hi')}>
                         {fmtDuration(remaining)}
                       </span>
@@ -168,9 +168,9 @@ export function TimerWidget() {
                     <span className={cn('text-sm tabular-nums leading-tight', a.done ? 'text-th-hi3 line-through' : 'text-th-hi')}>
                       {fmtAlarm(a.at, clock24h)}
                     </span>
-                    {a.label && <span className="text-th-hi3 text-[10px] truncate">{a.label}</span>}
+                    {a.label && <span className="text-th-hi3 text-3xs truncate">{a.label}</span>}
                   </div>
-                  <span className={cn('text-[10px] shrink-0', a.done ? 'text-th-warn' : 'text-th-hi3')}>
+                  <span className={cn('text-3xs shrink-0', a.done ? 'text-th-warn' : 'text-th-hi3')}>
                     {a.done ? 'rang' : relTimeUntil(a.at, now)}
                   </span>
                   <IconButton label="Delete" size="xs" tone="danger" onClick={() => removeAlarm(a.id)}><X size={13} /></IconButton>

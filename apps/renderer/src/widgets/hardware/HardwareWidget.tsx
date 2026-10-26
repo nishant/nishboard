@@ -10,7 +10,7 @@ import { RefreshAction } from '../../components/RefreshAction';
 import { useDragScroll } from '../../hooks/useDragScroll';
 import { fmtUptime } from '../../lib/time';
 import type { HardwareData } from '@dash/shared';
-import { Card, Checkbox, Meter, Segmented, SkeletonLines, Sparkline, Spinner, cn, type MeterTone, type SparklineTone } from '@nish/ui';
+import { Card, Checkbox, Meter, Segmented, SkeletonLines, Sparkline, Spinner, cn, type MeterTone, type SparklineTone, Label } from '@nish/ui';
 import { METER_NEUTRAL } from '../../components/nishGaps';
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -101,7 +101,7 @@ const CpuCard = memo(function CpuCard({ cpu, history, view }: { cpu: HardwareDat
       )}
 
       <div className="mt-1.5">
-        <span className="text-[10px] text-th-hi3">
+        <span className="text-3xs text-th-hi3">
           {cpu.physicalCores}C/{cpu.cores}T · {fmt(cpu.speedGhz)} GHz
         </span>
       </div>
@@ -146,7 +146,7 @@ const GpuCard = memo(function GpuCard({ gpu, history, view }: { gpu: HardwareDat
 
       {gpu.vramTotalMb > 0 && (
         <div className="mt-2 space-y-1">
-          <div className="flex justify-between text-[10px] text-th-hi3">
+          <div className="flex justify-between text-3xs text-th-hi3">
             <span>VRAM</span>
             <span>{fmt(gpu.vramUsedMb / 1024)} / {fmt(gpu.vramTotalMb / 1024)} GB · {vramPct}%</span>
           </div>
@@ -156,7 +156,7 @@ const GpuCard = memo(function GpuCard({ gpu, history, view }: { gpu: HardwareDat
 
       {gpu.clockMhz !== null && (
         <div className="mt-1">
-          <span className="text-[10px] text-th-hi3">{gpu.clockMhz} MHz</span>
+          <span className="text-3xs text-th-hi3">{gpu.clockMhz} MHz</span>
         </div>
       )}
     </Card>
@@ -174,7 +174,7 @@ const RamCard = memo(function RamCard({ ram, history, view }: { ram: HardwareDat
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-xs text-th-hi2 font-medium">RAM</span>
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-th-hi3 tabular-nums">{fmt(usedGb)} / {fmt(totalGb, 0)} GB</span>
+          <span className="text-3xs text-th-hi3 tabular-nums">{fmt(usedGb)} / {fmt(totalGb, 0)} GB</span>
           <span className="text-sm font-semibold text-th-hi tabular-nums">{ram.usagePercent}%</span>
         </div>
       </div>
@@ -187,7 +187,7 @@ const RamCard = memo(function RamCard({ ram, history, view }: { ram: HardwareDat
 
       {ram.swapTotalMb > 0 && (
         <div className="mt-2 space-y-1">
-          <div className="flex justify-between text-[10px] text-th-hi3">
+          <div className="flex justify-between text-3xs text-th-hi3">
             <span>Swap</span>
             <span>{fmt(ram.swapUsedMb / 1024)} / {fmt(ram.swapTotalMb / 1024)} GB</span>
           </div>
@@ -215,7 +215,7 @@ const DiskCard = memo(function DiskCard({ disks, diskUsage, history, view }: {
           <HardDrive size={12} className="text-th-chart-7" />
           <span className="text-xs text-th-hi2 font-medium">Disk I/O</span>
         </div>
-        <div className="flex gap-3 text-[10px] tabular-nums">
+        <div className="flex gap-3 text-3xs tabular-nums">
           <span className="text-th-emerald">R {fmt(d.readMBs)} MB/s</span>
           <span className="text-th-amber">W {fmt(d.writeMBs)} MB/s</span>
         </div>
@@ -232,7 +232,7 @@ const DiskCard = memo(function DiskCard({ disks, diskUsage, history, view }: {
         <div className="mt-2 space-y-1.5">
           {diskUsage.map((du) => (
             <div key={du.mount}>
-              <div className="flex justify-between text-[10px] text-th-hi3 mb-0.5">
+              <div className="flex justify-between text-3xs text-th-hi3 mb-0.5">
                 <span className="font-mono">{du.mount}</span>
                 <span>{fmt(du.usedGb, 0)} / {fmt(du.totalGb, 0)} GB · {du.usePercent}%</span>
               </div>
@@ -262,7 +262,7 @@ const NetworkCard = memo(function NetworkCard({ network, history, view }: {
           <Wifi size={12} className="text-th-sky" />
           <span className="text-xs text-th-hi2 font-medium">Network</span>
         </div>
-        <div className="flex gap-3 text-[10px] tabular-nums">
+        <div className="flex gap-3 text-3xs tabular-nums">
           <span className="text-th-sky">↑ {fmt(totalUp)} Mbps</span>
           <span className="text-th-emerald">↓ {fmt(totalDown)} Mbps</span>
         </div>
@@ -278,13 +278,13 @@ const NetworkCard = memo(function NetworkCard({ network, history, view }: {
       {network.length > 0 && (
         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
           {network.map((n) => (
-            <span key={n.iface} className="text-[10px] text-th-hi3 font-mono">{n.iface}</span>
+            <span key={n.iface} className="text-3xs text-th-hi3 font-mono">{n.iface}</span>
           ))}
         </div>
       )}
 
       {network.length === 0 && (
-        <span className="text-[10px] text-th-hi3">No active interfaces</span>
+        <span className="text-3xs text-th-hi3">No active interfaces</span>
       )}
     </Card>
   );
@@ -303,7 +303,7 @@ const BatteryCard = memo(function BatteryCard({ battery }: { battery: NonNullabl
         <div className="flex items-center gap-1.5">
           <Icon size={12} className={textColor} />
           <span className="text-xs text-th-hi2">Battery</span>
-          {battery.charging && <span className="text-[10px] text-th-ok">Charging</span>}
+          {battery.charging && <span className="text-3xs text-th-ok">Charging</span>}
         </div>
         <span className={cn('text-sm font-semibold tabular-nums', textColor)}>{battery.percent}%</span>
       </div>
@@ -343,7 +343,7 @@ function ConfigPanel({
   const sections = Object.keys(SECTION_LABELS) as HardwareSection[];
   return (
     <Card variant="inset" padding="sm" className="border-th-line">
-      <p className="text-[10px] text-th-hi3 mb-2 uppercase tracking-wide">Visible sections</p>
+      <Label className="block text-3xs mb-2 tracking-wide">Visible sections</Label>
       <div className="grid grid-cols-2 gap-x-4 gap-y-2">
         {sections.map((section) => (
           <Checkbox
@@ -395,15 +395,15 @@ function ProcessPanel() {
       </div>
 
       {isLoading ? (
-        <div className="flex items-center gap-2 py-2 text-th-hi3 text-[10px]">
+        <div className="flex items-center gap-2 py-2 text-th-hi3 text-3xs">
           <Spinner size="xs" /> Sampling processes…
         </div>
       ) : isError || !data ? (
-        <span className="text-[10px] text-th-hi3">Process list unavailable</span>
+        <span className="text-3xs text-th-hi3">Process list unavailable</span>
       ) : (
         <div className="flex flex-col gap-0.5">
           {rows.map((p) => (
-            <div key={p.name} className="flex items-center gap-2 text-[10px] leading-relaxed">
+            <div key={p.name} className="flex items-center gap-2 text-3xs leading-relaxed">
               <span className="text-th-hi2 truncate flex-1 min-w-0 font-mono">
                 {p.name}{p.count > 1 && <span className="text-th-hi3"> ×{p.count}</span>}
               </span>
@@ -491,7 +491,7 @@ export function HardwareWidget() {
       <div className="flex items-center justify-between px-0.5 shrink-0 mt-auto pt-1">
         <div className="flex items-center gap-1">
           <Thermometer size={10} className="text-th-hi3" />
-          <span className="text-[10px] text-th-hi3">Uptime {fmtUptime(d.uptime)}</span>
+          <span className="text-3xs text-th-hi3">Uptime {fmtUptime(d.uptime)}</span>
         </div>
         {query.isFetching && <Spinner size="xs" label="Refreshing" className="text-th-hi3" />}
       </div>

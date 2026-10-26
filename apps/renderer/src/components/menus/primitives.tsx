@@ -5,7 +5,7 @@ import { WIDGET_CATEGORIES, WIDGET_TITLES } from '../../lib/layouts';
 import type { WidgetId } from '../../lib/layouts';
 import { orderedCategoryWidgets, useWidgetUiStore } from '../../store/widgetUiStore';
 import { useAppSettingsStore } from '../../store/settingsStore';
-import { Button, IconButton, cn } from '@nish/ui';
+import { Button, IconButton, cn, Label } from '@nish/ui';
 import { Input } from '../nishGaps';
 
 // WebkitAppRegion is a non-standard Electron CSS property missing from React's
@@ -25,7 +25,7 @@ export const menuBtn = (open: boolean, compact: boolean) =>
   cn(
     compact
       ? 'flex items-center justify-center w-6 h-6 rounded transition-colors'
-      : 'flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] transition-colors',
+      : 'flex items-center gap-1.5 px-2 py-0.5 rounded text-2xs transition-colors',
     open
       ? 'bg-th-elevated text-th-hi'
       : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated',
@@ -41,7 +41,7 @@ export function SubmenuHeader({ label, onBack }: { label: string; onBack: () => 
       <IconButton label="Back" size="xs" onClick={onBack} className="size-5 -ml-0.5">
         <ArrowLeft size={12} />
       </IconButton>
-      <span className="text-th-hi3 text-[10px] uppercase tracking-wider font-medium">{label}</span>
+      <Label className="text-3xs">{label}</Label>
     </div>
   );
 }
@@ -96,15 +96,15 @@ export function WidgetPinList({
         if (ids.length === 0) return null;
         return (
           <div key={category.id}>
-            <p className="px-3 pt-1.5 pb-0.5 text-th-hi3 text-[10px] uppercase tracking-wider font-medium">
+            <Label className="block px-3 pt-1.5 pb-0.5 text-3xs">
               {category.label}
-            </p>
+            </Label>
             {ids.map((id, idx) => {
               const visible = visibleWidgets.includes(id);
               return (
                 <div key={id} className="flex items-center gap-0.5 pl-3 pr-1 group">
                   <span className={cn(
-                    'flex-1 px-2 py-1 text-[11px] min-w-0 truncate',
+                    'flex-1 px-2 py-1 text-2xs min-w-0 truncate',
                     visible ? 'text-th-hi2' : 'text-th-hi3',
                   )}>
                     {WIDGET_TITLES[id]}
@@ -172,7 +172,7 @@ export function SaveAsForm({
         </Button>
       ) : (
         <>
-          <span className="text-th-hi3 text-[9px] uppercase tracking-wider">Save as</span>
+          <Label className="text-3xs">Save as</Label>
           <div className="flex gap-1.5">
             <Input
               size="xs"
@@ -214,7 +214,7 @@ export function SavedItemRow({
       <button
         onClick={onApply}
         className={cn(
-          'flex-1 flex items-center gap-2 px-2 py-1.5 text-[11px] rounded transition-colors min-w-0',
+          'flex-1 flex items-center gap-2 px-2 py-1.5 text-2xs rounded transition-colors min-w-0',
           active
             ? 'text-th-hi bg-th-elevated'
             : 'text-th-hi2 hover:text-th-hi hover:bg-th-elevated',

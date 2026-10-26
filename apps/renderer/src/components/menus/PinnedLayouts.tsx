@@ -56,7 +56,7 @@ export function PinnedLayoutsMenu() {
       <button
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          'flex items-center gap-1 pl-1.5 pr-1 py-0.5 rounded text-[11px] font-medium transition-colors max-w-[140px]',
+          'flex items-center gap-1 pl-1.5 pr-1 py-0.5 rounded text-2xs font-medium transition-colors max-w-[140px]',
           open
             ? 'bg-th-elevated text-th-hi'
             : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated',
@@ -77,7 +77,7 @@ export function PinnedLayoutsMenu() {
                 key={e.key}
                 onClick={() => { e.apply(); setOpen(false); }}
                 className={cn(
-                  'w-full text-left px-3 py-1.5 text-[11px] transition-colors',
+                  'w-full text-left px-3 py-1.5 text-2xs transition-colors',
                   e.active
                     ? 'bg-th-elevated text-th-hi'
                     : 'text-th-hi2 hover:bg-th-elevated hover:text-th-hi',

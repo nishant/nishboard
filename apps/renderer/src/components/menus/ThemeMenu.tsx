@@ -8,7 +8,7 @@ import {
   Backdrop, menuBtn, menuPanel, noDragStyle,
   SubmenuHeader, SaveAsForm, SavedItemRow, deleteBody,
 } from './primitives';
-import { ConfirmDialog, IconButton, ThemeToggle, cn } from '@nish/ui';
+import { ConfirmDialog, IconButton, ThemeToggle, cn, Label } from '@nish/ui';
 import { Input } from '../nishGaps';
 
 // ── ColorPicker ───────────────────────────────────────────────────────────────
@@ -41,7 +41,7 @@ function ColorPicker({
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-th-hi3 text-[10px] w-[58px] shrink-0 leading-none">{label}</span>
+      <span className="text-th-hi3 text-3xs w-[58px] shrink-0 leading-none">{label}</span>
 
       {/* Native color picker visually replaced by a styled swatch */}
       <label
@@ -106,7 +106,7 @@ function CustomEditor({
         <IconButton label="Back" size="xs" onClick={onBack} className="size-5 -ml-0.5">
           <ArrowLeft size={12} />
         </IconButton>
-        <span className="text-th-hi text-[11px] font-semibold">
+        <span className="text-th-hi text-2xs font-semibold">
           {editTarget ? `Edit "${editTarget.name}"` : 'Custom Theme'}
         </span>
       </div>
@@ -142,7 +142,7 @@ function CustomEditor({
         onUpdate={onUpdate}
       />
 
-      <p className="text-th-hi3 text-[9px] leading-tight -mt-1">
+      <p className="text-th-hi3 text-3xs leading-tight -mt-1">
         Semantic colors (stocks, hardware) are preserved.
       </p>
     </div>
@@ -224,7 +224,7 @@ export function ThemeMenu({ compact }: { compact: boolean }) {
                 <div className="px-2 pt-1 pb-2">
                   <ThemeToggle labels block />
                 </div>
-                <p className="px-3 pt-1 pb-0.5 text-th-hi3 text-[10px] uppercase tracking-wider font-medium">Presets</p>
+                <Label className="block px-3 pt-1 pb-0.5 text-3xs">Presets</Label>
                 {[...THEME_PRESETS, CUSTOM_THEME].map((t) => {
                   const swatch = t.id === 'custom' ? customColors.primary : t.swatch;
                   return (
@@ -240,7 +240,7 @@ export function ThemeMenu({ compact }: { compact: boolean }) {
                         }
                       }}
                       className={cn(
-                        'w-full flex items-center gap-2.5 px-3 py-1.5 text-[11px] transition-colors',
+                        'w-full flex items-center gap-2.5 px-3 py-1.5 text-2xs transition-colors',
                         theme === t.id
                           ? 'text-th-hi bg-th-elevated'
                           : 'text-th-hi2 hover:text-th-hi hover:bg-th-elevated',
@@ -268,7 +268,7 @@ export function ThemeMenu({ compact }: { compact: boolean }) {
                 {/* Create new — always first */}
                 <button
                   onClick={() => setPanel('editor')}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-th-hi2 hover:text-th-hi hover:bg-th-elevated transition-colors mt-0.5"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-2xs text-th-hi2 hover:text-th-hi hover:bg-th-elevated transition-colors mt-0.5"
                 >
                   <Plus size={11} className="shrink-0" />
                   Create new

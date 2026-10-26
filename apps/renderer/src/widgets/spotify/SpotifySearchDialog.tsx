@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, memo } from 'react';
 import { Play, Plus, Music, Mic2, Check } from 'lucide-react';
-import { EmptyState, ErrorState, IconButton, Modal, Spinner, cn } from '@nish/ui';
+import { EmptyState, ErrorState, IconButton, Modal, Spinner, cn, Label } from '@nish/ui';
 import { SearchInput } from '../../components/nishGaps';
 import {
   useDebouncedValue, useSpotifySearch, useDevices,
@@ -66,9 +66,9 @@ const ResultRow = memo(function ResultRow({
       )}
       <div className="min-w-0 flex-1">
         <p className="text-xs text-th-hi truncate leading-tight">{track.trackName}</p>
-        <p className="text-[10px] text-th-hi3 truncate">{track.artistName}</p>
+        <p className="text-3xs text-th-hi3 truncate">{track.artistName}</p>
       </div>
-      <span className="text-th-hi3 text-[10px] tabular-nums shrink-0">{fmtMs(track.durationMs)}</span>
+      <span className="text-th-hi3 text-3xs tabular-nums shrink-0">{fmtMs(track.durationMs)}</span>
       <div className="flex items-center gap-0.5 shrink-0">
         <ActionButton track={track} onAction={onAction} action="play" status={playStatus} icon={<Play size={13} />} title="Play now" />
         <ActionButton track={track} onAction={onAction} action="queue" status={queueStatus} icon={<Plus size={13} />} title="Add to queue" />
@@ -180,7 +180,7 @@ export function SpotifySearchDialog({ open, onClose }: SpotifySearchDialogProps)
           </div>
           {/* Device hint */}
           {showResults && devices.data && devices.data.length === 0 && (
-            <p className="text-th-warn text-[10px] px-4 py-1.5 border-b border-th-line">
+            <p className="text-th-warn text-3xs px-4 py-1.5 border-b border-th-line">
               Open Spotify on a device to enable playback
             </p>
           )}
@@ -197,9 +197,9 @@ export function SpotifySearchDialog({ open, onClose }: SpotifySearchDialogProps)
 
           {tracks.length > 0 && (
             <>
-              <p className="text-[10px] uppercase tracking-wider text-th-hi3 px-2.5 pt-2 pb-1 font-medium">
+              <Label className="block text-3xs px-2.5 pt-2 pb-1">
                 Tracks
-              </p>
+              </Label>
               {tracks.map((t) => (
                 <ResultRow
                   key={t.trackId}
@@ -214,9 +214,9 @@ export function SpotifySearchDialog({ open, onClose }: SpotifySearchDialogProps)
 
           {episodes.length > 0 && (
             <>
-              <p className="text-[10px] uppercase tracking-wider text-th-hi3 px-2.5 pt-3 pb-1 font-medium">
+              <Label className="block text-3xs px-2.5 pt-3 pb-1">
                 Podcasts
-              </p>
+              </Label>
               {episodes.map((t) => (
                 <ResultRow
                   key={t.trackId}

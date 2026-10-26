@@ -16,9 +16,7 @@ import { AlertsPanel } from './settings/AlertsPanel';
 import { useOverlayStore } from '../store/overlayStore';
 import { useThemeStore } from '../store/themeStore';
 import { CUSTOM_THEME, THEMES, THEME_PRESETS } from '../themes';
-import {
-  Badge, Button, Callout, Field, IconButton, Modal, SkeletonLines, Switch, TabPanel, Tabs, ThemeToggle, cn,
-} from '@nish/ui';
+import { Badge, Button, Callout, Field, IconButton, Modal, SkeletonLines, Switch, TabPanel, Tabs, ThemeToggle, cn, Label } from '@nish/ui';
 import { Input, Select } from './nishGaps';
 
 // Group defs by service
@@ -55,9 +53,9 @@ function CredentialRow({
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-3">
         {showInput ? (
-          <label htmlFor={inputId} className="text-th-hi3 text-[11px] w-28 shrink-0">{label}</label>
+          <label htmlFor={inputId} className="text-th-hi3 text-2xs w-28 shrink-0">{label}</label>
         ) : (
-          <span className="text-th-hi3 text-[11px] w-28 shrink-0">{label}</span>
+          <span className="text-th-hi3 text-2xs w-28 shrink-0">{label}</span>
         )}
 
         {showInput ? (
@@ -96,8 +94,8 @@ function CredentialRow({
           </div>
         ) : (
           <div className="flex-1 flex items-center gap-2">
-            <span className="text-th-hi text-[11px] font-mono tracking-widest">••••••••</span>
-            <span className="text-th-hi3 text-[10px]">saved</span>
+            <span className="text-th-hi text-2xs font-mono tracking-widest">••••••••</span>
+            <span className="text-th-hi3 text-3xs">saved</span>
             <div className="ml-auto flex items-center gap-1">
               <Button size="xs" variant="subtle" onClick={() => onEdit({ mode: 'set', value: '' })}>
                 Replace
@@ -110,7 +108,7 @@ function CredentialRow({
         )}
       </div>
       {hint && (
-        <p id={`${inputId}-hint`} className="text-th-hi3 text-[10px] leading-relaxed pl-[calc(7rem+0.75rem)]">{hint}</p>
+        <p id={`${inputId}-hint`} className="text-th-hi3 text-3xs leading-relaxed pl-[calc(7rem+0.75rem)]">{hint}</p>
       )}
     </div>
   );
@@ -119,8 +117,8 @@ function CredentialRow({
 function BuiltinRow({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="text-th-hi3 text-[11px] w-28 shrink-0">{label}</span>
-      <div className="flex items-center gap-1.5 text-th-hi3 text-[11px]">
+      <span className="text-th-hi3 text-2xs w-28 shrink-0">{label}</span>
+      <div className="flex items-center gap-1.5 text-th-hi3 text-2xs">
         <Lock size={11} className="shrink-0" />
         <span>Pre-configured</span>
       </div>
@@ -156,14 +154,14 @@ function AboutSection() {
     <div className="flex flex-col gap-3">
       <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">About</span>
       <div className="flex items-center gap-3">
-        <span className="text-th-hi3 text-[11px] w-28 shrink-0">Version</span>
-        <span className="text-th-hi text-[11px] font-mono">{version ?? '…'}</span>
+        <span className="text-th-hi3 text-2xs w-28 shrink-0">Version</span>
+        <span className="text-th-hi text-2xs font-mono">{version ?? '…'}</span>
         <Button size="sm" variant="subtle" loading={checking} onClick={() => void check()} className="ml-auto">
           Check for updates
         </Button>
       </div>
       {result && (
-        <div className="text-[10px] leading-relaxed pl-[calc(7rem+0.75rem)] flex flex-col gap-1">
+        <div className="text-3xs leading-relaxed pl-[calc(7rem+0.75rem)] flex flex-col gap-1">
           {result.hasUpdate && result.latestVersion ? (
             <>
               <Button
@@ -228,14 +226,14 @@ function AutoExportRow() {
         </Button>
         {dir && (
           <>
-            <span className="text-th-hi3 text-[10px] font-mono truncate flex-1 min-w-0" title={dir}>{dir}</span>
+            <span className="text-th-hi3 text-3xs font-mono truncate flex-1 min-w-0" title={dir}>{dir}</span>
             <Button variant="link" size="xs" onClick={() => void disable()} className="text-th-hi3 hover:text-th-loss">
               Disable
             </Button>
           </>
         )}
       </div>
-      <p className="text-th-hi3 text-[10px] leading-relaxed">
+      <p className="text-th-hi3 text-3xs leading-relaxed">
         {dir
           ? 'Settings auto-save to this folder on every change (2s debounce, atomic write).'
           : 'Pick a Google Drive / OneDrive / Dropbox folder to keep a continuously synced settings backup.'}
@@ -279,7 +277,7 @@ function SystemPrefsSection() {
         checked={prefs.globalHotkey}
         onChange={(v) => void update({ globalHotkey: v })}
       />
-      <p className="text-th-hi3 text-[10px] leading-relaxed">
+      <p className="text-th-hi3 text-3xs leading-relaxed">
         The tray icon is always available: show/hide, Spotify play/pause, restart server, quit.
       </p>
     </div>
@@ -306,16 +304,16 @@ function WidgetsSection() {
   return (
     <div className="flex flex-col gap-3">
       <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Widgets</span>
-      <p className="text-th-hi3 text-[10px] leading-relaxed">
+      <p className="text-th-hi3 text-3xs leading-relaxed">
         Disabled widgets disappear everywhere — the Widgets menu, the layout editor, the grid,
         and the command palette. Re-enabling doesn&apos;t pin the widget back; pin it from the
         Widgets menu.
       </p>
       {WIDGET_CATEGORIES.map((category) => (
         <div key={category.id} className="flex flex-col gap-2">
-          <span className="text-th-hi3 text-[10px] uppercase tracking-wider font-medium">
+          <Label className="text-3xs">
             {category.label}
-          </span>
+          </Label>
           <div className="flex flex-col gap-2 pl-2">
             {category.widgets.map((id) => (
               <Switch
@@ -344,7 +342,7 @@ function AppearanceSection() {
     <div className="flex flex-col gap-3">
       <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Appearance</span>
       <div className="flex items-center gap-3">
-        <span className="text-th-hi3 text-[11px] w-28 shrink-0">Theme</span>
+        <span className="text-th-hi3 text-2xs w-28 shrink-0">Theme</span>
         <ThemeToggle labels />
       </div>
       <Field layout="inline" label="Preset">
@@ -363,7 +361,7 @@ function AppearanceSection() {
           ))}
         </Select>
       </Field>
-      <p className="text-th-hi3 text-[10px] leading-relaxed">
+      <p className="text-th-hi3 text-3xs leading-relaxed">
         Light and Dark are the shared nish.software themes; System follows your OS. Custom colors are edited from the
         Themes menu in the title bar.
       </p>
@@ -458,7 +456,7 @@ function AppSettingsPanel() {
           ]}
           onChange={setWeatherAlertNotify}
         />
-        <p className="text-th-hi3 text-[10px] leading-relaxed">
+        <p className="text-th-hi3 text-3xs leading-relaxed">
           New NWS weather alerts chime, toast, and send a native notification.
           Severe = Extreme/Severe alerts only.
         </p>
@@ -599,12 +597,12 @@ function AppSettingsPanel() {
         <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Display</span>
 
         <div className="flex items-center gap-3">
-          <span className="text-th-hi3 text-[11px] w-28 shrink-0">UI scale</span>
+          <span className="text-th-hi3 text-2xs w-28 shrink-0">UI scale</span>
           <div className="flex items-center gap-2">
             <IconButton label="Smaller" size="xs" variant="subtle" onClick={() => setUiScale(clampScale(uiScale - 0.1))} disabled={uiScale <= SCALE_MIN}>
               <Minus size={12} />
             </IconButton>
-            <span className="text-th-hi text-[11px] tabular-nums w-10 text-center">{Math.round(uiScale * 100)}%</span>
+            <span className="text-th-hi text-2xs tabular-nums w-10 text-center">{Math.round(uiScale * 100)}%</span>
             <IconButton label="Larger" size="xs" variant="subtle" onClick={() => setUiScale(clampScale(uiScale + 0.1))} disabled={uiScale >= SCALE_MAX}>
               <Plus size={12} />
             </IconButton>
@@ -643,7 +641,7 @@ function AppSettingsPanel() {
           ]}
           onChange={setLowPower}
         />
-        <p className="text-th-hi3 text-[10px] leading-relaxed">
+        <p className="text-th-hi3 text-3xs leading-relaxed">
           Slows all widget refresh rates 4×. Auto engages only while on battery
           (requires the Hardware widget for battery detection). Polling always
           pauses while the window is hidden, regardless of this setting.
@@ -663,9 +661,9 @@ function AppSettingsPanel() {
           <input ref={fileRef} type="file" accept="application/json,.json" onChange={onImportFile} className="hidden" />
         </div>
         {importError && (
-          <p role="alert" className="text-th-loss text-[10px] leading-relaxed">{importError}</p>
+          <p role="alert" className="text-th-loss text-3xs leading-relaxed">{importError}</p>
         )}
-        <p className="text-th-hi3 text-[10px] leading-relaxed">
+        <p className="text-th-hi3 text-3xs leading-relaxed">
           Layout, theme &amp; preferences (not API keys). Import replaces local settings and reloads — handy for syncing two machines.
         </p>
         <AutoExportRow />
@@ -803,9 +801,9 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     tab === 'dev' ? (
       <div className="flex w-full items-center justify-between gap-3">
         {saveState === 'error' ? (
-          <span className="text-th-loss text-[11px]">Failed to save — the server didn't restart cleanly. Try again.</span>
+          <span className="text-th-loss text-2xs">Failed to save — the server didn't restart cleanly. Try again.</span>
         ) : saveState === 'saving' ? (
-          <span className="text-th-hi3 text-[11px]">Restarting server with new keys…</span>
+          <span className="text-th-hi3 text-2xs">Restarting server with new keys…</span>
         ) : (
           <span />
         )}
@@ -878,7 +876,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                 </Callout>
               )}
               <p className={cn(
-                'text-th-hi3 text-[10px] leading-relaxed',
+                'text-th-hi3 text-3xs leading-relaxed',
                 encryptionAvailable && 'border-t border-th-line pt-4',
               )}>
                 Spotify uses sign-in — no key needed. Weather, Hardware, and Sound require no API keys.
