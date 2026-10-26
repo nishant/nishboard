@@ -14,7 +14,7 @@ import { useAppSettingsStore } from '../../store/settingsStore';
 import { useWeatherUiStore } from '../../store/weatherUiStore';
 import { apiUrl } from '../../lib/apiClient';
 import { hourFormat } from '../../lib/time';
-import { Callout, Card, IconButton, Meter, SkeletonLines, cn } from '@nish/ui';
+import { Callout, Card, IconButton, Meter, SkeletonLines, Tooltip, cn } from '@nish/ui';
 
 function formatHour(isoTime: string, clock24h: boolean): string {
   const date = new Date(isoTime);
@@ -139,9 +139,13 @@ export function WeatherWidget() {
           className="shrink-0 rounded-lg px-2.5 py-1.5"
         >
           {alerts.length > 1 && (
-            <span className="text-3xs" title={alerts.map((a) => a.headline || a.event).join('\n')}>
+            <Tooltip
+              tip={<span className="whitespace-pre-line">{alerts.map((a) => a.headline || a.event).join('\n')}</span>}
+              side="bottom"
+              className="text-3xs"
+            >
               +{alerts.length - 1} more alert{alerts.length - 1 > 1 ? 's' : ''}
-            </span>
+            </Tooltip>
           )}
         </Callout>
       )}
@@ -194,20 +198,22 @@ export function WeatherWidget() {
       <div className="flex items-center gap-3 flex-wrap shrink-0 text-xs text-th-hi3">
         <span>Feels like {current.feelsLike}°{tempLabel}</span>
         {today?.sunrise && (
-          <span className="flex items-center gap-1" title="Sunrise">
-            <Sunrise size={13} className="text-th-warn" />{formatSun(today.sunrise, clock24h)}
-          </span>
+          <Tooltip tip="Sunrise" className="gap-1">
+            <Sunrise size={13} className="text-th-warn" aria-hidden="true" />
+            <span className="sr-only">Sunrise </span>{formatSun(today.sunrise, clock24h)}
+          </Tooltip>
         )}
         {today?.sunset && (
-          <span className="flex items-center gap-1" title="Sunset">
-            <Sunset size={13} className="text-th-chart-7" />{formatSun(today.sunset, clock24h)}
-          </span>
+          <Tooltip tip="Sunset" className="gap-1">
+            <Sunset size={13} className="text-th-chart-7" aria-hidden="true" />
+            <span className="sr-only">Sunset </span>{formatSun(today.sunset, clock24h)}
+          </Tooltip>
         )}
         {aqi != null && (
-          <span className="flex items-center gap-1.5" title="US Air Quality Index">
+          <Tooltip tip="US Air Quality Index" className="gap-1.5">
             <span className={cn('w-2 h-2 rounded-full shrink-0', aqiMeta(aqi).dot)} />
             AQI {Math.round(aqi)} · {aqiMeta(aqi).label}
-          </span>
+          </Tooltip>
         )}
       </div>
 

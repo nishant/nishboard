@@ -16,7 +16,7 @@ import { AlertsPanel } from './settings/AlertsPanel';
 import { useOverlayStore } from '../store/overlayStore';
 import { useThemeStore } from '../store/themeStore';
 import { CUSTOM_THEME, THEMES, THEME_PRESETS } from '../themes';
-import { Badge, Button, Callout, Field, IconButton, Modal, SkeletonLines, Switch, TabPanel, Tabs, ThemeToggle, cn, Label } from '@nish/ui';
+import { Badge, Button, Callout, Field, IconButton, Modal, SkeletonLines, Switch, TabPanel, Tabs, ThemeToggle, Tooltip, cn, Label } from '@nish/ui';
 import { Input, Select } from './nishGaps';
 
 // Group defs by service
@@ -226,7 +226,9 @@ function AutoExportRow() {
         </Button>
         {dir && (
           <>
-            <span className="text-th-hi3 text-3xs font-mono truncate flex-1 min-w-0" title={dir}>{dir}</span>
+            <Tooltip tip={<span className="font-mono break-all">{dir}</span>} className="flex-1 min-w-0">
+              <span className="text-th-hi3 text-3xs font-mono truncate">{dir}</span>
+            </Tooltip>
             <Button variant="link" size="xs" onClick={() => void disable()} className="text-th-hi3 hover:text-th-loss">
               Disable
             </Button>
