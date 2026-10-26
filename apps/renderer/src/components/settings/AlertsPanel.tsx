@@ -4,8 +4,8 @@ import { useAlertsStore, describeRule, DEFAULT_COOLDOWN_MIN } from '../../store/
 import type { AlertRule, AlertRuleKind, NewAlertRule } from '../../store/alertsStore';
 import { useStocksStore } from '../../store/stocksStore';
 import { useCryptoStore } from '../../store/cryptoStore';
-import { cn } from '@nish/ui';
-import { Switch } from './controls';
+import { Button, EmptyState, Field, IconButton, Segmented, Switch, cn } from '@nish/ui';
+import { Input, Select } from '../nishGaps';
 
 const KIND_LABELS: Record<AlertRuleKind, string> = {
   'stock-price': 'Stock price',
@@ -14,28 +14,29 @@ const KIND_LABELS: Record<AlertRuleKind, string> = {
   'cpu-sustained': 'CPU sustained',
 };
 
-const inputCls =
-  'bg-th-elevated border border-th-line rounded-lg px-2.5 py-1.5 text-th-hi text-[11px] placeholder:text-th-ghost focus:outline-none focus:border-th-hi3 transition-colors';
-
 function NumField({
-  value, onChange, placeholder, suffix, width = 'w-24',
+  value, onChange, placeholder, suffix, label, width = 'w-24',
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder: string;
   suffix?: string;
+  /** Accessible name (the row label alone is ambiguous when a row has two fields). */
+  label: string;
   width?: string;
 }) {
   return (
     <div className="flex items-center gap-1">
-      <input
+      <Input
+        size="sm"
         value={value}
         onChange={(e) => onChange(e.target.value.replace(/[^0-9.]/g, ''))}
         placeholder={placeholder}
         inputMode="decimal"
-        className={cn(inputCls, width, 'font-mono')}
+        aria-label={label}
+        className={cn(width, 'font-mono')}
       />
-      {suffix && <span className="text-th-hi3 text-[10px]">{suffix}</span>}
+      {suffix && <span className="text-th-hi3 text-[10px]" aria-hidden="true">{suffix}</span>}
     </div>
   );
 }
@@ -50,7 +51,7 @@ function RuleRow({ rule }: { rule: AlertRule }) {
 
   return (
     <div className="flex items-center gap-2.5 group">
-      <Switch size="sm" checked={rule.enabled} onChange={() => toggleRule(rule.id)} />
+      <Switch size="sm" checked={rule.enabled} onChange={() => toggleRule(rule.id)} aria-label={`Enable: ${describeRule(rule)}`} />
       <div className="flex flex-col min-w-0 flex-1">
         <span className={cn('text-[11px] truncate', rule.enabled ? 'text-th-hi' : 'text-th-hi3')}>
           {describeRule(rule)}
@@ -63,13 +64,15 @@ function RuleRow({ rule }: { rule: AlertRule }) {
           )}
         </span>
       </div>
-      <button
+      <IconButton
+        label="Delete rule"
+        size="sm"
+        tone="danger"
         onClick={() => removeRule(rule.id)}
-        className="text-th-hi3 hover:text-th-loss opacity-0 group-hover:opacity-100 transition-all shrink-0 p-1"
-        title="Delete rule"
+        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
       >
         <X size={13} />
-      </button>
+      </IconButton>
     </div>
   );
 }
@@ -139,10 +142,7 @@ export function AlertsPanel() {
       <div className="flex flex-col gap-3">
         <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Rules</span>
         {rules.length === 0 ? (
-          <div className="flex items-center gap-2 text-th-hi3 text-[11px]">
-            <BellOff size={13} />
-            <span>No alert rules yet — add one below.</span>
-          </div>
+          <EmptyState compact icon={<BellOff size={13} />} title="No alert rules yet — add one below." className="items-start py-0" />
         ) : (
           rules.map((r) => <RuleRow key={r.id} rule={r} />)
         )}
@@ -152,36 +152,33 @@ export function AlertsPanel() {
       <div className="flex flex-col gap-3">
         <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Add rule</span>
 
-        <div className="flex items-center gap-3">
-          <span className="text-th-hi3 text-[11px] w-28 shrink-0">Type</span>
-          <select
-            value={kind}
-            onChange={(e) => setKind(e.target.value as AlertRuleKind)}
-            className={cn(inputCls, 'flex-1')}
-          >
+        <Field layout="inline" label="Type">
+          <Select size="sm" value={kind} onChange={(e) => setKind(e.target.value as AlertRuleKind)}>
             {(Object.keys(KIND_LABELS) as AlertRuleKind[]).map((k) => (
               <option key={k} value={k}>{KIND_LABELS[k]}</option>
             ))}
-          </select>
-        </div>
+          </Select>
+        </Field>
 
         {kind === 'stock-price' && (
           <div className="flex items-center gap-3">
             <span className="text-th-hi3 text-[11px] w-28 shrink-0">Condition</span>
             <div className="flex items-center gap-2 flex-wrap">
-              <input
+              <Input
+                size="sm"
                 value={symbol}
                 onChange={(e) => setSymbol(e.target.value.toUpperCase().replace(/[^A-Z.]/g, ''))}
                 placeholder="AAPL"
                 list="alert-stock-symbols"
                 spellCheck={false}
-                className={cn(inputCls, 'w-24 font-mono')}
+                aria-label="Ticker"
+                className="w-24 font-mono"
               />
               <datalist id="alert-stock-symbols">
                 {stockWatchlist.map((t) => <option key={t} value={t} />)}
               </datalist>
               <DirPicker dir={dir} setDir={setDir} />
-              <NumField value={threshold} onChange={setThreshold} placeholder="250" suffix="USD" />
+              <NumField value={threshold} onChange={setThreshold} placeholder="250" suffix="USD" label="Price in USD" />
             </div>
           </div>
         )}
@@ -190,17 +187,17 @@ export function AlertsPanel() {
           <div className="flex items-center gap-3">
             <span className="text-th-hi3 text-[11px] w-28 shrink-0">Condition</span>
             <div className="flex items-center gap-2 flex-wrap">
-              <select value={coinId} onChange={(e) => setCoinId(e.target.value)} className={cn(inputCls, 'w-28')}>
+              <Select size="sm" value={coinId} onChange={(e) => setCoinId(e.target.value)} aria-label="Coin" className="w-28">
                 {cryptoWatchlist.length === 0 && <option value="">— no coins —</option>}
                 {cryptoWatchlist.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
+              </Select>
               {kind === 'crypto-price' ? (
                 <>
                   <DirPicker dir={dir} setDir={setDir} />
-                  <NumField value={threshold} onChange={setThreshold} placeholder="120000" suffix="USD" />
+                  <NumField value={threshold} onChange={setThreshold} placeholder="120000" suffix="USD" label="Price in USD" />
                 </>
               ) : (
-                <NumField value={magnitude} onChange={setMagnitude} placeholder="5" suffix="% in 24h" width="w-16" />
+                <NumField value={magnitude} onChange={setMagnitude} placeholder="5" suffix="% in 24h" label="Percent move in 24 hours" width="w-16" />
               )}
             </div>
           </div>
@@ -210,27 +207,23 @@ export function AlertsPanel() {
           <div className="flex items-center gap-3">
             <span className="text-th-hi3 text-[11px] w-28 shrink-0">Condition</span>
             <div className="flex items-center gap-2 flex-wrap">
-              <NumField value={cpuPct} onChange={setCpuPct} placeholder="90" suffix="%" width="w-16" />
+              <NumField value={cpuPct} onChange={setCpuPct} placeholder="90" suffix="%" label="CPU percent" width="w-16" />
               <span className="text-th-hi3 text-[10px]">for</span>
-              <NumField value={minutes} onChange={setMinutes} placeholder="5" suffix="min" width="w-16" />
+              <NumField value={minutes} onChange={setMinutes} placeholder="5" suffix="min" label="Minutes sustained" width="w-16" />
             </div>
           </div>
         )}
 
         <div className="flex items-center gap-3">
           <span className="text-th-hi3 text-[11px] w-28 shrink-0">Cooldown</span>
-          <NumField value={cooldown} onChange={setCooldown} placeholder="30" suffix="min between fires" width="w-16" />
+          <NumField value={cooldown} onChange={setCooldown} placeholder="30" suffix="min between fires" label="Cooldown in minutes" width="w-16" />
         </div>
 
         <div className="flex items-center gap-3">
           <span className="w-28 shrink-0" />
-          <button
-            onClick={submit}
-            disabled={!draft}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-th-elevated hover:bg-th-overlay text-th-hi text-[11px] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            <Plus size={13} /> Add alert
-          </button>
+          <Button size="sm" variant="subtle" icon={<Plus size={13} />} onClick={submit} disabled={!draft}>
+            Add alert
+          </Button>
         </div>
 
         <p className="text-th-hi3 text-[10px] leading-relaxed">
@@ -247,19 +240,15 @@ export function AlertsPanel() {
 
 function DirPicker({ dir, setDir }: { dir: 'above' | 'below'; setDir: (d: 'above' | 'below') => void }) {
   return (
-    <div className="flex rounded-lg bg-th-elevated p-0.5">
-      {(['above', 'below'] as const).map((d) => (
-        <button
-          key={d}
-          onClick={() => setDir(d)}
-          className={cn(
-            'px-2.5 py-1 rounded text-[10px] transition-colors',
-            dir === d ? 'bg-th-overlay text-th-hi' : 'text-th-hi3 hover:text-th-hi2',
-          )}
-        >
-          {d}
-        </button>
-      ))}
-    </div>
+    <Segmented<'above' | 'below'>
+      label="Direction"
+      size="xs"
+      value={dir}
+      onChange={setDir}
+      options={[
+        { value: 'above', label: 'above' },
+        { value: 'below', label: 'below' },
+      ]}
+    />
   );
 }

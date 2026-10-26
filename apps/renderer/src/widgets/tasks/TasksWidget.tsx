@@ -39,7 +39,7 @@ export function TasksWidget() {
           <EmptyState compact title="No tasks" />
         ) : (
           tasks.map((t) => (
-            <div key={t.id} className="group flex items-center gap-2 px-1.5 py-1 rounded hover:bg-th-elevated/50">
+            <div key={t.id} className="group flex items-center gap-2 px-1.5 py-1 rounded hover:bg-th-elevated">
               <Checkbox
                 size="sm"
                 checked={t.done}

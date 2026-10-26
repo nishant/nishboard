@@ -32,7 +32,7 @@ import { TITLEBAR_H } from './Titlebar';
 import { WIDGET_TITLES } from '../lib/layouts';
 import type { WidgetId } from '../lib/layouts';
 import { HeaderAction } from './HeaderAction';
-import { cn } from '@nish/ui';
+import { Button, EmptyState, cn } from '@nish/ui';
 
 const GridLayout = WidthProvider(ReactGridLayout);
 
@@ -82,16 +82,17 @@ function PopoutAction({ id }: { id: WidgetId }) {
  *  the real widget renders only there (no double polling / double chimes). */
 function PoppedPlaceholder({ id }: { id: WidgetId }) {
   return (
-    <div className="h-full flex flex-col items-center justify-center gap-3 p-4">
-      <ExternalLink size={18} className="text-th-hi3" />
-      <p className="text-th-hi3 text-xs">Popped out</p>
-      <button
-        onClick={() => window.electron?.popout?.close(id)}
-        className="px-3 py-1.5 rounded-full bg-th-elevated hover:bg-th-overlay text-th-hi text-[11px] transition-colors"
-      >
-        Bring back
-      </button>
-    </div>
+    <EmptyState
+      compact
+      className="h-full"
+      icon={<ExternalLink size={18} />}
+      title="Popped out"
+      action={
+        <Button size="sm" variant="subtle" onClick={() => window.electron?.popout?.close(id)}>
+          Bring back
+        </Button>
+      }
+    />
   );
 }
 

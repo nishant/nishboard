@@ -5,7 +5,8 @@ import { WIDGET_CATEGORIES, WIDGET_TITLES } from '../../lib/layouts';
 import type { WidgetId } from '../../lib/layouts';
 import { orderedCategoryWidgets, useWidgetUiStore } from '../../store/widgetUiStore';
 import { useAppSettingsStore } from '../../store/settingsStore';
-import { Button, Modal, cn } from '@nish/ui';
+import { Button, IconButton, cn } from '@nish/ui';
+import { Input } from '../nishGaps';
 
 // WebkitAppRegion is a non-standard Electron CSS property missing from React's
 // CSSProperties — the cast is unavoidable.
@@ -27,7 +28,7 @@ export const menuBtn = (open: boolean, compact: boolean) =>
       : 'flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] transition-colors',
     open
       ? 'bg-th-elevated text-th-hi'
-      : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated/60',
+      : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated',
   );
 
 export const menuPanel =
@@ -37,12 +38,9 @@ export const menuPanel =
 export function SubmenuHeader({ label, onBack }: { label: string; onBack: () => void }) {
   return (
     <div className="flex items-center gap-1.5 px-3 pt-1 pb-2 border-b border-th-line">
-      <button
-        onClick={onBack}
-        className="text-th-hi3 hover:text-th-hi transition-colors p-0.5 -ml-0.5"
-      >
+      <IconButton label="Back" size="xs" onClick={onBack} className="size-5 -ml-0.5">
         <ArrowLeft size={12} />
-      </button>
+      </IconButton>
       <span className="text-th-hi3 text-[10px] uppercase tracking-wider font-medium">{label}</span>
     </div>
   );
@@ -59,17 +57,15 @@ function MoveButton({
 }) {
   const Icon = direction === -1 ? ChevronUp : ChevronDown;
   return (
-    <button
+    <IconButton
+      label={direction === -1 ? 'Move up' : 'Move down'}
+      size="xs"
       onClick={onMove}
       disabled={atBoundary}
-      title={direction === -1 ? 'Move up' : 'Move down'}
-      className={cn(
-        'p-0.5 rounded transition-colors shrink-0 text-th-hi3 hover:text-th-hi2',
-        atBoundary ? 'opacity-0 pointer-events-none' : 'opacity-0 group-hover:opacity-100',
-      )}
+      className={cn('size-5', atBoundary ? 'opacity-0 pointer-events-none' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100')}
     >
       <Icon size={11} />
-    </button>
+    </IconButton>
   );
 }
 
@@ -123,18 +119,18 @@ export function WidgetPinList({
                     atBoundary={idx === ids.length - 1}
                     onMove={() => moveWidget(category.id, id, 1)}
                   />
-                  <button
+                  <IconButton
+                    label={`${visible ? unpinTitle : pinTitle}: ${WIDGET_TITLES[id]}`}
+                    size="xs"
                     onClick={() => (visible ? hideWidget(id) : showWidget(id))}
-                    title={visible ? unpinTitle : pinTitle}
+                    aria-pressed={visible}
                     className={cn(
-                      'p-1 rounded transition-colors shrink-0',
-                      visible
-                        ? 'text-th-hi2 hover:text-th-loss'
-                        : 'text-th-hi3 hover:text-th-hi2 opacity-0 group-hover:opacity-100',
+                      'size-5',
+                      visible ? 'text-th-hi2 hover:text-th-loss' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100',
                     )}
                   >
                     <Pin size={10} className={visible ? 'fill-current' : ''} />
-                  </button>
+                  </IconButton>
                 </div>
               );
             })}
@@ -171,32 +167,27 @@ export function SaveAsForm({
   return (
     <div className="border-t border-th-line pt-2.5 flex flex-col gap-1.5">
       {isEdit ? (
-        <button
-          onClick={handleSave}
-          className="w-full px-2.5 py-1.5 text-[10px] bg-th-overlay hover:bg-th-overlay/70 text-th-hi rounded transition-colors shrink-0"
-        >
+        <Button size="xs" variant="primary" onClick={handleSave} className="w-full">
           Save changes
-        </button>
+        </Button>
       ) : (
         <>
           <span className="text-th-hi3 text-[9px] uppercase tracking-wider">Save as</span>
           <div className="flex gap-1.5">
-            <input
+            <Input
+              size="xs"
               type="text"
               value={saveName}
               onChange={(e) => setSaveName(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
               placeholder={placeholder}
+              aria-label="Save as"
               maxLength={32}
-              className="flex-1 bg-th-elevated border border-th-line rounded px-2 py-1 text-[10px] text-th-hi placeholder:text-th-ghost focus:outline-none focus:border-th-hi3 transition-colors"
+              className="flex-1 text-3xs"
             />
-            <button
-              onClick={handleSave}
-              disabled={!saveName.trim()}
-              className="px-2.5 py-1 text-[10px] bg-th-overlay hover:bg-th-overlay/70 text-th-hi rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
-            >
+            <Button size="xs" variant="primary" onClick={handleSave} disabled={!saveName.trim()}>
               Save
-            </button>
+            </Button>
           </div>
         </>
       )}
@@ -226,67 +217,42 @@ export function SavedItemRow({
           'flex-1 flex items-center gap-2 px-2 py-1.5 text-[11px] rounded transition-colors min-w-0',
           active
             ? 'text-th-hi bg-th-elevated'
-            : 'text-th-hi2 hover:text-th-hi hover:bg-th-elevated/60',
+            : 'text-th-hi2 hover:text-th-hi hover:bg-th-elevated',
         )}
       >
         {icon}
         <span className="truncate">{name}</span>
       </button>
       {onTogglePin && (
-        <button
+        <IconButton
+          label={pinned ? 'Unpin from bar' : 'Pin to bar'}
+          size="xs"
           onClick={onTogglePin}
-          title={pinned ? 'Unpin from bar' : 'Pin to bar'}
-          className={cn(
-            'p-1 rounded transition-colors shrink-0',
-            pinned
-              ? 'text-th-hi2 hover:text-th-loss'
-              : 'text-th-hi3 hover:text-th-hi2 opacity-0 group-hover:opacity-100',
-          )}
+          aria-pressed={pinned}
+          className={cn('size-5', pinned ? 'text-th-hi2 hover:text-th-loss' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100')}
         >
           <Pin size={10} className={pinned ? 'fill-current' : ''} />
-        </button>
+        </IconButton>
       )}
-      <button
+      <IconButton
+        label={`Delete "${name}"`}
+        size="xs"
+        tone="danger"
         onClick={onDelete}
-        title={`Delete "${name}"`}
-        className="p-1 rounded text-th-hi3 hover:text-th-loss transition-colors opacity-0 group-hover:opacity-100 shrink-0"
+        className="size-5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
       >
         <X size={11} />
-      </button>
+      </IconButton>
     </div>
   );
 }
 
-/** Delete-confirmation dialog (@nish/ui Modal) — shared by layouts and themes. */
-export function ConfirmDeleteDialog({
-  kind, name, onConfirm, onCancel,
-}: {
-  /** Lowercase noun for the title, e.g. "layout" / "theme". */
-  kind: string;
-  name: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-}) {
+/** Body copy for a delete confirmation (shared ConfirmDialog) — layouts and themes. */
+export function deleteBody(name: string): ReactNode {
   return (
-    <Modal
-      title={`Delete ${kind}?`}
-      onClose={onCancel}
-      className="sm:max-w-xs"
-      footer={
-        <>
-          <Button size="sm" variant="secondary" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button size="sm" variant="danger" onClick={onConfirm}>
-            Delete
-          </Button>
-        </>
-      }
-    >
-      <p className="text-xs leading-relaxed text-th-hi2" style={noDragStyle}>
-        <span className="font-medium text-th-hi">&ldquo;{name}&rdquo;</span> will be permanently removed. This cannot be
-        undone.
-      </p>
-    </Modal>
+    <>
+      <span className="font-medium text-th-hi">&ldquo;{name}&rdquo;</span> will be permanently removed. This cannot be
+      undone.
+    </>
   );
 }

@@ -3,13 +3,13 @@ import { Palette, ArrowLeft, ChevronRight, Plus } from 'lucide-react';
 import { useThemeStore } from '../../store/themeStore';
 import type { CustomColors, SavedCustomTheme } from '../../store/themeStore';
 import { CUSTOM_THEME, THEMES, THEME_PRESETS } from '../../themes';
-import { ThemeModeSwitch } from '../ThemeModeSwitch';
 import { parseHex } from '../../lib/colorUtils';
 import {
   Backdrop, menuBtn, menuPanel, noDragStyle,
-  SubmenuHeader, SaveAsForm, SavedItemRow, ConfirmDeleteDialog,
+  SubmenuHeader, SaveAsForm, SavedItemRow, deleteBody,
 } from './primitives';
-import { cn } from '@nish/ui';
+import { ConfirmDialog, IconButton, ThemeToggle, cn } from '@nish/ui';
+import { Input } from '../nishGaps';
 
 // ── ColorPicker ───────────────────────────────────────────────────────────────
 
@@ -63,21 +63,20 @@ function ColorPicker({
       </label>
 
       {/* Hex / rgb text input */}
-      <input
+      <Input
+        size="xs"
         type="text"
         value={text}
+        invalid={error}
         onChange={(e) => { setText(e.target.value); setError(false); }}
         onBlur={(e) => commit(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter') commit((e.target as HTMLInputElement).value);
         }}
         placeholder="#rrggbb"
+        aria-label={`${label} color`}
         spellCheck={false}
-        className={cn(
-          'flex-1 bg-th-elevated border rounded px-2 py-0.5 text-[10px] font-mono text-th-hi',
-          'placeholder:text-th-ghost focus:outline-none transition-colors',
-          error ? 'border-th-loss' : 'border-th-line focus:border-th-hi3',
-        )}
+        className="flex-1 h-6 text-3xs font-mono"
       />
     </div>
   );
@@ -104,12 +103,9 @@ function CustomEditor({
     <div className="px-3 py-2 flex flex-col gap-3">
       {/* Header */}
       <div className="flex items-center gap-1.5">
-        <button
-          onClick={onBack}
-          className="text-th-hi3 hover:text-th-hi transition-colors p-0.5 -ml-0.5"
-        >
+        <IconButton label="Back" size="xs" onClick={onBack} className="size-5 -ml-0.5">
           <ArrowLeft size={12} />
-        </button>
+        </IconButton>
         <span className="text-th-hi text-[11px] font-semibold">
           {editTarget ? `Edit "${editTarget.name}"` : 'Custom Theme'}
         </span>
@@ -226,7 +222,7 @@ export function ThemeMenu({ compact }: { compact: boolean }) {
             {panel === 'list' && (
               <>
                 <div className="px-2 pt-1 pb-2">
-                  <ThemeModeSwitch showLabels className="w-full" />
+                  <ThemeToggle labels block />
                 </div>
                 <p className="px-3 pt-1 pb-0.5 text-th-hi3 text-[10px] uppercase tracking-wider font-medium">Presets</p>
                 {[...THEME_PRESETS, CUSTOM_THEME].map((t) => {
@@ -247,7 +243,7 @@ export function ThemeMenu({ compact }: { compact: boolean }) {
                         'w-full flex items-center gap-2.5 px-3 py-1.5 text-[11px] transition-colors',
                         theme === t.id
                           ? 'text-th-hi bg-th-elevated'
-                          : 'text-th-hi2 hover:text-th-hi hover:bg-th-elevated/60',
+                          : 'text-th-hi2 hover:text-th-hi hover:bg-th-elevated',
                       )}
                     >
                       <span
@@ -272,7 +268,7 @@ export function ThemeMenu({ compact }: { compact: boolean }) {
                 {/* Create new — always first */}
                 <button
                   onClick={() => setPanel('editor')}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-th-hi2 hover:text-th-hi hover:bg-th-elevated/60 transition-colors mt-0.5"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-th-hi2 hover:text-th-hi hover:bg-th-elevated transition-colors mt-0.5"
                 >
                   <Plus size={11} className="shrink-0" />
                   Create new
@@ -324,9 +320,11 @@ export function ThemeMenu({ compact }: { compact: boolean }) {
 
           {/* Delete confirmation modal — rendered over everything */}
           {deleteTarget && (
-            <ConfirmDeleteDialog
-              kind="theme"
-              name={deleteTarget.name}
+            <ConfirmDialog
+              title="Delete theme?"
+              body={deleteBody(deleteTarget.name)}
+              confirmLabel="Delete"
+              tone="danger"
               onConfirm={handleConfirmDelete}
               onCancel={() => setDeleteTarget(null)}
             />

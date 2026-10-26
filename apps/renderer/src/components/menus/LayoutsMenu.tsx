@@ -6,9 +6,9 @@ import type { SavedCustomLayout } from '../../store/layoutStore';
 import type { WidgetId } from '../../lib/layouts';
 import {
   Backdrop, menuBtn, menuPanel, noDragStyle,
-  SubmenuHeader, WidgetPinList, SaveAsForm, SavedItemRow, ConfirmDeleteDialog,
+  SubmenuHeader, WidgetPinList, SaveAsForm, SavedItemRow, deleteBody,
 } from './primitives';
-import { cn } from '@nish/ui';
+import { ConfirmDialog, IconButton, cn } from '@nish/ui';
 
 // ── Tile editor (pin/unpin + save) ────────────────────────────────────────────
 
@@ -33,12 +33,9 @@ function CustomLayoutEditor({
     <div className="px-3 py-2 flex flex-col gap-3">
       {/* Header */}
       <div className="flex items-center gap-1.5">
-        <button
-          onClick={onBack}
-          className="text-th-hi3 hover:text-th-hi transition-colors p-0.5 -ml-0.5"
-        >
+        <IconButton label="Back" size="xs" onClick={onBack} className="size-5 -ml-0.5">
           <ArrowLeft size={12} />
-        </button>
+        </IconButton>
         <span className="text-th-hi text-[11px] font-semibold">
           {editTarget ? `Edit "${editTarget.name}"` : 'Custom Layout'}
         </span>
@@ -138,23 +135,20 @@ export function LayoutsMenu({ compact }: { compact: boolean }) {
                           'flex-1 text-left px-2 py-1 rounded text-[11px] transition-colors',
                           activePreset === preset.name
                             ? 'text-th-hi bg-th-elevated'
-                            : 'text-th-hi2 hover:text-th-hi hover:bg-th-elevated/60',
+                            : 'text-th-hi2 hover:text-th-hi hover:bg-th-elevated',
                         )}
                       >
                         {preset.name}
                       </button>
-                      <button
+                      <IconButton
+                        label={pinned ? 'Unpin from bar' : 'Pin to bar'}
+                        size="xs"
+                        aria-pressed={pinned}
                         onClick={() => (pinned ? unpinPreset(preset.name) : pinPreset(preset.name))}
-                        title={pinned ? 'Unpin from bar' : 'Pin to bar'}
-                        className={cn(
-                          'p-1 rounded transition-colors shrink-0',
-                          pinned
-                            ? 'text-th-hi2 hover:text-th-loss'
-                            : 'text-th-hi3 hover:text-th-hi2 opacity-0 group-hover:opacity-100',
-                        )}
+                        className={cn('size-5', pinned ? 'text-th-hi2 hover:text-th-loss' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100')}
                       >
                         <Pin size={10} className={pinned ? 'fill-current' : ''} />
-                      </button>
+                      </IconButton>
                     </div>
                   );
                 })}
@@ -167,7 +161,7 @@ export function LayoutsMenu({ compact }: { compact: boolean }) {
                     'w-full flex items-center gap-2 px-3 py-1.5 text-[11px] transition-colors',
                     activeCustomLayoutId
                       ? 'text-th-hi bg-th-elevated'
-                      : 'text-th-hi2 hover:text-th-hi hover:bg-th-elevated/60',
+                      : 'text-th-hi2 hover:text-th-hi hover:bg-th-elevated',
                   )}
                 >
                   <LayoutGrid size={11} className="shrink-0" />
@@ -185,7 +179,7 @@ export function LayoutsMenu({ compact }: { compact: boolean }) {
                 {/* Create new — always first */}
                 <button
                   onClick={() => setPanel('editor')}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-th-hi2 hover:text-th-hi hover:bg-th-elevated/60 transition-colors mt-0.5"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-th-hi2 hover:text-th-hi hover:bg-th-elevated transition-colors mt-0.5"
                 >
                   <Plus size={11} className="shrink-0" />
                   Create new
@@ -235,9 +229,11 @@ export function LayoutsMenu({ compact }: { compact: boolean }) {
 
           {/* Delete confirmation — rendered over everything */}
           {deleteTarget && (
-            <ConfirmDeleteDialog
-              kind="layout"
-              name={deleteTarget.name}
+            <ConfirmDialog
+              title="Delete layout?"
+              body={deleteBody(deleteTarget.name)}
+              confirmLabel="Delete"
+              tone="danger"
               onConfirm={handleConfirmDelete}
               onCancel={() => setDeleteTarget(null)}
             />

@@ -108,7 +108,7 @@ function ClockList({
     return (
       <div className="flex flex-col gap-1">
         {zones.map((tz) => (
-          <div key={tz} className="group flex items-center gap-2 px-1.5 py-1 rounded hover:bg-th-elevated/50">
+          <div key={tz} className="group flex items-center gap-2 px-1.5 py-1 rounded hover:bg-th-elevated">
             <div className="flex flex-col min-w-0">
               <span className="text-th-hi text-sm tabular-nums leading-tight">{digitalTime(tz, now, clock24h)}</span>
               <span className="text-th-hi3 text-[10px] truncate">{zoneLabel(tz)} · {dayLabel(tz, now)}</span>

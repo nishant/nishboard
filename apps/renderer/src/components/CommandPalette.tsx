@@ -4,7 +4,7 @@ import { collectActions, matchParamCommand, refreshSources } from '../lib/comman
 import type { PaletteAction, ParamCommandMatch } from '../lib/commandRegistry';
 import { fuzzyScore } from '../lib/fuzzy';
 import { useOverlayStore } from '../store/overlayStore';
-import { cn } from '@nish/ui';
+import { EmptyState, Kbd, cn } from '@nish/ui';
 
 // In-app command palette (per scope: NOT a global shortcut).
 // Open with mod+K or double-Shift (<300ms). Recents float on an empty query.
@@ -207,12 +207,12 @@ export function CommandPalette() {
             spellCheck={false}
             className="flex-1 bg-transparent text-th-hi text-sm placeholder:text-th-ghost focus:outline-none"
           />
-          <kbd className="text-th-hi3 text-[10px] border border-th-line rounded px-1.5 py-0.5 shrink-0">esc</kbd>
+          <Kbd className="shrink-0">esc</Kbd>
         </div>
 
         <div ref={listRef} className="flex-1 overflow-y-auto py-1">
           {results.length === 0 && (
-            <p className="text-th-hi3 text-xs text-center py-6">No matching commands</p>
+            <EmptyState compact title="No matching commands" />
           )}
           {results.map(({ row, header }, i) => {
             const isHint = row.kind === 'command' && !row.match.parsed;

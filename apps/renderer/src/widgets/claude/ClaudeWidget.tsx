@@ -356,7 +356,7 @@ function filterSlashItems(all: Array<{ name: string; isSkill: boolean }>, query:
 function ToolChip({ part, live }: { part: ClaudeToolPart; live: boolean }) {
   const running = part.status === 'running' && live;
   return (
-    <div className="flex items-center gap-1.5 my-1 px-2 py-1 rounded-md bg-th-elevated/60 text-[11px] max-w-full">
+    <div className="flex items-center gap-1.5 my-1 px-2 py-1 rounded-md bg-th-elevated text-[11px] max-w-full">
       {part.status === 'error' ? (
         <X size={11} className="shrink-0 text-th-loss" />
       ) : running ? (
@@ -411,7 +411,7 @@ function PromptCard({ part, live }: { part: ClaudePromptPart; live: boolean }) {
     const status = part.status === 'pending' ? 'Expired' : PROMPT_STATUS_LABEL[part.status];
     const ok = part.status === 'allowed';
     return (
-      <div className="flex items-center gap-1.5 my-1 px-2 py-1 rounded-md bg-th-elevated/60 text-[11px] max-w-full">
+      <div className="flex items-center gap-1.5 my-1 px-2 py-1 rounded-md bg-th-elevated text-[11px] max-w-full">
         {ok ? <Check size={11} className="shrink-0 text-th-ok" /> : <X size={11} className="shrink-0 text-th-hi3" />}
         <span className="shrink-0 font-medium text-th-hi">{status}</span>
         <span className="shrink-0 text-th-hi3">·</span>

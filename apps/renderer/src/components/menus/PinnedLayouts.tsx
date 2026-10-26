@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { LayoutGrid, ChevronDown } from 'lucide-react';
 import { useLayoutStore } from '../../store/layoutStore';
 import { Backdrop, noDragStyle } from './primitives';
-import { cn } from '@nish/ui';
+import { Button, cn } from '@nish/ui';
 
 /** One titlebar quick-switch chip — a pinned preset (name-keyed) or a pinned
  *  saved custom layout (id-keyed). */
@@ -59,7 +59,7 @@ export function PinnedLayoutsMenu() {
           'flex items-center gap-1 pl-1.5 pr-1 py-0.5 rounded text-[11px] font-medium transition-colors max-w-[140px]',
           open
             ? 'bg-th-elevated text-th-hi'
-            : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated/60',
+            : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated',
         )}
         title="Switch pinned layout"
       >
@@ -80,7 +80,7 @@ export function PinnedLayoutsMenu() {
                   'w-full text-left px-3 py-1.5 text-[11px] transition-colors',
                   e.active
                     ? 'bg-th-elevated text-th-hi'
-                    : 'text-th-hi2 hover:bg-th-elevated/60 hover:text-th-hi',
+                    : 'text-th-hi2 hover:bg-th-elevated hover:text-th-hi',
                 )}
               >
                 {e.label}
@@ -101,18 +101,16 @@ export function InlinePinnedLayouts() {
   return (
     <div style={noDragStyle} className="flex items-center gap-0.5 min-w-0">
       {entries.map((e) => (
-        <button
+        <Button
           key={e.key}
+          variant="ghost"
+          size="xs"
           onClick={e.apply}
-          className={cn(
-            'px-2 py-0.5 rounded text-[11px] font-medium transition-colors truncate',
-            e.active
-              ? 'bg-th-elevated text-th-hi'
-              : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated/60',
-          )}
+          aria-pressed={e.active}
+          className={cn('truncate', e.active ? 'bg-th-elevated text-th-hi' : 'text-th-hi3')}
         >
           {e.label}
-        </button>
+        </Button>
       ))}
     </div>
   );

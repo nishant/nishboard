@@ -5,7 +5,8 @@ import { ThemeMenu } from './menus/ThemeMenu';
 import { WidgetsMenu } from './menus/WidgetsMenu';
 import { LayoutsMenu } from './menus/LayoutsMenu';
 import { PinnedLayoutsMenu, InlinePinnedLayouts } from './menus/PinnedLayouts';
-import { menuBtn, dragStyle, noDragStyle } from './menus/primitives';
+import { dragStyle, noDragStyle } from './menus/primitives';
+import { Button, IconButton } from '@nish/ui';
 import { useAppSettingsStore } from '../store/settingsStore';
 import { useOverlayStore } from '../store/overlayStore';
 import { useWeather } from '../widgets/weather/useWeather';
@@ -102,36 +103,32 @@ export function Titlebar() {
         <WidgetsMenu compact={compact} />
         <LayoutsMenu compact={compact} />
         <div style={noDragStyle} className="flex items-center gap-1">
-          <button
-            onClick={() => setSettingsOpen(true)}
-            className={menuBtn(false, compact)}
-            title="Settings"
-          >
-            <Settings size={compact ? 13 : 11} />
-            {!compact && 'Settings'}
-          </button>
+          {compact ? (
+            <IconButton label="Settings" size="xs" onClick={() => setSettingsOpen(true)}>
+              <Settings size={13} />
+            </IconButton>
+          ) : (
+            <Button
+              variant="ghost"
+              size="xs"
+              icon={<Settings size={11} />}
+              onClick={() => setSettingsOpen(true)}
+              title="Settings"
+              className="text-th-hi3 font-normal"
+            >
+              Settings
+            </Button>
+          )}
           <div className="w-px h-3 bg-th-line mx-1" />
-          <button
-            onClick={() => window.electron?.minimize()}
-            className="flex items-center justify-center w-6 h-6 rounded text-th-hi3 hover:text-th-hi hover:bg-th-elevated/60 transition-colors"
-            title="Minimize"
-          >
+          <IconButton label="Minimize" size="xs" onClick={() => window.electron?.minimize()}>
             <Minus size={13} />
-          </button>
-          <button
-            onClick={() => window.electron?.toggleMaximize()}
-            className="flex items-center justify-center w-6 h-6 rounded text-th-hi3 hover:text-th-hi hover:bg-th-elevated/60 transition-colors"
-            title="Maximize"
-          >
+          </IconButton>
+          <IconButton label="Maximize" size="xs" onClick={() => window.electron?.toggleMaximize()}>
             <Square size={11} />
-          </button>
-          <button
-            onClick={() => window.electron?.close()}
-            className="flex items-center justify-center w-6 h-6 rounded text-th-hi3 hover:text-th-loss hover:bg-th-elevated/60 transition-colors"
-            title="Close"
-          >
+          </IconButton>
+          <IconButton label="Close" size="xs" tone="danger" onClick={() => window.electron?.close()}>
             <X size={13} />
-          </button>
+          </IconButton>
         </div>
       </div>
 
