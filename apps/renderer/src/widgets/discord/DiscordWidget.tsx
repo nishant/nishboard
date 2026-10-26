@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { AppWindow, Cable, Home, LogOut, RotateCw, Unplug } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { EmptyState } from '@nish/ui';
 import { HeaderAction } from '../../components/HeaderAction';
 import { useDiscordStore } from '../../store/discordStore';
 import { useDiscordUiStore } from '../../store/discordUiStore';
@@ -60,13 +61,7 @@ export function DiscordWidget() {
   if (mode === 'native') return <DiscordNative />;
 
   if (!inElectron) {
-    return (
-      <div className="h-full flex items-center justify-center p-4">
-        <p className="text-th-hi3 text-xs text-center">
-          Discord embeds only inside the desktop app.
-        </p>
-      </div>
-    );
+    return <EmptyState compact className="h-full" title="Discord embeds only inside the desktop app." />;
   }
 
   return (

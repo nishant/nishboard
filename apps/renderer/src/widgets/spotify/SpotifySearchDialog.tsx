@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, memo } from 'react';
-import { createPortal } from 'react-dom';
-import { Search, Play, Plus, X, Music, Mic2, Check, Loader2 } from 'lucide-react';
+import { Play, Plus, Music, Mic2, Check } from 'lucide-react';
+import { EmptyState, ErrorState, IconButton, Modal, Spinner, cn } from '@nish/ui';
+import { SearchInput } from '../../components/nishGaps';
 import {
   useDebouncedValue, useSpotifySearch, useDevices,
   usePlayTrack, useQueueTrack,
@@ -31,24 +32,21 @@ function ActionButton({
   onAction: (track: SpotifyTrackItem, action: RowAction) => void;
 }) {
   return (
-    <button
+    <IconButton
+      label={title}
+      size="sm"
       onClick={(e) => { e.stopPropagation(); onAction(track, action); }}
       disabled={track.isLocal || status === 'pending'}
-      className={`p-1.5 rounded transition-colors ${
-        status === 'done'
-          ? 'text-th-ok'
-          : status === 'error'
-          ? 'text-th-loss'
-          : 'text-th-hi3 hover:text-th-ok hover:bg-th-elevated'
-      } ${track.isLocal ? 'opacity-30 cursor-not-allowed' : ''}`}
-      title={title}
+      className={cn(
+        status === 'done' ? 'text-th-ok' : status === 'error' ? 'text-th-loss' : 'hover:text-th-ok',
+      )}
     >
       {status === 'pending'
-        ? <Loader2 size={13} className="animate-spin" />
+        ? <Spinner size="sm" />
         : status === 'done'
         ? <Check size={13} />
         : icon}
-    </button>
+    </IconButton>
   );
 }
 
@@ -56,7 +54,7 @@ const ResultRow = memo(function ResultRow({
   track, playStatus, queueStatus, onAction,
 }: ResultRowProps) {
   return (
-    <div className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md hover:bg-th-elevated/60 group">
+    <div className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md hover:bg-th-elevated group">
       {track.imageUrl ? (
         <img src={track.imageUrl} alt="" className="w-9 h-9 rounded shrink-0 object-cover" loading="lazy" />
       ) : (
@@ -112,16 +110,6 @@ export function SpotifySearchDialog({ open, onClose }: SpotifySearchDialogProps)
     }
   }, [open]);
 
-  // Esc to close
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
-
   const setStatus = (trackId: string, action: RowAction, status: ActionStatus) => {
     setStatusMap((prev) => ({
       ...prev,
@@ -167,62 +155,45 @@ export function SpotifySearchDialog({ open, onClose }: SpotifySearchDialogProps)
   const hasNoResults = showResults && !search.isLoading && !search.isFetching
     && tracks.length === 0 && episodes.length === 0;
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] px-4 bg-th-scrim/60 backdrop-blur-sm"
-      onClick={onClose}
+  // Shared Modal (top placement, search header): focus trap, Escape and
+  // scroll lock come with it.
+  return (
+    <Modal
+      onClose={onClose}
+      placement="top"
+      size="lg"
+      aria-label="Search Spotify"
+      header={
+        <>
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-th-line">
+            <SearchInput
+              ref={inputRef}
+              variant="bare"
+              value={query}
+              onChange={setQuery}
+              placeholder="Search tracks, podcasts…"
+              aria-label="Search tracks and podcasts"
+              spellCheck={false}
+              className="flex-1"
+            />
+            {(search.isFetching && showResults) && <Spinner size="sm" label="Searching" className="text-th-hi3" />}
+          </div>
+          {/* Device hint */}
+          {showResults && devices.data && devices.data.length === 0 && (
+            <p className="text-th-warn text-[10px] px-4 py-1.5 border-b border-th-line">
+              Open Spotify on a device to enable playback
+            </p>
+          )}
+        </>
+      }
     >
-      <div
-        className="w-full max-w-xl rounded-xl border border-th-line bg-th-surface shadow-modal overflow-hidden flex flex-col max-h-[70vh]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Search input */}
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-th-line shrink-0">
-          <Search size={16} className="text-th-hi3 shrink-0" />
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search tracks, podcasts…"
-            className="flex-1 bg-transparent text-th-hi text-sm placeholder:text-th-ghost focus:outline-none"
-            autoComplete="off"
-            spellCheck={false}
-          />
-          {(search.isFetching && showResults) && (
-            <Loader2 size={14} className="text-th-hi3 animate-spin shrink-0" />
-          )}
-          <button
-            onClick={onClose}
-            className="text-th-hi3 hover:text-th-hi transition-colors shrink-0"
-            title="Close (Esc)"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        {/* Device hint */}
-        {showResults && devices.data && devices.data.length === 0 && (
-          <p className="text-th-warn text-[10px] px-4 py-1.5 border-b border-th-line/50 shrink-0">
-            Open Spotify on a device to enable playback
-          </p>
-        )}
-
         {/* Results */}
-        <div className="flex-1 overflow-y-auto min-h-0 p-1.5">
-          {!showResults && (
-            <p className="text-th-hi3 text-xs text-center py-8">
-              Type at least 2 characters to search
-            </p>
-          )}
+        <div className="-mx-3.5">
+          {!showResults && <EmptyState compact title="Type at least 2 characters to search" />}
           {search.isError && (
-            <p className="text-th-loss text-xs text-center py-8">
-              Search failed — try again
-            </p>
+            <ErrorState compact message="Search failed — try again" onRetry={() => void search.refetch()} retrying={search.isFetching} />
           )}
-          {hasNoResults && (
-            <p className="text-th-hi3 text-xs text-center py-8">No results for "{trimmed}"</p>
-          )}
+          {hasNoResults && <EmptyState compact title={`No results for "${trimmed}"`} />}
 
           {tracks.length > 0 && (
             <>
@@ -258,8 +229,6 @@ export function SpotifySearchDialog({ open, onClose }: SpotifySearchDialogProps)
             </>
           )}
         </div>
-      </div>
-    </div>,
-    document.body,
+    </Modal>
   );
 }

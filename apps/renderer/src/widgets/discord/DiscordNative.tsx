@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  ExternalLink, Hash, HeadphoneOff, Headphones, Loader2, Mic, MicOff, PhoneOff, Volume2,
+  ExternalLink, Hash, HeadphoneOff, Headphones, Mic, MicOff, PhoneOff, Volume2,
 } from 'lucide-react';
 import type {
   DiscordChannelData,
@@ -24,7 +24,7 @@ import {
   useDiscordVoiceSettings,
 } from './useDiscordNative';
 import { applyMessageEvent, applySpeaking, formatMessageTime, guildInitials } from './nativeLib';
-import { cn } from '@nish/ui';
+import { Button, EmptyState, IconButton, SkeletonLines, cn } from '@nish/ui';
 
 // Native Discord mode: guild rail → channel list → read-only live chat feed,
 // plus a voice footer (join/leave/mute/deafen + speaking rings). Everything is
@@ -36,13 +36,7 @@ function CenterPanel({ title, body, children }: {
   body: string;
   children?: React.ReactNode;
 }) {
-  return (
-    <div className="h-full flex flex-col items-center justify-center gap-2 p-4 text-center">
-      <p className="text-th-hi text-xs font-medium">{title}</p>
-      <p className="text-th-hi3 text-[11px] max-w-64">{body}</p>
-      {children}
-    </div>
-  );
+  return <EmptyState compact className="h-full" title={title} detail={body} action={children} />;
 }
 
 export function DiscordNative() {
@@ -61,11 +55,7 @@ export function DiscordNative() {
   };
 
   if (status.isLoading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <Loader2 size={16} className="animate-spin text-th-hi3" />
-      </div>
-    );
+    return <SkeletonLines lines={4} className="h-full overflow-hidden" />;
   }
   const data = status.data;
   if (!data || !data.configured) {
@@ -92,13 +82,9 @@ export function DiscordNative() {
           ? 'Approve the authorization prompt inside the Discord app…'
           : 'One-time approval — Discord pops a consent prompt in its own window.'}
       >
-        <button
-          onClick={() => void connect()}
-          disabled={connecting}
-          className="px-3 py-1.5 rounded-full bg-th-elevated hover:bg-th-overlay text-th-hi text-[11px] transition-colors disabled:opacity-50"
-        >
+        <Button size="sm" variant="primary" loading={connecting} onClick={() => void connect()}>
           {connecting ? 'Waiting for approval…' : 'Connect'}
-        </button>
+        </Button>
       </CenterPanel>
     );
   }
@@ -226,7 +212,7 @@ function ChannelList({ loading, textChannels, voiceChannels, activeChannelId, vo
 }) {
   return (
     <div className="w-36 shrink-0 border-r border-th-line overflow-y-auto py-1.5 px-1">
-      {loading && <Loader2 size={12} className="animate-spin text-th-hi3 mx-auto my-2" />}
+      {loading && <SkeletonLines lines={3} className="p-1" />}
       {textChannels.length > 0 && (
         <p className="px-1.5 pb-1 text-[9px] font-semibold uppercase tracking-widest text-th-hi3">Text</p>
       )}
@@ -236,7 +222,7 @@ function ChannelList({ loading, textChannels, voiceChannels, activeChannelId, vo
           onClick={() => onSelectText(c.id)}
           className={cn(
             'w-full flex items-center gap-1 px-1.5 py-1 rounded text-left text-[11px] transition-colors',
-            c.id === activeChannelId ? 'bg-th-elevated text-th-hi' : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated/50',
+            c.id === activeChannelId ? 'bg-th-elevated text-th-hi' : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated',
           )}
         >
           <Hash size={10} className="shrink-0" />
@@ -257,13 +243,13 @@ function ChannelList({ loading, textChannels, voiceChannels, activeChannelId, vo
             }}
             className={cn(
               'w-full flex items-center gap-1 px-1.5 py-1 rounded text-left text-[11px] transition-colors group',
-              joined ? 'text-th-ok bg-th-elevated/60' : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated/50',
+              joined ? 'text-th-ok bg-th-elevated' : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated',
             )}
           >
             <Volume2 size={10} className="shrink-0" />
             <span className="truncate flex-1">{c.name}</span>
             {!joined && (
-              <span className="hidden group-hover:inline text-[9px] text-th-hi3">Join</span>
+              <span className="hidden group-hover:inline group-focus-visible:inline text-[9px] text-th-hi3">Join</span>
             )}
           </button>
         );
@@ -287,9 +273,7 @@ function ChatFeed({ channel, loading, messages, selfId }: {
 
   if (!channel) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <p className="text-th-hi3 text-[11px]">Pick a text channel</p>
-      </div>
+      <EmptyState compact className="flex-1" title="Pick a text channel" />
     );
   }
   return (
@@ -297,20 +281,20 @@ function ChatFeed({ channel, loading, messages, selfId }: {
       <div className="shrink-0 flex items-center gap-1.5 px-2 py-1.5 border-b border-th-line">
         <Hash size={11} className="text-th-hi3 shrink-0" />
         <span className="text-th-hi text-[11px] font-medium truncate flex-1">{channel.name}</span>
-        <button
+        <Button
+          variant="ghost"
+          size="xs"
           title="Open this channel in the Discord app to reply"
+          icon={<ExternalLink size={10} />}
           onClick={() => void replyInDiscord(channel.id)}
-          className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-th-hi3 hover:text-th-hi hover:bg-th-elevated/60 transition-colors"
+          className="text-th-hi3"
         >
-          <ExternalLink size={10} />
           Reply in Discord
-        </button>
+        </Button>
       </div>
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-1 py-1.5">
-        {loading && <Loader2 size={12} className="animate-spin text-th-hi3 mx-auto my-2" />}
-        {!loading && messages.length === 0 && (
-          <p className="text-th-hi3 text-[11px] text-center py-3">No recent messages</p>
-        )}
+        {loading && <SkeletonLines lines={3} />}
+        {!loading && messages.length === 0 && <EmptyState compact title="No recent messages" />}
         {messages.map((m) => (
           <MessageRow key={m.id} message={m} self={m.author.id === selfId} />
         ))}
@@ -398,33 +382,27 @@ function VoiceFooter({ voice }: { voice: DiscordSelectedVoiceData }) {
           <MemberAvatar key={m.userId} name={m.name} avatarUrl={m.avatarUrl} size={16} speaking={m.speaking} />
         ))}
       </div>
-      <button
-        title={settings?.mute ? 'Unmute' : 'Mute'}
+      <IconButton
+        label={settings?.mute ? 'Unmute' : 'Mute'}
+        size="xs"
+        tone="danger"
+        active={settings?.mute === true}
         onClick={() => void toggle({ mute: !settings?.mute })}
-        className={cn(
-          'p-1 rounded transition-colors',
-          settings?.mute ? 'text-th-loss bg-th-loss-soft' : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated/60',
-        )}
       >
         {settings?.mute ? <MicOff size={11} /> : <Mic size={11} />}
-      </button>
-      <button
-        title={settings?.deaf ? 'Undeafen' : 'Deafen'}
+      </IconButton>
+      <IconButton
+        label={settings?.deaf ? 'Undeafen' : 'Deafen'}
+        size="xs"
+        tone="danger"
+        active={settings?.deaf === true}
         onClick={() => void toggle({ deaf: !settings?.deaf })}
-        className={cn(
-          'p-1 rounded transition-colors',
-          settings?.deaf ? 'text-th-loss bg-th-loss-soft' : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated/60',
-        )}
       >
         {settings?.deaf ? <HeadphoneOff size={11} /> : <Headphones size={11} />}
-      </button>
-      <button
-        title="Leave voice"
-        onClick={() => void selectDiscordVoice(null)}
-        className="p-1 rounded text-th-hi3 hover:text-th-loss hover:bg-th-loss-soft transition-colors"
-      >
+      </IconButton>
+      <IconButton label="Leave voice" size="xs" tone="danger" onClick={() => void selectDiscordVoice(null)}>
         <PhoneOff size={11} />
-      </button>
+      </IconButton>
     </div>
   );
 }

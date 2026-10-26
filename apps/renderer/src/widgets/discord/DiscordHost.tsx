@@ -17,7 +17,7 @@ import type {
   WebviewDidFailLoadEvent,
   WebviewPageTitleUpdatedEvent,
 } from './lib';
-import { cn } from '@nish/ui';
+import { ConfirmDialog, ErrorState, cn } from '@nish/ui';
 
 // App-lifetime home of the Discord <webview> (persist:discord partition).
 // Mounted ONCE per window (App / discord PopoutShell), position:fixed, and
@@ -221,17 +221,15 @@ export function DiscordHost() {
         )}
 
         {status === 'error' && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-th-surface p-4">
-            <p className="text-th-hi3 text-xs">Discord failed to load</p>
-            <button
-              onClick={() => {
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-th-surface p-4">
+            <ErrorState
+              compact
+              message="Discord failed to load"
+              onRetry={() => {
                 setStatus('loading');
                 webviewRef.current?.reload();
               }}
-              className="px-3 py-1.5 rounded-full bg-th-elevated hover:bg-th-overlay text-th-hi text-[11px] transition-colors"
-            >
-              Retry
-            </button>
+            />
           </div>
         )}
 
@@ -250,7 +248,7 @@ export function DiscordHost() {
                 <button
                   key={s.id}
                   onClick={() => answerShare(s.id)}
-                  className="flex flex-col gap-1 rounded-md border border-th-line hover:border-th-hi/40 bg-th-elevated/40 p-1.5 text-left transition-colors"
+                  className="flex flex-col gap-1 rounded-md border border-th-line hover:border-th-line-strong bg-th-elevated p-1.5 text-left transition-colors"
                 >
                   <img src={s.thumbnail} alt="" className="w-full aspect-video object-cover rounded bg-th-scrim/40" />
                   <span className="flex items-center gap-1 min-w-0">
@@ -264,26 +262,15 @@ export function DiscordHost() {
         )}
 
         {signOutPrompt && (
-          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-th-surface/95 backdrop-blur-sm p-4">
-            <p className="text-th-hi text-xs font-medium">Sign out of Discord?</p>
-            <p className="text-th-hi3 text-[11px] text-center">
-              Clears the embedded session — you'll log in again next time.
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => void confirmSignOut()}
-                className="px-3 py-1.5 rounded-full bg-th-loss-soft hover:bg-th-loss-soft text-th-loss text-[11px] transition-colors"
-              >
-                Sign out
-              </button>
-              <button
-                onClick={() => setSignOutPrompt(false)}
-                className="px-3 py-1.5 rounded-full bg-th-elevated hover:bg-th-overlay text-th-hi text-[11px] transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
+          // Shared dialog (portal, z-50) — draws above this z-30 host.
+          <ConfirmDialog
+            title="Sign out of Discord?"
+            body="Clears the embedded session — you'll log in again next time."
+            confirmLabel="Sign out"
+            tone="danger"
+            onConfirm={() => void confirmSignOut()}
+            onCancel={() => setSignOutPrompt(false)}
+          />
         )}
       </div>
     </div>

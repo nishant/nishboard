@@ -7,7 +7,8 @@ import { useLauncherUiStore } from '../../store/launcherUiStore';
 import { HeaderAction } from '../../components/HeaderAction';
 import { toast } from '../../lib/alerts';
 import type { LauncherGroupData, LauncherItemData, LauncherStateData } from '@dash/shared';
-import { EmptyState, cn } from '@nish/ui';
+import { Button, Card, EmptyState, IconButton, Modal } from '@nish/ui';
+import { Input, Select } from '../../components/nishGaps';
 
 const EMPTY_STATE: LauncherStateData = { groups: [], items: [] };
 
@@ -110,7 +111,6 @@ function EditModal({
 
   function onUrlKey(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter') void addUrl();
-    if (e.key === 'Escape') onClose();
   }
 
   const renameInput = (id: string, isGroup: boolean) => (
@@ -128,21 +128,14 @@ function EditModal({
   );
 
   return (
-    <div className="absolute inset-0 z-10 flex items-center justify-center bg-th-scrim/60 rounded-lg">
-      <div className="bg-th-surface border border-th-line rounded-xl p-4 w-[22rem] max-h-[85%] flex flex-col gap-3 shadow-pop">
-        <div className="flex items-center justify-between">
-          <span className="text-th-hi font-semibold text-sm">Edit Launcher</span>
-          <button onClick={onClose} className="text-th-hi3 hover:text-th-hi transition-colors">
-            <X size={16} />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto flex flex-col gap-1 min-h-0">
+    <Modal title="Edit Launcher" onClose={onClose}>
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-1">
           {items.length === 0 && (
             <p className="text-th-hi3 text-xs text-center py-3">No shortcuts yet</p>
           )}
           {items.map((it, i) => (
-            <div key={it.id} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-th-elevated group">
+            <Card key={it.id} variant="inset" padding="none" className="flex items-center gap-2 px-2.5 py-1 group">
               <span className="text-th-hi3 shrink-0"><ItemIcon item={it} size={12} /></span>
               {renamingId === it.id ? (
                 renameInput(it.id, false)
@@ -155,37 +148,41 @@ function EditModal({
                   {it.label}
                 </span>
               )}
-              <select
+              <Select
+                size="xs"
                 value={it.group ?? ''}
                 onChange={async (e) => {
                   await launcher?.assignGroup(it.id, e.target.value || null);
                   await refresh();
                 }}
-                className="shrink-0 max-w-[6.5rem] bg-th-surface border border-th-line rounded px-1 py-0.5 text-th-hi2 text-[10px] focus:outline-none focus:border-th-hi3"
-                title="Group"
+                aria-label={`Group for ${it.label}`}
+                className="shrink-0 w-auto max-w-[6.5rem]"
+                selectClassName="bg-th-surface"
               >
                 <option value="">— none —</option>
                 {groups.map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}
-              </select>
-              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                <button onClick={() => void move(it.id, -1)} disabled={i === 0} className="p-0.5 text-th-hi3 hover:text-th-hi2 disabled:opacity-30" title="Move up"><ArrowUp size={11} /></button>
-                <button onClick={() => void move(it.id, 1)} disabled={i === items.length - 1} className="p-0.5 text-th-hi3 hover:text-th-hi2 disabled:opacity-30" title="Move down"><ArrowDown size={11} /></button>
-                <button
+              </Select>
+              <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 flex items-center gap-0.5 transition-opacity shrink-0">
+                <IconButton label="Move up" size="xs" onClick={() => void move(it.id, -1)} disabled={i === 0} className="size-5"><ArrowUp size={11} /></IconButton>
+                <IconButton label="Move down" size="xs" onClick={() => void move(it.id, 1)} disabled={i === items.length - 1} className="size-5"><ArrowDown size={11} /></IconButton>
+                <IconButton
+                  label="Remove"
+                  size="xs"
+                  tone="danger"
                   onClick={async () => { await launcher?.removeItem(it.id); await refresh(); }}
-                  className="p-0.5 text-th-hi3 hover:text-th-loss"
-                  title="Remove"
+                  className="size-5"
                 >
                   <X size={11} />
-                </button>
+                </IconButton>
               </div>
-            </div>
+            </Card>
           ))}
 
           {groups.length > 0 && (
             <>
               <p className="text-th-hi3 text-[10px] uppercase tracking-wider mt-2 mb-0.5">Groups</p>
               {groups.map((g) => (
-                <div key={g.id} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-th-elevated group">
+                <Card key={g.id} variant="inset" padding="none" className="flex items-center gap-2 px-2.5 py-1 group">
                   {renamingId === g.id ? (
                     renameInput(g.id, true)
                   ) : (
@@ -200,83 +197,81 @@ function EditModal({
                   <span className="text-th-hi3 text-[10px] shrink-0">
                     {items.filter((it) => it.group === g.id).length} items
                   </span>
-                  <button
+                  <IconButton
+                    label="Delete group (items are kept)"
+                    size="xs"
+                    tone="danger"
                     onClick={async () => { await launcher?.removeGroup(g.id); await refresh(); }}
-                    className="p-0.5 text-th-hi3 hover:text-th-loss opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                    title="Delete group (items are kept)"
+                    className="size-5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
                   >
                     <X size={11} />
-                  </button>
-                </div>
+                  </IconButton>
+                </Card>
               ))}
             </>
           )}
         </div>
 
         <div className="flex flex-col gap-2 border-t border-th-line pt-3">
-          <button
-            onClick={() => void addApp()}
-            className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-th-elevated hover:bg-th-overlay text-th-hi text-[11px] transition-colors"
-          >
-            <AppWindow size={13} /> Add app…
-          </button>
+          <Button size="sm" icon={<AppWindow size={13} />} onClick={() => void addApp()}>
+            Add app…
+          </Button>
           <div className="flex gap-1.5">
-            <input
+            <Input
+              size="sm"
               value={urlLabel}
               onChange={(e) => setUrlLabel(e.target.value)}
               onKeyDown={onUrlKey}
               placeholder="Label"
-              className="w-20 bg-th-elevated border border-th-line rounded-lg px-2 py-1.5 text-th-hi text-[11px] placeholder:text-th-ghost focus:outline-none focus:border-th-hi3"
+              aria-label="Link label"
+              className="w-20"
             />
-            <input
+            <Input
+              size="sm"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               onKeyDown={onUrlKey}
               placeholder="https://…"
-              className="flex-1 min-w-0 bg-th-elevated border border-th-line rounded-lg px-2 py-1.5 text-th-hi text-[11px] font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-hi3"
+              aria-label="Link URL"
+              className="flex-1 font-mono"
             />
-            <button
-              onClick={() => void addUrl()}
-              disabled={!url.trim()}
-              className="shrink-0 px-2 rounded-lg bg-th-overlay hover:bg-th-overlay/70 text-th-hi disabled:opacity-40 transition-colors"
-              title="Add link"
-            >
+            <IconButton label="Add link" size="sm" variant="subtle" onClick={() => void addUrl()} disabled={!url.trim()} className="size-8">
               <Plus size={13} />
-            </button>
+            </IconButton>
           </div>
           <div className="flex gap-1.5">
-            <input
+            <Input
+              size="sm"
               value={groupLabel}
               onChange={(e) => setGroupLabel(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') void addGroup(); if (e.key === 'Escape') onClose(); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') void addGroup(); }}
               placeholder="New group…"
-              className="flex-1 min-w-0 bg-th-elevated border border-th-line rounded-lg px-2 py-1.5 text-th-hi text-[11px] placeholder:text-th-ghost focus:outline-none focus:border-th-hi3"
+              aria-label="New group name"
+              className="flex-1"
             />
-            <button
-              onClick={() => void addGroup()}
-              disabled={!groupLabel.trim()}
-              className="shrink-0 px-2 rounded-lg bg-th-overlay hover:bg-th-overlay/70 text-th-hi disabled:opacity-40 transition-colors"
-              title="Add group"
-            >
+            <IconButton label="Add group" size="sm" variant="subtle" onClick={() => void addGroup()} disabled={!groupLabel.trim()} className="size-8">
               <FolderPlus size={13} />
-            </button>
+            </IconButton>
           </div>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <p className="text-th-hi3 text-[10px] leading-relaxed">
               App paths stay in the main process — the dashboard launches by id.
             </p>
-            <button
+            <Button
+              variant="ghost"
+              size="xs"
+              loading={refreshingIcons}
+              icon={<RefreshCw size={10} />}
               onClick={() => void refreshIcons()}
-              disabled={refreshingIcons}
-              className="shrink-0 flex items-center gap-1 text-th-hi3 hover:text-th-hi2 text-[10px] disabled:opacity-50 transition-colors"
               title="Re-fetch app icons and favicons"
+              className="text-th-hi3"
             >
-              <RefreshCw size={10} className={cn(refreshingIcons && 'animate-spin')} /> Icons
-            </button>
+              Icons
+            </Button>
           </div>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -299,7 +294,7 @@ function ItemGrid({ items }: { items: LauncherItemData[] }) {
         <button
           key={it.id}
           onClick={() => void window.electron?.launcher?.launch(it.id)}
-          className="flex flex-col items-center gap-1.5 px-1 py-2.5 rounded-lg hover:bg-th-elevated/70 text-th-hi2 hover:text-th-hi transition-colors"
+          className="flex flex-col items-center gap-1.5 px-1 py-2.5 rounded-lg hover:bg-th-elevated text-th-hi2 hover:text-th-hi transition-colors"
           title={it.label}
         >
           <ItemIcon item={it} size={18} />
@@ -339,6 +334,7 @@ export function LauncherWidget() {
                 <div className="flex items-center gap-1 group/hdr">
                   <button
                     onClick={() => toggleCollapsed(g.id)}
+                    aria-expanded={!isCollapsed}
                     className="flex items-center gap-1 text-th-hi3 hover:text-th-hi2 text-[10px] uppercase tracking-wider transition-colors min-w-0"
                     title={isCollapsed ? 'Expand' : 'Collapse'}
                   >
@@ -346,13 +342,14 @@ export function LauncherWidget() {
                     <span className="truncate">{g.label}</span>
                     <span className="tabular-nums">({members.length})</span>
                   </button>
-                  <button
+                  <IconButton
+                    label={`Launch all in ${g.label}`}
+                    size="xs"
                     onClick={() => void window.electron?.launcher?.launchGroup(g.id)}
-                    className="p-0.5 text-th-hi3 hover:text-th-hi opacity-0 group-hover/hdr:opacity-100 transition-all shrink-0"
-                    title={`Launch all in ${g.label}`}
+                    className="size-5 opacity-0 group-hover/hdr:opacity-100 group-focus-within/hdr:opacity-100 focus-visible:opacity-100"
                   >
                     <Play size={11} />
-                  </button>
+                  </IconButton>
                 </div>
                 {!isCollapsed && <ItemGrid items={members} />}
               </div>

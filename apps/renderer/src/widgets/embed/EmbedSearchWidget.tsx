@@ -2,7 +2,8 @@ import { useState, useRef } from 'react';
 import { Search, X, ArrowLeft, ChevronRight, ListVideo } from 'lucide-react';
 import { useElementSize } from '../../hooks/useElementSize';
 import type { EmbedItem, EmbedFolder, EmbedFoldersState, EmbedServiceAdapter, EmbedBrowse, EmbedSearchState } from './types';
-import { cn } from '@nish/ui';
+import { Button, EmptyState, ErrorState, IconButton, SkeletonLines, StatusDot, Tabs } from '@nish/ui';
+import { SearchInput } from '../../components/nishGaps';
 
 // Stable no-op hooks so BrowseHome can call the (optional) folder hooks
 // unconditionally — the selection is fixed per adapter, so hook order is stable.
@@ -16,7 +17,7 @@ type View = 'home' | 'search';
 const CONTROL_BAR_H = 44;
 
 function LiveDot() {
-  return <span className="h-1.5 w-1.5 rounded-full bg-th-loss-fill shrink-0 animate-pulse" />;
+  return <StatusDot tone="loss" size="xs" pulse label="Live" className="shrink-0" />;
 }
 
 // ── Home screen ───────────────────────────────────────────────────────────────
@@ -38,13 +39,9 @@ function HomeScreen({
         <div className="text-th-hi3">
           <adapter.Icon size={iconH} />
         </div>
-        <button
-          onClick={onSearch}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-th-line hover:border-th-hi3 text-th-hi3 hover:text-th-hi transition-colors text-[10px]"
-        >
-          <Search size={10} />
+        <Button size="xs" icon={<Search size={10} />} onClick={onSearch} className="rounded-full">
           Search
-        </button>
+        </Button>
       </div>
     );
   }
@@ -57,13 +54,9 @@ function HomeScreen({
           {adapter.serviceName}
         </span>
       </div>
-      <button
-        onClick={onSearch}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-th-line hover:border-th-hi3 hover:bg-th-elevated/50 text-th-hi3 hover:text-th-hi transition-colors text-[11px]"
-      >
-        <Search size={12} />
+      <Button size="xs" icon={<Search size={12} />} onClick={onSearch} className="rounded-full">
         {adapter.homeCta}
-      </button>
+      </Button>
     </div>
   );
 }
@@ -76,7 +69,7 @@ function FolderRow({ folder, onOpen }: { folder: EmbedFolder; onOpen: () => void
   return (
     <button
       onClick={onOpen}
-      className="flex items-center gap-2.5 w-full px-3 py-2 hover:bg-th-elevated/60 transition-colors text-left"
+      className="flex items-center gap-2.5 w-full px-3 py-2 hover:bg-th-elevated transition-colors text-left"
     >
       {folder.thumbnailUrl ? (
         <img
@@ -128,29 +121,21 @@ function BrowseHome({
     return (
       <div className="h-full flex flex-col">
         <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-th-line shrink-0">
-          <button
-            onClick={() => onOpenFolder(null)}
-            className="text-th-hi3 hover:text-th-hi2 transition-colors shrink-0"
-            title="Back"
-          >
+          <IconButton label="Back" size="xs" onClick={() => onOpenFolder(null)}>
             <ArrowLeft size={12} />
-          </button>
+          </IconButton>
           <span className="text-th-hi2 text-[11px] font-medium truncate">{folder.title}</span>
-          <button
-            onClick={onSearch}
-            className="ml-auto shrink-0 p-1 rounded text-th-hi3 hover:text-th-hi transition-colors"
-            title={adapter.searchPlaceholder}
-          >
+          <IconButton label={adapter.searchPlaceholder} size="xs" onClick={onSearch} className="ml-auto">
             <Search size={12} />
-          </button>
+          </IconButton>
         </div>
         <div className="flex-1 overflow-y-auto min-h-0">
-          {isFetching && !items && <p className="text-th-hi3 text-xs text-center py-6">Loading…</p>}
-          {isError && <p className="text-th-loss text-xs text-center py-6 px-4">{adapter.errorHint}</p>}
+          {isFetching && !items && <SkeletonLines lines={4} />}
+          {isError && <ErrorState compact message={adapter.errorHint} />}
           {items?.map((item) => (
             <ResultRow key={item.id} item={item} thumbShape={adapter.thumbShape} onPlay={() => onPlay(item)} />
           ))}
-          {items?.length === 0 && <p className="text-th-hi3 text-xs text-center py-6">Nothing here</p>}
+          {items?.length === 0 && <EmptyState compact title="Nothing here" />}
         </div>
       </div>
     );
@@ -165,37 +150,24 @@ function BrowseHome({
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-th-line shrink-0 overflow-x-auto scrollbar-none">
-        {browse.tabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTabId(t.id)}
-            className={cn(
-              'px-2 py-0.5 rounded-full text-[10px] shrink-0 transition-colors',
-              tabId === t.id ? 'bg-th-elevated text-th-hi' : 'text-th-hi3 hover:text-th-hi2',
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
-        <button
-          onClick={onSearch}
-          className="ml-auto shrink-0 p-1 rounded text-th-hi3 hover:text-th-hi transition-colors"
-          title={adapter.searchPlaceholder}
-        >
+      <div className="flex items-center gap-1 px-2 py-1 border-b border-th-line shrink-0">
+        <Tabs
+          label="Browse"
+          variant="pill"
+          size="sm"
+          value={tabId}
+          onChange={setTabId}
+          items={browse.tabs.map((t) => ({ value: t.id, label: t.label }))}
+          className="min-w-0 flex-1"
+        />
+        <IconButton label={adapter.searchPlaceholder} size="xs" onClick={onSearch} className="ml-auto">
           <Search size={12} />
-        </button>
+        </IconButton>
       </div>
       <div className="flex-1 overflow-y-auto min-h-0">
-        {!items && !folders && !isFetching && !isError && hint && (
-          <p className="text-th-hi3 text-xs text-center py-6 px-4">{hint}</p>
-        )}
-        {isFetching && !items && !folders && (
-          <p className="text-th-hi3 text-xs text-center py-6">Loading…</p>
-        )}
-        {isError && (
-          <p className="text-th-loss text-xs text-center py-6 px-4">{adapter.errorHint}</p>
-        )}
+        {!items && !folders && !isFetching && !isError && hint && <EmptyState compact title={hint} />}
+        {isFetching && !items && !folders && <SkeletonLines lines={4} />}
+        {isError && <ErrorState compact message={adapter.errorHint} />}
         {folders?.map((f) => (
           <FolderRow key={f.id} folder={f} onOpen={() => onOpenFolder(f)} />
         ))}
@@ -208,9 +180,7 @@ function BrowseHome({
             onOpenChannel={browse.useFolderItems ? onOpenFolder : undefined}
           />
         ))}
-        {empty && (
-          <p className="text-th-hi3 text-xs text-center py-6">Nothing here right now</p>
-        )}
+        {empty && <EmptyState compact title="Nothing here right now" />}
       </div>
     </div>
   );
@@ -229,31 +199,24 @@ function SearchBar({
   onBack: () => void;
 }) {
   return (
-    <div className="flex items-center gap-1.5 px-3 py-2 border-b border-th-line shrink-0">
-      <button onClick={onBack} className="text-th-hi3 hover:text-th-hi2 transition-colors shrink-0">
+    <div className="flex items-center gap-1 px-2 py-1 border-b border-th-line shrink-0">
+      <IconButton label="Back" size="xs" onClick={onBack}>
         <ArrowLeft size={12} />
-      </button>
-      <input
-        type="text"
+      </IconButton>
+      <SearchInput
+        size="xs"
+        variant="bare"
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={onChange}
         onKeyDown={(e) => { if (e.key === 'Enter') onSubmit(); }}
         placeholder={placeholder}
-        className="flex-1 bg-transparent text-th-hi text-xs placeholder:text-th-ghost outline-none"
+        aria-label={placeholder}
+        className="flex-1"
         autoFocus
       />
-      {value && (
-        <button onClick={() => onChange('')} className="text-th-hi3 hover:text-th-hi2 transition-colors">
-          <X size={11} />
-        </button>
-      )}
-      <button
-        onClick={onSubmit}
-        disabled={!value.trim() || loading}
-        className="text-th-hi3 hover:text-th-hi disabled:opacity-30 transition-colors"
-      >
+      <IconButton label="Search" size="xs" onClick={onSubmit} disabled={!value.trim() || loading}>
         <ChevronRight size={14} />
-      </button>
+      </IconButton>
     </div>
   );
 }
@@ -274,7 +237,7 @@ function ResultRow({
   return (
     <button
       onClick={onPlay}
-      className="flex items-center gap-2.5 w-full px-3 py-2 hover:bg-th-elevated/60 transition-colors text-left"
+      className="flex items-center gap-2.5 w-full px-3 py-2 hover:bg-th-elevated transition-colors text-left"
     >
       <img
         src={item.thumbnailUrl}
@@ -354,17 +317,10 @@ export function EmbedSearchWidget({ adapter }: { adapter: EmbedServiceAdapter })
   const results = (
     <>
       {!submittedQuery && (
-        <div className="flex flex-col items-center justify-center h-full gap-2 p-6">
-          <Search size={18} className="text-th-hi3" />
-          <p className="text-th-hi3 text-xs text-center">{adapter.emptyHint}</p>
-        </div>
+        <EmptyState compact className="h-full" icon={<Search size={18} />} title={adapter.emptyHint} />
       )}
-      {submittedQuery && isFetching && !items && (
-        <p className="text-th-hi3 text-xs text-center py-6">Searching…</p>
-      )}
-      {isError && (
-        <p className="text-th-loss text-xs text-center py-6">{adapter.errorHint}</p>
-      )}
+      {submittedQuery && isFetching && !items && <SkeletonLines lines={4} />}
+      {isError && <ErrorState compact message={adapter.errorHint} />}
       {items?.map((item) => (
         <ResultRow
           key={item.id}
@@ -374,9 +330,7 @@ export function EmbedSearchWidget({ adapter }: { adapter: EmbedServiceAdapter })
           onOpenChannel={channelClicks}
         />
       ))}
-      {items?.length === 0 && (
-        <p className="text-th-hi3 text-xs text-center py-6">No results</p>
-      )}
+      {items?.length === 0 && <EmptyState compact title="No results" />}
     </>
   );
 
@@ -429,20 +383,12 @@ export function EmbedSearchWidget({ adapter }: { adapter: EmbedServiceAdapter })
               </div>
               <p className="text-th-hi3 text-[10px] truncate">{selectedItem.subtitle}</p>
             </div>
-            <button
-              onClick={() => setView('search')}
-              title="Search"
-              className="text-th-hi3 hover:text-th-hi transition-colors shrink-0"
-            >
+            <IconButton label="Search" size="xs" onClick={() => setView('search')}>
               <Search size={13} />
-            </button>
-            <button
-              onClick={goHome}
-              title={adapter.closeLabel}
-              className="text-th-hi3 hover:text-th-hi transition-colors shrink-0"
-            >
+            </IconButton>
+            <IconButton label={adapter.closeLabel} size="xs" onClick={goHome}>
               <X size={13} />
-            </button>
+            </IconButton>
           </div>
         )}
       </div>
