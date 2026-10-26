@@ -88,9 +88,13 @@ export interface UpdateCheckData {
   message?: string;
 }
 
+/** What Electron's nativeTheme.themeSource follows: the OS, or a fixed scheme. */
+export type NativeThemeSource = 'system' | 'light' | 'dark';
+
 export type IpcChannels =
   | 'app:minimize'
   | 'app:toggle-maximize'
+  | 'app:set-theme'
   | 'app:close'
   | 'app:notify'
   | 'app:open-external'
@@ -146,6 +150,10 @@ export interface ElectronAPI {
   minimize: () => void;
   /** Toggle the main window between maximized and its previous size. */
   toggleMaximize: () => void;
+  /** Report the theme to the main process: nativeTheme.themeSource follows
+   *  `source` ('system' for the system choice, never the resolved scheme) and
+   *  every window's background becomes `bg` (saved for the next launch). */
+  setNativeTheme: (source: NativeThemeSource, bg: string) => void;
   close: () => void;
   /** Set the renderer zoom factor (1 = 100%) for UI scaling. */
   setZoom: (factor: number) => void;

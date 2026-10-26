@@ -46,7 +46,17 @@ export const safeStorage = {
   decryptString: (b: Buffer): string => b.toString('utf8'),
 };
 
-export class BrowserWindow {}
+export const nativeTheme = {
+  themeSource: 'system' as 'system' | 'light' | 'dark',
+  shouldUseDarkColors: true,
+  on: (_event: string, _cb: unknown): void => undefined,
+};
+
+export class BrowserWindow {
+  static getAllWindows(): BrowserWindow[] {
+    return [];
+  }
+}
 export class Notification {}
 export class Tray {}
 export class Menu {}

@@ -4,7 +4,7 @@ import { useNews } from './useNews';
 import { relTimeAgo } from '../../lib/time';
 import { ErrorState } from '../../components/ErrorState';
 import { RefreshAction } from '../../components/RefreshAction';
-import { EmptyState, SkeletonLines, cn } from '@nish/ui';
+import { EmptyState, IconButton, SkeletonLines, cn, Label } from '@nish/ui';
 
 /** WidgetShell header actions for the news tile. */
 export function NewsActions() {
@@ -49,8 +49,8 @@ export function NewsWidget() {
     >
       <div className="flex items-center gap-1.5 shrink-0 mb-1">
         <Newspaper className="w-3.5 h-3.5 text-th-hi3" />
-        <span className="text-th-hi3 text-[10px] uppercase tracking-widest">Headlines</span>
-        <span className="ml-auto text-th-hi3 text-[10px] tabular-nums">{safeIdx + 1}/{items.length}</span>
+        <Label className="text-3xs tracking-widest">Headlines</Label>
+        <span className="ml-auto text-th-hi3 text-3xs tabular-nums">{safeIdx + 1}/{items.length}</span>
       </div>
 
       <button
@@ -61,38 +61,30 @@ export function NewsWidget() {
         <span className="text-th-hi text-sm leading-snug line-clamp-4 group-hover:text-th-accent transition-colors">
           {cur.title}
         </span>
-        <span className="text-th-hi3 text-[10px] mt-2 flex items-center gap-1 min-w-0">
+        <span className="text-th-hi3 text-3xs mt-2 flex items-center gap-1 min-w-0">
           <span className="truncate">{cur.source}{cur.pubDate && ` · ${relTimeAgo(cur.pubDate)}`}</span>
-          <ExternalLink className="w-2.5 h-2.5 shrink-0 opacity-0 group-hover:opacity-100 transition" />
+          <ExternalLink className="w-2.5 h-2.5 shrink-0 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition" />
         </span>
       </button>
 
       <div className="flex items-center justify-between shrink-0 mt-1.5">
-        <button
-          onClick={() => setIdx((i) => (i - 1 + items.length) % items.length)}
-          className="p-1 rounded text-th-hi3 hover:text-th-hi2 hover:bg-th-elevated/60 transition"
-          title="Previous"
-        >
+        <IconButton label="Previous" size="xs" onClick={() => setIdx((i) => (i - 1 + items.length) % items.length)}>
           <ChevronLeft size={14} />
-        </button>
+        </IconButton>
         {/* With >8 items dots can't map 1:1, so show a position counter instead
             of a modulo-highlighted dot that lies about which item is active. */}
         {items.length <= 8 ? (
           <div className="flex gap-1">
             {items.map((_, i) => (
-              <span key={i} className={cn('w-1 h-1 rounded-full transition-colors', i === safeIdx ? 'bg-th-hi2' : 'bg-th-overlay')} />
+              <span key={i} className={cn('w-1 h-1 rounded-full transition-colors', i === safeIdx ? 'bg-th-hi3' : 'bg-th-line-strong')} />
             ))}
           </div>
         ) : (
-          <span className="text-th-hi3 text-[10px] tabular-nums">{safeIdx + 1}/{items.length}</span>
+          <span className="text-th-hi3 text-3xs tabular-nums">{safeIdx + 1}/{items.length}</span>
         )}
-        <button
-          onClick={() => setIdx((i) => (i + 1) % items.length)}
-          className="p-1 rounded text-th-hi3 hover:text-th-hi2 hover:bg-th-elevated/60 transition"
-          title="Next"
-        >
+        <IconButton label="Next" size="xs" onClick={() => setIdx((i) => (i + 1) % items.length)}>
           <ChevronRight size={14} />
-        </button>
+        </IconButton>
       </div>
     </div>
   );

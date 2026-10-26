@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Plus, Check, X } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import { useTasksStore } from '../../store/tasksStore';
-import { EmptyState, cn } from '@nish/ui';
+import { Button, Checkbox, EmptyState, IconButton, cn } from '@nish/ui';
+import { Input } from '../../components/nishGaps';
 
 export function TasksWidget() {
   const { tasks, addTask, toggleTask, removeTask, clearCompleted } = useTasksStore();
@@ -18,21 +19,18 @@ export function TasksWidget() {
     <div className="h-full flex flex-col p-2 gap-2">
       {/* Add */}
       <div className="flex items-center gap-1.5 shrink-0">
-        <input
+        <Input
+          size="xs"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
           placeholder="Add a task…"
-          className="flex-1 bg-th-elevated border border-th-line rounded-lg px-2.5 py-1.5 text-th-hi text-xs placeholder:text-th-ghost focus:outline-none focus:border-th-hi3 transition-colors"
+          aria-label="New task"
+          className="flex-1"
         />
-        <button
-          onClick={submit}
-          disabled={!draft.trim()}
-          className="shrink-0 p-1.5 rounded-lg bg-th-overlay hover:bg-th-overlay/70 text-th-hi disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          title="Add task"
-        >
+        <IconButton label="Add task" size="sm" variant="subtle" onClick={submit} disabled={!draft.trim()}>
           <Plus size={14} />
-        </button>
+        </IconButton>
       </div>
 
       {/* List */}
@@ -41,27 +39,26 @@ export function TasksWidget() {
           <EmptyState compact title="No tasks" />
         ) : (
           tasks.map((t) => (
-            <div key={t.id} className="group flex items-center gap-2 px-1.5 py-1 rounded hover:bg-th-elevated/50">
-              <button
-                onClick={() => toggleTask(t.id)}
-                className={cn(
-                  'shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors',
-                  t.done ? 'bg-th-accent border-th-accent text-th-bg' : 'border-th-ghost hover:border-th-hi2',
-                )}
+            <div key={t.id} className="group flex items-center gap-2 px-1.5 py-1 rounded hover:bg-th-elevated">
+              <Checkbox
+                size="sm"
+                checked={t.done}
+                onChange={() => toggleTask(t.id)}
+                aria-label={t.done ? `Mark "${t.text}" not done` : `Mark "${t.text}" done`}
                 title={t.done ? 'Mark not done' : 'Mark done'}
-              >
-                {t.done && <Check size={11} />}
-              </button>
+              />
               <span className={cn('flex-1 text-xs break-words', t.done ? 'line-through text-th-hi3' : 'text-th-hi2')}>
                 {t.text}
               </span>
-              <button
+              <IconButton
+                label="Delete"
+                size="xs"
+                tone="danger"
                 onClick={() => removeTask(t.id)}
-                className="shrink-0 p-0.5 rounded text-th-hi3 hover:text-th-loss opacity-0 group-hover:opacity-100 transition"
-                title="Delete"
+                className="size-5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
               >
                 <X size={12} />
-              </button>
+              </IconButton>
             </div>
           ))
         )}
@@ -69,12 +66,12 @@ export function TasksWidget() {
 
       {/* Footer */}
       {tasks.length > 0 && (
-        <div className="shrink-0 flex items-center justify-between text-[10px] text-th-hi3 px-1">
+        <div className="shrink-0 flex items-center justify-between text-3xs text-th-hi3 px-1">
           <span>{remaining} left</span>
           {doneCount > 0 && (
-            <button onClick={clearCompleted} className="hover:text-th-hi2 transition-colors">
+            <Button variant="link" size="xs" onClick={clearCompleted} className="text-th-hi3 hover:text-th-hi2">
               Clear completed
-            </button>
+            </Button>
           )}
         </div>
       )}

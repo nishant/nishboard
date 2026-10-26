@@ -4,7 +4,8 @@ import { useCountdownStore } from '../../store/countdownStore';
 import { useAppSettingsStore } from '../../store/settingsStore';
 import { fireAlert } from '../../lib/alerts';
 import { fmtRemaining, hourFormat } from '../../lib/time';
-import { EmptyState, cn } from '@nish/ui';
+import { Card, EmptyState, IconButton, cn } from '@nish/ui';
+import { Input } from '../../components/nishGaps';
 
 function fmtDate(at: number, clock24h: boolean): string {
   return new Date(at).toLocaleString('en-US', {
@@ -49,26 +50,25 @@ export function CountdownWidget() {
   return (
     <div className="h-full flex flex-col p-2 gap-2">
       <div className="flex items-center gap-1 shrink-0">
-        <input
+        <Input
+          size="xs"
           value={label}
           onChange={(e) => setLabel(e.target.value)}
           placeholder="Event"
-          className="flex-1 min-w-0 bg-th-elevated border border-th-line rounded-lg px-2 py-1.5 text-th-hi text-[11px] placeholder:text-th-ghost focus:outline-none focus:border-th-hi3"
+          aria-label="Event name"
+          className="flex-1"
         />
-        <input
+        <Input
+          size="xs"
           type="datetime-local"
           value={when}
           onChange={(e) => setWhen(e.target.value)}
-          className="bg-th-elevated border border-th-line rounded-lg px-2 py-1.5 text-th-hi text-[10px] tabular-nums focus:outline-none focus:border-th-hi3"
+          aria-label="Event date and time"
+          className="w-auto text-3xs tabular-nums"
         />
-        <button
-          onClick={submit}
-          disabled={!when}
-          className="shrink-0 p-1.5 rounded-lg bg-th-overlay hover:bg-th-overlay/70 text-th-hi disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          title="Add event"
-        >
+        <IconButton label="Add event" size="sm" variant="subtle" onClick={submit} disabled={!when}>
           <Plus size={14} />
-        </button>
+        </IconButton>
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-1.5">
@@ -79,22 +79,24 @@ export function CountdownWidget() {
             const remaining = e.at - now;
             const passed = remaining <= 0;
             return (
-              <div key={e.id} className="group flex items-center gap-2 px-2 py-1.5 rounded-lg bg-th-elevated/40">
+              <Card key={e.id} variant="inset" padding="none" className="group flex items-center gap-2 px-2 py-1.5">
                 <div className="flex flex-col flex-1 min-w-0">
                   <span className={cn('text-xs truncate', passed ? 'text-th-hi3' : 'text-th-hi')}>{e.label || 'Event'}</span>
-                  <span className="text-th-hi3 text-[10px] truncate">{fmtDate(e.at, clock24h)}</span>
+                  <span className="text-th-hi3 text-3xs truncate">{fmtDate(e.at, clock24h)}</span>
                 </div>
-                <span className={cn('text-sm tabular-nums shrink-0', passed ? 'text-th-warn' : 'text-th-accent')}>
+                <span className={cn('text-sm tabular-nums shrink-0', passed ? 'text-th-warn' : 'text-th-hi')}>
                   {passed ? 'now' : fmtRemaining(remaining)}
                 </span>
-                <button
+                <IconButton
+                  label="Delete"
+                  size="xs"
+                  tone="danger"
                   onClick={() => removeEvent(e.id)}
-                  className="shrink-0 p-1 rounded text-th-hi3 hover:text-th-loss opacity-0 group-hover:opacity-100 transition"
-                  title="Delete"
+                  className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
                 >
                   <X size={13} />
-                </button>
-              </div>
+                </IconButton>
+              </Card>
             );
           })
         )}

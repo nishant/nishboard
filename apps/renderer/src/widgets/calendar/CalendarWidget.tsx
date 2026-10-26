@@ -3,6 +3,8 @@ import { LogIn, LogOut, X } from 'lucide-react';
 import type { CalendarEventData } from '@dash/shared';
 import { useElementSize } from '../../hooks/useElementSize';
 import { HeaderAction } from '../../components/HeaderAction';
+import { Button, EmptyState, IconButton, cn } from '@nish/ui';
+import { Input } from '../../components/nishGaps';
 import {
   useCalendarAuthStatus, useCalendarConnect, useCalendarLogout,
   useCalendarEvents, useAddCalendarEvent,
@@ -85,12 +87,12 @@ function MonthView({
 
   return (
     <div className="flex flex-col min-w-0 min-h-0">
-      <p className={`text-[11px] font-semibold text-center mb-1.5 shrink-0 ${isCurrent ? 'text-th-hi' : 'text-th-hi3'}`}>
+      <p className={cn('text-2xs font-semibold text-center mb-1.5 shrink-0', isCurrent ? 'text-th-hi' : 'text-th-hi3')}>
         {label} {year}
       </p>
       <div className="grid grid-cols-7 shrink-0 mb-0.5">
         {DOW.map((d) => (
-          <span key={d} className="text-center text-[9px] font-medium text-th-hi3 uppercase tracking-wide">
+          <span key={d} className="text-center text-3xs font-medium text-th-hi3 uppercase tracking-wide">
             {d}
           </span>
         ))}
@@ -103,18 +105,27 @@ function MonthView({
             <div
               key={i}
               onClick={iso === null ? undefined : () => onDayClick(iso)}
-              className={`relative flex items-center justify-center text-[11px] h-6 rounded-full ${
+              // Days are keyboard-reachable: Enter/Space opens the day view.
+              role={iso === null ? undefined : 'button'}
+              tabIndex={iso === null ? undefined : 0}
+              aria-label={iso === null ? undefined : `${label} ${d}${eventDays.has(iso) ? ', has events' : ''}`}
+              onKeyDown={iso === null ? undefined : (e) => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onDayClick(iso); }
+              }}
+              className={cn(
+                'relative flex items-center justify-center text-2xs h-6 rounded-full',
                 d === null ? 'invisible' :
                 isToday ? 'bg-th-invert-bg text-th-invert-text font-bold cursor-pointer' :
-                'text-th-hi2 cursor-pointer hover:bg-th-elevated'
-              }`}
+                'text-th-hi2 cursor-pointer hover:bg-th-elevated',
+              )}
             >
               {d ?? ''}
               {iso !== null && eventDays.has(iso) && (
                 <span
-                  className={`absolute bottom-0.5 left-1/2 -translate-x-1/2 w-[3px] h-[3px] rounded-full ${
-                    isToday ? 'bg-th-invert-text' : 'bg-th-hi'
-                  }`}
+                  className={cn(
+                    'absolute bottom-0.5 left-1/2 -translate-x-1/2 w-[3px] h-[3px] rounded-full',
+                    isToday ? 'bg-th-invert-text' : 'bg-th-accent',
+                  )}
                 />
               )}
             </div>
@@ -156,39 +167,33 @@ function DayPanel({
   return (
     <div className="absolute inset-0 z-20 bg-th-surface/95 backdrop-blur-sm rounded-lg p-3 flex flex-col">
       <div className="flex items-center justify-between shrink-0 mb-2">
-        <p className="text-[12px] font-semibold text-th-hi">{heading}</p>
-        <button
-          onClick={onClose}
-          title="Close"
-          aria-label="Close day view"
-          className="flex items-center justify-center w-[22px] h-[22px] rounded text-th-hi3 hover:text-th-hi hover:bg-th-elevated/60 transition-colors"
-        >
+        <p className="text-xs font-semibold text-th-hi">{heading}</p>
+        <IconButton label="Close day view" size="xs" onClick={onClose} className="size-[22px] rounded">
           <X size={12} />
-        </button>
+        </IconButton>
       </div>
       {!authed ? (
-        <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center">
-          <p className="text-th-hi3 text-xs">
-            Connect your Google account to see and add events
-          </p>
-          <button
-            onClick={() => connect.mutate()}
-            className="px-3 py-1.5 rounded-full bg-th-elevated hover:bg-th-overlay text-th-hi text-[11px] transition-colors"
-          >
-            Connect Google Calendar
-          </button>
-        </div>
+        <EmptyState
+          compact
+          className="flex-1"
+          title="Connect your Google account to see and add events"
+          action={
+            <Button size="sm" variant="primary" loading={connect.isPending} onClick={() => connect.mutate()}>
+              Connect Google Calendar
+            </Button>
+          }
+        />
       ) : (
         <>
           <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5">
             {allDay.map((e) => (
-              <div key={e.id} className="px-2 py-1 rounded bg-th-elevated text-[11px] text-th-hi">
+              <div key={e.id} className="px-2 py-1 rounded bg-th-elevated text-2xs text-th-hi">
                 {e.title}
                 {e.location && <span className="text-th-hi3 ml-1.5">{e.location}</span>}
               </div>
             ))}
             {timed.map((e) => (
-              <div key={e.id} className="flex items-baseline gap-1.5 px-0.5 text-[11px]">
+              <div key={e.id} className="flex items-baseline gap-1.5 px-0.5 text-2xs">
                 <span className="text-th-hi3 tabular-nums shrink-0">
                   {new Date(e.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
@@ -196,31 +201,37 @@ function DayPanel({
                 {e.location && <span className="text-th-hi3 truncate">{e.location}</span>}
               </div>
             ))}
-            {events.length === 0 && <p className="text-th-hi3 text-xs">No events</p>}
+            {events.length === 0 && <EmptyState compact title="No events" />}
           </div>
           <form
             className="shrink-0 flex items-center gap-1.5 mt-2"
             onSubmit={(e) => { e.preventDefault(); submit(); }}
           >
-            <input
+            <Input
+              size="xs"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="New event…"
-              className="flex-1 min-w-0 px-2 py-1 rounded bg-th-elevated text-[11px] text-th-hi placeholder:text-th-ghost outline-none"
+              aria-label="New event title"
+              className="flex-1"
             />
-            <input
+            <Input
+              size="xs"
               type="time"
               value={time}
               onChange={(e) => setTime(e.target.value)}
-              className="px-1.5 py-1 rounded bg-th-elevated text-[11px] text-th-hi2 outline-none"
+              aria-label="New event time"
+              className="w-auto"
             />
-            <button
+            <Button
               type="submit"
-              disabled={addEvent.isPending || title.trim() === ''}
-              className="px-2.5 py-1 rounded bg-th-elevated hover:bg-th-overlay text-th-hi text-[11px] transition-colors disabled:opacity-50 disabled:pointer-events-none"
+              size="xs"
+              variant="subtle"
+              loading={addEvent.isPending}
+              disabled={title.trim() === ''}
             >
               Add
-            </button>
+            </Button>
           </form>
         </>
       )}

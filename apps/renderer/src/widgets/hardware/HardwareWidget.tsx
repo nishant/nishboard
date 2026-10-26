@@ -1,6 +1,5 @@
 import { memo } from 'react';
-import { AreaChart, Area, ResponsiveContainer } from 'recharts';
-import { Cpu, Thermometer, HardDrive, Wifi, Battery, BatteryCharging, BarChart2, Activity, Settings, Loader2, ListTree } from 'lucide-react';
+import { Cpu, Thermometer, HardDrive, Wifi, Battery, BatteryCharging, BarChart2, Activity, Settings, ListTree } from 'lucide-react';
 import { useHardware, useProcesses, type HardwareHistory } from './useHardware';
 import { useHardwareStore, type HardwareSection } from '../../store/hardwareStore';
 import { useHardwareUiStore } from '../../store/hardwareUiStore';
@@ -11,8 +10,8 @@ import { RefreshAction } from '../../components/RefreshAction';
 import { useDragScroll } from '../../hooks/useDragScroll';
 import { fmtUptime } from '../../lib/time';
 import type { HardwareData } from '@dash/shared';
-import { SkeletonLines } from '@nish/ui';
-import { tk } from '../../lib/tokens';
+import { Card, Checkbox, Meter, Segmented, SkeletonLines, Sparkline, Spinner, cn, type MeterTone, type SparklineTone, Label } from '@nish/ui';
+import { METER_NEUTRAL } from '../../components/nishGaps';
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -31,36 +30,27 @@ type ViewMode = HardwareViewMode;
 
 // ── Sparkline ────────────────────────────────────────────────────────────
 
-function Spark({ data, color }: { data: number[]; color: string }) {
-  const points = data.map((v) => ({ v }));
+/** History sparkline anchored at zero like the old Recharts area; `max` pins
+ *  percentages to 0–100. An all-zero series sits on the baseline. */
+function Spark({ data, tone, label, max }: { data: number[]; tone: SparklineTone; label: string; max?: number }) {
   return (
-    <ResponsiveContainer width="100%" height={32}>
-      <AreaChart data={points} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
-        <Area
-          dataKey="v"
-          stroke={color}
-          strokeWidth={1.5}
-          fill={color}
-          fillOpacity={0.15}
-          dot={false}
-          isAnimationActive={false}
-        />
-      </AreaChart>
-    </ResponsiveContainer>
+    <Sparkline
+      values={data}
+      label={label}
+      tone={tone}
+      height={32}
+      min={0}
+      max={max ?? Math.max(1, ...data)}
+      fill
+      className="w-full"
+    />
   );
 }
 
 // ── Usage bar ────────────────────────────────────────────────────────────
 
-function UsageBar({ pct, color }: { pct: number; color: string }) {
-  return (
-    <div className="w-full h-2 rounded-full bg-th-elevated overflow-hidden">
-      <div
-        className="h-full rounded-full transition-all duration-300"
-        style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: color }}
-      />
-    </div>
-  );
+function UsageBar({ pct, tone, label, className }: { pct: number; tone: MeterTone; label: string; className?: string }) {
+  return <Meter value={pct} label={label} tone={tone} size="md" track="overlay" className={cn('h-2', className)} />;
 }
 
 // ── Per-core mini bars ────────────────────────────────────────────────────
@@ -70,34 +60,27 @@ function CoreGrid({ coreUsage }: { coreUsage: number[] }) {
   return (
     <div className="flex flex-wrap gap-0.5 mt-1.5">
       {coreUsage.map((load, i) => (
-        <div key={i} className="flex flex-col items-center" style={{ width: 10 }}>
-          <div className="w-2.5 bg-th-elevated rounded-sm overflow-hidden" style={{ height: 20 }}>
-            <div
-              className="w-full rounded-sm"
-              style={{
-                height: `${load}%`,
-                backgroundColor: load >= 85 ? tk('loss-fill') : load >= 60 ? tk('warn-fill') : tk('chart-1'),
-                transition: 'height 0.3s',
-              }}
-            />
-          </div>
+        <div key={i} className="flex flex-col items-center h-5" style={{ width: 10 }}>
+          <Meter
+            value={load}
+            label={`Core ${i + 1}`}
+            tone={load >= 85 ? 'loss' : load >= 60 ? 'warn' : 'chart-1'}
+            size="md"
+            orientation="vertical"
+            track="overlay"
+            className="rounded-sm [&>div]:rounded-sm"
+          />
         </div>
       ))}
     </div>
   );
 }
 
-// ── Section card ──────────────────────────────────────────────────────────
-
-function Card({ children }: { children: React.ReactNode }) {
-  return <div className="bg-th-elevated/50 rounded-lg p-3">{children}</div>;
-}
-
 // ── CPU card ─────────────────────────────────────────────────────────────
 
 const CpuCard = memo(function CpuCard({ cpu, history, view }: { cpu: HardwareData['cpu']; history: HardwareHistory; view: ViewMode }) {
   return (
-    <Card>
+    <Card variant="inset" padding="sm">
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center gap-1.5">
           <Cpu size={12} className="text-th-indigo" />
@@ -105,20 +88,20 @@ const CpuCard = memo(function CpuCard({ cpu, history, view }: { cpu: HardwareDat
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {cpu.tempCelsius !== null && (
-            <span className={`text-xs font-mono ${tempColor(cpu.tempCelsius)}`}>{cpu.tempCelsius}°C</span>
+            <span className={cn('text-xs font-mono', tempColor(cpu.tempCelsius))}>{cpu.tempCelsius}°C</span>
           )}
           <span className="text-sm font-semibold text-th-hi tabular-nums">{cpu.usagePercent}%</span>
         </div>
       </div>
 
       {view === 'sparks' ? (
-        <Spark data={history.cpuUsage} color={tk('chart-1')} />
+        <Spark data={history.cpuUsage} tone="chart-1" label="CPU usage history" max={100} />
       ) : (
-        <UsageBar pct={cpu.usagePercent} color={tk('chart-1')} />
+        <UsageBar pct={cpu.usagePercent} tone="chart-1" label="CPU usage" />
       )}
 
       <div className="mt-1.5">
-        <span className="text-[10px] text-th-hi3">
+        <span className="text-3xs text-th-hi3">
           {cpu.physicalCores}C/{cpu.cores}T · {fmt(cpu.speedGhz)} GHz
         </span>
       </div>
@@ -133,7 +116,7 @@ const CpuCard = memo(function CpuCard({ cpu, history, view }: { cpu: HardwareDat
 const GpuCard = memo(function GpuCard({ gpu, history, view }: { gpu: HardwareData['gpu']; history: HardwareHistory; view: ViewMode }) {
   if (!gpu) {
     return (
-      <Card>
+      <Card variant="inset" padding="sm">
         <div className="flex items-center gap-1.5">
           <span className="text-xs text-th-hi3">No GPU detected</span>
         </div>
@@ -144,36 +127,36 @@ const GpuCard = memo(function GpuCard({ gpu, history, view }: { gpu: HardwareDat
   const vramPct = gpu.vramTotalMb > 0 ? Math.round((gpu.vramUsedMb / gpu.vramTotalMb) * 100) : 0;
 
   return (
-    <Card>
+    <Card variant="inset" padding="sm">
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-xs text-th-hi2 font-medium truncate max-w-[160px]">{gpu.name}</span>
         <div className="flex items-center gap-2 shrink-0">
           {gpu.tempCelsius !== null && (
-            <span className={`text-xs font-mono ${tempColor(gpu.tempCelsius)}`}>{gpu.tempCelsius}°C</span>
+            <span className={cn('text-xs font-mono', tempColor(gpu.tempCelsius))}>{gpu.tempCelsius}°C</span>
           )}
           <span className="text-sm font-semibold text-th-hi tabular-nums">{gpu.usagePercent}%</span>
         </div>
       </div>
 
       {view === 'sparks' ? (
-        <Spark data={history.gpuUsage} color={tk('chart-6')} />
+        <Spark data={history.gpuUsage} tone="chart-6" label="GPU usage history" max={100} />
       ) : (
-        <UsageBar pct={gpu.usagePercent} color={tk('chart-6')} />
+        <UsageBar pct={gpu.usagePercent} tone="chart-6" label="GPU usage" />
       )}
 
       {gpu.vramTotalMb > 0 && (
         <div className="mt-2 space-y-1">
-          <div className="flex justify-between text-[10px] text-th-hi3">
+          <div className="flex justify-between text-3xs text-th-hi3">
             <span>VRAM</span>
             <span>{fmt(gpu.vramUsedMb / 1024)} / {fmt(gpu.vramTotalMb / 1024)} GB · {vramPct}%</span>
           </div>
-          <UsageBar pct={vramPct} color={tk('violet')} />
+          <UsageBar pct={vramPct} tone="chart-6" label="VRAM used" />
         </div>
       )}
 
       {gpu.clockMhz !== null && (
         <div className="mt-1">
-          <span className="text-[10px] text-th-hi3">{gpu.clockMhz} MHz</span>
+          <span className="text-3xs text-th-hi3">{gpu.clockMhz} MHz</span>
         </div>
       )}
     </Card>
@@ -187,28 +170,28 @@ const RamCard = memo(function RamCard({ ram, history, view }: { ram: HardwareDat
   const totalGb = ram.totalMb / 1024;
 
   return (
-    <Card>
+    <Card variant="inset" padding="sm">
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-xs text-th-hi2 font-medium">RAM</span>
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-th-hi3 tabular-nums">{fmt(usedGb)} / {fmt(totalGb, 0)} GB</span>
+          <span className="text-3xs text-th-hi3 tabular-nums">{fmt(usedGb)} / {fmt(totalGb, 0)} GB</span>
           <span className="text-sm font-semibold text-th-hi tabular-nums">{ram.usagePercent}%</span>
         </div>
       </div>
 
       {view === 'sparks' ? (
-        <Spark data={history.ramUsage} color={tk('chart-3')} />
+        <Spark data={history.ramUsage} tone="chart-3" label="RAM usage history" max={100} />
       ) : (
-        <UsageBar pct={ram.usagePercent} color={tk('chart-3')} />
+        <UsageBar pct={ram.usagePercent} tone="chart-3" label="RAM usage" />
       )}
 
       {ram.swapTotalMb > 0 && (
         <div className="mt-2 space-y-1">
-          <div className="flex justify-between text-[10px] text-th-hi3">
+          <div className="flex justify-between text-3xs text-th-hi3">
             <span>Swap</span>
             <span>{fmt(ram.swapUsedMb / 1024)} / {fmt(ram.swapTotalMb / 1024)} GB</span>
           </div>
-          <UsageBar pct={Math.round((ram.swapUsedMb / ram.swapTotalMb) * 100)} color={tk('hi3')} />
+          <UsageBar pct={Math.round((ram.swapUsedMb / ram.swapTotalMb) * 100)} tone="accent" label="Swap used" className={METER_NEUTRAL} />
         </div>
       )}
     </Card>
@@ -226,13 +209,13 @@ const DiskCard = memo(function DiskCard({ disks, diskUsage, history, view }: {
   const d = disks[0] ?? { readMBs: 0, writeMBs: 0 };
 
   return (
-    <Card>
+    <Card variant="inset" padding="sm">
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center gap-1.5">
           <HardDrive size={12} className="text-th-chart-7" />
           <span className="text-xs text-th-hi2 font-medium">Disk I/O</span>
         </div>
-        <div className="flex gap-3 text-[10px] tabular-nums">
+        <div className="flex gap-3 text-3xs tabular-nums">
           <span className="text-th-emerald">R {fmt(d.readMBs)} MB/s</span>
           <span className="text-th-amber">W {fmt(d.writeMBs)} MB/s</span>
         </div>
@@ -240,8 +223,8 @@ const DiskCard = memo(function DiskCard({ disks, diskUsage, history, view }: {
 
       {view === 'sparks' && (
         <div className="space-y-1">
-          <Spark data={history.diskRead} color={tk('chart-2')} />
-          <Spark data={history.diskWrite} color={tk('chart-7')} />
+          <Spark data={history.diskRead} tone="chart-2" label="Disk read history" />
+          <Spark data={history.diskWrite} tone="chart-7" label="Disk write history" />
         </div>
       )}
 
@@ -249,11 +232,11 @@ const DiskCard = memo(function DiskCard({ disks, diskUsage, history, view }: {
         <div className="mt-2 space-y-1.5">
           {diskUsage.map((du) => (
             <div key={du.mount}>
-              <div className="flex justify-between text-[10px] text-th-hi3 mb-0.5">
+              <div className="flex justify-between text-3xs text-th-hi3 mb-0.5">
                 <span className="font-mono">{du.mount}</span>
                 <span>{fmt(du.usedGb, 0)} / {fmt(du.totalGb, 0)} GB · {du.usePercent}%</span>
               </div>
-              <UsageBar pct={du.usePercent} color={du.usePercent >= 85 ? tk('loss-fill') : tk('chart-7')} />
+              <UsageBar pct={du.usePercent} tone={du.usePercent >= 85 ? 'loss' : 'chart-7'} label={`${du.mount} used`} />
             </div>
           ))}
         </div>
@@ -273,13 +256,13 @@ const NetworkCard = memo(function NetworkCard({ network, history, view }: {
   const totalDown = history.netDown[history.netDown.length - 1] ?? 0;
 
   return (
-    <Card>
+    <Card variant="inset" padding="sm">
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center gap-1.5">
           <Wifi size={12} className="text-th-sky" />
           <span className="text-xs text-th-hi2 font-medium">Network</span>
         </div>
-        <div className="flex gap-3 text-[10px] tabular-nums">
+        <div className="flex gap-3 text-3xs tabular-nums">
           <span className="text-th-sky">↑ {fmt(totalUp)} Mbps</span>
           <span className="text-th-emerald">↓ {fmt(totalDown)} Mbps</span>
         </div>
@@ -287,21 +270,21 @@ const NetworkCard = memo(function NetworkCard({ network, history, view }: {
 
       {view === 'sparks' && (
         <div className="space-y-1">
-          <Spark data={history.netUp} color={tk('chart-5')} />
-          <Spark data={history.netDown} color={tk('chart-2')} />
+          <Spark data={history.netUp} tone="chart-5" label="Upload history" />
+          <Spark data={history.netDown} tone="chart-2" label="Download history" />
         </div>
       )}
 
       {network.length > 0 && (
         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
           {network.map((n) => (
-            <span key={n.iface} className="text-[10px] text-th-hi3 font-mono">{n.iface}</span>
+            <span key={n.iface} className="text-3xs text-th-hi3 font-mono">{n.iface}</span>
           ))}
         </div>
       )}
 
       {network.length === 0 && (
-        <span className="text-[10px] text-th-hi3">No active interfaces</span>
+        <span className="text-3xs text-th-hi3">No active interfaces</span>
       )}
     </Card>
   );
@@ -311,20 +294,20 @@ const NetworkCard = memo(function NetworkCard({ network, history, view }: {
 
 const BatteryCard = memo(function BatteryCard({ battery }: { battery: NonNullable<HardwareData['battery']> }) {
   const Icon = battery.charging ? BatteryCharging : Battery;
-  const pctColor = battery.percent <= 20 ? tk('loss-fill') : battery.percent <= 40 ? tk('warn-fill') : tk('accent');
+  const pctTone: MeterTone = battery.percent <= 20 ? 'loss' : battery.percent <= 40 ? 'warn' : 'ok';
   const textColor = battery.percent <= 20 ? 'text-th-loss' : battery.percent <= 40 ? 'text-th-warn' : 'text-th-hi';
 
   return (
-    <Card>
+    <Card variant="inset" padding="sm">
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center gap-1.5">
           <Icon size={12} className={textColor} />
           <span className="text-xs text-th-hi2">Battery</span>
-          {battery.charging && <span className="text-[10px] text-th-ok">Charging</span>}
+          {battery.charging && <span className="text-3xs text-th-ok">Charging</span>}
         </div>
-        <span className={`text-sm font-semibold tabular-nums ${textColor}`}>{battery.percent}%</span>
+        <span className={cn('text-sm font-semibold tabular-nums', textColor)}>{battery.percent}%</span>
       </div>
-      <UsageBar pct={battery.percent} color={pctColor} />
+      <UsageBar pct={battery.percent} tone={pctTone} label="Battery charge" />
     </Card>
   );
 });
@@ -333,7 +316,7 @@ const BatteryCard = memo(function BatteryCard({ battery }: { battery: NonNullabl
 
 function NoBatteryCard() {
   return (
-    <Card>
+    <Card variant="inset" padding="sm">
       <span className="text-xs text-th-hi3">No battery</span>
     </Card>
   );
@@ -359,39 +342,21 @@ function ConfigPanel({
 }) {
   const sections = Object.keys(SECTION_LABELS) as HardwareSection[];
   return (
-    <div className="bg-th-elevated rounded-lg p-3 border border-th-line">
-      <p className="text-[10px] text-th-hi3 mb-2 uppercase tracking-wide">Visible sections</p>
+    <Card variant="inset" padding="sm" className="border-th-line">
+      <Label className="block text-3xs mb-2 tracking-wide">Visible sections</Label>
       <div className="grid grid-cols-2 gap-x-4 gap-y-2">
         {sections.map((section) => (
-          <label key={section} className="flex items-center gap-2 cursor-pointer group">
-            {/* Real checkbox (visually hidden) so the toggle is keyboard-focusable
-                and screen-reader announceable; the styled div is just its face. */}
-            <input
-              type="checkbox"
-              checked={visible[section]}
-              onChange={(e) => setVisible(section, e.target.checked)}
-              className="sr-only peer"
-            />
-            <div
-              className={`w-4 h-4 rounded border flex items-center justify-center transition-colors cursor-pointer peer-focus-visible:ring-2 peer-focus-visible:ring-th-accent ${
-                visible[section]
-                  ? 'bg-th-hi border-th-hi'
-                  : 'bg-transparent border-th-ghost group-hover:border-th-hi3'
-              }`}
-            >
-              {visible[section] && (
-                <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                  <path d="M1 4l2.5 2.5L9 1" stroke={tk('bg')} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              )}
-            </div>
-            <span className="text-xs text-th-hi2 select-none">
-              {SECTION_LABELS[section]}
-            </span>
-          </label>
+          <Checkbox
+            key={section}
+            size="sm"
+            checked={visible[section]}
+            onChange={(e) => setVisible(section, e.target.checked)}
+            label={SECTION_LABELS[section]}
+            className="text-th-hi2"
+          />
         ))}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -411,51 +376,48 @@ function ProcessPanel() {
     .slice(0, PROC_ROWS);
 
   return (
-    <div className="bg-th-elevated/50 rounded-lg p-3">
+    <Card variant="inset" padding="sm">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5">
           <ListTree size={12} className="text-th-teal" />
           <span className="text-xs text-th-hi2 font-medium">Top processes</span>
         </div>
-        <div className="flex rounded bg-th-elevated p-0.5">
-          {(['cpu', 'ram'] as ProcessSort[]).map((s) => (
-            <button
-              key={s}
-              onClick={() => setProcSort(s)}
-              className={`px-2 py-0.5 rounded text-[10px] uppercase transition-colors ${
-                procSort === s ? 'bg-th-overlay text-th-hi' : 'text-th-hi3 hover:text-th-hi2'
-              }`}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
+        <Segmented<ProcessSort>
+          label="Sort processes by"
+          size="xs"
+          value={procSort}
+          onChange={setProcSort}
+          options={[
+            { value: 'cpu', label: 'CPU' },
+            { value: 'ram', label: 'RAM' },
+          ]}
+        />
       </div>
 
       {isLoading ? (
-        <div className="flex items-center gap-2 py-2 text-th-hi3 text-[10px]">
-          <Loader2 size={11} className="animate-spin" /> Sampling processes…
+        <div className="flex items-center gap-2 py-2 text-th-hi3 text-3xs">
+          <Spinner size="xs" /> Sampling processes…
         </div>
       ) : isError || !data ? (
-        <span className="text-[10px] text-th-hi3">Process list unavailable</span>
+        <span className="text-3xs text-th-hi3">Process list unavailable</span>
       ) : (
         <div className="flex flex-col gap-0.5">
           {rows.map((p) => (
-            <div key={p.name} className="flex items-center gap-2 text-[10px] leading-relaxed">
+            <div key={p.name} className="flex items-center gap-2 text-3xs leading-relaxed">
               <span className="text-th-hi2 truncate flex-1 min-w-0 font-mono">
                 {p.name}{p.count > 1 && <span className="text-th-hi3"> ×{p.count}</span>}
               </span>
-              <span className={`w-14 text-right tabular-nums shrink-0 ${procSort === 'cpu' ? 'text-th-hi' : 'text-th-hi3'}`}>
+              <span className={cn('w-14 text-right tabular-nums shrink-0', procSort === 'cpu' ? 'text-th-hi' : 'text-th-hi3')}>
                 {p.cpuPercent.toFixed(1)}%
               </span>
-              <span className={`w-16 text-right tabular-nums shrink-0 ${procSort === 'ram' ? 'text-th-hi' : 'text-th-hi3'}`}>
+              <span className={cn('w-16 text-right tabular-nums shrink-0', procSort === 'ram' ? 'text-th-hi' : 'text-th-hi3')}>
                 {p.memMb >= 1024 ? `${(p.memMb / 1024).toFixed(1)} GB` : `${p.memMb} MB`}
               </span>
             </div>
           ))}
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -529,9 +491,9 @@ export function HardwareWidget() {
       <div className="flex items-center justify-between px-0.5 shrink-0 mt-auto pt-1">
         <div className="flex items-center gap-1">
           <Thermometer size={10} className="text-th-hi3" />
-          <span className="text-[10px] text-th-hi3">Uptime {fmtUptime(d.uptime)}</span>
+          <span className="text-3xs text-th-hi3">Uptime {fmtUptime(d.uptime)}</span>
         </div>
-        {query.isFetching && <Loader2 size={10} className="text-th-hi3 animate-spin" />}
+        {query.isFetching && <Spinner size="xs" label="Refreshing" className="text-th-hi3" />}
       </div>
     </div>
   );

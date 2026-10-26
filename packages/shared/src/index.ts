@@ -26,6 +26,6 @@ export type {
   DiscordVoiceSettingsData, DiscordStreamEvent,
   DiscordVoiceSelectRequestBody, DiscordVoiceSettingsRequestBody, DiscordSelectTextChannelRequestBody,
 } from './types/discord';
-export type { IpcChannels, ElectronAPI, LauncherItemData, LauncherGroupData, LauncherStateData, ClipboardEntryData, AppPrefsData, UpdateCheckData, DiscordScreenShareSourceData, DiscordScreenShareRequestData, ClaudeLoginOpenResult } from './types/ipc';
+export type { IpcChannels, ElectronAPI, LauncherItemData, LauncherGroupData, LauncherStateData, ClipboardEntryData, AppPrefsData, UpdateCheckData, DiscordScreenShareSourceData, DiscordScreenShareRequestData, ClaudeLoginOpenResult, NativeThemeSource } from './types/ipc';
 export type { CredentialKey, CredentialDef } from './types/credentials';
 export { CREDENTIAL_KEYS, CREDENTIAL_DEFS } from './types/credentials';

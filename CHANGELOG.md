@@ -4,6 +4,41 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #132] feat: @nish/ui v0.3.0 shared components, menus and native theme sync
+
+**Branch:** `refactor/ds-adoption` → `master`
+**Date:** 2026-10-25
+
+### Context
+The @nish/ui adoption round (hosting `docs/design-system/SPEC.md`, WP-NISHBOARD). Nishboard had 170 raw buttons, 133 `title=` tooltips, 287 arbitrary font sizes, nine local segmented controls, four menus with no Escape or roles, and copies of @nish/ui's hex tables in `lib/themeVars.ts`. Everything that has a shared piece now uses it.
+
+### Changed
+- `@nish/ui` `v0.2.4` → `v0.3.0` (codeload tarball).
+- Role fixes, `cn()` instead of template-literal classNames, stale z-index comments updated.
+- EmptyState / ErrorState (with Retry) / SkeletonLines across Spotify, Discord, Embed, Calendar, Claude, Stocks and the grid. `ConfirmDialog` replaces the local ConfirmDeleteDialog and the Spotify and Discord confirms. The Crypto, Stocks and Launcher editors and Spotify search are the shared `Modal`.
+- `HeaderAction` wraps `IconButton` xs (held at 22px, so `TITLEBAR_PX` is unchanged). Titlebar controls and every unnamed or title-only icon button are `IconButton` with a label. Hover-revealed controls also show on keyboard focus.
+- Buttons are `Button` xs/sm with `subtle`, `link` and `loading` (D6: filled chips map to `subtle`). Fields are `Input`, `Select`, `Textarea`, `SearchInput` and `Field`. `Switch`, `Checkbox`, `Segmented`, `ThemeToggle labels`, `Meter` + `toneFor`, `StatusDot`, `Callout`, `Tabs`, `Card variant="inset"` and `Sparkline` replace their local versions.
+- Titlebar menus: Themes, Widgets and Layouts are the shared `Popover` (role=dialog, Escape, outside press, focus return) behind a trigger with `aria-haspopup`/`aria-expanded`; the pinned-layout quick switch is `DropdownMenu` + `MenuItem`. Panels keep `app-region-no-drag`. The custom-layout tile editor still ignores outside presses so the grid stays draggable.
+- The Claude model/effort and usage panels are the shared `Popover`; the slash menu is a listbox driven from the composer (`aria-activedescendant`).
+- The command palette is the shared `Modal` (`placement="top"`, search header) with combobox/listbox/option roles. It now sits at z-50 like the other dialogs.
+- `text-[11px]`/`text-[10px]` → `text-2xs`/`text-3xs` everywhere; the 8px and 9px labels move up to `text-3xs`. Small-caps section headings use `Label`.
+- `lib/themeVars.ts` reads status, fill, chart and hue colors from `@nish/ui/tokens` instead of local copies. Accent and status text must now also reach 4.5:1 on their own `-soft` tint, which fixes the Solarized selected Segmented (3.79:1) and nudges Dracula, Nord, Sandstorm and Arctic slightly. `styles/app-themes.css` regenerated.
+- Tooltips (not `title=`) for the weather sunrise, sunset, AQI and extra alerts, and the backup folder path.
+
+### Added
+- **Native theme sync (Windows + macOS):** new `app:set-theme` IPC (`setNativeTheme` in the preload API). The renderer sends the theme choice (`'system'` stays `'system'`, never the resolved scheme) and the applied `--nish-bg`; main (`apps/main/src/windowTheme.ts`) sets `nativeTheme.themeSource` and every window's background, and saves both to `userData/window-theme.json`, so a light theme no longer flashes dark at launch. The default launch color is @nish/ui dark `#0a0b0f` (was zinc `#09090b`).
+- Tests: Titlebar menu open/Escape/no-drag, `deriveThemeColors` reading shared tokens and soft-tint contrast, `syncNativeTheme`, `parseWindowTheme`/`setWindowTheme`. `nativeTheme` added to the main test stub.
+
+### Removed
+- Local `Switch`/`ToggleRow`, `ThemeModeSwitch`, the duplicate Hardware/NetMon cards, `ConfirmDeleteDialog`, the menu `Backdrop`/`menuBtn`/`menuPanel`, and the Recharts sparklines.
+
+### Notes
+- `components/nishGaps.tsx` holds the thin wrappers for pieces @nish/ui does not have yet (dense field text in narrow mouse-driven windows, a neutral Meter fill, a menu-row recipe for Popover menus). Each is reported upstream and goes away when ui ships it.
+- Unchanged by decision: Windows popouts stay `transparent: true` (D11) and Spotify keeps ok-green for "active" (D12).
+- Native theme sync and the launch background are packaged-build behavior and were **not** verified in a packaged build (`pnpm package` was not run).
+
+---
+
 ## [PR #131] fix: @nish/ui v0.2.4 (wrapping dialog titles, 44px toast dismiss on touch)
 
 **Branch:** `fix/nish-ui-0.2.4` → `master`

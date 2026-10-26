@@ -4,9 +4,15 @@ import { useTimersStore } from '../../store/timersStore';
 import { useAppSettingsStore } from '../../store/settingsStore';
 import { fireAlert } from '../../lib/alerts';
 import { fmtDuration, relTimeUntil, hourFormat } from '../../lib/time';
-import { EmptyState, cn } from '@nish/ui';
+import { Card, EmptyState, IconButton, TabPanel, Tabs, cn } from '@nish/ui';
+import { Input } from '../../components/nishGaps';
 
 type Tab = 'timer' | 'alarm';
+
+const TABS: { value: Tab; label: string }[] = [
+  { value: 'timer', label: 'Timer' },
+  { value: 'alarm', label: 'Alarm' },
+];
 
 function fmtAlarm(at: number, clock24h: boolean): string {
   const d = new Date(at);
@@ -28,8 +34,6 @@ function timeToTimestamp(hhmm: string): number | null {
   }
   return d.getTime();
 }
-
-const iconBtn = 'shrink-0 p-1 rounded text-th-hi3 hover:text-th-hi2 hover:bg-th-elevated/60 transition disabled:opacity-30 disabled:cursor-not-allowed';
 
 export function TimerWidget() {
   const [tab, setTab] = useState<Tab>('timer');
@@ -85,34 +89,28 @@ export function TimerWidget() {
 
   return (
     <div className="h-full flex flex-col p-2 gap-2">
-      {/* Tabs */}
-      <div className="flex rounded-lg bg-th-elevated p-0.5 shrink-0 self-start">
-        {(['timer', 'alarm'] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={cn('px-2.5 py-0.5 rounded text-[10px] capitalize transition-colors',
-              tab === t ? 'bg-th-overlay text-th-hi' : 'text-th-hi3 hover:text-th-hi2')}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'timer' ? (
-        <>
+      <Tabs
+        label="Timer or alarm"
+        variant="pill"
+        size="sm"
+        value={tab}
+        onChange={(v) => setTab(v as Tab)}
+        items={TABS}
+        className="shrink-0 self-start"
+      >
+        <TabPanel value="timer" className="flex-1 min-h-0 flex flex-col gap-2">
           <div className="flex items-center gap-1 shrink-0">
-            <input value={tLabel} onChange={(e) => setTLabel(e.target.value)} placeholder="Label"
-              className="flex-1 min-w-0 bg-th-elevated border border-th-line rounded-lg px-2 py-1.5 text-th-hi text-[11px] placeholder:text-th-ghost focus:outline-none focus:border-th-hi3" />
-            <input type="number" min={0} value={tMin} onChange={(e) => setTMin(e.target.value)} title="minutes"
-              className="w-10 bg-th-elevated border border-th-line rounded-lg px-1.5 py-1.5 text-th-hi text-[11px] text-center tabular-nums focus:outline-none focus:border-th-hi3" />
-            <span className="text-th-hi3 text-[10px]">m</span>
-            <input type="number" min={0} max={59} value={tSec} onChange={(e) => setTSec(e.target.value)} title="seconds"
-              className="w-10 bg-th-elevated border border-th-line rounded-lg px-1.5 py-1.5 text-th-hi text-[11px] text-center tabular-nums focus:outline-none focus:border-th-hi3" />
-            <span className="text-th-hi3 text-[10px]">s</span>
-            <button onClick={submitTimer} className="shrink-0 p-1.5 rounded-lg bg-th-overlay hover:bg-th-overlay/70 text-th-hi transition-colors" title="Add timer">
+            <Input size="xs" value={tLabel} onChange={(e) => setTLabel(e.target.value)} placeholder="Label"
+              aria-label="Timer label" className="flex-1" />
+            <Input size="xs" type="number" min={0} value={tMin} onChange={(e) => setTMin(e.target.value)}
+              aria-label="Minutes" className="w-11 px-1.5 text-center tabular-nums" />
+            <span className="text-th-hi3 text-3xs" aria-hidden="true">m</span>
+            <Input size="xs" type="number" min={0} max={59} value={tSec} onChange={(e) => setTSec(e.target.value)}
+              aria-label="Seconds" className="w-11 px-1.5 text-center tabular-nums" />
+            <span className="text-th-hi3 text-3xs" aria-hidden="true">s</span>
+            <IconButton label="Add timer" size="sm" variant="subtle" onClick={submitTimer}>
               <Plus size={14} />
-            </button>
+            </IconButton>
           </div>
 
           <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-1.5">
@@ -123,40 +121,40 @@ export function TimerWidget() {
                 const remaining = t.running && t.endsAt != null ? Math.max(0, t.endsAt - now) : t.remainingMs;
                 const done = remaining <= 0;
                 return (
-                  <div key={t.id} className="group flex items-center gap-2 px-2 py-1.5 rounded-lg bg-th-elevated/40">
+                  <Card key={t.id} variant="inset" padding="none" className="group flex items-center gap-2 px-2 py-1.5">
                     <div className="flex flex-col min-w-0 flex-1">
-                      {t.label && <span className="text-th-hi3 text-[10px] truncate">{t.label}</span>}
+                      {t.label && <span className="text-th-hi3 text-3xs truncate">{t.label}</span>}
                       <span className={cn('text-xl tabular-nums leading-none', done ? 'text-th-accent' : 'text-th-hi')}>
                         {fmtDuration(remaining)}
                       </span>
                     </div>
-                    <button
+                    <IconButton
+                      label={t.running ? 'Pause' : done ? 'Reset' : 'Start'}
+                      size="xs"
                       onClick={() => (t.running ? pauseTimer(t.id) : done ? resetTimer(t.id) : startTimer(t.id))}
-                      className={iconBtn}
-                      title={t.running ? 'Pause' : done ? 'Reset' : 'Start'}
                     >
                       {t.running ? <Pause size={14} /> : done ? <RotateCcw size={14} /> : <Play size={14} />}
-                    </button>
+                    </IconButton>
                     {!done && (
-                      <button onClick={() => resetTimer(t.id)} className={iconBtn} title="Reset"><RotateCcw size={13} /></button>
+                      <IconButton label="Reset" size="xs" onClick={() => resetTimer(t.id)}><RotateCcw size={13} /></IconButton>
                     )}
-                    <button onClick={() => removeTimer(t.id)} className={iconBtn} title="Delete"><X size={13} /></button>
-                  </div>
+                    <IconButton label="Delete" size="xs" tone="danger" onClick={() => removeTimer(t.id)}><X size={13} /></IconButton>
+                  </Card>
                 );
               })
             )}
           </div>
-        </>
-      ) : (
-        <>
+        </TabPanel>
+
+        <TabPanel value="alarm" className="flex-1 min-h-0 flex flex-col gap-2">
           <div className="flex items-center gap-1 shrink-0">
-            <input value={aLabel} onChange={(e) => setALabel(e.target.value)} placeholder="Label"
-              className="flex-1 min-w-0 bg-th-elevated border border-th-line rounded-lg px-2 py-1.5 text-th-hi text-[11px] placeholder:text-th-ghost focus:outline-none focus:border-th-hi3" />
-            <input type="time" value={aTime} onChange={(e) => setATime(e.target.value)}
-              className="bg-th-elevated border border-th-line rounded-lg px-2 py-1.5 text-th-hi text-[11px] tabular-nums focus:outline-none focus:border-th-hi3" />
-            <button onClick={submitAlarm} disabled={!aTime} className="shrink-0 p-1.5 rounded-lg bg-th-overlay hover:bg-th-overlay/70 text-th-hi disabled:opacity-40 disabled:cursor-not-allowed transition-colors" title="Add alarm">
+            <Input size="xs" value={aLabel} onChange={(e) => setALabel(e.target.value)} placeholder="Label"
+              aria-label="Alarm label" className="flex-1" />
+            <Input size="xs" type="time" value={aTime} onChange={(e) => setATime(e.target.value)}
+              aria-label="Alarm time" className="w-auto tabular-nums" />
+            <IconButton label="Add alarm" size="sm" variant="subtle" onClick={submitAlarm} disabled={!aTime}>
               <Plus size={14} />
-            </button>
+            </IconButton>
           </div>
 
           <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-1.5">
@@ -164,24 +162,24 @@ export function TimerWidget() {
               <EmptyState compact title="No alarms" />
             ) : (
               alarms.map((a) => (
-                <div key={a.id} className="group flex items-center gap-2 px-2 py-1.5 rounded-lg bg-th-elevated/40">
+                <Card key={a.id} variant="inset" padding="none" className="group flex items-center gap-2 px-2 py-1.5">
                   <Bell size={13} className={cn('shrink-0', a.done ? 'text-th-hi3' : 'text-th-accent')} />
                   <div className="flex flex-col flex-1 min-w-0">
                     <span className={cn('text-sm tabular-nums leading-tight', a.done ? 'text-th-hi3 line-through' : 'text-th-hi')}>
                       {fmtAlarm(a.at, clock24h)}
                     </span>
-                    {a.label && <span className="text-th-hi3 text-[10px] truncate">{a.label}</span>}
+                    {a.label && <span className="text-th-hi3 text-3xs truncate">{a.label}</span>}
                   </div>
-                  <span className={cn('text-[10px] shrink-0', a.done ? 'text-th-warn' : 'text-th-hi3')}>
+                  <span className={cn('text-3xs shrink-0', a.done ? 'text-th-warn' : 'text-th-hi3')}>
                     {a.done ? 'rang' : relTimeUntil(a.at, now)}
                   </span>
-                  <button onClick={() => removeAlarm(a.id)} className={iconBtn} title="Delete"><X size={13} /></button>
-                </div>
+                  <IconButton label="Delete" size="xs" tone="danger" onClick={() => removeAlarm(a.id)}><X size={13} /></IconButton>
+                </Card>
               ))
             )}
           </div>
-        </>
-      )}
+        </TabPanel>
+      </Tabs>
     </div>
   );
 }

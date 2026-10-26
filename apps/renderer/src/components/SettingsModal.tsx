@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { X, Eye, EyeOff, Check, Loader2, Lock, Minus, Plus, Download, Upload, FolderOpen, RotateCw, FolderSync, Terminal } from 'lucide-react';
+import { useState, useEffect, useId, useRef } from 'react';
+import { X, Eye, EyeOff, Check, Lock, Minus, Plus, Download, Upload, FolderOpen, RotateCw, FolderSync, Terminal } from 'lucide-react';
 import { CREDENTIAL_DEFS, CREDENTIAL_KEYS } from '@dash/shared';
 import type { CredentialKey, AppPrefsData, UpdateCheckData } from '@dash/shared';
 import { useAppSettingsStore } from '../store/settingsStore';
@@ -10,14 +10,14 @@ import type { WidgetId } from '../lib/layouts';
 import { useQueryClient } from '@tanstack/react-query';
 import { exportSettings, importSettings } from '../lib/backup';
 import { apiClient } from '../lib/apiClient';
-import { ToggleRow, SegmentedRow } from './settings/controls';
+import { SegmentedRow } from './settings/controls';
 import { openClaudeCliLogin } from '../widgets/claude/useClaude';
 import { AlertsPanel } from './settings/AlertsPanel';
 import { useOverlayStore } from '../store/overlayStore';
 import { useThemeStore } from '../store/themeStore';
 import { CUSTOM_THEME, THEMES, THEME_PRESETS } from '../themes';
-import { ThemeModeSwitch } from './ThemeModeSwitch';
-import { Button, Modal, Select, cn } from '@nish/ui';
+import { Badge, Button, Callout, Field, IconButton, Modal, SkeletonLines, Switch, TabPanel, Tabs, ThemeToggle, Tooltip, cn, Label } from '@nish/ui';
+import { Input, Select } from './nishGaps';
 
 // Group defs by service
 const SERVICES = Array.from(new Set(CREDENTIAL_DEFS.map((d) => d.service)));
@@ -44,6 +44,7 @@ function CredentialRow({
   onEdit: (e: CredentialEdit | undefined) => void;
 }) {
   const [visible, setVisible] = useState(false);
+  const inputId = useId();
 
   const showInput = !isSet || edit?.mode === 'set';
   const pendingClear = isSet && edit?.mode === 'clear';
@@ -51,11 +52,17 @@ function CredentialRow({
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-3">
-        <span className="text-th-hi3 text-[11px] w-28 shrink-0">{label}</span>
+        {showInput ? (
+          <label htmlFor={inputId} className="text-th-hi3 text-2xs w-28 shrink-0">{label}</label>
+        ) : (
+          <span className="text-th-hi3 text-2xs w-28 shrink-0">{label}</span>
+        )}
 
         {showInput ? (
           <div className="flex-1 flex items-center gap-1.5">
-            <input
+            <Input
+              id={inputId}
+              size="sm"
               type={visible ? 'text' : 'password'}
               value={edit?.mode === 'set' ? edit.value : ''}
               onChange={(e) => {
@@ -66,59 +73,42 @@ function CredentialRow({
               placeholder={isSet ? 'New value…' : '—'}
               autoFocus={isSet}
               spellCheck={false}
-              className="flex-1 bg-th-elevated border border-th-line rounded-lg px-3 py-1.5 text-th-hi text-[11px] font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-hi3 transition-colors"
+              aria-describedby={hint ? `${inputId}-hint` : undefined}
+              className="flex-1 font-mono"
             />
-            <button
-              onClick={() => setVisible((v) => !v)}
-              className="text-th-hi3 hover:text-th-hi2 transition-colors shrink-0 p-1"
-              tabIndex={-1}
-              title={visible ? 'Hide' : 'Show'}
-            >
+            <IconButton label={visible ? 'Hide value' : 'Show value'} size="sm" active={visible} onClick={() => setVisible((v) => !v)}>
               {visible ? <EyeOff size={13} /> : <Eye size={13} />}
-            </button>
+            </IconButton>
             {isSet && (
-              <button
-                onClick={() => onEdit(undefined)}
-                className="text-th-hi3 hover:text-th-hi2 transition-colors shrink-0 p-1"
-                title="Keep the saved value"
-              >
+              <IconButton label="Keep the saved value" size="sm" onClick={() => onEdit(undefined)}>
                 <X size={13} />
-              </button>
+              </IconButton>
             )}
           </div>
         ) : pendingClear ? (
           <div className="flex-1 flex items-center gap-2">
-            <span className="text-th-warn text-[11px]">Will be removed on save</span>
-            <button
-              onClick={() => onEdit(undefined)}
-              className="text-th-hi3 hover:text-th-hi2 text-[10px] underline transition-colors"
-            >
+            <Badge tone="warn">Will be removed on save</Badge>
+            <Button variant="link" size="xs" onClick={() => onEdit(undefined)}>
               Undo
-            </button>
+            </Button>
           </div>
         ) : (
           <div className="flex-1 flex items-center gap-2">
-            <span className="text-th-hi text-[11px] font-mono tracking-widest">••••••••</span>
-            <span className="text-th-hi3 text-[10px]">saved</span>
+            <span className="text-th-hi text-2xs font-mono tracking-widest">••••••••</span>
+            <span className="text-th-hi3 text-3xs">saved</span>
             <div className="ml-auto flex items-center gap-1">
-              <button
-                onClick={() => onEdit({ mode: 'set', value: '' })}
-                className="px-2 py-0.5 rounded text-[10px] text-th-hi2 bg-th-elevated hover:bg-th-overlay transition-colors"
-              >
+              <Button size="xs" variant="subtle" onClick={() => onEdit({ mode: 'set', value: '' })}>
                 Replace
-              </button>
-              <button
-                onClick={() => onEdit({ mode: 'clear' })}
-                className="px-2 py-0.5 rounded text-[10px] text-th-hi3 hover:text-th-loss bg-th-elevated transition-colors"
-              >
+              </Button>
+              <Button size="xs" variant="ghost" onClick={() => onEdit({ mode: 'clear' })} className="hover:text-th-loss hover:bg-th-loss-soft">
                 Clear
-              </button>
+              </Button>
             </div>
           </div>
         )}
       </div>
       {hint && (
-        <p className="text-th-hi3 text-[10px] leading-relaxed pl-[calc(7rem+0.75rem)]">{hint}</p>
+        <p id={`${inputId}-hint`} className="text-th-hi3 text-3xs leading-relaxed pl-[calc(7rem+0.75rem)]">{hint}</p>
       )}
     </div>
   );
@@ -127,8 +117,8 @@ function CredentialRow({
 function BuiltinRow({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="text-th-hi3 text-[11px] w-28 shrink-0">{label}</span>
-      <div className="flex items-center gap-1.5 text-th-hi3 text-[11px]">
+      <span className="text-th-hi3 text-2xs w-28 shrink-0">{label}</span>
+      <div className="flex items-center gap-1.5 text-th-hi3 text-2xs">
         <Lock size={11} className="shrink-0" />
         <span>Pre-configured</span>
       </div>
@@ -164,35 +154,34 @@ function AboutSection() {
     <div className="flex flex-col gap-3">
       <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">About</span>
       <div className="flex items-center gap-3">
-        <span className="text-th-hi3 text-[11px] w-28 shrink-0">Version</span>
-        <span className="text-th-hi text-[11px] font-mono">{version ?? '…'}</span>
-        <button
-          onClick={() => void check()}
-          disabled={checking}
-          className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-th-elevated hover:bg-th-overlay text-th-hi text-[11px] disabled:opacity-50 transition-colors"
-        >
-          {checking && <Loader2 size={12} className="animate-spin" />}
+        <span className="text-th-hi3 text-2xs w-28 shrink-0">Version</span>
+        <span className="text-th-hi text-2xs font-mono">{version ?? '…'}</span>
+        <Button size="sm" variant="subtle" loading={checking} onClick={() => void check()} className="ml-auto">
           Check for updates
-        </button>
+        </Button>
       </div>
       {result && (
-        <div className="text-[10px] leading-relaxed pl-[calc(7rem+0.75rem)] flex flex-col gap-1">
+        <div className="text-3xs leading-relaxed pl-[calc(7rem+0.75rem)] flex flex-col gap-1">
           {result.hasUpdate && result.latestVersion ? (
             <>
-              <button
+              <Button
+                variant="link"
+                size="xs"
                 onClick={() => result.url && window.electron?.openExternal(result.url)}
-                className="text-th-accent underline text-left"
+                className="self-start"
               >
                 v{result.latestVersion} is available — open release page
-              </button>
+              </Button>
               {result.assetUrl && (
-                <button
+                <Button
+                  size="sm"
+                  variant="primary"
                   onClick={() => window.electron?.openExternal(result.assetUrl!)}
-                  className="self-start flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-th-elevated hover:bg-th-overlay text-th-hi text-[11px] transition-colors"
                   title={result.assetName ?? undefined}
+                  className="self-start"
                 >
                   Download v{result.latestVersion} ({result.assetName?.endsWith('.dmg') ? 'DMG' : 'EXE'})
-                </button>
+                </Button>
               )}
             </>
           ) : (
@@ -232,22 +221,21 @@ function AutoExportRow() {
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-2">
-        <button
-          onClick={() => void choose()}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-th-elevated hover:bg-th-overlay text-th-hi text-[11px] transition-colors"
-        >
-          <FolderSync size={13} /> {dir ? 'Change folder' : 'Auto-export…'}
-        </button>
+        <Button size="sm" variant="subtle" icon={<FolderSync size={13} />} onClick={() => void choose()}>
+          {dir ? 'Change folder' : 'Auto-export…'}
+        </Button>
         {dir && (
           <>
-            <span className="text-th-hi3 text-[10px] font-mono truncate flex-1 min-w-0" title={dir}>{dir}</span>
-            <button onClick={() => void disable()} className="text-th-hi3 hover:text-th-loss text-[10px] underline shrink-0 transition-colors">
+            <Tooltip tip={<span className="font-mono break-all">{dir}</span>} className="flex-1 min-w-0">
+              <span className="text-th-hi3 text-3xs font-mono truncate">{dir}</span>
+            </Tooltip>
+            <Button variant="link" size="xs" onClick={() => void disable()} className="text-th-hi3 hover:text-th-loss">
               Disable
-            </button>
+            </Button>
           </>
         )}
       </div>
-      <p className="text-th-hi3 text-[10px] leading-relaxed">
+      <p className="text-th-hi3 text-3xs leading-relaxed">
         {dir
           ? 'Settings auto-save to this folder on every change (2s debounce, atomic write).'
           : 'Pick a Google Drive / OneDrive / Dropbox folder to keep a continuously synced settings backup.'}
@@ -283,13 +271,15 @@ function SystemPrefsSection() {
         options={[{ value: 'quit', label: 'Quit' }, { value: 'tray', label: 'Hide to tray' }]}
         onChange={(v) => void update({ closeAction: v })}
       />
-      <ToggleRow
+      <Switch
+        size="sm"
+        labelSide="end"
         label="Global show/hide hotkey"
         description="Ctrl+Shift+D (Cmd+Shift+D on macOS) toggles the dashboard from anywhere."
         checked={prefs.globalHotkey}
         onChange={(v) => void update({ globalHotkey: v })}
       />
-      <p className="text-th-hi3 text-[10px] leading-relaxed">
+      <p className="text-th-hi3 text-3xs leading-relaxed">
         The tray icon is always available: show/hide, Spotify play/pause, restart server, quit.
       </p>
     </div>
@@ -316,20 +306,22 @@ function WidgetsSection() {
   return (
     <div className="flex flex-col gap-3">
       <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Widgets</span>
-      <p className="text-th-hi3 text-[10px] leading-relaxed">
+      <p className="text-th-hi3 text-3xs leading-relaxed">
         Disabled widgets disappear everywhere — the Widgets menu, the layout editor, the grid,
         and the command palette. Re-enabling doesn&apos;t pin the widget back; pin it from the
         Widgets menu.
       </p>
       {WIDGET_CATEGORIES.map((category) => (
         <div key={category.id} className="flex flex-col gap-2">
-          <span className="text-th-hi3 text-[10px] uppercase tracking-wider font-medium">
+          <Label className="text-3xs">
             {category.label}
-          </span>
+          </Label>
           <div className="flex flex-col gap-2 pl-2">
             {category.widgets.map((id) => (
-              <ToggleRow
+              <Switch
                 key={id}
+                size="sm"
+                labelSide="end"
                 label={WIDGET_TITLES[id]}
                 checked={!disabledWidgets.includes(id)}
                 onChange={(v) => onToggle(id, v)}
@@ -352,27 +344,26 @@ function AppearanceSection() {
     <div className="flex flex-col gap-3">
       <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Appearance</span>
       <div className="flex items-center gap-3">
-        <span className="text-th-hi3 text-[11px] w-28 shrink-0">Theme</span>
-        <ThemeModeSwitch showLabels />
+        <span className="text-th-hi3 text-2xs w-28 shrink-0">Theme</span>
+        <ThemeToggle labels />
       </div>
-      <div className="flex items-center gap-3">
-        <label htmlFor="theme-preset" className="text-th-hi3 text-[11px] w-28 shrink-0">Preset</label>
+      <Field layout="inline" label="Preset">
         <Select
-          id="theme-preset"
+          size="sm"
           value={isPreset ? theme : ''}
           onChange={(e) => {
             const id = THEMES.find((t) => t.id === e.target.value)?.id;
             if (id) setTheme(id);
           }}
-          className="max-w-56 [&_select]:h-7 [&_select]:text-[11px]"
+          className="max-w-56"
         >
           <option value="">{isPreset ? 'Preset…' : 'None (System / Light / Dark)'}</option>
           {[...THEME_PRESETS, CUSTOM_THEME].map((t) => (
             <option key={t.id} value={t.id}>{t.name}</option>
           ))}
         </Select>
-      </div>
-      <p className="text-th-hi3 text-[10px] leading-relaxed">
+      </Field>
+      <p className="text-th-hi3 text-3xs leading-relaxed">
         Light and Dark are the shared nish.software themes; System follows your OS. Custom colors are edited from the
         Themes menu in the title bar.
       </p>
@@ -440,25 +431,23 @@ function AppSettingsPanel() {
       {/* Weather */}
       <div className="flex flex-col gap-3">
         <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Weather</span>
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center gap-3">
-            <span className="text-th-hi3 text-[11px] w-28 shrink-0">Locations (ZIP)</span>
-            <input
-              value={zipsText}
-              onChange={(e) => setZipsText(e.target.value.replace(/[^0-9,\s]/g, ''))}
-              onBlur={commitZips}
-              onKeyDown={(e) => { if (e.key === 'Enter') commitZips(); }}
-              placeholder="Auto (by IP)"
-              inputMode="numeric"
-              spellCheck={false}
-              className="flex-1 bg-th-elevated border border-th-line rounded-lg px-3 py-1.5 text-th-hi text-[11px] font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-hi3 transition-colors"
-            />
-          </div>
-          <p className="text-th-hi3 text-[10px] leading-relaxed pl-[calc(7rem+0.75rem)]">
-            One or more 5-digit US ZIPs, comma-separated — the weather widget's ‹ › cycles
-            between them. Leave blank to detect automatically.
-          </p>
-        </div>
+        <Field
+          layout="inline"
+          label="Locations (ZIP)"
+          hint="One or more 5-digit US ZIPs, comma-separated — the weather widget's ‹ › cycles between them. Leave blank to detect automatically."
+        >
+          <Input
+            size="sm"
+            value={zipsText}
+            onChange={(e) => setZipsText(e.target.value.replace(/[^0-9,\s]/g, ''))}
+            onBlur={commitZips}
+            onKeyDown={(e) => { if (e.key === 'Enter') commitZips(); }}
+            placeholder="Auto (by IP)"
+            inputMode="numeric"
+            spellCheck={false}
+            className="font-mono"
+          />
+        </Field>
         <SegmentedRow<WeatherAlertNotify>
           label="Alert push"
           value={weatherAlertNotify}
@@ -469,7 +458,7 @@ function AppSettingsPanel() {
           ]}
           onChange={setWeatherAlertNotify}
         />
-        <p className="text-th-hi3 text-[10px] leading-relaxed">
+        <p className="text-th-hi3 text-3xs leading-relaxed">
           New NWS weather alerts chime, toast, and send a native notification.
           Severe = Extreme/Severe alerts only.
         </p>
@@ -478,7 +467,9 @@ function AppSettingsPanel() {
       {/* Twitch */}
       <div className="flex flex-col gap-3">
         <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Twitch</span>
-        <ToggleRow
+        <Switch
+          size="sm"
+          labelSide="end"
           label="Go-live alerts"
           description="Chime, toast, and native notification when a followed channel goes live. Needs a connected Twitch account (widget → Connect)."
           checked={twitchLiveNotify}
@@ -489,13 +480,17 @@ function AppSettingsPanel() {
       {/* YouTube */}
       <div className="flex flex-col gap-3">
         <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">YouTube</span>
-        <ToggleRow
+        <Switch
+          size="sm"
+          labelSide="end"
           label="Hide YouTube Shorts"
           description="Filter Shorts (≤60s) out of every YouTube tab — Subs, Trending, Search, and the rest."
           checked={hideYoutubeShorts}
           onChange={setHideYoutubeShorts}
         />
-        <ToggleRow
+        <Switch
+          size="sm"
+          labelSide="end"
           label="Subs tab: channel list only"
           description="Show your subscriptions as a channel list instead of a video feed — click a channel to see its uploads."
           checked={youtubeSubsChannelsOnly}
@@ -506,58 +501,51 @@ function AppSettingsPanel() {
       {/* Claude */}
       <div className="flex flex-col gap-3">
         <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Claude</span>
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center gap-3">
-            <span className="text-th-hi3 text-[11px] w-28 shrink-0">Workspace</span>
-            <input
-              value={claudeWorkspaceDir}
-              onChange={(e) => setClaudeWorkspaceDir(e.target.value)}
-              placeholder="~/.dash (default)"
-              spellCheck={false}
-              className="flex-1 bg-th-elevated border border-th-line rounded-lg px-3 py-1.5 text-th-hi text-[11px] font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-hi3 transition-colors"
-            />
-          </div>
-          <p className="text-th-hi3 text-[10px] leading-relaxed pl-[calc(7rem+0.75rem)]">
-            Where the Claude widget's CLI runs — file operations are relative to this folder.
-            Absolute path or ~-prefixed.
-          </p>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center gap-3">
-            <span className="text-th-hi3 text-[11px] w-28 shrink-0">Extra folders</span>
-            <input
-              value={claudeDirsText}
-              onChange={(e) => setClaudeDirsText(e.target.value)}
-              onBlur={commitClaudeDirs}
-              onKeyDown={(e) => { if (e.key === 'Enter') commitClaudeDirs(); }}
-              placeholder="~ (home)"
-              spellCheck={false}
-              className="flex-1 bg-th-elevated border border-th-line rounded-lg px-3 py-1.5 text-th-hi text-[11px] font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-hi3 transition-colors"
-            />
-          </div>
-          <p className="text-th-hi3 text-[10px] leading-relaxed pl-[calc(7rem+0.75rem)]">
-            Comma-separated folders Claude may also read/write (beyond the workspace).
-            Default ~ = your whole home directory. In Ask mode writes still prompt;
-            ⚠ in Auto mode Claude can change anything in these folders without asking.
-          </p>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center gap-3">
-            <span className="text-th-hi3 text-[11px] w-28 shrink-0">CLI login</span>
-            <button
-              onClick={() => void openClaudeCliLogin()}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-th-elevated hover:bg-th-overlay text-th-hi text-[11px] transition-colors"
-            >
-              <Terminal size={13} />
-              Log in to Claude CLI
-            </button>
-          </div>
-          <p className="text-th-hi3 text-[10px] leading-relaxed pl-[calc(7rem+0.75rem)]">
-            Opens a terminal running <code className="bg-th-elevated px-1 py-0.5 rounded">claude auth login</code> —
-            finish sign-in in the browser (bills your Claude subscription, not API keys).
-            The terminal closes itself once you&apos;re logged in.
-          </p>
-        </div>
+        <Field
+          layout="inline"
+          label="Workspace"
+          hint="Where the Claude widget's CLI runs — file operations are relative to this folder. Absolute path or ~-prefixed."
+        >
+          <Input
+            size="sm"
+            value={claudeWorkspaceDir}
+            onChange={(e) => setClaudeWorkspaceDir(e.target.value)}
+            placeholder="~/.dash (default)"
+            spellCheck={false}
+            className="font-mono"
+          />
+        </Field>
+        <Field
+          layout="inline"
+          label="Extra folders"
+          hint="Comma-separated folders Claude may also read/write (beyond the workspace). Default ~ = your whole home directory. In Ask mode writes still prompt; ⚠ in Auto mode Claude can change anything in these folders without asking."
+        >
+          <Input
+            size="sm"
+            value={claudeDirsText}
+            onChange={(e) => setClaudeDirsText(e.target.value)}
+            onBlur={commitClaudeDirs}
+            onKeyDown={(e) => { if (e.key === 'Enter') commitClaudeDirs(); }}
+            placeholder="~ (home)"
+            spellCheck={false}
+            className="font-mono"
+          />
+        </Field>
+        <Field
+          layout="inline"
+          label="CLI login"
+          hint={
+            <>
+              Opens a terminal running <code className="bg-th-elevated px-1 py-0.5 rounded">claude auth login</code> —
+              finish sign-in in the browser (bills your Claude subscription, not API keys).
+              The terminal closes itself once you&apos;re logged in.
+            </>
+          }
+        >
+          <Button size="sm" variant="subtle" icon={<Terminal size={13} />} onClick={() => void openClaudeCliLogin()} className="justify-self-start">
+            Log in to Claude CLI
+          </Button>
+        </Field>
       </div>
 
       {/* Units & time */}
@@ -575,7 +563,9 @@ function AppSettingsPanel() {
           options={[{ value: 'mph', label: 'mph' }, { value: 'kmh', label: 'km/h' }]}
           onChange={setWindUnit}
         />
-        <ToggleRow
+        <Switch
+          size="sm"
+          labelSide="end"
           label="24-hour clock"
           description="Applies to the titlebar clock, world clock, alarms and countdowns."
           checked={clock24h}
@@ -586,13 +576,17 @@ function AppSettingsPanel() {
       {/* Top bar */}
       <div className="flex flex-col gap-3">
         <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Top bar</span>
-        <ToggleRow
+        <Switch
+          size="sm"
+          labelSide="end"
           label="Show temperature"
           description="Display the current temperature next to the clock."
           checked={showTempInClock}
           onChange={setShowTempInClock}
         />
-        <ToggleRow
+        <Switch
+          size="sm"
+          labelSide="end"
           label="Compact titlebar"
           description="Always use icon-only menus and a pinned-layouts dropdown. Off = compact only on narrow windows."
           checked={compactTitlebar}
@@ -605,29 +599,19 @@ function AppSettingsPanel() {
         <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Display</span>
 
         <div className="flex items-center gap-3">
-          <span className="text-th-hi3 text-[11px] w-28 shrink-0">UI scale</span>
+          <span className="text-th-hi3 text-2xs w-28 shrink-0">UI scale</span>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setUiScale(clampScale(uiScale - 0.1))}
-              disabled={uiScale <= SCALE_MIN}
-              className="w-6 h-6 rounded bg-th-elevated hover:bg-th-overlay text-th-hi disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
-              title="Smaller"
-            >
+            <IconButton label="Smaller" size="xs" variant="subtle" onClick={() => setUiScale(clampScale(uiScale - 0.1))} disabled={uiScale <= SCALE_MIN}>
               <Minus size={12} />
-            </button>
-            <span className="text-th-hi text-[11px] tabular-nums w-10 text-center">{Math.round(uiScale * 100)}%</span>
-            <button
-              onClick={() => setUiScale(clampScale(uiScale + 0.1))}
-              disabled={uiScale >= SCALE_MAX}
-              className="w-6 h-6 rounded bg-th-elevated hover:bg-th-overlay text-th-hi disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
-              title="Larger"
-            >
+            </IconButton>
+            <span className="text-th-hi text-2xs tabular-nums w-10 text-center">{Math.round(uiScale * 100)}%</span>
+            <IconButton label="Larger" size="xs" variant="subtle" onClick={() => setUiScale(clampScale(uiScale + 0.1))} disabled={uiScale >= SCALE_MAX}>
               <Plus size={12} />
-            </button>
+            </IconButton>
             {uiScale !== 1 && (
-              <button onClick={() => setUiScale(1)} className="ml-1 text-th-hi3 hover:text-th-hi2 text-[10px] transition-colors">
+              <Button variant="link" size="xs" onClick={() => setUiScale(1)} className="ml-1">
                 Reset
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -659,7 +643,7 @@ function AppSettingsPanel() {
           ]}
           onChange={setLowPower}
         />
-        <p className="text-th-hi3 text-[10px] leading-relaxed">
+        <p className="text-th-hi3 text-3xs leading-relaxed">
           Slows all widget refresh rates 4×. Auto engages only while on battery
           (requires the Hardware widget for battery detection). Polling always
           pauses while the window is hidden, regardless of this setting.
@@ -670,24 +654,18 @@ function AppSettingsPanel() {
       <div className="flex flex-col gap-3">
         <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Backup</span>
         <div className="flex items-center gap-2">
-          <button
-            onClick={exportSettings}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-th-elevated hover:bg-th-overlay text-th-hi text-[11px] transition-colors"
-          >
-            <Download size={13} /> Export
-          </button>
-          <button
-            onClick={() => fileRef.current?.click()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-th-elevated hover:bg-th-overlay text-th-hi text-[11px] transition-colors"
-          >
-            <Upload size={13} /> Import
-          </button>
+          <Button size="sm" variant="subtle" icon={<Download size={13} />} onClick={exportSettings}>
+            Export
+          </Button>
+          <Button size="sm" variant="subtle" icon={<Upload size={13} />} onClick={() => fileRef.current?.click()}>
+            Import
+          </Button>
           <input ref={fileRef} type="file" accept="application/json,.json" onChange={onImportFile} className="hidden" />
         </div>
         {importError && (
-          <p className="text-th-loss text-[10px] leading-relaxed">{importError}</p>
+          <p role="alert" className="text-th-loss text-3xs leading-relaxed">{importError}</p>
         )}
-        <p className="text-th-hi3 text-[10px] leading-relaxed">
+        <p className="text-th-hi3 text-3xs leading-relaxed">
           Layout, theme &amp; preferences (not API keys). Import replaces local settings and reloads — handy for syncing two machines.
         </p>
         <AutoExportRow />
@@ -718,20 +696,12 @@ function DevToolsRow() {
 
   return (
     <div className="flex items-center gap-2 border-t border-th-line pt-4">
-      <button
-        onClick={() => window.electron?.openLogsFolder()}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-th-elevated hover:bg-th-overlay text-th-hi text-[11px] transition-colors"
-      >
-        <FolderOpen size={13} /> Open logs folder
-      </button>
-      <button
-        onClick={() => void restart()}
-        disabled={restarting}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-th-elevated hover:bg-th-overlay text-th-hi text-[11px] disabled:opacity-50 transition-colors"
-      >
-        {restarting ? <Loader2 size={13} className="animate-spin" /> : <RotateCw size={13} />}
+      <Button size="sm" variant="subtle" icon={<FolderOpen size={13} />} onClick={() => window.electron?.openLogsFolder()}>
+        Open logs folder
+      </Button>
+      <Button size="sm" variant="subtle" icon={<RotateCw size={13} />} loading={restarting} onClick={() => void restart()}>
         {restarting ? 'Restarting…' : 'Restart server'}
-      </button>
+      </Button>
     </div>
   );
 }
@@ -740,6 +710,12 @@ function DevToolsRow() {
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 type Tab = 'app' | 'alerts' | 'dev';
+
+const TABS: { value: Tab; label: string }[] = [
+  { value: 'app', label: 'App' },
+  { value: 'alerts', label: 'Alerts' },
+  { value: 'dev', label: 'Developer' },
+];
 
 export function SettingsModal({ onClose }: { onClose: () => void }) {
   // Openers (palette "Open alert settings") can request a starting tab.
@@ -823,29 +799,13 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     if (saveState !== 'idle') setSaveState('idle');
   }
 
-  const tabBtn = (t: Tab, text: string) => (
-    <button
-      role="tab"
-      aria-selected={tab === t}
-      onClick={() => setTab(t)}
-      className={cn(
-        'px-3 py-2 text-[11px] font-medium border-b-2 -mb-px transition-colors',
-        tab === t
-          ? 'border-th-accent text-th-hi'
-          : 'border-transparent text-th-hi3 hover:text-th-hi2',
-      )}
-    >
-      {text}
-    </button>
-  );
-
   const footer =
     tab === 'dev' ? (
       <div className="flex w-full items-center justify-between gap-3">
         {saveState === 'error' ? (
-          <span className="text-th-loss text-[11px]">Failed to save — the server didn't restart cleanly. Try again.</span>
+          <span className="text-th-loss text-2xs">Failed to save — the server didn't restart cleanly. Try again.</span>
         ) : saveState === 'saving' ? (
-          <span className="text-th-hi3 text-[11px]">Restarting server with new keys…</span>
+          <span className="text-th-hi3 text-2xs">Restarting server with new keys…</span>
         ) : (
           <span />
         )}
@@ -864,23 +824,24 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal title="Settings" onClose={onClose} className="sm:max-w-[480px]" footer={footer}>
-        {/* Tabs — pinned while the body scrolls */}
-        <div role="tablist" className="sticky top-0 z-10 -mx-5 mb-4 flex items-center gap-1 border-b border-th-line bg-th-surface px-5">
-          {tabBtn('app', 'App')}
-          {tabBtn('alerts', 'Alerts')}
-          {tabBtn('dev', 'Developer')}
-        </div>
-
-        {/* Body */}
-        <div className="flex flex-col gap-6">
-          {tab === 'app' ? (
+        {/* Tabs — the tablist is pinned while the body scrolls */}
+        <Tabs
+          label="Settings sections"
+          size="sm"
+          value={tab}
+          onChange={(v) => setTab(v as Tab)}
+          items={TABS}
+          className="sticky top-0 z-10 -mx-5 mb-4 bg-th-surface px-5"
+        >
+          <TabPanel value="app" className="flex flex-col gap-6">
             <AppSettingsPanel />
-          ) : tab === 'alerts' ? (
+          </TabPanel>
+          <TabPanel value="alerts" className="flex flex-col gap-6">
             <AlertsPanel />
-          ) : loading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 size={18} className="text-th-hi3 animate-spin" />
-            </div>
+          </TabPanel>
+          <TabPanel value="dev" className="flex flex-col gap-6">
+          {loading ? (
+            <SkeletonLines lines={4} />
           ) : (
             <>
               {SERVICES.map((service) => {
@@ -912,12 +873,12 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
 
               {/* Info note */}
               {!encryptionAvailable && (
-                <p className="text-th-warn text-[10px] leading-relaxed border-t border-th-line pt-4">
+                <Callout compact tone="warn">
                   OS keychain unavailable — keys will be stored unencrypted on this device's disk.
-                </p>
+                </Callout>
               )}
               <p className={cn(
-                'text-th-hi3 text-[10px] leading-relaxed',
+                'text-th-hi3 text-3xs leading-relaxed',
                 encryptionAvailable && 'border-t border-th-line pt-4',
               )}>
                 Spotify uses sign-in — no key needed. Weather, Hardware, and Sound require no API keys.
@@ -928,8 +889,8 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
               </p>
             </>
           )}
-        </div>
-
+          </TabPanel>
+        </Tabs>
     </Modal>
   );
 }

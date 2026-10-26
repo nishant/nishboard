@@ -1,6 +1,7 @@
 import { BrowserWindow, app } from 'electron';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import path from 'path';
+import { readWindowTheme } from './windowTheme';
 
 // Pop-out widget windows: each widget can float in its own small frameless
 // window loading the same renderer bundle with ?widget=<id> (the renderer
@@ -58,6 +59,12 @@ function persistBounds(id: string, bounds: StoredBounds): void {
   } catch { /* non-fatal — popout just reopens at the default spot */ }
 }
 
+/** Windows popouts are transparent (D11: unchanged), so theme sync must not give
+ *  them an opaque background. */
+export function isTransparentPopout(win: BrowserWindow): boolean {
+  return process.platform === 'win32' && [...popouts.values()].includes(win);
+}
+
 /** Ids of currently open popouts (renderer syncs its store from this). */
 export function openPopoutIds(): string[] {
   return [...popouts.keys()];
@@ -95,7 +102,7 @@ export function openPopout(id: string): void {
     resizable: true,
     ...(isWin
       ? { transparent: true, backgroundColor: '#00000000' }
-      : { backgroundColor: '#09090b' }),
+      : { backgroundColor: readWindowTheme().bg }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

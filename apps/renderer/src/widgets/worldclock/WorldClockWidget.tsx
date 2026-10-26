@@ -3,7 +3,8 @@ import { X } from 'lucide-react';
 import { useWorldClockStore } from '../../store/worldClockStore';
 import { useAppSettingsStore } from '../../store/settingsStore';
 import { hourFormat } from '../../lib/time';
-import { EmptyState, cn } from '@nish/ui';
+import { EmptyState, IconButton, Segmented } from '@nish/ui';
+import { Select } from '../../components/nishGaps';
 import { tk } from '../../lib/tokens';
 
 const COMMON_ZONES: { tz: string; label: string }[] = [
@@ -107,18 +108,20 @@ function ClockList({
     return (
       <div className="flex flex-col gap-1">
         {zones.map((tz) => (
-          <div key={tz} className="group flex items-center gap-2 px-1.5 py-1 rounded hover:bg-th-elevated/50">
+          <div key={tz} className="group flex items-center gap-2 px-1.5 py-1 rounded hover:bg-th-elevated">
             <div className="flex flex-col min-w-0">
               <span className="text-th-hi text-sm tabular-nums leading-tight">{digitalTime(tz, now, clock24h)}</span>
-              <span className="text-th-hi3 text-[10px] truncate">{zoneLabel(tz)} · {dayLabel(tz, now)}</span>
+              <span className="text-th-hi3 text-3xs truncate">{zoneLabel(tz)} · {dayLabel(tz, now)}</span>
             </div>
-            <button
+            <IconButton
+              label={`Remove ${zoneLabel(tz)}`}
+              size="xs"
+              tone="danger"
               onClick={() => removeZone(tz)}
-              className="ml-auto shrink-0 p-0.5 rounded text-th-hi3 hover:text-th-loss opacity-0 group-hover:opacity-100 transition"
-              title="Remove"
+              className="ml-auto size-5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
             >
               <X size={12} />
-            </button>
+            </IconButton>
           </div>
         ))}
       </div>
@@ -130,14 +133,16 @@ function ClockList({
       {zones.map((tz) => (
         <div key={tz} className="group relative flex flex-col items-center gap-0.5 w-full">
           <AnalogClock tz={tz} now={now} />
-          <span className="text-th-hi3 text-[10px] truncate max-w-full">{zoneLabel(tz)}</span>
-          <button
+          <span className="text-th-hi3 text-3xs truncate max-w-full">{zoneLabel(tz)}</span>
+          <IconButton
+            label={`Remove ${zoneLabel(tz)}`}
+            size="xs"
+            tone="danger"
             onClick={() => removeZone(tz)}
-            className="absolute top-0 right-0 p-0.5 rounded text-th-hi3 hover:text-th-loss opacity-0 group-hover:opacity-100 transition"
-            title="Remove"
+            className="absolute top-0 right-0 size-5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
           >
             <X size={11} />
-          </button>
+          </IconButton>
         </div>
       ))}
     </div>
@@ -152,29 +157,26 @@ export function WorldClockWidget() {
     <div className="h-full flex flex-col p-2 gap-2">
       {/* Toolbar */}
       <div className="flex items-center gap-1.5 shrink-0">
-        <div className="flex rounded-lg bg-th-elevated p-0.5">
-          {(['digital', 'analog'] as const).map((v) => (
-            <button
-              key={v}
-              onClick={() => setView(v)}
-              className={cn(
-                'px-2 py-0.5 rounded text-[10px] capitalize transition-colors',
-                view === v ? 'bg-th-overlay text-th-hi' : 'text-th-hi3 hover:text-th-hi2',
-              )}
-            >
-              {v}
-            </button>
-          ))}
-        </div>
-        <select
+        <Segmented
+          label="Clock style"
+          size="xs"
+          value={view}
+          onChange={setView}
+          options={[
+            { value: 'digital', label: 'Digital' },
+            { value: 'analog', label: 'Analog' },
+          ]}
+        />
+        <Select
+          size="xs"
           value=""
           onChange={(e) => { if (e.target.value) addZone(e.target.value); }}
-          className="ml-auto bg-th-elevated border border-th-line rounded-lg px-2 py-1 text-[10px] text-th-hi2 focus:outline-none focus:border-th-hi3"
-          title="Add timezone"
+          aria-label="Add timezone"
+          className="ml-auto w-auto"
         >
           <option value="">+ Add</option>
           {available.map((z) => <option key={z.tz} value={z.tz}>{z.label}</option>)}
-        </select>
+        </Select>
       </div>
 
       {/* Clocks */}

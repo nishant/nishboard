@@ -3,7 +3,7 @@ import { Eye, Pencil, Plus, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useNotesStore } from '../../store/notesStore';
-import { cn } from '@nish/ui';
+import { Button, IconButton, cn } from '@nish/ui';
 
 // Module-level so the plugin array stays referentially stable across renders.
 const MD_PLUGINS = [remarkGfm];
@@ -25,7 +25,7 @@ function RenameInput({ initial, onCommit }: { initial: string; onCommit: (title:
       }}
       onClick={(e) => e.stopPropagation()}
       spellCheck={false}
-      className="w-20 bg-transparent text-th-hi text-[10px] focus:outline-none border-b border-th-hi3"
+      className="w-20 bg-transparent text-th-hi text-3xs focus:outline-none border-b border-th-hi3"
     />
   );
 }
@@ -48,19 +48,27 @@ export function NotesWidget() {
     <div className="h-full flex flex-col">
       {/* Tab strip + preview toggle */}
       <div className="flex items-center gap-1 px-2 pt-2 shrink-0">
-        <div className="flex-1 min-w-0 flex items-center gap-0.5 overflow-x-auto scrollbar-none">
+        <div role="tablist" aria-label="Notes" className="flex-1 min-w-0 flex items-center gap-0.5 overflow-x-auto scrollbar-none">
           {notes.map((n) => {
             const isActive = n.id === active.id;
             return (
               <div
                 key={n.id}
+                role="tab"
+                aria-selected={isActive}
+                tabIndex={isActive ? 0 : -1}
                 onClick={() => setActive(n.id)}
                 onDoubleClick={() => setRenamingId(n.id)}
+                onKeyDown={(e) => {
+                  if (e.target !== e.currentTarget) return;
+                  if (e.key === 'F2' || (e.key === 'Enter' && isActive)) { e.preventDefault(); setRenamingId(n.id); }
+                  else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActive(n.id); }
+                }}
                 className={cn(
-                  'group/tab flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-md text-[10px] cursor-pointer select-none shrink-0 transition-colors',
-                  isActive ? 'bg-th-elevated text-th-hi' : 'text-th-hi3 hover:text-th-hi2 hover:bg-th-elevated/50',
+                  'group/tab flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-md text-3xs cursor-pointer select-none shrink-0 transition-colors',
+                  isActive ? 'bg-th-elevated text-th-hi' : 'text-th-hi3 hover:text-th-hi2 hover:bg-th-elevated',
                 )}
-                title={isActive ? 'Double-click to rename' : n.title}
+                title={isActive ? 'Double-click (or F2) to rename' : n.title}
               >
                 {renamingId === n.id ? (
                   <RenameInput
@@ -71,42 +79,38 @@ export function NotesWidget() {
                   <span className="max-w-24 truncate">{n.title}</span>
                 )}
                 {isActive && renamingId !== n.id && (
-                  <button
+                  <IconButton
+                    label={confirmingId === n.id ? 'Click again to delete' : 'Delete note'}
+                    size="xs"
+                    tone="danger"
+                    active={confirmingId === n.id}
                     onClick={(e) => {
                       e.stopPropagation();
                       if (confirmingId === n.id) { removeNote(n.id); setConfirmingId(null); }
                       else setConfirmingId(n.id);
                     }}
-                    className={cn(
-                      'p-0.5 rounded transition-colors',
-                      confirmingId === n.id
-                        ? 'text-th-loss bg-th-loss-soft'
-                        : 'text-th-hi3 hover:text-th-loss',
-                    )}
-                    title={confirmingId === n.id ? 'Click again to delete' : 'Delete note'}
+                    className="size-4 rounded"
                   >
                     <X size={10} />
-                  </button>
+                  </IconButton>
                 )}
               </div>
             );
           })}
-          <button
-            onClick={addNote}
-            className="p-1 rounded text-th-hi3 hover:text-th-hi2 hover:bg-th-elevated/60 transition-colors shrink-0"
-            title="New note"
-          >
+          <IconButton label="New note" size="xs" onClick={addNote}>
             <Plus size={11} />
-          </button>
+          </IconButton>
         </div>
 
-        <button
+        <Button
+          variant="ghost"
+          size="xs"
           onClick={() => setRendered(!rendered)}
-          className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] text-th-hi3 hover:text-th-hi2 hover:bg-th-elevated/60 transition-colors shrink-0"
-          title={rendered ? 'Edit' : 'Preview'}
+          icon={rendered ? <Pencil size={11} /> : <Eye size={11} />}
+          className="text-th-hi3"
         >
-          {rendered ? <><Pencil size={11} /> Edit</> : <><Eye size={11} /> Preview</>}
-        </button>
+          {rendered ? 'Edit' : 'Preview'}
+        </Button>
       </div>
 
       {/* Body */}
@@ -121,6 +125,7 @@ export function NotesWidget() {
           <textarea
             // Remount per note so undo history/selection don't leak across tabs
             key={active.id}
+            aria-label={`${active.title} note`}
             value={active.content}
             onChange={(e) => setContent(e.target.value)}
             placeholder="Jot something… markdown supported"

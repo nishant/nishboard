@@ -61,8 +61,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared
       '@nish/ui':
-        specifier: github:nishant/ui#v0.2.4
-        version: https://codeload.github.com/nishant/ui/tar.gz/b9e76b019eec123e9b674321895ea1115effc754(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        specifier: https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v0.3.0
+        version: https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v0.3.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@tanstack/react-query':
         specifier: ^5.62.0
         version: 5.100.14(react@19.3.1)
@@ -747,9 +747,9 @@ packages:
     resolution: {integrity: sha512-9QOtNffcOF/c1seMCDnjckb3R9WHcG34tky+FHpNKKCW0wc/scYLwMtO+ptyGUfMW0/b/n4qRiALlaFHc9Oj7Q==}
     engines: {node: '>= 10.0.0'}
 
-  '@nish/ui@https://codeload.github.com/nishant/ui/tar.gz/b9e76b019eec123e9b674321895ea1115effc754':
-    resolution: {gitHosted: true, integrity: sha512-9ehyn0XQU8ZDjOSTReElNRMPHLyeJ44Zmb70erZg/nfRdn7dnD34oL7QmdIJu51Y+LsPU3CJSlIP+SEaJzKspA==, tarball: https://codeload.github.com/nishant/ui/tar.gz/b9e76b019eec123e9b674321895ea1115effc754}
-    version: 0.2.4
+  '@nish/ui@https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v0.3.0':
+    resolution: {gitHosted: true, integrity: sha512-FUerIEjZHcexfkKWi9jWPJP+AJv8OOou5L3247csmuB+6XW0w1pC5po6RNV1y67rdA5Bni+xJajV5165+pJWbg==, tarball: https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v0.3.0}
+    version: 0.3.0
     peerDependencies:
       react: '>=19'
       react-dom: '>=19'
@@ -1460,6 +1460,7 @@ packages:
   '@xmldom/xmldom@0.9.10':
     resolution: {integrity: sha512-A9gOqLdi6cV4ibazAjcQufGj0B1y/vDqYrcuP6d/6x8P27gRS8643Dj9o1dEKtB6O7fwxb2FgBmJS2mX7gpvdw==}
     engines: {node: '>=14.6'}
+    deprecated: this version has critical issues, please update to the latest version
 
   abbrev@1.1.1:
     resolution: {integrity: sha512-nne9/IiQ/hzIhY6pdDnbBtz7DjPTKrY00P/zvPSm5pOFkl6xuGrGnXn/VtTNNfNtAfZ9/1RtehkszU9qcTii0Q==}
@@ -4706,7 +4707,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@nish/ui@https://codeload.github.com/nishant/ui/tar.gz/b9e76b019eec123e9b674321895ea1115effc754(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
+  '@nish/ui@https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v0.3.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
       clsx: 2.1.1
       tailwind-merge: 3.7.0

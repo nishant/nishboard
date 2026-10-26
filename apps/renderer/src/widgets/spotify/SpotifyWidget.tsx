@@ -3,7 +3,7 @@ import {
   Play, Pause, SkipForward, SkipBack,
   Shuffle, Repeat, Repeat1, Volume2, VolumeX,
   Music, ListMusic, ArrowLeft, Monitor, Smartphone, Speaker,
-  Heart, History, RotateCcw, RotateCw, Mic2, Search, LogIn, LogOut, AlertTriangle,
+  Heart, History, RotateCcw, RotateCw, Mic2, Search, LogIn, LogOut,
 } from 'lucide-react';
 import {
   useSpotifyStatus, useNowPlaying, useSpotifyAuthUrl,
@@ -19,7 +19,7 @@ import { useDeferredSlider } from '../../hooks/useDeferredSlider';
 import { useElementSize } from '../../hooks/useElementSize';
 import { HeaderAction } from '../../components/HeaderAction';
 import type { TrackData, SpotifyPlaylist, SpotifyDevice, SpotifyTrackItem } from '@dash/shared';
-import { SkeletonLines } from '@nish/ui';
+import { Button, ConfirmDialog, EmptyState, ErrorState, IconButton, SkeletonLines, StatusDot, cn } from '@nish/ui';
 
 // ── Size variant ──────────────────────────────────────────────────────────────
 
@@ -117,7 +117,7 @@ function ScrollingText({ text, className }: { text: string; className?: string }
 
   return (
     <div ref={containerRef} className="overflow-hidden w-full">
-      <span ref={textRef} className={`inline-block whitespace-nowrap ${className ?? ''}`}>
+      <span ref={textRef} className={cn('inline-block whitespace-nowrap', className)}>
         {text}
       </span>
     </div>
@@ -167,10 +167,11 @@ function ProgressBar({
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-th-hi3 text-[10px] w-7 text-right tabular-nums">{fmtMs(localMs)}</span>
+      <span className="text-th-hi3 text-3xs w-7 text-right tabular-nums">{fmtMs(localMs)}</span>
       <div className="flex-1 relative h-1 group cursor-pointer">
         <input
           type="range" min={0} max={durationMs} value={localMs}
+          aria-label="Seek"
           onChange={(e) => { dragging.current = true; setLocalMs(Number(e.target.value)); }}
           onPointerUp={(e) => {
             dragging.current = false;
@@ -180,12 +181,12 @@ function ProgressBar({
         />
         <div className="w-full h-full rounded-full bg-th-overlay">
           <div
-            className="h-full rounded-full bg-th-hi group-hover:bg-th-ok-fill transition-colors"
+            className="h-full rounded-full bg-th-hi2 group-hover:bg-th-ok-fill transition-colors"
             style={{ width: `${pct}%` }}
           />
         </div>
       </div>
-      <span className="text-th-hi3 text-[10px] w-7 tabular-nums">{fmtMs(durationMs)}</span>
+      <span className="text-th-hi3 text-3xs w-7 tabular-nums">{fmtMs(durationMs)}</span>
     </div>
   );
 }
@@ -225,6 +226,7 @@ function VolumeSlider({
         onClick={handleMuteToggle}
         className="text-th-hi3 hover:text-th-hi transition-colors"
         title={local === 0 ? 'Unmute' : 'Mute'}
+        aria-label={local === 0 ? 'Unmute' : 'Mute'}
       >
         {local === 0
           ? <VolumeX size={iconSize} className="shrink-0" />
@@ -233,7 +235,8 @@ function VolumeSlider({
       <input
         type="range" min={0} max={100}
         {...sliderProps}
-        className={`${sliderW} h-1 rounded-full appearance-none cursor-pointer bg-th-overlay accent-th-accent`}
+        aria-label="Volume"
+        className={cn(sliderW, 'h-1 rounded-full appearance-none cursor-pointer bg-th-overlay accent-th-accent')}
       />
     </div>
   );
@@ -249,7 +252,7 @@ function DeviceBar({
   onSelect: (id: string) => void;
 }) {
   if (devices.length === 0) return (
-    <p className="text-th-warn text-[10px] px-3 pb-1.5">
+    <p className="text-th-warn text-3xs px-3 pb-1.5">
       Open Spotify on a device to enable playback
     </p>
   );
@@ -259,15 +262,16 @@ function DeviceBar({
         <button
           key={dev.id}
           onClick={() => onSelect(dev.id)}
-          className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border transition-colors ${
+          className={cn(
+            'flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs border transition-colors',
             selectedId === dev.id
               ? 'bg-th-ok-soft border-th-ok/40 text-th-ok'
-              : 'bg-th-elevated border-th-line text-th-hi2 hover:text-th-hi'
-          }`}
+              : 'bg-th-elevated border-th-line text-th-hi2 hover:text-th-hi',
+          )}
         >
           <DeviceIcon type={dev.type} />
           <span className="max-w-[80px] truncate">{dev.name}</span>
-          {dev.isActive && <span className="w-1 h-1 rounded-full bg-th-ok-fill shrink-0" />}
+          {dev.isActive && <StatusDot tone="ok" size="xs" label="Active device" className="size-1 shrink-0" />}
         </button>
       ))}
     </div>
@@ -296,7 +300,7 @@ function PlaylistRow({
   return (
     <div className="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-th-elevated group transition-colors">
       {/* Thumbnail — click opens track list */}
-      <button onClick={onOpen} className="shrink-0 rounded overflow-hidden">
+      <button onClick={onOpen} className="shrink-0 rounded overflow-hidden" aria-label={`Open ${playlist.name}`}>
         {isLiked ? (
           <div className="w-10 h-10 rounded flex items-center justify-center bg-linear-to-br from-th-indigo to-th-violet">
             <Heart size={16} className="text-th-on-accent fill-current" />
@@ -317,7 +321,7 @@ function PlaylistRow({
       {/* Name + count — click opens track list */}
       <button onClick={onOpen} className="min-w-0 flex-1 text-left">
         <p className="text-xs text-th-hi truncate font-medium leading-tight">{playlist.name}</p>
-        <p className="text-[10px] text-th-hi3">
+        <p className="text-3xs text-th-hi3">
           {playlist.trackCount >= 0 ? `${playlist.trackCount} tracks` : ''}
         </p>
       </button>
@@ -325,20 +329,12 @@ function PlaylistRow({
       {/* Action buttons — always visible (hidden for context-less pseudo-playlists) */}
       {playable && (
         <div className="flex items-center gap-1 shrink-0">
-          <button
-            onClick={(e) => { e.stopPropagation(); onShuffle(); }}
-            className="p-1 rounded text-th-hi3 hover:text-th-ok hover:bg-th-overlay transition-colors"
-            title="Shuffle play"
-          >
+          <IconButton label="Shuffle play" size="xs" onClick={(e) => { e.stopPropagation(); onShuffle(); }} className="hover:text-th-ok hover:bg-th-overlay">
             <Shuffle size={11} />
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onPlay(); }}
-            className="p-1 rounded text-th-hi3 hover:text-th-ok hover:bg-th-overlay transition-colors"
-            title="Play"
-          >
+          </IconButton>
+          <IconButton label="Play" size="xs" onClick={(e) => { e.stopPropagation(); onPlay(); }} className="hover:text-th-ok hover:bg-th-overlay">
             <Play size={11} />
-          </button>
+          </IconButton>
         </div>
       )}
     </div>
@@ -360,11 +356,12 @@ function TrackRow({
     <button
       onClick={onPlay}
       disabled={track.isLocal}
-      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors group ${
-        track.isLocal ? 'opacity-40 cursor-not-allowed' : 'hover:bg-th-elevated'
-      }`}
+      className={cn(
+        'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors group',
+        track.isLocal ? 'opacity-40 cursor-not-allowed' : 'hover:bg-th-elevated',
+      )}
     >
-      <span className="text-th-hi3 text-[10px] w-5 text-right shrink-0 tabular-nums">{index + 1}</span>
+      <span className="text-th-hi3 text-3xs w-5 text-right shrink-0 tabular-nums">{index + 1}</span>
       {track.imageUrl ? (
         <img src={track.imageUrl} alt={track.trackName} className="w-7 h-7 rounded shrink-0 object-cover" />
       ) : (
@@ -375,10 +372,10 @@ function TrackRow({
         </div>
       )}
       <div className="min-w-0 flex-1">
-        <p className="text-[11px] text-th-hi truncate leading-tight">{track.trackName}</p>
-        <p className="text-[10px] text-th-hi3 truncate">{track.artistName}</p>
+        <p className="text-2xs text-th-hi truncate leading-tight">{track.trackName}</p>
+        <p className="text-3xs text-th-hi3 truncate">{track.artistName}</p>
       </div>
-      <span className="text-th-hi3 text-[10px] tabular-nums shrink-0">{fmtMs(track.durationMs)}</span>
+      <span className="text-th-hi3 text-3xs tabular-nums shrink-0">{fmtMs(track.durationMs)}</span>
     </button>
   );
 }
@@ -447,31 +444,20 @@ function PlaylistPanel({
     <div className="flex flex-col h-full min-h-0">
       {/* Header */}
       <div className="flex items-center gap-2 px-3 pt-2 pb-1.5 shrink-0">
-        <button
-          onClick={() => { if (showingTracks) setSelectedPlaylist(null); else onBack(); }}
-          className="text-th-hi3 hover:text-th-hi transition-colors"
-        >
+        <IconButton label="Back" size="xs" onClick={() => { if (showingTracks) setSelectedPlaylist(null); else onBack(); }}>
           <ArrowLeft size={13} />
-        </button>
+        </IconButton>
         <span className="text-th-hi2 text-xs font-medium truncate">
           {showingTracks ? selectedPlaylist!.name : 'Your Playlists'}
         </span>
         {showingTracks && selectedPlaylist!.uri !== '' && (
           <div className="ml-auto flex items-center gap-1 shrink-0">
-            <button
-              onClick={() => handlePlayContext(selectedPlaylist!, true)}
-              className="p-1 rounded text-th-hi3 hover:text-th-ok hover:bg-th-overlay transition-colors"
-              title="Shuffle play"
-            >
+            <IconButton label="Shuffle play" size="xs" onClick={() => handlePlayContext(selectedPlaylist!, true)} className="hover:text-th-ok hover:bg-th-overlay">
               <Shuffle size={12} />
-            </button>
-            <button
-              onClick={() => handlePlayContext(selectedPlaylist!, false)}
-              className="p-1 rounded text-th-hi3 hover:text-th-ok hover:bg-th-overlay transition-colors"
-              title="Play from beginning"
-            >
+            </IconButton>
+            <IconButton label="Play from beginning" size="xs" onClick={() => handlePlayContext(selectedPlaylist!, false)} className="hover:text-th-ok hover:bg-th-overlay">
               <Play size={12} />
-            </button>
+            </IconButton>
           </div>
         )}
       </div>
@@ -487,18 +473,21 @@ function PlaylistPanel({
 
       {/* Playback error (e.g. no active device) */}
       {playError && (
-        <p className="text-th-warn text-[10px] px-3 pb-1.5">{playError}</p>
+        <p className="text-th-warn text-3xs px-3 pb-1.5">{playError}</p>
       )}
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto min-h-0 px-1 pb-2">
         {!showingTracks ? (
           <>
-            {playlists.isLoading && (
-              <p className="text-th-hi3 text-xs text-center py-4">Loading…</p>
-            )}
+            {playlists.isLoading && <SkeletonLines lines={4} />}
             {playlists.isError && (
-              <p className="text-th-loss text-xs text-center py-4">Failed — re-auth if scopes changed</p>
+              <ErrorState
+                compact
+                message="Failed — re-auth if scopes changed"
+                onRetry={() => void playlists.refetch()}
+                retrying={playlists.isRefetching}
+              />
             )}
             {allPlaylists.map((pl) => (
               <PlaylistRow
@@ -511,16 +500,19 @@ function PlaylistPanel({
             ))}
             <div ref={playlistSentinel} className="h-2" />
             {playlists.isFetchingNextPage && (
-              <p className="text-th-hi3 text-[10px] text-center pb-1">Loading more…</p>
+              <p className="text-th-hi3 text-3xs text-center pb-1">Loading more…</p>
             )}
           </>
         ) : (
           <>
-            {tracks.isLoading && (
-              <p className="text-th-hi3 text-xs text-center py-4">Loading tracks…</p>
-            )}
+            {tracks.isLoading && <SkeletonLines lines={4} />}
             {tracks.isError && (
-              <p className="text-th-loss text-xs text-center py-4">Failed to load tracks</p>
+              <ErrorState
+                compact
+                message="Failed to load tracks"
+                onRetry={() => void tracks.refetch()}
+                retrying={tracks.isRefetching}
+              />
             )}
             {allTracks.map((track, i) => (
               <TrackRow
@@ -532,7 +524,7 @@ function PlaylistPanel({
             ))}
             <div ref={trackSentinel} className="h-2" />
             {tracks.isFetchingNextPage && (
-              <p className="text-th-hi3 text-[10px] text-center pb-1">Loading more…</p>
+              <p className="text-th-hi3 text-3xs text-center pb-1">Loading more…</p>
             )}
           </>
         )}
@@ -569,8 +561,10 @@ function LikeButton({ trackId, type, size }: { trackId: string; type: TrackData[
     <button
       onClick={() => save.mutate({ trackId, saved: !isSaved })}
       disabled={saved.isPending}
-      className={`transition-colors p-0.5 ${isSaved ? 'text-th-ok' : 'text-th-hi3 hover:text-th-hi'}`}
+      className={cn('transition-colors p-0.5', isSaved ? 'text-th-ok' : 'text-th-hi3 hover:text-th-hi')}
       title={isSaved ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
+      aria-label={isSaved ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
+      aria-pressed={isSaved}
     >
       <Heart size={size} fill={isSaved ? 'currentColor' : 'none'} />
     </button>
@@ -635,14 +629,12 @@ function NowPlayingView({
   const actionIcons = (
     <div className="flex items-center gap-1 shrink-0">
       <LikeButton trackId={data.trackId} type={data.type} size={13} />
-      <button onClick={onOpenPlaylists}
-        className="text-th-hi3 hover:text-th-hi transition-colors p-0.5" title="Browse playlists">
+      <IconButton label="Browse playlists" size="xs" onClick={onOpenPlaylists}>
         <ListMusic size={14} />
-      </button>
-      <button onClick={onOpenSearch}
-        className="text-th-hi3 hover:text-th-hi transition-colors p-0.5" title="Search">
+      </IconButton>
+      <IconButton label="Search" size="xs" onClick={onOpenSearch}>
         <Search size={13} />
-      </button>
+      </IconButton>
     </div>
   );
 
@@ -650,39 +642,39 @@ function NowPlayingView({
   const controls = (
     <div className="flex items-center justify-between">
       <button onClick={() => shuffle.mutate(!data.shuffleState)}
-        className={`transition-colors ${activeClass(data.shuffleState)}`} title="Shuffle">
+        className={cn('transition-colors', activeClass(data.shuffleState))} title="Shuffle" aria-label="Shuffle" aria-pressed={data.shuffleState}>
         <Shuffle size={srSz} />
       </button>
       <div className="flex items-center gap-3">
         <button onClick={handleRewind}
-          className="text-th-hi3 hover:text-th-hi transition-colors relative" title="Rewind 15s">
+          className="text-th-hi3 hover:text-th-hi transition-colors relative" title="Rewind 15s" aria-label="Rewind 15 seconds">
           <RotateCcw size={seekSz} />
           <span className="absolute inset-0 flex items-center justify-center text-[6px] font-bold text-current mt-1.5 ml-0.5">15</span>
         </button>
         <button onClick={() => previous.mutate()}
-          className="text-th-hi2 hover:text-th-hi transition-colors" title="Previous">
+          className="text-th-hi2 hover:text-th-hi transition-colors" title="Previous" aria-label="Previous">
           <SkipBack size={skipSz} />
         </button>
         <button onClick={handlePlayPause}
-          className={`${playBtnCls} rounded-full bg-th-hi hover:bg-th-hi/80 text-th-bg flex items-center justify-center`}
-          title={data.isPlaying ? 'Pause' : 'Play'}>
+          className={cn(playBtnCls, 'rounded-full bg-th-invert-bg hover:bg-th-invert-bg/90 text-th-invert-text flex items-center justify-center')}
+          title={data.isPlaying ? 'Pause' : 'Play'} aria-label={data.isPlaying ? 'Pause' : 'Play'}>
           {data.isPlaying
             ? <Pause size={playIconSz} fill="currentColor" />
             : <Play size={playIconSz} fill="currentColor" className="ml-0.5" />}
         </button>
         <button onClick={() => next.mutate()}
-          className="text-th-hi2 hover:text-th-hi transition-colors" title="Next">
+          className="text-th-hi2 hover:text-th-hi transition-colors" title="Next" aria-label="Next">
           <SkipForward size={skipSz} />
         </button>
         <button onClick={handleSkipFwd}
-          className="text-th-hi3 hover:text-th-hi transition-colors relative" title="Skip forward 15s">
+          className="text-th-hi3 hover:text-th-hi transition-colors relative" title="Skip forward 15s" aria-label="Skip forward 15 seconds">
           <RotateCw size={seekSz} />
           <span className="absolute inset-0 flex items-center justify-center text-[6px] font-bold text-current mt-1.5 mr-0.5">15</span>
         </button>
       </div>
       <button onClick={() => repeat.mutate(nextRepeatState(data.repeatState))}
-        className={`transition-colors ${activeClass(data.repeatState !== 'off')}`}
-        title={`Repeat: ${data.repeatState}`}>
+        className={cn('transition-colors', activeClass(data.repeatState !== 'off'))}
+        title={`Repeat: ${data.repeatState}`} aria-label={`Repeat: ${data.repeatState}`}>
         <RepeatIcon state={data.repeatState} />
       </button>
     </div>
@@ -708,7 +700,7 @@ function NowPlayingView({
           <div className="min-w-0 flex-1">
             <ScrollingText
               text={data.trackName || '—'}
-              className={`font-medium text-th-hi leading-tight ${size === 'xl' ? 'text-base' : 'text-sm'}`}
+              className={cn('font-medium text-th-hi leading-tight', size === 'xl' ? 'text-base' : 'text-sm')}
             />
             <div className="mt-0.5">
               <ScrollingText text={data.artistName} className="text-xs text-th-hi2" />
@@ -723,10 +715,10 @@ function NowPlayingView({
             <img
               src={data.albumArtUrl}
               alt={data.trackName}
-              className={`h-full ${artMaxH} aspect-square object-cover rounded-lg shadow-pop`}
+              className={cn('h-full aspect-square object-cover rounded-lg shadow-pop', artMaxH)}
             />
           ) : (
-            <div className={`h-full ${artMaxH} aspect-square rounded-lg bg-th-elevated flex items-center justify-center`}>
+            <div className={cn('h-full aspect-square rounded-lg bg-th-elevated flex items-center justify-center', artMaxH)}>
               {isPodcast
                 ? <Mic2 size={size === 'xl' ? 48 : 32} className="text-th-hi3" />
                 : <Music size={size === 'xl' ? 48 : 32} className="text-th-hi3" />}
@@ -736,10 +728,10 @@ function NowPlayingView({
 
         {/* Album / podcast label */}
         {!isPodcast && data.albumName && (
-          <p className="text-th-hi3 text-[10px] truncate text-center shrink-0 -mt-1">{data.albumName}</p>
+          <p className="text-th-hi3 text-3xs truncate text-center shrink-0 -mt-1">{data.albumName}</p>
         )}
         {isPodcast && (
-          <p className="text-[10px] text-th-violet text-center shrink-0 -mt-1">Podcast</p>
+          <p className="text-3xs text-th-violet text-center shrink-0 -mt-1">Podcast</p>
         )}
 
         <div className="shrink-0">{progressBar}</div>
@@ -756,9 +748,9 @@ function NowPlayingView({
   // filling the container height naturally at any compact size
   const artEl = data.albumArtUrl ? (
     <img src={data.albumArtUrl} alt={data.trackName}
-      className={`${compactArtCls} rounded-md object-cover shrink-0`} />
+      className={cn(compactArtCls, 'rounded-md object-cover shrink-0')} />
   ) : (
-    <div className={`${compactArtCls} rounded-md bg-th-elevated shrink-0 flex items-center justify-center`}>
+    <div className={cn(compactArtCls, 'rounded-md bg-th-elevated shrink-0 flex items-center justify-center')}>
       {isPodcast
         ? <Mic2 size={compactMusicSz} className="text-th-hi3" />
         : <Music size={compactMusicSz} className="text-th-hi3" />}
@@ -770,7 +762,7 @@ function NowPlayingView({
   const compactJustify = size === 'xs' ? 'justify-center gap-3' : 'justify-between';
 
   return (
-    <div className={`flex-1 flex flex-col ${compactJustify} px-4 pb-4 pt-2`}>
+    <div className={cn('flex-1 flex flex-col px-4 pb-4 pt-2', compactJustify)}>
       {/* Top: art + track info */}
       <div className="flex gap-3 items-center min-w-0">
         {artEl}
@@ -782,7 +774,7 @@ function NowPlayingView({
           {!isPodcast && data.albumName && (
             <ScrollingText text={data.albumName} className="text-th-hi3 text-xs" />
           )}
-          {isPodcast && <p className="text-[10px] text-th-violet mt-0.5">Podcast</p>}
+          {isPodcast && <p className="text-3xs text-th-violet mt-0.5">Podcast</p>}
         </div>
         <div className="self-start mt-0.5">{actionIcons}</div>
       </div>
@@ -809,28 +801,22 @@ function NotPlayingView({
   onOpenSearch: () => void;
 }) {
   return (
-    <div className="h-full flex flex-col items-center justify-center gap-3 p-6">
-      <div className="w-12 h-12 rounded-lg bg-th-elevated flex items-center justify-center">
-        <Music size={20} className="text-th-hi3" />
-      </div>
-      <p className="text-th-hi3 text-xs">Nothing playing</p>
-      <div className="flex items-center gap-2">
-        <button
-          onClick={onOpenPlaylists}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-th-elevated hover:bg-th-overlay text-th-hi text-xs transition-colors"
-        >
-          <ListMusic size={12} />
-          Browse playlists
-        </button>
-        <button
-          onClick={onOpenSearch}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-th-elevated hover:bg-th-overlay text-th-hi text-xs transition-colors"
-        >
-          <Search size={12} />
-          Search
-        </button>
-      </div>
-    </div>
+    <EmptyState
+      compact
+      className="h-full"
+      icon={<Music size={20} />}
+      title="Nothing playing"
+      action={
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="subtle" icon={<ListMusic size={12} />} onClick={onOpenPlaylists}>
+            Browse playlists
+          </Button>
+          <Button size="sm" variant="subtle" icon={<Search size={12} />} onClick={onOpenSearch}>
+            Search
+          </Button>
+        </div>
+      }
+    />
   );
 }
 
@@ -864,38 +850,15 @@ export function SpotifyActions() {
       </HeaderAction>
 
       {confirming && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-th-scrim/60"
-          onClick={() => setConfirming(false)}
-        >
-          <div
-            className="bg-th-surface border border-th-line rounded-xl p-6 w-80 shadow-modal flex flex-col gap-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-3">
-              <AlertTriangle size={18} className="text-th-loss shrink-0" />
-              <p className="text-th-hi text-sm font-medium">Disconnect Spotify?</p>
-            </div>
-            <p className="text-th-hi3 text-xs leading-relaxed">
-              This will clear your saved tokens. You'll need to reconnect to see what's playing.
-            </p>
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => setConfirming(false)}
-                className="px-3 py-1.5 text-xs rounded-lg border border-th-line text-th-hi3 hover:text-th-hi hover:border-th-hi transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => { logout.mutate(); setConfirming(false); }}
-                disabled={logout.isPending}
-                className="px-3 py-1.5 text-xs rounded-lg bg-th-loss hover:bg-th-loss/90 text-th-on-loss font-medium transition-colors disabled:opacity-50"
-              >
-                Disconnect
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          title="Disconnect Spotify?"
+          body="This will clear your saved tokens. You'll need to reconnect to see what's playing."
+          confirmLabel="Disconnect"
+          tone="danger"
+          pending={logout.isPending}
+          onConfirm={() => { logout.mutate(); setConfirming(false); }}
+          onCancel={() => setConfirming(false)}
+        />
       )}
     </>
   );
@@ -905,21 +868,19 @@ export function SpotifyActions() {
 
 function ConnectView({ onConnect }: { onConnect: () => void }) {
   return (
-    <div className="h-full flex flex-col items-center justify-center gap-4 p-6">
-      <div className="w-14 h-14 rounded-full bg-th-ok-soft flex items-center justify-center">
-        <Music size={24} className="text-th-ok" />
-      </div>
-      <div className="text-center">
-        <p className="text-th-hi font-medium text-sm">Spotify</p>
-        <p className="text-th-hi3 text-xs mt-1">Connect your account to see what's playing</p>
-      </div>
-      <button
-        onClick={onConnect}
-        className="px-4 py-2 rounded-full bg-brand-spotify hover:bg-brand-spotify/90 text-brand-spotify-ink text-xs font-bold transition-colors"
-      >
-        Connect Spotify
-      </button>
-    </div>
+    <EmptyState
+      compact
+      className="h-full"
+      icon={<Music size={24} className="text-brand-spotify" />}
+      title="Spotify"
+      detail="Connect your account to see what's playing"
+      action={
+        // Brand button: Spotify green (ds-allow: brand mark)
+        <Button size="sm" onClick={onConnect} className="rounded-full border-transparent bg-brand-spotify hover:bg-brand-spotify/90 text-brand-spotify-ink font-bold">
+          Connect Spotify
+        </Button>
+      }
+    />
   );
 }
 
@@ -958,9 +919,7 @@ export function SpotifyWidget() {
 
   if (!status.data?.authenticated) {
     return (
-      <div className="rounded-lg border border-th-line bg-th-surface h-full">
-        <ConnectView onConnect={handleConnect} />
-      </div>
+      <ConnectView onConnect={handleConnect} />
     );
   }
 
@@ -971,7 +930,7 @@ export function SpotifyWidget() {
     <>
       <div
         ref={setContainerEl}
-        className="rounded-lg border border-th-line bg-th-surface h-full flex flex-col overflow-hidden"
+        className="h-full flex flex-col overflow-hidden"
       >
         <div className="flex-1 min-h-0 flex flex-col">
           {showPlaylists ? (

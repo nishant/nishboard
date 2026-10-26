@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import {
-  Droplets, Wind, Zap, Umbrella, AlertTriangle,
+  Droplets, Wind, Zap, Umbrella,
   Sunrise, Sunset, Radar, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { useWeather } from './useWeather';
@@ -14,7 +14,7 @@ import { useAppSettingsStore } from '../../store/settingsStore';
 import { useWeatherUiStore } from '../../store/weatherUiStore';
 import { apiUrl } from '../../lib/apiClient';
 import { hourFormat } from '../../lib/time';
-import { SkeletonLines, cn } from '@nish/ui';
+import { Callout, Card, IconButton, Meter, SkeletonLines, Tooltip, cn } from '@nish/ui';
 
 function formatHour(isoTime: string, clock24h: boolean): string {
   const date = new Date(isoTime);
@@ -132,25 +132,22 @@ export function WeatherWidget() {
 
       {/* Severe-weather alerts (NWS) */}
       {alerts.length > 0 && (
-        <div
-          className={cn(
-            'shrink-0 flex items-start gap-1.5 rounded-lg px-2.5 py-1.5 border',
-            severeAlert ? 'bg-th-loss-soft border-th-loss/40' : 'bg-th-warn-soft border-th-warn/30',
-          )}
-          title={alerts.map((a) => a.headline || a.event).join('\n')}
+        <Callout
+          compact
+          tone={severeAlert ? 'loss' : 'warn'}
+          title={alerts[0].event}
+          className="shrink-0 rounded-lg px-2.5 py-1.5"
         >
-          <AlertTriangle className={cn('w-3.5 h-3.5 shrink-0 mt-0.5', severeAlert ? 'text-th-loss' : 'text-th-warn')} />
-          <div className="min-w-0">
-            <p className={cn('text-xs font-medium leading-tight', severeAlert ? 'text-th-loss' : 'text-th-warn')}>
-              {alerts[0].event}
-            </p>
-            {alerts.length > 1 && (
-              <p className={cn('text-[10px]', severeAlert ? 'text-th-loss' : 'text-th-warn')}>
-                +{alerts.length - 1} more alert{alerts.length - 1 > 1 ? 's' : ''}
-              </p>
-            )}
-          </div>
-        </div>
+          {alerts.length > 1 && (
+            <Tooltip
+              tip={<span className="whitespace-pre-line">{alerts.map((a) => a.headline || a.event).join('\n')}</span>}
+              side="bottom"
+              className="text-3xs"
+            >
+              +{alerts.length - 1} more alert{alerts.length - 1 > 1 ? 's' : ''}
+            </Tooltip>
+          )}
+        </Callout>
       )}
 
       {/* Current conditions */}
@@ -163,18 +160,18 @@ export function WeatherWidget() {
           <p className="text-th-hi2 text-sm mt-1">{meta.label}</p>
           <div className="flex items-center gap-0.5 mt-0.5">
             {multiLoc && (
-              <button onClick={() => cycle(-1)} className="text-th-hi3 hover:text-th-hi2 transition-colors" title="Previous location">
+              <IconButton label="Previous location" size="xs" onClick={() => cycle(-1)} className="size-5">
                 <ChevronLeft size={12} />
-              </button>
+              </IconButton>
             )}
             <p className="text-th-hi3 text-xs">
               {location.name}{location.region ? `, ${location.region}` : ''}
               {multiLoc && <span className="ml-1 tabular-nums">{zipIdx % zips.length + 1}/{zips.length}</span>}
             </p>
             {multiLoc && (
-              <button onClick={() => cycle(1)} className="text-th-hi3 hover:text-th-hi2 transition-colors" title="Next location">
+              <IconButton label="Next location" size="xs" onClick={() => cycle(1)} className="size-5">
                 <ChevronRight size={12} />
-              </button>
+              </IconButton>
             )}
           </div>
         </div>
@@ -189,11 +186,11 @@ export function WeatherWidget() {
           { icon: <Umbrella className="w-3.5 h-3.5" />, label: 'Rain',     value: `${current.precipChance}%` },
           { icon: <Zap className="w-3.5 h-3.5" />,      label: 'UV',       value: `${Math.round(current.uvIndex)}` },
         ].map(({ icon, label, value }) => (
-          <div key={label} className="bg-th-elevated/60 rounded-lg p-2 flex flex-col items-center gap-1">
+          <Card key={label} variant="inset" padding="none" className="p-2 flex flex-col items-center gap-1">
             <span className="text-th-hi3">{icon}</span>
             <span className="text-th-hi text-sm font-medium">{value}</span>
             <span className="text-th-hi3 text-xs">{label}</span>
-          </div>
+          </Card>
         ))}
       </div>
 
@@ -201,20 +198,22 @@ export function WeatherWidget() {
       <div className="flex items-center gap-3 flex-wrap shrink-0 text-xs text-th-hi3">
         <span>Feels like {current.feelsLike}°{tempLabel}</span>
         {today?.sunrise && (
-          <span className="flex items-center gap-1" title="Sunrise">
-            <Sunrise size={13} className="text-th-warn" />{formatSun(today.sunrise, clock24h)}
-          </span>
+          <Tooltip tip="Sunrise" className="gap-1">
+            <Sunrise size={13} className="text-th-warn" aria-hidden="true" />
+            <span className="sr-only">Sunrise </span>{formatSun(today.sunrise, clock24h)}
+          </Tooltip>
         )}
         {today?.sunset && (
-          <span className="flex items-center gap-1" title="Sunset">
-            <Sunset size={13} className="text-th-chart-7" />{formatSun(today.sunset, clock24h)}
-          </span>
+          <Tooltip tip="Sunset" className="gap-1">
+            <Sunset size={13} className="text-th-chart-7" aria-hidden="true" />
+            <span className="sr-only">Sunset </span>{formatSun(today.sunset, clock24h)}
+          </Tooltip>
         )}
         {aqi != null && (
-          <span className="flex items-center gap-1.5" title="US Air Quality Index">
+          <Tooltip tip="US Air Quality Index" className="gap-1.5">
             <span className={cn('w-2 h-2 rounded-full shrink-0', aqiMeta(aqi).dot)} />
             AQI {Math.round(aqi)} · {aqiMeta(aqi).label}
-          </span>
+          </Tooltip>
         )}
       </div>
 
@@ -246,11 +245,14 @@ export function WeatherWidget() {
                 {/* Constant-height precip track (mirrors the 5-day bar) — an
                     always-present bar kills the column-height jitter the old
                     conditional >20% text caused. */}
-                <span
-                  className="h-6 w-1 rounded-full bg-th-elevated overflow-hidden flex flex-col justify-end"
-                  data-precip={h.precipChance}
-                >
-                  <span className="w-full bg-th-info-fill/40" style={{ height: `${h.precipChance}%` }} />
+                <span className="h-6 flex" data-precip={h.precipChance}>
+                  <Meter
+                    value={h.precipChance}
+                    label={`${formatHour(h.time, clock24h)} chance of precipitation`}
+                    tone="info"
+                    size="xs"
+                    orientation="vertical"
+                  />
                 </span>
               </div>
             );
@@ -268,12 +270,13 @@ export function WeatherWidget() {
               <div key={d.date} className="flex items-center gap-3">
                 <span className="text-th-hi3 text-xs w-8 shrink-0">{formatDay(d.date)}</span>
                 <WeatherIcon icon={dMeta.icon} className="w-4 h-4 text-th-hi2 shrink-0" />
-                <div className="flex-1 h-1 bg-th-elevated rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-th-info-fill/40 rounded-full"
-                    style={{ width: `${d.precipChance}%` }}
-                  />
-                </div>
+                <Meter
+                  value={d.precipChance}
+                  label={`${formatDay(d.date)} chance of precipitation`}
+                  tone="info"
+                  size="xs"
+                  className="flex-1 w-auto"
+                />
                 <span className="text-th-hi text-xs w-14 shrink-0 text-right">
                   {d.tempMax}° / {d.tempMin}°
                 </span>

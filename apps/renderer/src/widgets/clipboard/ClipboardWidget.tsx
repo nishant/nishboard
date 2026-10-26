@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Clipboard, Search, Pause, Play, Trash2, X } from 'lucide-react';
+import { Clipboard, Pause, Play, Trash2 } from 'lucide-react';
 import { useClipboardUiStore } from '../../store/clipboardUiStore';
 import { HeaderAction } from '../../components/HeaderAction';
 import { toast } from '../../lib/alerts';
 import { relTimeAgo } from '../../lib/time';
 import type { ClipboardEntryData } from '@dash/shared';
-import { EmptyState } from '@nish/ui';
+import { Badge, EmptyState } from '@nish/ui';
+import { SearchInput } from '../../components/nishGaps';
 
 /** WidgetShell header actions: pause/resume capture + clear history. */
 export function ClipboardActions() {
@@ -69,20 +70,17 @@ export function ClipboardWidget() {
   return (
     <div className="h-full flex flex-col">
       {/* Search */}
-      <div className="flex items-center gap-1.5 px-3 py-2 border-b border-th-line shrink-0">
-        <Search size={11} className="text-th-hi3 shrink-0" />
-        <input
+      <div className="flex items-center gap-1.5 px-1.5 py-1 border-b border-th-line shrink-0">
+        <SearchInput
+          size="xs"
+          variant="bare"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={setQuery}
           placeholder="Filter history…"
-          className="flex-1 min-w-0 bg-transparent text-th-hi text-xs placeholder:text-th-ghost focus:outline-none"
+          aria-label="Filter clipboard history"
+          className="flex-1"
         />
-        {query && (
-          <button onClick={() => setQuery('')} className="text-th-hi3 hover:text-th-hi2 transition-colors shrink-0">
-            <X size={11} />
-          </button>
-        )}
-        {paused && <span className="text-th-warn text-[10px] shrink-0">paused</span>}
+        {paused && <Badge tone="warn" size="xs" className="shrink-0">paused</Badge>}
       </div>
 
       {/* Entries */}
@@ -100,13 +98,13 @@ export function ClipboardWidget() {
             <button
               key={entry.id}
               onClick={() => void copyEntry(entry)}
-              className="w-full text-left px-3 py-2 hover:bg-th-elevated/60 transition-colors border-b border-th-line/40"
+              className="w-full text-left px-3 py-2 hover:bg-th-elevated transition-colors border-b border-th-line"
               title="Click to copy"
             >
-              <p className="text-th-hi2 text-[11px] leading-snug line-clamp-2 break-all whitespace-pre-wrap">
+              <p className="text-th-hi2 text-2xs leading-snug line-clamp-2 break-all whitespace-pre-wrap">
                 {entry.text}
               </p>
-              <p className="text-th-hi3 text-[10px] mt-0.5">{relTimeAgo(new Date(entry.at).toISOString())}</p>
+              <p className="text-th-hi3 text-3xs mt-0.5">{relTimeAgo(new Date(entry.at).toISOString())}</p>
             </button>
           ))
         )}

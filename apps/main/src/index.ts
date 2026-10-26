@@ -5,6 +5,7 @@ import { registerIpcHandlers } from './ipc';
 import { createTray, destroyTray } from './tray';
 import { readPrefs } from './prefs';
 import { closeAllPopouts } from './popout';
+import { initNativeTheme, readWindowTheme } from './windowTheme';
 import { initDiscordSession, registerWebviewGuards } from './discord';
 
 const isDev = process.env.NODE_ENV === 'development';
@@ -61,7 +62,9 @@ function createWindow(): void {
     height: 1080,
     frame: false,
     resizable: true,
-    backgroundColor: '#09090b',
+    // The saved theme's --nish-bg (windowTheme.ts), so a light theme does not
+    // flash dark at launch.
+    backgroundColor: readWindowTheme().bg,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -116,6 +119,9 @@ function createWindow(): void {
 }
 
 app.whenReady().then(async () => {
+  // Saved theme source first, so native chrome matches before the renderer loads.
+  initNativeTheme();
+
   // Strip "Electron/x.x.x" from the user-agent so YouTube (and other sites that
   // block Electron) see a plain Chrome browser instead of the Electron shell.
   const ua = session.defaultSession.getUserAgent().replace(/\s*Electron\/[\d.]+/, '');

@@ -17,7 +17,8 @@ import {
 } from '../discord';
 import { openClaudeLogin } from '../claudeLogin';
 import { readPrefs, writePrefs } from '../prefs';
-import { openPopout, closePopout, openPopoutIds } from '../popout';
+import { openPopout, closePopout, openPopoutIds, isTransparentPopout } from '../popout';
+import { setWindowTheme } from '../windowTheme';
 import type { CredentialKey, AppPrefsData } from '@dash/shared';
 
 export function registerIpcHandlers(
@@ -26,6 +27,11 @@ export function registerIpcHandlers(
 ): void {
   ipcMain.on('app:minimize', () => {
     BrowserWindow.getFocusedWindow()?.minimize();
+  });
+
+  // Theme sync: nativeTheme.themeSource + every window's background (windowTheme.ts).
+  ipcMain.on('app:set-theme', (_event, source: unknown, bg: unknown) => {
+    setWindowTheme(source, bg, isTransparentPopout);
   });
 
   ipcMain.on('app:toggle-maximize', (event) => {

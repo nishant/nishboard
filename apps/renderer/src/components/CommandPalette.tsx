@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Search, CornerDownLeft } from 'lucide-react';
 import { collectActions, matchParamCommand, refreshSources } from '../lib/commandRegistry';
 import type { PaletteAction, ParamCommandMatch } from '../lib/commandRegistry';
 import { fuzzyScore } from '../lib/fuzzy';
 import { useOverlayStore } from '../store/overlayStore';
-import { cn } from '@nish/ui';
+import { EmptyState, Kbd, Label, Modal, cn } from '@nish/ui';
 
 // In-app command palette (per scope: NOT a global shortcut).
 // Open with mod+K or double-Shift (<300ms). Recents float on an empty query.
@@ -89,6 +89,7 @@ export function CommandPalette() {
   const [actions, setActions] = useState<PaletteAction[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listId = useId();
 
   // Snapshot actions + reset input on every open (sources reflect live state).
   // Launcher items live behind async IPC — re-collect once the snapshot lands.
@@ -180,23 +181,25 @@ export function CommandPalette() {
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Escape') { e.preventDefault(); setOpen(false); }
     if (e.key === 'ArrowDown') { e.preventDefault(); moveSelection(1); }
     if (e.key === 'ArrowUp') { e.preventDefault(); moveSelection(-1); }
     if (e.key === 'Enter' && results[selected]) { e.preventDefault(); runRow(results[selected].row); }
   }
 
+  const active = results[selected];
+  const activeId = active && !(active.row.kind === 'command' && !active.row.match.parsed) ? `${listId}-${selected}` : undefined;
+
+  // Shared Modal (z-50, focus trap, Escape, scrim click, focus return) pinned
+  // near the top; the search field replaces its title row.
   return (
-    <div
-      className="fixed inset-0 z-[400] flex items-start justify-center pt-[14vh] bg-th-scrim/50"
-      onMouseDown={() => setOpen(false)}
-    >
-      <div
-        className="w-[520px] max-w-[90vw] bg-th-surface border border-th-line rounded-xl shadow-modal overflow-hidden flex flex-col max-h-[60vh]"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-th-line shrink-0">
-          <Search size={14} className="text-th-hi3 shrink-0" />
+    <Modal
+      onClose={() => setOpen(false)}
+      placement="top"
+      aria-label="Command palette"
+      className="sm:max-w-[520px] overflow-hidden"
+      header={
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-th-line">
+          <Search size={14} className="text-th-hi3 shrink-0" aria-hidden="true" />
           <input
             ref={inputRef}
             value={query}
@@ -204,50 +207,62 @@ export function CommandPalette() {
             onKeyDown={onKeyDown}
             placeholder="Type a command…"
             autoFocus
+            data-autofocus
             spellCheck={false}
+            role="combobox"
+            aria-label="Command"
+            aria-expanded="true"
+            aria-controls={listId}
+            aria-autocomplete="list"
+            aria-activedescendant={activeId}
             className="flex-1 bg-transparent text-th-hi text-sm placeholder:text-th-ghost focus:outline-none"
           />
-          <kbd className="text-th-hi3 text-[10px] border border-th-line rounded px-1.5 py-0.5 shrink-0">esc</kbd>
+          <Kbd className="shrink-0">esc</Kbd>
         </div>
-
-        <div ref={listRef} className="flex-1 overflow-y-auto py-1">
-          {results.length === 0 && (
-            <p className="text-th-hi3 text-xs text-center py-6">No matching commands</p>
-          )}
-          {results.map(({ row, header }, i) => {
-            const isHint = row.kind === 'command' && !row.match.parsed;
-            const title = row.kind === 'command'
-              ? row.match.parsed?.preview ?? `${row.match.cmd.triggers[0]} ${row.match.cmd.argHint}`
-              : row.action.title;
-            const key = row.kind === 'command' ? `command:${row.match.cmd.id}` : row.action.id;
-            return (
-              <div key={key}>
-                {header && (
-                  <p className="px-4 pt-2 pb-1 text-th-hi3 text-[10px] uppercase tracking-widest">{header}</p>
-                )}
-                <button
-                  data-idx={i}
-                  onClick={() => runRow(row)}
-                  onMouseMove={() => { if (!isHint) setSelected(i); }}
-                  className={cn(
-                    'w-full flex items-center gap-2 px-4 py-1.5 text-left text-xs transition-colors',
-                    isHint
-                      ? 'text-th-hi3 cursor-default'
-                      : i === selected ? 'bg-th-elevated text-th-hi' : 'text-th-hi2',
-                  )}
-                >
-                  <span className="flex-1 min-w-0 truncate">{title}</span>
-                  {!isHint && i === selected && <CornerDownLeft size={11} className="text-th-hi3 shrink-0" />}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="px-4 py-2 border-t border-th-line text-th-hi3 text-[10px] shrink-0">
+      }
+      footer={
+        <p className="w-full text-th-hi3 text-3xs">
           ↑↓ navigate · Enter run · type &quot;timer 25m&quot;, &quot;task …&quot;, &quot;volume 40&quot;
-        </div>
+        </p>
+      }
+    >
+      <div ref={listRef} id={listId} role="listbox" aria-label="Commands" className="-mx-5 -mt-3 -mb-5 py-1">
+        {results.length === 0 && (
+          <EmptyState compact title="No matching commands" />
+        )}
+        {results.map(({ row, header }, i) => {
+          const isHint = row.kind === 'command' && !row.match.parsed;
+          const title = row.kind === 'command'
+            ? row.match.parsed?.preview ?? `${row.match.cmd.triggers[0]} ${row.match.cmd.argHint}`
+            : row.action.title;
+          const key = row.kind === 'command' ? `command:${row.match.cmd.id}` : row.action.id;
+          return (
+            <div key={key} role="presentation">
+              {header && (
+                <Label role="presentation" className="block px-4 pt-2 pb-1 text-3xs tracking-widest">{header}</Label>
+              )}
+              <div
+                id={`${listId}-${i}`}
+                role="option"
+                aria-selected={!isHint && i === selected}
+                aria-disabled={isHint || undefined}
+                data-idx={i}
+                onClick={() => runRow(row)}
+                onMouseMove={() => { if (!isHint) setSelected(i); }}
+                className={cn(
+                  'w-full flex items-center gap-2 px-4 py-1.5 text-left text-xs transition-colors',
+                  isHint
+                    ? 'text-th-hi3 cursor-default'
+                    : i === selected ? 'bg-th-elevated text-th-hi cursor-pointer' : 'text-th-hi2 cursor-pointer',
+                )}
+              >
+                <span className="flex-1 min-w-0 truncate">{title}</span>
+                {!isHint && i === selected && <CornerDownLeft size={11} className="text-th-hi3 shrink-0" aria-hidden="true" />}
+              </div>
+            </div>
+          );
+        })}
       </div>
-    </div>
+    </Modal>
   );
 }

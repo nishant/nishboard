@@ -4,7 +4,7 @@ import { useDeferredSlider } from '../../hooks/useDeferredSlider';
 import { ErrorState } from '../../components/ErrorState';
 import { RefreshAction } from '../../components/RefreshAction';
 import type { AudioDevice, AudioSession } from '@dash/shared';
-import { SkeletonLines } from '@nish/ui';
+import { SkeletonLines, StatusDot, cn, Label } from '@nish/ui';
 
 /** WidgetShell header actions for the sound tile. */
 export function SoundActions() {
@@ -56,18 +56,18 @@ function DeviceItem({
     <button
       onClick={() => !device.isDefault && onSwitch(device.id)}
       disabled={device.isDefault || switching}
-      className={[
+      className={cn(
         'w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-colors flex items-center gap-2',
         device.isDefault
-          ? 'bg-th-overlay/50 text-th-hi cursor-default'
+          ? 'bg-th-elevated text-th-hi cursor-default'
           : 'text-th-hi2 hover:bg-th-elevated hover:text-th-hi',
-      ].join(' ')}
+      )}
     >
-      <span
-        className={[
-          'h-1.5 w-1.5 rounded-full shrink-0',
-          device.isDefault ? 'bg-th-ok-fill' : 'bg-th-ghost',
-        ].join(' ')}
+      <StatusDot
+        tone={device.isDefault ? 'ok' : 'neutral'}
+        size="xs"
+        label={device.isDefault ? 'Default output' : undefined}
+        className="shrink-0"
       />
       <span className="truncate">{device.name}</span>
     </button>
@@ -82,7 +82,7 @@ function SessionRow({ session, onCommit }: { session: AudioSession; onCommit: (p
 
   return (
     <div className="flex items-center gap-2 group">
-      <span className="text-th-hi2 text-[11px] truncate w-28 shrink-0 group-hover:text-th-hi transition-colors">
+      <span className="text-th-hi2 text-2xs truncate w-28 shrink-0 group-hover:text-th-hi transition-colors">
         {session.name}
       </span>
       <input
@@ -92,7 +92,7 @@ function SessionRow({ session, onCommit }: { session: AudioSession; onCommit: (p
         {...sliderProps}
         className="flex-1 h-1 rounded-full appearance-none cursor-pointer bg-th-overlay accent-th-accent"
       />
-      <span className="text-th-hi3 text-[10px] tabular-nums font-mono w-7 text-right shrink-0">
+      <span className="text-th-hi3 text-3xs tabular-nums font-mono w-7 text-right shrink-0">
         {local}%
       </span>
     </div>
@@ -125,15 +125,15 @@ export function SoundWidget() {
         <div className="flex items-center justify-between">
           <button
             onClick={() => setMute.mutate(!muted)}
-            className={[
+            className={cn(
               'flex items-center gap-1.5 text-xs font-medium transition-colors',
-              muted ? 'text-th-loss hover:text-th-loss' : 'text-th-hi hover:text-th-hi',
-            ].join(' ')}
+              muted ? 'text-th-loss' : 'text-th-hi',
+            )}
           >
             <VolumeIcon vol={vol} muted={muted} />
             Volume
           </button>
-          <span className="text-[11px] tabular-nums text-th-hi3 font-mono">
+          <span className="text-2xs tabular-nums text-th-hi3 font-mono">
             {muted ? 'muted' : `${vol}%`}
           </span>
         </div>
@@ -148,7 +148,7 @@ export function SoundWidget() {
       {/* ── Output device ── */}
       {data.devices.length > 0 && (
         <div className="flex flex-col gap-1">
-          <span className="text-[10px] uppercase tracking-wider text-th-hi3 px-0.5">Output</span>
+          <Label className="text-3xs px-0.5">Output</Label>
           {data.devices.map((d) => (
             <DeviceItem
               key={d.id}
@@ -163,9 +163,9 @@ export function SoundWidget() {
       {/* ── App mixer (Windows only) ── */}
       {data.sessions.length > 0 && (
         <div className="flex flex-col gap-2">
-          <span className="text-[10px] uppercase tracking-wider text-th-hi3 px-0.5">
+          <Label className="text-3xs px-0.5">
             App Mixer
-          </span>
+          </Label>
           {data.sessions.map((s) => (
             <SessionRow
               key={s.pid}

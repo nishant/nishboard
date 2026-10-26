@@ -10,7 +10,8 @@ import { ErrorState } from '../../components/ErrorState';
 import { HeaderAction } from '../../components/HeaderAction';
 import { RefreshAction } from '../../components/RefreshAction';
 import type { StockQuote } from '@dash/shared';
-import { Skeleton, SkeletonLines } from '@nish/ui';
+import { Card, IconButton, Modal, Skeleton, SkeletonLines, StatusDot, cardClass, cn, type StatusTone, Label } from '@nish/ui';
+import { Input } from '../../components/nishGaps';
 import { tk } from '../../lib/tokens';
 
 // ── Market session ────────────────────────────────────────────────────────────
@@ -68,16 +69,16 @@ function QuoteCard({ q, onClick }: { q: StockQuote; onClick: () => void }) {
     <button
       onClick={onClick}
       title={`${q.ticker} — chart & news`}
-      className="bg-th-elevated/60 hover:bg-th-elevated rounded-lg p-2.5 flex flex-col gap-1 min-w-0 text-left transition-colors"
+      className={cardClass({ variant: 'inset', interactive: true, padding: 'none', className: 'p-2.5 flex flex-col gap-1 min-w-0 text-left' })}
     >
       <div className="flex items-center justify-between gap-1">
         <div className="flex items-center gap-1 min-w-0">
-          <Icon size={12} className={`${color} shrink-0`} />
+          <Icon size={12} className={cn(color, 'shrink-0')} />
           <span className="font-mono font-bold text-th-hi text-sm leading-none truncate">
             {q.ticker}
           </span>
         </div>
-        <span className={`font-mono text-xs tabular-nums ${color} shrink-0`}>
+        <span className={cn('font-mono text-xs tabular-nums shrink-0', color)}>
           {positive ? '+' : ''}{fmt(q.changePercent)}%
         </span>
       </div>
@@ -86,7 +87,7 @@ function QuoteCard({ q, onClick }: { q: StockQuote; onClick: () => void }) {
         <span className="font-mono text-th-hi text-base font-semibold tabular-nums leading-none">
           {fmtPrice(q.lastPrice)}
         </span>
-        <span className={`font-mono text-xs tabular-nums ${color} shrink-0`}>
+        <span className={cn('font-mono text-xs tabular-nums shrink-0', color)}>
           {positive ? '+' : ''}{fmt(q.change)}
         </span>
       </div>
@@ -112,14 +113,14 @@ function StockDetailPanel({ ticker, onClose }: { ticker: string; onClose: () => 
   return (
     <div className="absolute inset-0 z-10 bg-th-surface rounded-lg flex flex-col">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-th-line shrink-0">
-        <button onClick={onClose} className="text-th-hi3 hover:text-th-hi transition-colors" title="Back">
+        <IconButton label="Back" size="xs" onClick={onClose}>
           <ArrowLeft size={15} />
-        </button>
+        </IconButton>
         <span className="font-mono font-bold text-th-hi text-sm">{ticker}</span>
         {bars.length > 0 && (
           <>
-            <span className="text-th-hi3 text-[10px] uppercase tracking-wider">{rangeLabel}</span>
-            <span className={`ml-auto font-mono text-xs tabular-nums ${up ? 'text-th-ok' : 'text-th-loss'}`}>
+            <Label className="text-3xs">{rangeLabel}</Label>
+            <span className={cn('ml-auto font-mono text-xs tabular-nums', up ? 'text-th-ok' : 'text-th-loss')}>
               {fmtPrice(last)}
             </span>
           </>
@@ -132,7 +133,7 @@ function StockDetailPanel({ ticker, onClose }: { ticker: string; onClose: () => 
           {isLoading ? (
             <Skeleton className="h-full w-full" />
           ) : isError ? (
-            <div className="h-full flex items-center justify-center text-th-loss text-xs">Failed to load</div>
+            <ErrorState message="Failed to load chart" queryKey={['stock-detail', ticker]} />
           ) : bars.length === 0 ? (
             <div className="h-full flex items-center justify-center text-th-hi3 text-xs">No chart data available</div>
           ) : (
@@ -148,7 +149,7 @@ function StockDetailPanel({ ticker, onClose }: { ticker: string; onClose: () => 
                 <Tooltip
                   isAnimationActive={false}
                   cursor={{ stroke: tk('ghost'), strokeWidth: 1 }}
-                  contentStyle={{ background: tk('elevated'), border: `1px solid ${tk('line')}`, color: tk('hi'), borderRadius: 6, fontSize: 11 }}
+                  contentStyle={{ background: tk('elevated'), border: `1px solid ${tk('line')}`, color: tk('hi'), borderRadius: 'var(--nish-radius-sm)', fontSize: 11 }}
                   labelFormatter={(t) =>
                     range === 'daily'
                       ? new Date(String(t)).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -164,7 +165,7 @@ function StockDetailPanel({ ticker, onClose }: { ticker: string; onClose: () => 
 
         {/* News */}
         <div className="flex flex-col gap-2">
-          <span className="text-th-hi3 text-[10px] uppercase tracking-widest">Recent News</span>
+          <Label className="text-3xs tracking-widest">Recent News</Label>
           {isLoading ? null : news.length === 0 ? (
             <span className="text-th-hi3 text-xs">No recent news</span>
           ) : (
@@ -177,9 +178,9 @@ function StockDetailPanel({ ticker, onClose }: { ticker: string; onClose: () => 
               >
                 <span className="text-th-hi2 text-xs leading-snug line-clamp-2 group-hover:text-th-accent transition-colors flex items-start gap-1">
                   {n.headline}
-                  <ExternalLink className="w-2.5 h-2.5 shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition" />
+                  <ExternalLink className="w-2.5 h-2.5 shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition" />
                 </span>
-                <span className="text-th-hi3 text-[10px]">{n.source}{n.createdAt && ` · ${relTimeAgo(n.createdAt)}`}</span>
+                <span className="text-th-hi3 text-3xs">{n.source}{n.createdAt && ` · ${relTimeAgo(n.createdAt)}`}</span>
               </button>
             ))
           )}
@@ -205,62 +206,50 @@ function WatchlistModal({ onClose }: { onClose: () => void }) {
 
   function onKey(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter') submit();
-    if (e.key === 'Escape') onClose();
   }
 
   return (
-    <div className="absolute inset-0 z-10 flex items-center justify-center bg-th-scrim/60 rounded-lg">
-      <div className="bg-th-surface border border-th-line rounded-xl p-4 w-72 max-h-[80%] flex flex-col gap-3 shadow-pop">
-        <div className="flex items-center justify-between">
-          <span className="text-th-hi font-semibold text-sm">Edit Watchlist</span>
-          <button
-            onClick={onClose}
-            className="text-th-hi3 hover:text-th-hi transition-colors"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
+    <Modal title="Edit Watchlist" onClose={onClose}>
+      <div className="flex flex-col gap-3">
         <div className="flex gap-2">
-          <input
+          <Input
             ref={inputRef}
+            size="sm"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKey}
             placeholder="Add ticker…"
-            className="flex-1 bg-th-elevated border border-th-line rounded-lg px-3 py-1.5 text-th-hi text-xs font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-hi3"
+            aria-label="Ticker"
+            className="flex-1 font-mono"
             autoFocus
           />
-          <button
-            onClick={submit}
-            className="bg-th-overlay hover:bg-th-overlay/70 text-th-hi rounded-lg px-2.5 py-1.5 transition-colors"
-          >
+          <IconButton label="Add ticker" size="sm" variant="subtle" onClick={submit}>
             <Plus size={14} />
-          </button>
+          </IconButton>
         </div>
 
-        <div className="flex-1 overflow-y-auto flex flex-col gap-1">
+        <div className="flex flex-col gap-1">
           {watchlist.map((ticker) => (
-            <div
-              key={ticker}
-              className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-th-elevated group"
-            >
+            <Card key={ticker} variant="inset" padding="none" className="flex items-center justify-between px-2.5 py-1 group">
               <span className="font-mono text-th-hi text-xs">{ticker}</span>
-              <button
+              <IconButton
+                label={`Remove ${ticker}`}
+                size="xs"
+                tone="danger"
                 onClick={() => removeTicker(ticker)}
-                className="text-th-hi3 hover:text-th-loss transition-colors opacity-0 group-hover:opacity-100"
+                className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
               >
                 <X size={12} />
-              </button>
-            </div>
+              </IconButton>
+            </Card>
           ))}
         </div>
 
-        <p className="text-th-hi3 text-[10px]">
+        <p className="text-th-hi3 text-3xs">
           Note: US equities only (Alpaca IEX feed). Futures/crypto tickers not supported.
         </p>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -294,11 +283,11 @@ export function StocksWidget() {
 
   // No pulse: the dot marks the market session, not a live feed — prices
   // refresh on a 5-minute poll (deliberate; keeps Alpaca usage minimal).
-  const sessionDot: Record<MarketSession, string> = {
-    open:         'bg-th-ok-fill',
-    'after-hours': 'bg-th-warn-fill',
-    'pre-market':  'bg-th-warn-fill',
-    closed:       'bg-th-loss-fill',
+  const sessionTone: Record<MarketSession, StatusTone> = {
+    open:         'ok',
+    'after-hours': 'warn',
+    'pre-market':  'warn',
+    closed:       'loss',
   };
   const sessionLabel: Record<MarketSession, string> = {
     open:         'Market Open',
@@ -326,10 +315,10 @@ export function StocksWidget() {
 
       <div className="flex items-center px-3 py-1.5 border-b border-th-line shrink-0">
         <span
-          className={`text-[10px] flex items-center gap-1.5 ${session === 'closed' ? 'text-th-hi3' : 'text-th-hi3'}`}
+          className="text-3xs flex items-center gap-1.5 text-th-hi3"
           title="Prices refresh every 5 minutes"
         >
-          <span className={`h-1.5 w-1.5 rounded-full inline-block shrink-0 ${sessionDot[session]}`} />
+          <StatusDot tone={sessionTone[session]} size="xs" />
           {badge}
         </span>
       </div>
