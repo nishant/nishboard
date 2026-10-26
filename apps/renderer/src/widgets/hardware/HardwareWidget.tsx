@@ -30,9 +30,21 @@ type ViewMode = HardwareViewMode;
 
 // ── Sparkline ────────────────────────────────────────────────────────────
 
-/** History sparkline, anchored at zero like the old Recharts area. */
-function Spark({ data, tone, label }: { data: number[]; tone: SparklineTone; label: string }) {
-  return <Sparkline values={data} label={label} tone={tone} height={32} min={0} fill className="w-full" />;
+/** History sparkline anchored at zero like the old Recharts area; `max` pins
+ *  percentages to 0–100. An all-zero series sits on the baseline. */
+function Spark({ data, tone, label, max }: { data: number[]; tone: SparklineTone; label: string; max?: number }) {
+  return (
+    <Sparkline
+      values={data}
+      label={label}
+      tone={tone}
+      height={32}
+      min={0}
+      max={max ?? Math.max(1, ...data)}
+      fill
+      className="w-full"
+    />
+  );
 }
 
 // ── Usage bar ────────────────────────────────────────────────────────────
@@ -83,7 +95,7 @@ const CpuCard = memo(function CpuCard({ cpu, history, view }: { cpu: HardwareDat
       </div>
 
       {view === 'sparks' ? (
-        <Spark data={history.cpuUsage} tone="chart-1" label="CPU usage history" />
+        <Spark data={history.cpuUsage} tone="chart-1" label="CPU usage history" max={100} />
       ) : (
         <UsageBar pct={cpu.usagePercent} tone="chart-1" label="CPU usage" />
       )}
@@ -127,7 +139,7 @@ const GpuCard = memo(function GpuCard({ gpu, history, view }: { gpu: HardwareDat
       </div>
 
       {view === 'sparks' ? (
-        <Spark data={history.gpuUsage} tone="chart-6" label="GPU usage history" />
+        <Spark data={history.gpuUsage} tone="chart-6" label="GPU usage history" max={100} />
       ) : (
         <UsageBar pct={gpu.usagePercent} tone="chart-6" label="GPU usage" />
       )}
@@ -168,7 +180,7 @@ const RamCard = memo(function RamCard({ ram, history, view }: { ram: HardwareDat
       </div>
 
       {view === 'sparks' ? (
-        <Spark data={history.ramUsage} tone="chart-3" label="RAM usage history" />
+        <Spark data={history.ramUsage} tone="chart-3" label="RAM usage history" max={100} />
       ) : (
         <UsageBar pct={ram.usagePercent} tone="chart-3" label="RAM usage" />
       )}

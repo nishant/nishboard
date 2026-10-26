@@ -796,7 +796,7 @@ export function ClaudeWidget() {
           aria-label="Message Claude"
           rows={2}
           spellCheck={false}
-          className="flex-1 resize-none"
+          className="flex-1 resize-none text-xs"
         />
         {isStreaming ? (
           <IconButton label="Stop" size="sm" variant="subtle" tone="danger" onClick={stop} className="text-th-loss">

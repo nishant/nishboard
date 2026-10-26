@@ -46,7 +46,8 @@ function isValidHost(host: string): boolean {
 // ── Presentational helpers (same recipes as HardwareWidget, on @nish/ui) ──
 
 function Spark({ data, tone, label }: { data: number[]; tone: SparklineTone; label: string }) {
-  return <Sparkline values={data} label={label} tone={tone} height={32} min={0} fill className="w-full" />;
+  // Anchored at zero; an all-zero series sits on the baseline.
+  return <Sparkline values={data} label={label} tone={tone} height={32} min={0} max={Math.max(1, ...data)} fill className="w-full" />;
 }
 
 function UsageBar({ pct, tone, label, className }: { pct: number; tone: MeterTone; label: string; className?: string }) {
