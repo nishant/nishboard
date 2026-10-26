@@ -113,12 +113,15 @@ Three places a key can live — checked in this order at runtime:
 - Label Windows-only vs macOS-only behavior clearly
 - Flag API rate limits or auth quirks immediately
 
+## Autonomy
+Nish's standing rule (2026-10-26): Claude sessions build, commit, push, open and merge PRs, release, and deploy on their own judgment, without asking Nish. Work is done only when it is merged, released, and confirmed live: for this app that means the `Release` run on master is green and the GitHub Release (DMG + EXE) exists, or the PR carried `[skip release]` on purpose. If CI or the release fails, read the log, fix it and re-ship; don't leave master red. Pick sensible defaults instead of asking; stop for Nish only when it is critically necessary (credentials or account signups such as the rclone OAuth below, or anything destructive to user data).
+
 ## Git Workflow
 1. **Branch first** — `git checkout -b <branch>` before touching any files. Never make changes on `master` then branch for the PR.
 2. **Update CHANGELOG.md** on the branch before opening the PR. New entries go at the top (newest first). Cover every meaningful change and architectural decision. Follow the **Changelog Format** below.
-3. **Commit, push, `gh pr create`** — in that order. **Do NOT auto-merge** — wait for Nish to explicitly say "merge".
+3. **Commit, push, `gh pr create`** — in that order. Then wait for CI (`gh pr checks <n> --watch`), squash-merge it yourself (`gh pr merge <n> --squash --delete-branch`), and watch the Release run to green (see **Autonomy**).
 4. Branch naming: `feat/<slug>` features · `fix/<slug>` fixes · `chore/<slug>` tooling/deps · `docs/<slug>` docs-only.
-5. Commit message footer: `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
+5. Commit message footer: `Co-Authored-By: Claude <model> <noreply@anthropic.com>` (the current model, e.g. `Claude Opus 5.5`).
 6. **Feature PRs include tests + docs** — unit tests for logic that warrants them (parsers, stats/mapping fns — vitest lives in all three packages), and keep README.md + this file's widget/credential tables current when features change them.
 
 ## Local Build Uploads → Google Drive (standing instruction)
