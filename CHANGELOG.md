@@ -4,6 +4,16 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #136] docs: Galaxy Z Fold 7 UI target in CLAUDE.md
+
+**Branch:** `docs/fold7-target` → `master`
+**Date:** 2026-10-26
+
+### Changed
+- `CLAUDE.md` (Testing): every Nish UI targets a Samsung Galaxy Z Fold 7. Windows, popouts and pages must look right with no horizontal page scroll at 360px, ~840px and desktop width, in light and dark, with 44px touch targets, checked in a browser before UI work is called done. Docs only, `[skip release]`.
+
+---
+
 ## [PR #134] fix: @nish/ui v0.5.3
 
 **Branch:** `refactor/ui-v0.5.3` → `master`
