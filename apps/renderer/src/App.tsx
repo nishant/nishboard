@@ -13,7 +13,7 @@ import { useAppSettingsStore } from './store/settingsStore';
 import { usePowerStore } from './store/powerStore';
 import { usePopoutStore } from './store/popoutStore';
 import { buildCustomVars } from './lib/colorUtils';
-import { applyAppTheme } from './lib/appTheme';
+import { applyAppTheme, syncNativeTheme } from './lib/appTheme';
 import { isThemeId } from './themes';
 import { initAutoExport } from './lib/autoExport';
 
@@ -101,6 +101,7 @@ export function ThemeManager() {
         ? buildCustomVars(customColors.primary, customColors.secondary, customColors.tertiary, customColors.text)
         : undefined;
     applyAppTheme(theme, custom);
+    syncNativeTheme(theme);
   }, [theme, customColors]);
 
   // A choice made through @nish/ui directly (the mode switch, another window
@@ -109,6 +110,8 @@ export function ThemeManager() {
   useEffect(
     () =>
       onThemeChange((choice) => {
+        // Also fires when the OS flips under the system choice: the background changes.
+        syncNativeTheme(choice);
         const s = useThemeStore.getState();
         if (choice !== s.theme && isThemeId(choice)) s.setTheme(choice);
       }),

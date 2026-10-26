@@ -5,6 +5,7 @@ const electronAPI: ElectronAPI = {
   platform: process.platform,
   minimize: () => ipcRenderer.send('app:minimize' satisfies IpcChannels),
   toggleMaximize: () => ipcRenderer.send('app:toggle-maximize' satisfies IpcChannels),
+  setNativeTheme: (source, bg) => ipcRenderer.send('app:set-theme' satisfies IpcChannels, source, bg),
   close: () => ipcRenderer.send('app:close' satisfies IpcChannels),
   setZoom: (factor: number) => webFrame.setZoomFactor(factor),
   notify: (title: string, body: string) => ipcRenderer.send('app:notify' satisfies IpcChannels, title, body),

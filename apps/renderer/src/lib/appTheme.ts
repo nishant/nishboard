@@ -3,7 +3,7 @@
 // setThemeChoice accepts them and saves them to `nish-theme` like any shared
 // theme. src/theme-init-app.js sets the same ids on window.__nishExtraThemes
 // before first paint — keep the two in step.
-import { isThemeName, registerThemes, setThemeChoice } from '@nish/ui';
+import { isThemeName, readToken, registerThemes, resolveTheme, schemeOf, setThemeChoice, type ThemeChoice } from '@nish/ui';
 import { APP_PRESETS } from './appPresets';
 import { CUSTOM_VARS_KEY, type CustomThemeVars } from './colorUtils';
 import { NISH_COLOR_ROLES } from './themeVars';
@@ -35,4 +35,17 @@ export function applyAppTheme(theme: ThemeId, custom?: CustomThemeVars): void {
     }
   }
   setThemeChoice(theme === 'system' || isThemeName(theme) ? theme : 'dark');
+}
+
+/** Tells the Electron main process about the applied theme (no-op in a plain
+ *  browser): nativeTheme follows the choice and the windows take its --nish-bg,
+ *  which main also saves as the next launch's background. The system choice is
+ *  sent as 'system', never as the resolved scheme, so prefers-color-scheme keeps
+ *  following the OS. Call after the theme is on <html>. */
+export function syncNativeTheme(choice: ThemeChoice): void {
+  const api = window.electron;
+  if (!api?.setNativeTheme) return;
+  const bg = readToken('bg');
+  if (!/^#[0-9a-f]{6}$/i.test(bg)) return;
+  api.setNativeTheme(choice === 'system' ? 'system' : schemeOf(resolveTheme(choice)), bg);
 }
