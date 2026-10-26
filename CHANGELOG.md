@@ -4,6 +4,22 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #136] fix: @nish/ui v0.6.1, autonomy rule and Galaxy Z Fold 7 target
+
+**Branch:** `docs/fold7-target` → `master`
+**Date:** 2026-10-26
+
+### Changed
+- `@nish/ui` v0.6.0 → v0.6.1 (codeload tag); lockfile regenerated; `gen:themes` re-run (no change). v0.6.1: Segmented option tips and `Tooltip` open only on mouse hover or keyboard focus and close on any press (a hint trigger still opens on tap); `base.css` drops the focus box Recharts drew on tap and makes the Recharts tooltip cursor a quiet theme color; `visual-check.mjs` defaults to 360px / fold 840px / desktop.
+- v0.6.0 (PR #135, no entry of its own): `ThemeToggle` shows a compact cycling button below 640px unless `phone="segmented"`. The labeled theme toggles in the Themes panel and Settings → Appearance now pass `phone="segmented"`, so they stay a labeled radio group in narrow windows.
+- `CLAUDE.md` / `README.md`: new **Autonomy** section (Nish, 2026-10-26): Claude sessions build, commit, push, merge, release and deploy on their own judgment; work is done only when merged and the Release is green. Replaces the old "Do NOT auto-merge, wait for Nish to say merge" rule.
+- `CLAUDE.md` (Testing): every Nish UI targets a Samsung Galaxy Z Fold 7. Windows, popouts and pages must look right with no horizontal page scroll at 360px, ~840px and desktop width, in light and dark, with 44px touch targets, checked in a browser before UI work is called done.
+
+### Notes
+- No app code relied on a tip opening when its control is tapped: the Tooltips (weather sunrise/sunset/AQI/extra alerts, the Settings auto-export path) are hover help on plain text. The Stocks sparkline's explicit cursor stroke is now overridden by the theme cursor, which is the intended quiet look.
+
+---
+
 ## [PR #134] fix: @nish/ui v0.5.3
 
 **Branch:** `refactor/ui-v0.5.3` → `master`

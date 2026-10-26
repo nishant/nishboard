@@ -266,7 +266,7 @@ CI-built installers carry **no baked API keys** (there's no `.env` in CI) — en
 - **Branch first.** `git checkout -b <branch>` before touching any files — never edit `master` then branch.
 - **Naming:** `feat/<slug>` · `fix/<slug>` · `chore/<slug>` · `docs/<slug>`.
 - **Update `CHANGELOG.md` before every PR.** One section per PR, newest first, following the canonical `## [PR #N] type: description` format (see [CLAUDE.md](./CLAUDE.md) → *Changelog Format*).
-- **No auto-merge.** Open the PR and stop — wait for an explicit "merge".
+- **Ship it through.** Claude sessions open the PR, wait for CI, squash-merge it themselves and watch the Release run to green — no waiting on Nish (see [CLAUDE.md](./CLAUDE.md) → *Autonomy*).
 - **PR titles are load-bearing** — they pick the release bump (see [CI & Releases](#-ci--releases)). Keep the `<type>: description` format exact.
 - **Strict TypeScript**, named exports, `PascalCase` components, `use*` hooks, `*Store` stores, `*Data` API types, kebab API routes.
 

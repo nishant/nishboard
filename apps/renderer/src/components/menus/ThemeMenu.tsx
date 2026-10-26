@@ -230,7 +230,7 @@ export function ThemeMenu({ compact }: { compact: boolean }) {
         {panel === 'list' && (
           <>
             <div className="px-2 pt-1 pb-2">
-              <ThemeToggle labels block />
+              <ThemeToggle labels block phone="segmented" />
             </div>
             <Label className="block px-3 pt-1 pb-0.5 text-3xs">Presets</Label>
             {[...THEME_PRESETS, CUSTOM_THEME].map((t) => {

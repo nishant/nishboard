@@ -344,7 +344,7 @@ function AppearanceSection() {
       <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Appearance</span>
       <div className="flex items-center gap-3">
         <span className="text-th-hi3 text-2xs w-28 shrink-0">Theme</span>
-        <ThemeToggle labels />
+        <ThemeToggle labels phone="segmented" />
       </div>
       <Field layout="inline" label="Preset">
         <Select
