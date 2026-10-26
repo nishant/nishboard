@@ -7,8 +7,7 @@ import { useLauncherUiStore } from '../../store/launcherUiStore';
 import { HeaderAction } from '../../components/HeaderAction';
 import { toast } from '../../lib/alerts';
 import type { LauncherGroupData, LauncherItemData, LauncherStateData } from '@dash/shared';
-import { Button, Card, EmptyState, IconButton, Modal, Label } from '@nish/ui';
-import { Input, Select } from '../../components/nishGaps';
+import { Button, Card, EmptyState, IconButton, Modal, Label, Input, Select } from '@nish/ui';
 
 const EMPTY_STATE: LauncherStateData = { groups: [], items: [] };
 
@@ -163,14 +162,13 @@ function EditModal({
                 {groups.map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}
               </Select>
               <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 flex items-center gap-0.5 transition-opacity shrink-0">
-                <IconButton label="Move up" size="xs" onClick={() => void move(it.id, -1)} disabled={i === 0} className="size-5"><ArrowUp size={11} /></IconButton>
-                <IconButton label="Move down" size="xs" onClick={() => void move(it.id, 1)} disabled={i === items.length - 1} className="size-5"><ArrowDown size={11} /></IconButton>
+                <IconButton label="Move up" size="2xs" onClick={() => void move(it.id, -1)} disabled={i === 0}><ArrowUp size={11} /></IconButton>
+                <IconButton label="Move down" size="2xs" onClick={() => void move(it.id, 1)} disabled={i === items.length - 1}><ArrowDown size={11} /></IconButton>
                 <IconButton
                   label="Remove"
-                  size="xs"
+                  size="2xs"
                   tone="danger"
                   onClick={async () => { await launcher?.removeItem(it.id); await refresh(); }}
-                  className="size-5"
                 >
                   <X size={11} />
                 </IconButton>
@@ -199,10 +197,10 @@ function EditModal({
                   </span>
                   <IconButton
                     label="Delete group (items are kept)"
-                    size="xs"
+                    size="2xs"
                     tone="danger"
                     onClick={async () => { await launcher?.removeGroup(g.id); await refresh(); }}
-                    className="size-5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
+                    className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
                   >
                     <X size={11} />
                   </IconButton>
@@ -344,9 +342,9 @@ export function LauncherWidget() {
                   </button>
                   <IconButton
                     label={`Launch all in ${g.label}`}
-                    size="xs"
+                    size="2xs"
                     onClick={() => void window.electron?.launcher?.launchGroup(g.id)}
-                    className="size-5 opacity-0 group-hover/hdr:opacity-100 group-focus-within/hdr:opacity-100 focus-visible:opacity-100"
+                    className="opacity-0 group-hover/hdr:opacity-100 group-focus-within/hdr:opacity-100 focus-visible:opacity-100"
                   >
                     <Play size={11} />
                   </IconButton>

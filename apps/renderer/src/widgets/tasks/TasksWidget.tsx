@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import { useTasksStore } from '../../store/tasksStore';
-import { Button, Checkbox, EmptyState, IconButton, cn } from '@nish/ui';
-import { Input } from '../../components/nishGaps';
+import { Button, Checkbox, EmptyState, IconButton, cn, Input } from '@nish/ui';
 
 export function TasksWidget() {
   const { tasks, addTask, toggleTask, removeTask, clearCompleted } = useTasksStore();
@@ -52,10 +51,10 @@ export function TasksWidget() {
               </span>
               <IconButton
                 label="Delete"
-                size="xs"
+                size="2xs"
                 tone="danger"
                 onClick={() => removeTask(t.id)}
-                className="size-5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
+                className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
               >
                 <X size={12} />
               </IconButton>

@@ -8,8 +8,7 @@ import {
   MenuPopover, MenuTrigger,
   SubmenuHeader, SaveAsForm, SavedItemRow, deleteBody,
 } from './primitives';
-import { ConfirmDialog, IconButton, ThemeToggle, cn, Label } from '@nish/ui';
-import { Input, menuRowClass } from '../nishGaps';
+import { ConfirmDialog, IconButton, Input, ThemeToggle, cn, Label, menuItemClass } from '@nish/ui';
 
 // ── ColorPicker ───────────────────────────────────────────────────────────────
 
@@ -103,7 +102,7 @@ function CustomEditor({
     <div className="px-3 py-2 flex flex-col gap-3">
       {/* Header */}
       <div className="flex items-center gap-1.5">
-        <IconButton label="Back" size="xs" onClick={onBack} className="size-5 -ml-0.5">
+        <IconButton label="Back" size="2xs" onClick={onBack} className="-ml-0.5">
           <ArrowLeft size={12} />
         </IconButton>
         <span className="text-th-hi text-2xs font-semibold">
@@ -250,7 +249,7 @@ export function ThemeMenu({ compact }: { compact: boolean }) {
                       handleClose();
                     }
                   }}
-                  className={cn(menuRowClass(theme === t.id), 'gap-2.5')}
+                  className={menuItemClass({ active: theme === t.id, className: 'gap-2.5 text-2xs' })}
                 >
                   <span
                     className="h-3 w-3 rounded-full shrink-0 ring-1 ring-th-line-strong"
@@ -275,7 +274,7 @@ export function ThemeMenu({ compact }: { compact: boolean }) {
             <button
               type="button"
               onClick={() => setPanel('editor')}
-              className={cn(menuRowClass(), 'mt-0.5')}
+              className={menuItemClass({ className: 'mt-0.5 text-2xs' })}
             >
               <Plus size={11} className="shrink-0" />
               Create new

@@ -4,8 +4,7 @@ import { useCountdownStore } from '../../store/countdownStore';
 import { useAppSettingsStore } from '../../store/settingsStore';
 import { fireAlert } from '../../lib/alerts';
 import { fmtRemaining, hourFormat } from '../../lib/time';
-import { Card, EmptyState, IconButton, cn } from '@nish/ui';
-import { Input } from '../../components/nishGaps';
+import { Card, EmptyState, IconButton, cn, Input } from '@nish/ui';
 
 function fmtDate(at: number, clock24h: boolean): string {
   return new Date(at).toLocaleString('en-US', {

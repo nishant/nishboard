@@ -10,8 +10,7 @@ import { ErrorState } from '../../components/ErrorState';
 import { HeaderAction } from '../../components/HeaderAction';
 import { RefreshAction } from '../../components/RefreshAction';
 import type { StockQuote } from '@dash/shared';
-import { Card, IconButton, Modal, Skeleton, SkeletonLines, StatusDot, cardClass, cn, type StatusTone, Label } from '@nish/ui';
-import { Input } from '../../components/nishGaps';
+import { Card, IconButton, Modal, Skeleton, SkeletonLines, StatusDot, cardClass, cn, type StatusTone, Label, Input } from '@nish/ui';
 import { tk } from '../../lib/tokens';
 
 // ── Market session ────────────────────────────────────────────────────────────
