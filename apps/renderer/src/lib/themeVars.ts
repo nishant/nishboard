@@ -1,11 +1,14 @@
 // Derives a complete @nish/ui color set (every --nish-* role) from the handful of
 // colors an app-local theme defines: Nishboard's extra presets (rose, nord, …) and
-// the user's Custom theme. Dependency-free on purpose: scripts/gen-app-themes.ts
-// runs it under plain Node to write src/styles/app-themes.css.
+// the user's Custom theme. Status, fill, chart and hue colors come from @nish/ui's
+// own dark and light themes (`@nish/ui/tokens`, plain data with no React), so they
+// never drift from the shared palette. scripts/gen-app-themes.ts runs this under
+// plain Node to write src/styles/app-themes.css.
+import { THEMES } from '@nish/ui/tokens';
 
 export type Scheme = 'dark' | 'light';
 
-/** Every color role @nish/ui defines (mirrors COLOR_ROLES in @nish/ui; a test keeps them in sync). */
+/** Every color role @nish/ui defines, typed (mirrors COLOR_ROLES; a test keeps them in sync). */
 export const NISH_COLOR_ROLES = [
   'bg', 'surface', 'elevated', 'overlay', 'line', 'line-strong',
   'hi', 'hi2', 'hi3', 'ghost', 'accent', 'accent2', 'on-accent',
@@ -36,26 +39,17 @@ export interface ThemeBase {
   invertText?: string;
 }
 
-// Status, chart and hue colors follow @nish/ui's dark and light themes, nudged per
-// theme only as far as contrast requires.
-const STATUS: Record<Scheme, Record<'ok' | 'loss' | 'warn' | 'info' | 'accent2', string>> = {
-  dark: { ok: '#34d399', loss: '#f87171', warn: '#fbbf24', info: '#38bdf8', accent2: '#c084fc' },
-  light: { ok: '#065f46', loss: '#a91b1b', warn: '#92400e', info: '#075985', accent2: '#7e22ce' },
-};
-// Bars, meters and chart lines. Dark themes reuse the status colors; light ones get
-// @nish/ui's brighter fills, since the text-safe colors look muddy as large fills.
-const FILL: Record<Scheme, Record<'ok' | 'loss' | 'warn' | 'info', string> | null> = {
-  dark: null,
-  light: { ok: '#059669', loss: '#dc2626', warn: '#c96d06', info: '#0284c7' },
-};
-const CHART: Record<Scheme, string[]> = {
-  dark: ['#8b93ff', '#34d399', '#fbbf24', '#fb7185', '#38bdf8', '#c084fc', '#fb923c', '#a3e635'],
-  light: ['#6366f1', '#059669', '#c96d06', '#f43f5e', '#0284c7', '#a855f7', '#ea580c', '#5a910c'],
-};
-const HUES: Record<Scheme, Record<'emerald' | 'indigo' | 'amber' | 'lime' | 'rose' | 'sky' | 'violet' | 'teal', string>> = {
-  dark: { emerald: '#34d399', indigo: '#8b93ff', amber: '#fbbf24', lime: '#a3e635', rose: '#fb7185', sky: '#38bdf8', violet: '#c084fc', teal: '#2dd4bf' },
-  light: { emerald: '#046d4f', indigo: '#4e45e3', amber: '#9b4708', lime: '#41690d', rose: '#b8113a', sky: '#036499', violet: '#7e22ce', teal: '#0e6b64' },
-};
+/** A role's value in @nish/ui's base theme for this scheme. */
+function shared(scheme: Scheme, role: ColorRole): string {
+  const v = THEMES[scheme].colors[role];
+  if (!v) throw new Error(`@nish/ui ${scheme} theme has no ${role} color`);
+  return v;
+}
+
+type StatusRole = 'ok' | 'loss' | 'warn' | 'info';
+
+/** Share of the role in a --nish-*-soft tint (tokens.css: color-mix … 14%). */
+const SOFT_MIX = 0.14;
 
 type Rgb = [number, number, number];
 
@@ -101,6 +95,18 @@ export function ensureContrast(fg: string, bgs: string[], min: number, toward: s
   return toward;
 }
 
+/** Like ensureContrast, but `fg` must also read on its own 14% soft tint
+ *  (`--nish-<role>-soft`, color-mix over each panel): selected Segmented options,
+ *  badges and callouts put the role's text on that tint. */
+export function ensureContrastOnSoft(fg: string, bgs: string[], min: number, toward: string): string {
+  const ok = (c: string) => bgs.every((bg) => contrast(c, bg) >= min && contrast(c, mixHex(c, bg, SOFT_MIX)) >= min);
+  for (let t = 1; t >= 0; t -= 0.05) {
+    const out = mixHex(fg, toward, t);
+    if (ok(out)) return out;
+  }
+  return toward;
+}
+
 /** Light when the page background is light, else dark. */
 export function schemeFor(bg: string): Scheme {
   return luminance(bg) > 0.4 ? 'light' : 'dark';
@@ -112,22 +118,21 @@ export function deriveThemeColors(base: ThemeBase): ThemeColors {
   const panels = [base.surface, base.elevated];
   const line = base.line && base.line.toLowerCase() !== base.elevated.toLowerCase() ? base.line : mixHex(base.overlay, base.elevated, 0.6);
   const hi = ensureContrast(base.hi, panels, 7, extreme);
-  const accent = ensureContrast(base.accent, panels, 4.5, hi);
+  const accent = ensureContrastOnSoft(base.accent, panels, 4.5, hi);
   const onAccent =
     contrast(base.bg, accent) >= 4.5 ? base.bg : contrast('#ffffff', accent) >= contrast('#000000', accent) ? '#ffffff' : '#000000';
   const readable = (c: string) => ensureContrast(c, panels, 4.5, extreme);
-  const status = STATUS[scheme];
-  const hues = HUES[scheme];
-  const accent2 = readable(status.accent2);
-  const fill = {
-    ok: FILL[scheme]?.ok ?? readable(status.ok),
-    loss: FILL[scheme]?.loss ?? readable(status.loss),
-    warn: FILL[scheme]?.warn ?? readable(status.warn),
-    info: FILL[scheme]?.info ?? readable(status.info),
-  };
+  const readableOnSoft = (c: string) => ensureContrastOnSoft(c, panels, 4.5, extreme);
+  const ui = (role: ColorRole) => shared(scheme, role);
+  const accent2 = readable(ui('accent2'));
+  // Bars, meters and chart lines. Dark fills equal the status colors, so they get
+  // the same contrast nudge; light fills are brighter than the text-safe colors
+  // and are used as they are.
+  const fillOf = (s: StatusRole) => (scheme === 'dark' ? readable(ui(`${s}-fill`)) : ui(`${s}-fill`));
+  const fill = { ok: fillOf('ok'), loss: fillOf('loss'), warn: fillOf('warn'), info: fillOf('info') };
   // Text and icons on a solid fill: the theme's dark ink or white, whichever
-  // reads better on that fill.
-  const darkInk = scheme === 'dark' ? base.bg : '#0a0a0c'; // @nish/ui light's ink
+  // reads better on that fill. Light themes use @nish/ui light's ink.
+  const darkInk = scheme === 'dark' ? base.bg : shared('light', 'on-ok');
   const on = (bg: string) => (contrast(darkInk, bg) >= contrast('#ffffff', bg) ? darkInk : '#ffffff');
   const colors: ThemeColors = {
     bg: base.bg,
@@ -148,10 +153,10 @@ export function deriveThemeColors(base: ThemeBase): ThemeColors {
     'on-loss': on(fill.loss),
     'on-warn': on(fill.warn),
     'on-info': on(fill.info),
-    ok: readable(status.ok),
-    loss: readable(status.loss),
-    warn: readable(status.warn),
-    info: readable(status.info),
+    ok: readableOnSoft(ui('ok')),
+    loss: readableOnSoft(ui('loss')),
+    warn: readableOnSoft(ui('warn')),
+    info: readableOnSoft(ui('info')),
     'ok-fill': fill.ok,
     'loss-fill': fill.loss,
     'warn-fill': fill.warn,
@@ -159,22 +164,22 @@ export function deriveThemeColors(base: ThemeBase): ThemeColors {
     scrim: scheme === 'dark' ? '#000000' : hi,
     'invert-bg': base.invertBg ?? hi,
     'invert-text': base.invertText ?? base.surface,
-    'chart-1': CHART[scheme][0],
-    'chart-2': CHART[scheme][1],
-    'chart-3': CHART[scheme][2],
-    'chart-4': CHART[scheme][3],
-    'chart-5': CHART[scheme][4],
-    'chart-6': CHART[scheme][5],
-    'chart-7': CHART[scheme][6],
-    'chart-8': CHART[scheme][7],
-    emerald: readable(hues.emerald),
-    indigo: readable(hues.indigo),
-    amber: readable(hues.amber),
-    lime: readable(hues.lime),
-    rose: readable(hues.rose),
-    sky: readable(hues.sky),
-    violet: readable(hues.violet),
-    teal: readable(hues.teal),
+    'chart-1': ui('chart-1'),
+    'chart-2': ui('chart-2'),
+    'chart-3': ui('chart-3'),
+    'chart-4': ui('chart-4'),
+    'chart-5': ui('chart-5'),
+    'chart-6': ui('chart-6'),
+    'chart-7': ui('chart-7'),
+    'chart-8': ui('chart-8'),
+    emerald: readable(ui('emerald')),
+    indigo: readable(ui('indigo')),
+    amber: readable(ui('amber')),
+    lime: readable(ui('lime')),
+    rose: readable(ui('rose')),
+    sky: readable(ui('sky')),
+    violet: readable(ui('violet')),
+    teal: readable(ui('teal')),
   };
   return colors;
 }

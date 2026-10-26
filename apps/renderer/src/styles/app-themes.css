@@ -168,7 +168,7 @@
   --nish-on-warn: #151224;
   --nish-on-info: #151224;
   --nish-ok: #34d399;
-  --nish-loss: #f87171;
+  --nish-loss: #f98686;
   --nish-warn: #fbbf24;
   --nish-info: #38bdf8;
   --nish-ok-fill: #34d399;
@@ -208,7 +208,7 @@
   --nish-hi2: #d8dee9;
   --nish-hi3: #a2a9b9;
   --nish-ghost: #747c8d;
-  --nish-accent: #88c0d0;
+  --nish-accent: #9cc9d7;
   --nish-accent2: #c996fc;
   --nish-on-accent: #181e2e;
   --nish-on-accent2: #181e2e;
@@ -216,10 +216,10 @@
   --nish-on-loss: #181e2e;
   --nish-on-warn: #181e2e;
   --nish-on-info: #181e2e;
-  --nish-ok: #34d399;
-  --nish-loss: #f98d8d;
+  --nish-ok: #52daa8;
+  --nish-loss: #fbb1b1;
   --nish-warn: #fbbf24;
-  --nish-info: #38bdf8;
+  --nish-info: #6acefa;
   --nish-ok-fill: #34d399;
   --nish-loss-fill: #f98d8d;
   --nish-warn-fill: #fbbf24;
@@ -257,7 +257,7 @@
   --nish-hi2: #48636b;
   --nish-hi3: #44636c;
   --nish-ghost: #708689;
-  --nish-accent: #186591;
+  --nish-accent: #13587c;
   --nish-accent2: #7e22ce;
   --nish-on-accent: #fdf6e3;
   --nish-on-accent2: #ffffff;
@@ -265,10 +265,10 @@
   --nish-on-loss: #ffffff;
   --nish-on-warn: #0a0a0c;
   --nish-on-info: #0a0a0c;
-  --nish-ok: #065f46;
-  --nish-loss: #a91b1b;
-  --nish-warn: #92400e;
-  --nish-info: #075985;
+  --nish-ok: #065a43;
+  --nish-loss: #981818;
+  --nish-warn: #833a0d;
+  --nish-info: #07557e;
   --nish-ok-fill: #059669;
   --nish-loss-fill: #dc2626;
   --nish-warn-fill: #c96d06;
@@ -404,7 +404,7 @@
   --nish-hi2: #6e5c40;
   --nish-hi3: #706047;
   --nish-ghost: #9c8d75;
-  --nish-accent: #865824;
+  --nish-accent: #785024;
   --nish-accent2: #7e22ce;
   --nish-on-accent: #f5f0e6;
   --nish-on-accent2: #ffffff;
@@ -453,7 +453,7 @@
   --nish-hi2: #335582;
   --nish-hi3: #4e6d96;
   --nish-ghost: #7a97b9;
-  --nish-accent: #0e68c0;
+  --nish-accent: #0d5baa;
   --nish-accent2: #7e22ce;
   --nish-on-accent: #f0f7ff;
   --nish-on-accent2: #ffffff;
