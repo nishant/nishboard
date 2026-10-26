@@ -61,8 +61,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared
       '@nish/ui':
-        specifier: https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v0.5.3
-        version: https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v0.5.3(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        specifier: https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v0.6.0
+        version: https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v0.6.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@tanstack/react-query':
         specifier: ^5.62.0
         version: 5.100.14(react@19.3.1)
@@ -747,9 +747,9 @@ packages:
     resolution: {integrity: sha512-9QOtNffcOF/c1seMCDnjckb3R9WHcG34tky+FHpNKKCW0wc/scYLwMtO+ptyGUfMW0/b/n4qRiALlaFHc9Oj7Q==}
     engines: {node: '>= 10.0.0'}
 
-  '@nish/ui@https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v0.5.3':
-    resolution: {gitHosted: true, integrity: sha512-ZQ/HhFVfJXvtiH6TWJO8d9aFrooIVRHEgJ7569PTRs4E2qAutnDVLGslArnDOheIeObTg6k6PJ+hpaxohbbl+g==, tarball: https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v0.5.3}
-    version: 0.5.3
+  '@nish/ui@https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v0.6.0':
+    resolution: {gitHosted: true, integrity: sha512-Ks8s+ABZ/mKSK4sNbsFoitQ4UjNTW7rxndDQmzzVJHcl364QCapVKjnEG+LLDW9jL0Cm/coMXU7HrqaIclneUg==, tarball: https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v0.6.0}
+    version: 0.6.0
     peerDependencies:
       react: '>=19'
       react-dom: '>=19'
@@ -4707,7 +4707,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@nish/ui@https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v0.5.3(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
+  '@nish/ui@https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v0.6.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
       clsx: 2.1.1
       tailwind-merge: 3.7.0
