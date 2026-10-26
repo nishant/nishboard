@@ -22,7 +22,7 @@ The @nish/ui adoption round (hosting `docs/design-system/SPEC.md`, WP-NISHBOARD)
 - The Claude model/effort and usage panels are the shared `Popover`; the slash menu is a listbox driven from the composer (`aria-activedescendant`).
 - The command palette is the shared `Modal` (`placement="top"`, search header) with combobox/listbox/option roles. It now sits at z-50 like the other dialogs.
 - `text-[11px]`/`text-[10px]` → `text-2xs`/`text-3xs` everywhere; the 8px and 9px labels move up to `text-3xs`. Small-caps section headings use `Label`.
-- `lib/themeVars.ts` reads status, fill, chart and hue colors from `@nish/ui/tokens` instead of local copies. Accent and status text must now also reach 4.5:1 on their own `-soft` tint, which fixes the Solarized selected Segmented (3.79:1) and nudges Nord, Dracula, Solarized, Sandstorm, Arctic and Crimson slightly. `styles/app-themes.css` regenerated.
+- `lib/themeVars.ts` reads status, fill, chart and hue colors from `@nish/ui/tokens` instead of local copies. Accent and status text must now also reach 4.5:1 on their own `-soft` tint, which fixes the Solarized selected Segmented (3.79:1) and nudges Dracula, Nord, Sandstorm and Arctic slightly. `styles/app-themes.css` regenerated.
 - Tooltips (not `title=`) for the weather sunrise, sunset, AQI and extra alerts, and the backup folder path.
 
 ### Added
