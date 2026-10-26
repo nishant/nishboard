@@ -4,7 +4,7 @@ import { useDeferredSlider } from '../../hooks/useDeferredSlider';
 import { ErrorState } from '../../components/ErrorState';
 import { RefreshAction } from '../../components/RefreshAction';
 import type { AudioDevice, AudioSession } from '@dash/shared';
-import { SkeletonLines, cn } from '@nish/ui';
+import { SkeletonLines, StatusDot, cn } from '@nish/ui';
 
 /** WidgetShell header actions for the sound tile. */
 export function SoundActions() {
@@ -63,11 +63,11 @@ function DeviceItem({
           : 'text-th-hi2 hover:bg-th-elevated hover:text-th-hi',
       )}
     >
-      <span
-        className={cn(
-          'h-1.5 w-1.5 rounded-full shrink-0',
-          device.isDefault ? 'bg-th-ok-fill' : 'bg-th-ghost',
-        )}
+      <StatusDot
+        tone={device.isDefault ? 'ok' : 'neutral'}
+        size="xs"
+        label={device.isDefault ? 'Default output' : undefined}
+        className="shrink-0"
       />
       <span className="truncate">{device.name}</span>
     </button>

@@ -19,7 +19,7 @@ import { useDeferredSlider } from '../../hooks/useDeferredSlider';
 import { useElementSize } from '../../hooks/useElementSize';
 import { HeaderAction } from '../../components/HeaderAction';
 import type { TrackData, SpotifyPlaylist, SpotifyDevice, SpotifyTrackItem } from '@dash/shared';
-import { Button, ConfirmDialog, EmptyState, ErrorState, IconButton, SkeletonLines, cn } from '@nish/ui';
+import { Button, ConfirmDialog, EmptyState, ErrorState, IconButton, SkeletonLines, StatusDot, cn } from '@nish/ui';
 
 // ── Size variant ──────────────────────────────────────────────────────────────
 
@@ -271,7 +271,7 @@ function DeviceBar({
         >
           <DeviceIcon type={dev.type} />
           <span className="max-w-[80px] truncate">{dev.name}</span>
-          {dev.isActive && <span className="w-1 h-1 rounded-full bg-th-ok-fill shrink-0" />}
+          {dev.isActive && <StatusDot tone="ok" size="xs" label="Active device" className="size-1 shrink-0" />}
         </button>
       ))}
     </div>
