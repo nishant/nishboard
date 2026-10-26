@@ -99,6 +99,7 @@ Three places a key can live — checked in this order at runtime:
 - Helpers exported solely for tests are marked `/** Exported for tests. */`.
 - **Releases are test-gated**: `release.yml`'s `version` job (tag creation) `needs: test` — a red suite means no tag/build/release, including manual dispatches. CI also runs `pnpm test` on every PR.
 - Unit tests don't cover packaged-app-only failures (`file://`, chunking, electron-builder file lists) — see **Embedding & Platform Gotchas**; verify those in a real packaged build.
+- **Target device for every Nish UI: Samsung Galaxy Z Fold 7** (cover screen ~360–390 CSS px, unfolded a near-square ~840px). Every window, popout and page must look right, with no horizontal page scroll, at 360px wide (not just 375/390), ~840px and desktop width, in light and dark, with 44px touch targets. Check in a browser (`pnpm dev`, renderer on `http://localhost:5173`) at those widths before calling UI work done.
 
 ## Working With Nish
 - Senior software engineer (7 years), TypeScript/Angular/Node expert — no hand-holding
