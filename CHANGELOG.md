@@ -4,6 +4,19 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #134] fix: @nish/ui v0.5.3
+
+**Branch:** `refactor/ui-v0.5.3` → `master`
+**Date:** 2026-10-25
+
+### Changed
+- `@nish/ui` v0.5.0 → v0.5.3 (codeload tag); lockfile regenerated; `gen:themes` re-run (no change).
+
+### Notes
+- v0.5.1–v0.5.3 add `KeyValueItem wrap="words"`, `confirmDialog()` and the `.nish-tooltip` class. Nishboard uses none of them yet (no `window.confirm` calls, no label/value lists), so no code changes. typecheck, lint, tests and build pass; ds-gates hard gates stay at 0.
+
+---
+
 ## [PR #133] refactor: @nish/ui v0.5.0 (shared pieces replace the local gap wrappers)
 
 **Branch:** `refactor/ds-ui-v0.4.0` → `master`
