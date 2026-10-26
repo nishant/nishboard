@@ -1,14 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { LayoutGrid, Pin, ArrowLeft, ChevronRight, Plus } from 'lucide-react';
 import { PRESETS } from '../../lib/layouts';
 import { useLayoutStore } from '../../store/layoutStore';
 import type { SavedCustomLayout } from '../../store/layoutStore';
 import type { WidgetId } from '../../lib/layouts';
 import {
-  Backdrop, menuBtn, menuPanel, noDragStyle,
+  MenuPopover, MenuTrigger,
   SubmenuHeader, WidgetPinList, SaveAsForm, SavedItemRow, deleteBody,
 } from './primitives';
 import { ConfirmDialog, IconButton, cn } from '@nish/ui';
+import { menuRowClass } from '../nishGaps';
 
 // ── Tile editor (pin/unpin + save) ────────────────────────────────────────────
 
@@ -83,6 +84,7 @@ export function LayoutsMenu({ compact }: { compact: boolean }) {
   const [panel, setPanel]               = useState<LayoutPanel>('list');
   const [deleteTarget, setDeleteTarget] = useState<SavedCustomLayout | null>(null);
   const [editTarget, setEditTarget]     = useState<SavedCustomLayout | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   function handleClose() {
     setOpen(false);
@@ -106,139 +108,158 @@ export function LayoutsMenu({ compact }: { compact: boolean }) {
     setDeleteTarget(null);
   }
 
+  // The tile editor keeps the panel open while the dashboard grid is dragged
+  // and resized, so presses outside it are ignored there; Escape still closes.
+  // (Popover reports one close for Escape and outside presses alike: remember
+  // which key fired last.)
+  const escapeRef = useRef(false);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { escapeRef.current = e.key === 'Escape'; };
+    const onDown = () => { escapeRef.current = false; };
+    document.addEventListener('keydown', onKey, true);
+    document.addEventListener('pointerdown', onDown, true);
+    return () => {
+      document.removeEventListener('keydown', onKey, true);
+      document.removeEventListener('pointerdown', onDown, true);
+    };
+  }, [open]);
+
+  function handleOpenChange(next: boolean) {
+    if (next) return;
+    if (panel === 'editor' && !escapeRef.current) return;
+    handleClose();
+  }
+
   return (
-    <div className="relative" style={noDragStyle}>
-      <button onClick={handleToggle} className={menuBtn(open, compact)} title="Layouts">
-        <LayoutGrid size={compact ? 13 : 11} />
-        {!compact && 'Layouts'}
-      </button>
+    <div className="app-region-no-drag">
+      <MenuTrigger
+        ref={triggerRef}
+        compact={compact}
+        open={open}
+        name="Layouts"
+        icon={(size) => <LayoutGrid size={size} />}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={handleToggle}
+      />
 
-      {open && (
-        <>
-          {/* No backdrop while editing so the dashboard grid stays draggable/resizable */}
-          {panel !== 'editor' && <Backdrop onClose={handleClose} />}
+      <MenuPopover
+        open={open}
+        onOpenChange={handleOpenChange}
+        anchor={triggerRef}
+        label="Layouts"
+        className={cn(panel !== 'list' && 'min-w-[220px]')}
+      >
+        {/* ── Preset list ── */}
+        {panel === 'list' && (
+          <>
+            {PRESETS.map((preset) => {
+              const pinned = pinnedPresets.includes(preset.name);
+              return (
+                <div key={preset.name} className="flex items-center gap-1 px-1 group">
+                  <button
+                    type="button"
+                    onClick={() => { applyPreset(preset.name); handleClose(); }}
+                    aria-current={activePreset === preset.name || undefined}
+                    className={cn(menuRowClass(activePreset === preset.name), 'flex-1 w-auto px-2 py-1 rounded')}
+                  >
+                    {preset.name}
+                  </button>
+                  <IconButton
+                    label={pinned ? 'Unpin from bar' : 'Pin to bar'}
+                    size="xs"
+                    aria-pressed={pinned}
+                    onClick={() => (pinned ? unpinPreset(preset.name) : pinPreset(preset.name))}
+                    className={cn('size-5', pinned ? 'text-th-hi2 hover:text-th-loss' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100')}
+                  >
+                    <Pin size={10} className={pinned ? 'fill-current' : ''} />
+                  </IconButton>
+                </div>
+              );
+            })}
 
-          <div
-            className={cn(menuPanel, panel !== 'list' && 'min-w-[220px]')}
-            style={noDragStyle}
-          >
-            {/* ── Preset list ── */}
-            {panel === 'list' && (
+            {/* Custom layouts entry */}
+            <div role="separator" className="h-px bg-th-line mx-3 my-1" />
+            <button
+              type="button"
+              onClick={() => setPanel('custom-list')}
+              className={menuRowClass(!!activeCustomLayoutId)}
+            >
+              <LayoutGrid size={11} className="shrink-0" />
+              Custom
+              <ChevronRight size={10} className="ml-auto text-th-hi3" />
+            </button>
+          </>
+        )}
+
+        {/* ── Custom layouts submenu ── */}
+        {panel === 'custom-list' && (
+          <>
+            <SubmenuHeader label="Custom Layouts" onBack={() => setPanel('list')} />
+
+            {/* Create new — always first */}
+            <button
+              type="button"
+              onClick={() => setPanel('editor')}
+              className={cn(menuRowClass(), 'mt-0.5')}
+            >
+              <Plus size={11} className="shrink-0" />
+              Create new
+            </button>
+
+            {/* Divider + saved layouts */}
+            {savedCustomLayouts.length > 0 && (
               <>
-                {PRESETS.map((preset) => {
-                  const pinned = pinnedPresets.includes(preset.name);
+                <div role="separator" className="h-px bg-th-line mx-3 my-1" />
+                {savedCustomLayouts.map((cl) => {
+                  const pinned = pinnedCustomLayouts.includes(cl.id);
                   return (
-                    <div key={preset.name} className="flex items-center gap-1 px-1 group">
-                      <button
-                        onClick={() => { applyPreset(preset.name); handleClose(); }}
-                        className={cn(
-                          'flex-1 text-left px-2 py-1 rounded text-2xs transition-colors',
-                          activePreset === preset.name
-                            ? 'text-th-hi bg-th-elevated'
-                            : 'text-th-hi2 hover:text-th-hi hover:bg-th-elevated',
-                        )}
-                      >
-                        {preset.name}
-                      </button>
-                      <IconButton
-                        label={pinned ? 'Unpin from bar' : 'Pin to bar'}
-                        size="xs"
-                        aria-pressed={pinned}
-                        onClick={() => (pinned ? unpinPreset(preset.name) : pinPreset(preset.name))}
-                        className={cn('size-5', pinned ? 'text-th-hi2 hover:text-th-loss' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100')}
-                      >
-                        <Pin size={10} className={pinned ? 'fill-current' : ''} />
-                      </IconButton>
-                    </div>
+                    <SavedItemRow
+                      key={cl.id}
+                      name={cl.name}
+                      active={activeCustomLayoutId === cl.id}
+                      icon={<LayoutGrid size={11} className="shrink-0 text-th-hi3" />}
+                      onApply={() => { applyCustomLayout(cl.id); setEditTarget(cl); setPanel('editor'); }}
+                      onDelete={() => setDeleteTarget(cl)}
+                      pinned={pinned}
+                      onTogglePin={() => (pinned ? unpinCustomLayout(cl.id) : pinCustomLayout(cl.id))}
+                    />
                   );
                 })}
-
-                {/* Custom layouts entry */}
-                <div className="h-px bg-th-line mx-3 my-1" />
-                <button
-                  onClick={() => setPanel('custom-list')}
-                  className={cn(
-                    'w-full flex items-center gap-2 px-3 py-1.5 text-2xs transition-colors',
-                    activeCustomLayoutId
-                      ? 'text-th-hi bg-th-elevated'
-                      : 'text-th-hi2 hover:text-th-hi hover:bg-th-elevated',
-                  )}
-                >
-                  <LayoutGrid size={11} className="shrink-0" />
-                  Custom
-                  <ChevronRight size={10} className="ml-auto text-th-hi3" />
-                </button>
               </>
             )}
+          </>
+        )}
 
-            {/* ── Custom layouts submenu ── */}
-            {panel === 'custom-list' && (
-              <>
-                <SubmenuHeader label="Custom Layouts" onBack={() => setPanel('list')} />
+        {/* ── Tile editor ── */}
+        {panel === 'editor' && (
+          <CustomLayoutEditor
+            visibleWidgets={visibleWidgets}
+            showWidget={showWidget}
+            hideWidget={hideWidget}
+            onBack={() => { setPanel('custom-list'); setEditTarget(null); }}
+            onSave={handleSaveLayout}
+            editTarget={editTarget ?? undefined}
+            onUpdate={() => {
+              updateCustomLayout(editTarget!.id);
+              setEditTarget(null);
+              setPanel('custom-list');
+            }}
+          />
+        )}
+      </MenuPopover>
 
-                {/* Create new — always first */}
-                <button
-                  onClick={() => setPanel('editor')}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-2xs text-th-hi2 hover:text-th-hi hover:bg-th-elevated transition-colors mt-0.5"
-                >
-                  <Plus size={11} className="shrink-0" />
-                  Create new
-                </button>
-
-                {/* Divider + saved layouts */}
-                {savedCustomLayouts.length > 0 && (
-                  <>
-                    <div className="h-px bg-th-line mx-3 my-1" />
-                    {savedCustomLayouts.map((cl) => {
-                      const pinned = pinnedCustomLayouts.includes(cl.id);
-                      return (
-                        <SavedItemRow
-                          key={cl.id}
-                          name={cl.name}
-                          active={activeCustomLayoutId === cl.id}
-                          icon={<LayoutGrid size={11} className="shrink-0 text-th-hi3" />}
-                          onApply={() => { applyCustomLayout(cl.id); setEditTarget(cl); setPanel('editor'); }}
-                          onDelete={() => setDeleteTarget(cl)}
-                          pinned={pinned}
-                          onTogglePin={() => (pinned ? unpinCustomLayout(cl.id) : pinCustomLayout(cl.id))}
-                        />
-                      );
-                    })}
-                  </>
-                )}
-              </>
-            )}
-
-            {/* ── Tile editor ── */}
-            {panel === 'editor' && (
-              <CustomLayoutEditor
-                visibleWidgets={visibleWidgets}
-                showWidget={showWidget}
-                hideWidget={hideWidget}
-                onBack={() => { setPanel('custom-list'); setEditTarget(null); }}
-                onSave={handleSaveLayout}
-                editTarget={editTarget ?? undefined}
-                onUpdate={() => {
-                  updateCustomLayout(editTarget!.id);
-                  setEditTarget(null);
-                  setPanel('custom-list');
-                }}
-              />
-            )}
-          </div>
-
-          {/* Delete confirmation — rendered over everything */}
-          {deleteTarget && (
-            <ConfirmDialog
-              title="Delete layout?"
-              body={deleteBody(deleteTarget.name)}
-              confirmLabel="Delete"
-              tone="danger"
-              onConfirm={handleConfirmDelete}
-              onCancel={() => setDeleteTarget(null)}
-            />
-          )}
-        </>
+      {/* Delete confirmation — rendered over everything */}
+      {deleteTarget && (
+        <ConfirmDialog
+          title="Delete layout?"
+          body={deleteBody(deleteTarget.name)}
+          confirmLabel="Delete"
+          tone="danger"
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setDeleteTarget(null)}
+        />
       )}
     </div>
   );

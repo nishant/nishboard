@@ -1,5 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   Check, ChevronRight, ClipboardCheck, Copy, Loader2, PieChart, Plus, SendHorizontal,
   ShieldQuestion, SlidersHorizontal, Square, Terminal, X,
@@ -15,7 +14,7 @@ import {
   respondToClaudePrompt, promptSummary, openClaudeCliLogin,
 } from './useClaude';
 import { HeaderAction } from '../../components/HeaderAction';
-import { Badge, Button, EmptyState, ErrorState, IconButton, Meter, Segmented, SkeletonLines, Textarea, cn, toneFor, Label } from '@nish/ui';
+import { Badge, Button, EmptyState, ErrorState, IconButton, Label, Meter, Popover, Segmented, SkeletonLines, Textarea, cn, toneFor } from '@nish/ui';
 
 /** WidgetShell header actions: New chat always; Stop only mid-stream. */
 export function ClaudeActions() {
@@ -108,38 +107,29 @@ const MD_COMPONENTS = { a: MdLink };
 
 // ── Small popover scaffold ────────────────────────────────────────────────────
 
-/** Panel anchored above `anchor`, rendered through a PORTAL with fixed
- *  positioning — the WidgetShell's overflow-hidden would otherwise clip it in
- *  narrow grid tiles (the usage bars looked mis-filled because their left side
- *  was cut off at the tile edge, while the right-aligned % labels survived).
- *  The fixed backdrop closes on any outside click. */
-function Popover({ anchor, onClose, children, wide = false }: {
-  anchor: HTMLElement | null;
+/** The shared Popover above its trigger, right-aligned. It portals, so the
+ *  WidgetShell's overflow-hidden cannot clip it in narrow grid tiles (the usage
+ *  bars once looked mis-filled because their left side was cut off). */
+function ComposerPopover({ anchor, onClose, label, children, wide = false }: {
+  anchor: React.RefObject<HTMLElement | null>;
   onClose: () => void;
+  label: string;
   children: React.ReactNode;
   wide?: boolean;
 }) {
-  const width = wide ? 256 : 208; // Tailwind w-64 / w-52 in px
-  const [pos, setPos] = useState<{ left: number; bottom: number } | null>(null);
-  useLayoutEffect(() => {
-    if (!anchor) return;
-    const r = anchor.getBoundingClientRect();
-    // Right-align to the trigger, clamped inside the viewport.
-    const left = Math.max(8, Math.min(r.right - width, window.innerWidth - width - 8));
-    setPos({ left, bottom: window.innerHeight - r.top + 6 });
-  }, [anchor, width]);
-  if (!pos) return null;
-  return createPortal(
-    <>
-      <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div
-        className="fixed z-50 rounded-lg border border-th-line bg-th-elevated shadow-pop p-2.5"
-        style={{ left: pos.left, bottom: pos.bottom, width }}
-      >
-        {children}
-      </div>
-    </>,
-    document.body,
+  return (
+    <Popover
+      open
+      onOpenChange={(open) => { if (!open) onClose(); }}
+      anchor={anchor}
+      side="top"
+      align="end"
+      width={wide ? 256 : 208}
+      aria-label={label}
+      className="p-2.5 text-xs"
+    >
+      {children}
+    </Popover>
   );
 }
 
@@ -157,7 +147,7 @@ function modelLabel(value: string | null): string {
   return MODEL_OPTIONS.find((o) => o.value === value)?.label ?? value ?? 'Default';
 }
 
-function ModelEffortPanel({ anchor, onClose }: { anchor: HTMLElement | null; onClose: () => void }) {
+function ModelEffortPanel({ anchor, onClose }: { anchor: React.RefObject<HTMLElement | null>; onClose: () => void }) {
   const chatModel = useClaudeStore((s) => s.chatModel);
   const chatEffort = useClaudeStore((s) => s.chatEffort);
   const sessionModel = useClaudeStore((s) => s.model);
@@ -166,12 +156,14 @@ function ModelEffortPanel({ anchor, onClose }: { anchor: HTMLElement | null; onC
   const effortIdx = chatEffort ? CLAUDE_EFFORTS.indexOf(chatEffort) : 2;
 
   return (
-    <Popover anchor={anchor} onClose={onClose}>
+    <ComposerPopover anchor={anchor} onClose={onClose} label="Model and effort">
       <Label className="block text-3xs font-semibold mb-1.5">Model</Label>
       <div className="flex flex-col gap-0.5">
         {MODEL_OPTIONS.map((opt) => (
           <button
             key={opt.label}
+            type="button"
+            aria-pressed={opt.value === chatModel}
             onClick={() => setChatModel(opt.value)}
             className={cn(
               'flex items-center justify-between px-2 py-1 rounded text-2xs transition-colors',
@@ -215,7 +207,7 @@ function ModelEffortPanel({ anchor, onClose }: { anchor: HTMLElement | null; onC
           Session model: {sessionModel}
         </p>
       )}
-    </Popover>
+    </ComposerPopover>
   );
 }
 
@@ -238,12 +230,12 @@ function usageTone(pct: number): 'info' | 'warn' | 'loss' {
   return t === 'ok' ? 'info' : t;
 }
 
-function UsagePanel({ anchor, onClose }: { anchor: HTMLElement | null; onClose: () => void }) {
+function UsagePanel({ anchor, onClose }: { anchor: React.RefObject<HTMLElement | null>; onClose: () => void }) {
   const usage = useClaudeUsage(true);
   const lastContext = useClaudeStore((s) => s.lastContextTokens);
   const contextPct = lastContext !== null ? Math.min(100, (lastContext / CLAUDE_CONTEXT_WINDOW) * 100) : null;
   return (
-    <Popover anchor={anchor} onClose={onClose} wide>
+    <ComposerPopover anchor={anchor} onClose={onClose} label="Usage" wide>
       {lastContext !== null && contextPct !== null && (
         <div className="mb-2.5">
           <div className="flex items-baseline justify-between mb-0.5">
@@ -284,13 +276,16 @@ function UsagePanel({ anchor, onClose }: { anchor: HTMLElement | null; onClose: 
       ) : (
         <p className="text-3xs text-th-hi3">No usage windows reported.</p>
       )}
-    </Popover>
+    </ComposerPopover>
   );
 }
 
 // ── Slash-command autocomplete ────────────────────────────────────────────────
 
-function SlashMenu({ query, selected, onPick }: {
+/** Slash-command suggestions: a listbox driven from the composer (the textarea
+ *  keeps focus and points at the selected option via aria-activedescendant). */
+function SlashMenu({ id, query, selected, onPick }: {
+  id: string;
   query: string;
   selected: number;
   onPick: (name: string) => void;
@@ -305,9 +300,14 @@ function SlashMenu({ query, selected, onPick }: {
   }, [meta.data, query]);
 
   return (
-    <div className="absolute bottom-full left-0 right-0 mb-1.5 z-50 rounded-lg border border-th-line bg-th-elevated shadow-pop py-1 max-h-44 overflow-y-auto">
+    <div
+      id={id}
+      role="listbox"
+      aria-label="Commands and skills"
+      className="absolute bottom-full left-0 right-0 mb-1.5 z-50 rounded-lg border border-th-line bg-th-elevated shadow-pop py-1 max-h-44 overflow-y-auto"
+    >
       {items.length === 0 ? (
-        <p className="px-2.5 py-1.5 text-3xs text-th-hi3">
+        <p role="presentation" className="px-2.5 py-1.5 text-3xs text-th-hi3">
           {meta.data && meta.data.slashCommands.length === 0
             ? 'Commands appear after your first chat.'
             : 'No matching commands.'}
@@ -316,6 +316,11 @@ function SlashMenu({ query, selected, onPick }: {
         items.map((c, i) => (
           <button
             key={c.name}
+            id={`${id}-${i}`}
+            type="button"
+            role="option"
+            tabIndex={-1}
+            aria-selected={i === selected % Math.max(1, items.length)}
             data-slash-idx={i}
             onClick={() => onPick(c.name)}
             onMouseDown={(e) => e.preventDefault()} // keep textarea focus
@@ -638,6 +643,7 @@ export function ClaudeWidget() {
   const [draft, setDraft] = useState('');
   const [panel, setPanel] = useState<'model' | 'usage' | null>(null);
   const [slashSel, setSlashSel] = useState(0);
+  const slashId = useId();
   const listRef = useRef<HTMLDivElement | null>(null);
   const modelBtnRef = useRef<HTMLButtonElement | null>(null);
   const usageBtnRef = useRef<HTMLButtonElement | null>(null);
@@ -783,7 +789,7 @@ export function ClaudeWidget() {
       {/* Input row */}
       <div className="relative shrink-0 px-2 pb-1 pt-1.5 flex items-end gap-1.5">
         {slashQuery !== null && (
-          <SlashMenu query={slashQuery} selected={slashSel} onPick={pickSlash} />
+          <SlashMenu id={slashId} query={slashQuery} selected={slashSel} onPick={pickSlash} />
         )}
         <Textarea
           size="sm"
@@ -792,6 +798,13 @@ export function ClaudeWidget() {
           onKeyDown={onComposerKeyDown}
           placeholder={isStreaming ? 'Streaming… (esc to stop)' : 'Ask Claude — / for commands'}
           aria-label="Message Claude"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={slashQuery !== null}
+          aria-controls={slashQuery !== null ? slashId : undefined}
+          aria-activedescendant={
+            slashQuery !== null && slashItems.length > 0 ? `${slashId}-${slashSel % slashItems.length}` : undefined
+          }
           rows={2}
           spellCheck={false}
           className="flex-1 resize-none text-xs"
@@ -824,6 +837,7 @@ export function ClaudeWidget() {
             onClick={() => setPanel(panel === 'model' ? null : 'model')}
             title="Model & effort"
             aria-label="Model & effort"
+            aria-haspopup="dialog"
             aria-expanded={panel === 'model'}
             icon={<SlidersHorizontal size={10} />}
             className={cn('text-3xs', panel === 'model' ? 'bg-th-elevated text-th-hi' : 'text-th-hi3')}
@@ -836,14 +850,15 @@ export function ClaudeWidget() {
             label="Usage"
             size="xs"
             active={panel === 'usage'}
+            aria-haspopup="dialog"
             aria-expanded={panel === 'usage'}
             onClick={() => setPanel(panel === 'usage' ? null : 'usage')}
           >
             <PieChart size={11} />
           </IconButton>
         </div>
-        {panel === 'model' && <ModelEffortPanel anchor={modelBtnRef.current} onClose={() => setPanel(null)} />}
-        {panel === 'usage' && <UsagePanel anchor={usageBtnRef.current} onClose={() => setPanel(null)} />}
+        {panel === 'model' && <ModelEffortPanel anchor={modelBtnRef} onClose={() => setPanel(null)} />}
+        {panel === 'usage' && <UsagePanel anchor={usageBtnRef} onClose={() => setPanel(null)} />}
       </div>
     </div>
   );

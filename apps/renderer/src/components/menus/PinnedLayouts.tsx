@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { LayoutGrid, ChevronDown } from 'lucide-react';
 import { useLayoutStore } from '../../store/layoutStore';
-import { Backdrop, noDragStyle } from './primitives';
-import { Button, cn } from '@nish/ui';
+import { Button, DropdownMenu, MenuItem, cn } from '@nish/ui';
 
 /** One titlebar quick-switch chip — a pinned preset (name-keyed) or a pinned
  *  saved custom layout (id-keyed). */
@@ -52,43 +51,31 @@ export function PinnedLayoutsMenu() {
   const label = entries.find((e) => e.active)?.label ?? 'Layouts';
 
   return (
-    <div className="relative" style={noDragStyle}>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className={cn(
-          'flex items-center gap-1 pl-1.5 pr-1 py-0.5 rounded text-2xs font-medium transition-colors max-w-[140px]',
-          open
-            ? 'bg-th-elevated text-th-hi'
-            : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated',
-        )}
-        title="Switch pinned layout"
+    <div className="app-region-no-drag">
+      <DropdownMenu
+        open={open}
+        onOpenChange={setOpen}
+        aria-label="Pinned layouts"
+        className="app-region-no-drag min-w-[140px]"
+        trigger={
+          <Button
+            variant="ghost"
+            size="xs"
+            title="Switch pinned layout"
+            className={cn('max-w-[140px] gap-1 pl-1.5 pr-1', open ? 'bg-th-elevated text-th-hi' : 'text-th-hi3')}
+          >
+            <LayoutGrid size={11} className="shrink-0" />
+            <span className="truncate">{label}</span>
+            <ChevronDown size={10} className={cn('shrink-0 transition-transform', open && 'rotate-180')} />
+          </Button>
+        }
       >
-        <LayoutGrid size={11} className="shrink-0" />
-        <span className="truncate">{label}</span>
-        <ChevronDown size={10} className={cn('shrink-0 transition-transform', open && 'rotate-180')} />
-      </button>
-
-      {open && (
-        <>
-          <Backdrop onClose={() => setOpen(false)} />
-          <div className="absolute left-0 top-full mt-1 z-50 bg-th-surface border border-th-line rounded-lg shadow-pop py-1 min-w-[140px]">
-            {entries.map((e) => (
-              <button
-                key={e.key}
-                onClick={() => { e.apply(); setOpen(false); }}
-                className={cn(
-                  'w-full text-left px-3 py-1.5 text-2xs transition-colors',
-                  e.active
-                    ? 'bg-th-elevated text-th-hi'
-                    : 'text-th-hi2 hover:bg-th-elevated hover:text-th-hi',
-                )}
-              >
-                {e.label}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
+        {entries.map((e) => (
+          <MenuItem key={e.key} active={e.active} onSelect={e.apply} className="text-2xs">
+            {e.label}
+          </MenuItem>
+        ))}
+      </DropdownMenu>
     </div>
   );
 }
@@ -99,7 +86,7 @@ export function InlinePinnedLayouts() {
   if (entries.length === 0) return null;
 
   return (
-    <div style={noDragStyle} className="flex items-center gap-0.5 min-w-0">
+    <div className="app-region-no-drag flex items-center gap-0.5 min-w-0">
       {entries.map((e) => (
         <Button
           key={e.key}

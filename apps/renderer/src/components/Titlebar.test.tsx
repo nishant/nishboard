@@ -61,3 +61,33 @@ describe('Titlebar weather-in-clock', () => {
     expect(screen.getByText('nishboard')).toBeTruthy();
   });
 });
+
+describe('Titlebar menus', () => {
+  it('opens the Widgets menu as a labelled dialog and closes it on Escape', async () => {
+    const { fireEvent, waitFor } = await import('@testing-library/react');
+    renderTitlebar();
+    const trigger = screen.getByRole('button', { name: 'Widgets' });
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(trigger);
+    expect(screen.getByRole('dialog', { name: 'Widgets' })).toBeTruthy();
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Widgets' })).toBeNull());
+  });
+
+  it('keeps the Themes and Layouts panels out of the Electron drag region', async () => {
+    const { fireEvent } = await import('@testing-library/react');
+    // ThemeToggle (inside the Themes panel) watches the OS scheme.
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: false, media: query, onchange: null,
+      addEventListener: () => {}, removeEventListener: () => {}, addListener: () => {}, removeListener: () => {},
+      dispatchEvent: () => false,
+    }));
+    renderTitlebar();
+    fireEvent.click(screen.getByRole('button', { name: 'Themes' }));
+    expect(screen.getByRole('dialog', { name: 'Themes' }).className).toContain('app-region-no-drag');
+    fireEvent.click(screen.getByRole('button', { name: 'Themes' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Layouts' }));
+    expect(screen.getByRole('dialog', { name: 'Layouts' }).className).toContain('app-region-no-drag');
+  });
+});

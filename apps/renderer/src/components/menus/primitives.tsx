@@ -1,38 +1,81 @@
-import { useState } from 'react';
-import type { ReactNode, CSSProperties } from 'react';
+import { forwardRef, useState } from 'react';
+import type { ButtonHTMLAttributes, ReactNode, CSSProperties, RefObject } from 'react';
 import { ArrowLeft, ChevronDown, ChevronUp, Pin, X } from 'lucide-react';
 import { WIDGET_CATEGORIES, WIDGET_TITLES } from '../../lib/layouts';
 import type { WidgetId } from '../../lib/layouts';
 import { orderedCategoryWidgets, useWidgetUiStore } from '../../store/widgetUiStore';
 import { useAppSettingsStore } from '../../store/settingsStore';
-import { Button, IconButton, cn, Label } from '@nish/ui';
-import { Input } from '../nishGaps';
+import { Button, IconButton, Popover, cn, Label } from '@nish/ui';
+import { Input, menuRowClass } from '../nishGaps';
 
 // WebkitAppRegion is a non-standard Electron CSS property missing from React's
 // CSSProperties — the cast is unavoidable.
 export const dragStyle = { WebkitAppRegion: 'drag' } as CSSProperties;
 export const noDragStyle = { WebkitAppRegion: 'no-drag' } as CSSProperties;
 
-export function Backdrop({ onClose }: { onClose: () => void }) {
+/** Right-side titlebar menu trigger. `compact` → the shared IconButton (xs,
+ *  label = name); otherwise a ghost xs Button with icon + text. `open` gives it
+ *  the pressed look. Forwards its ref so Popover / DropdownMenu can anchor to it.
+ *  `extra` renders after the label (ThemeMenu's swatch dot). */
+export const MenuTrigger = forwardRef<HTMLButtonElement, {
+  compact: boolean;
+  open: boolean;
+  name: string;
+  icon: (size: number) => ReactNode;
+  extra?: ReactNode;
+} & Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'name'>>(function MenuTrigger(
+  { compact, open, name, icon, extra, className, ...rest },
+  ref,
+) {
+  if (compact) {
+    return (
+      <IconButton ref={ref} label={name} size="xs" active={open} className={cn('relative', className)} {...rest}>
+        {icon(13)}
+        {extra}
+      </IconButton>
+    );
+  }
   return (
-    <div className="fixed inset-0 z-40" style={noDragStyle} onClick={onClose} />
+    <Button
+      ref={ref}
+      variant="ghost"
+      size="xs"
+      icon={icon(11)}
+      className={cn('font-normal', open ? 'bg-th-elevated text-th-hi' : 'text-th-hi3', className)}
+      {...rest}
+    >
+      {name}
+      {extra}
+    </Button>
+  );
+});
+
+/** A titlebar menu panel: the shared Popover (portal, Escape, outside press,
+ *  focus return), right-aligned under its trigger, dense, and outside the
+ *  Electron drag region. */
+export function MenuPopover({
+  open, onOpenChange, anchor, label, className, children,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  anchor: RefObject<HTMLElement | null>;
+  label: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <Popover
+      open={open}
+      onOpenChange={onOpenChange}
+      anchor={anchor}
+      align="end"
+      aria-label={label}
+      className={cn('app-region-no-drag p-0 py-1 text-xs min-w-[148px]', className)}
+    >
+      {children}
+    </Popover>
   );
 }
-
-// Right-side titlebar menu button. `compact` → icon-only 24px square (label in
-// `title`); otherwise icon + text label.
-export const menuBtn = (open: boolean, compact: boolean) =>
-  cn(
-    compact
-      ? 'flex items-center justify-center w-6 h-6 rounded transition-colors'
-      : 'flex items-center gap-1.5 px-2 py-0.5 rounded text-2xs transition-colors',
-    open
-      ? 'bg-th-elevated text-th-hi'
-      : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated',
-  );
-
-export const menuPanel =
-  'absolute right-0 top-full mt-1 z-50 bg-th-surface border border-th-line rounded-lg shadow-pop py-1 min-w-[148px]';
 
 /** Back-arrow + uppercase label header used by every submenu panel. */
 export function SubmenuHeader({ label, onBack }: { label: string; onBack: () => void }) {
@@ -213,12 +256,8 @@ export function SavedItemRow({
     <div className="flex items-center gap-1 px-1 group">
       <button
         onClick={onApply}
-        className={cn(
-          'flex-1 flex items-center gap-2 px-2 py-1.5 text-2xs rounded transition-colors min-w-0',
-          active
-            ? 'text-th-hi bg-th-elevated'
-            : 'text-th-hi2 hover:text-th-hi hover:bg-th-elevated',
-        )}
+        aria-current={active || undefined}
+        className={cn(menuRowClass(active), 'flex-1 w-auto px-2 rounded min-w-0')}
       >
         {icon}
         <span className="truncate">{name}</span>

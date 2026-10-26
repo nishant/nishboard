@@ -41,6 +41,20 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(functi
   return <NishSearchInput ref={ref} size={size} inputClassName={cn(DENSE_TEXT[size], inputClassName)} {...rest} />;
 });
 
+// ── Menu rows outside a DropdownMenu ─────────────────────────────────────────
+// The titlebar menus hold IconButtons, inputs and color pickers, so they are
+// Popovers (role=dialog), not DropdownMenus, and MenuItem (role=menuitem,
+// tabIndex -1) does not fit there. This is MenuItem's row recipe for a plain
+// button (gap: a `menuItemClass({ active, danger })` export).
+
+/** MenuItem's row look for a plain, tabbable button. */
+export function menuRowClass(active = false): string {
+  return cn(
+    'flex w-full select-none items-center gap-2 px-3 py-1.5 text-left text-2xs transition-colors pointer-coarse:min-h-11',
+    active ? 'bg-th-overlay font-medium text-th-hi' : 'text-th-hi2 hover:bg-th-overlay hover:text-th-hi',
+  );
+}
+
 // ── Neutral meter fill ───────────────────────────────────────────────────────
 // Meter has no neutral tone (gap: tone="neutral" → bg-th-hi3). Pass this as the
 // Meter's className for a gray fill (e.g. swap usage).

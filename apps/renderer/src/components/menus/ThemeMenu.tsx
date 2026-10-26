@@ -1,15 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Palette, ArrowLeft, ChevronRight, Plus } from 'lucide-react';
 import { useThemeStore } from '../../store/themeStore';
 import type { CustomColors, SavedCustomTheme } from '../../store/themeStore';
 import { CUSTOM_THEME, THEMES, THEME_PRESETS } from '../../themes';
 import { parseHex } from '../../lib/colorUtils';
 import {
-  Backdrop, menuBtn, menuPanel, noDragStyle,
+  MenuPopover, MenuTrigger,
   SubmenuHeader, SaveAsForm, SavedItemRow, deleteBody,
 } from './primitives';
 import { ConfirmDialog, IconButton, ThemeToggle, cn, Label } from '@nish/ui';
-import { Input } from '../nishGaps';
+import { Input, menuRowClass } from '../nishGaps';
 
 // ── ColorPicker ───────────────────────────────────────────────────────────────
 
@@ -163,6 +163,7 @@ export function ThemeMenu({ compact }: { compact: boolean }) {
   const [panel, setPanel]               = useState<ThemePanel>('list');
   const [deleteTarget, setDeleteTarget] = useState<SavedCustomTheme | null>(null);
   const [editTarget, setEditTarget]     = useState<SavedCustomTheme | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   // Swatch for the button: use primary color when custom is active
   const activeSwatch =
@@ -198,138 +199,142 @@ export function ThemeMenu({ compact }: { compact: boolean }) {
   }
 
   return (
-    <div className="relative" style={noDragStyle}>
-      <button onClick={handleToggle} className={cn(menuBtn(open, compact), compact && 'relative')} title="Themes">
-        <Palette size={compact ? 13 : 11} />
-        {!compact && 'Themes'}
-        <span
-          className={compact
-            ? 'absolute bottom-0.5 right-0.5 h-1.5 w-1.5 rounded-full ring-1 ring-th-bg'
-            : 'h-2 w-2 rounded-full shrink-0 ring-1 ring-th-line'}
-          style={{ background: activeSwatch }}
-        />
-      </button>
+    <div className="app-region-no-drag">
+      <MenuTrigger
+        ref={triggerRef}
+        compact={compact}
+        open={open}
+        name="Themes"
+        icon={(size) => <Palette size={size} />}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={handleToggle}
+        extra={
+          <span
+            aria-hidden="true"
+            className={compact
+              ? 'absolute bottom-0.5 right-0.5 h-1.5 w-1.5 rounded-full ring-1 ring-th-bg'
+              : 'h-2 w-2 rounded-full shrink-0 ring-1 ring-th-line'}
+            style={{ background: activeSwatch }}
+          />
+        }
+      />
 
-      {open && (
-        <>
-          <Backdrop onClose={handleClose} />
+      <MenuPopover
+        open={open}
+        onOpenChange={(next) => { if (!next) handleClose(); }}
+        anchor={triggerRef}
+        label="Themes"
+        className={cn('min-w-[220px] max-h-[calc(100vh-48px)] overflow-y-auto', panel !== 'list' && 'min-w-[248px]')}
+      >
+        {/* ── Mode switch + preset list ── */}
+        {panel === 'list' && (
+          <>
+            <div className="px-2 pt-1 pb-2">
+              <ThemeToggle labels block />
+            </div>
+            <Label className="block px-3 pt-1 pb-0.5 text-3xs">Presets</Label>
+            {[...THEME_PRESETS, CUSTOM_THEME].map((t) => {
+              const swatch = t.id === 'custom' ? customColors.primary : t.swatch;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  aria-current={theme === t.id || undefined}
+                  onClick={() => {
+                    if (t.id === 'custom') {
+                      setTheme('custom');
+                      setPanel('custom-list');
+                    } else {
+                      setTheme(t.id);
+                      handleClose();
+                    }
+                  }}
+                  className={cn(menuRowClass(theme === t.id), 'gap-2.5')}
+                >
+                  <span
+                    className="h-3 w-3 rounded-full shrink-0 ring-1 ring-th-line-strong"
+                    style={{ background: swatch }}
+                  />
+                  {t.name}
+                  {t.id === 'custom' && (
+                    <ChevronRight size={10} className="ml-auto text-th-hi3" />
+                  )}
+                </button>
+              );
+            })}
+          </>
+        )}
 
-          <div
-            className={cn(menuPanel, 'min-w-[220px] max-h-[calc(100vh-48px)] overflow-y-auto', panel !== 'list' && 'min-w-[248px]')}
-            style={noDragStyle}
-          >
-            {/* ── Mode switch + preset list ── */}
-            {panel === 'list' && (
+        {/* ── Custom themes submenu ── */}
+        {panel === 'custom-list' && (
+          <>
+            <SubmenuHeader label="Custom Themes" onBack={() => setPanel('list')} />
+
+            {/* Create new — always first */}
+            <button
+              type="button"
+              onClick={() => setPanel('editor')}
+              className={cn(menuRowClass(), 'mt-0.5')}
+            >
+              <Plus size={11} className="shrink-0" />
+              Create new
+            </button>
+
+            {/* Divider + saved themes */}
+            {savedCustomThemes.length > 0 && (
               <>
-                <div className="px-2 pt-1 pb-2">
-                  <ThemeToggle labels block />
-                </div>
-                <Label className="block px-3 pt-1 pb-0.5 text-3xs">Presets</Label>
-                {[...THEME_PRESETS, CUSTOM_THEME].map((t) => {
-                  const swatch = t.id === 'custom' ? customColors.primary : t.swatch;
-                  return (
-                    <button
-                      key={t.id}
-                      onClick={() => {
-                        if (t.id === 'custom') {
-                          setTheme('custom');
-                          setPanel('custom-list');
-                        } else {
-                          setTheme(t.id);
-                          handleClose();
-                        }
-                      }}
-                      className={cn(
-                        'w-full flex items-center gap-2.5 px-3 py-1.5 text-2xs transition-colors',
-                        theme === t.id
-                          ? 'text-th-hi bg-th-elevated'
-                          : 'text-th-hi2 hover:text-th-hi hover:bg-th-elevated',
-                      )}
-                    >
+                <div role="separator" className="h-px bg-th-line mx-3 my-1" />
+                {savedCustomThemes.map((t) => (
+                  <SavedItemRow
+                    key={t.id}
+                    name={t.name}
+                    active={activeCustomId === t.id && theme === 'custom'}
+                    icon={
                       <span
                         className="h-3 w-3 rounded-full shrink-0 ring-1 ring-th-line-strong"
-                        style={{ background: swatch }}
+                        style={{ background: t.colors.primary }}
                       />
-                      {t.name}
-                      {t.id === 'custom' && (
-                        <ChevronRight size={10} className="ml-auto text-th-hi3" />
-                      )}
-                    </button>
-                  );
-                })}
+                    }
+                    onApply={() => { applyCustomTheme(t.id); setEditTarget(t); setPanel('editor'); }}
+                    onDelete={() => setDeleteTarget(t)}
+                  />
+                ))}
               </>
             )}
+          </>
+        )}
 
-            {/* ── Custom themes submenu ── */}
-            {panel === 'custom-list' && (
-              <>
-                <SubmenuHeader label="Custom Themes" onBack={() => setPanel('list')} />
+        {/* ── Color editor ── */}
+        {panel === 'editor' && (
+          <CustomEditor
+            colors={customColors}
+            onChange={(colors) => {
+              setCustomColors(colors);
+              setTheme('custom');
+            }}
+            onBack={() => { setPanel('custom-list'); setEditTarget(null); }}
+            onSave={handleSaveTheme}
+            editTarget={editTarget ?? undefined}
+            onUpdate={() => {
+              updateCustomTheme(editTarget!.id);
+              setEditTarget(null);
+              setPanel('custom-list');
+            }}
+          />
+        )}
+      </MenuPopover>
 
-                {/* Create new — always first */}
-                <button
-                  onClick={() => setPanel('editor')}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-2xs text-th-hi2 hover:text-th-hi hover:bg-th-elevated transition-colors mt-0.5"
-                >
-                  <Plus size={11} className="shrink-0" />
-                  Create new
-                </button>
-
-                {/* Divider + saved themes */}
-                {savedCustomThemes.length > 0 && (
-                  <>
-                    <div className="h-px bg-th-line mx-3 my-1" />
-                    {savedCustomThemes.map((t) => (
-                      <SavedItemRow
-                        key={t.id}
-                        name={t.name}
-                        active={activeCustomId === t.id && theme === 'custom'}
-                        icon={
-                          <span
-                            className="h-3 w-3 rounded-full shrink-0 ring-1 ring-th-line-strong"
-                            style={{ background: t.colors.primary }}
-                          />
-                        }
-                        onApply={() => { applyCustomTheme(t.id); setEditTarget(t); setPanel('editor'); }}
-                        onDelete={() => setDeleteTarget(t)}
-                      />
-                    ))}
-                  </>
-                )}
-              </>
-            )}
-
-            {/* ── Color editor ── */}
-            {panel === 'editor' && (
-              <CustomEditor
-                colors={customColors}
-                onChange={(colors) => {
-                  setCustomColors(colors);
-                  setTheme('custom');
-                }}
-                onBack={() => { setPanel('custom-list'); setEditTarget(null); }}
-                onSave={handleSaveTheme}
-                editTarget={editTarget ?? undefined}
-                onUpdate={() => {
-                  updateCustomTheme(editTarget!.id);
-                  setEditTarget(null);
-                  setPanel('custom-list');
-                }}
-              />
-            )}
-          </div>
-
-          {/* Delete confirmation modal — rendered over everything */}
-          {deleteTarget && (
-            <ConfirmDialog
-              title="Delete theme?"
-              body={deleteBody(deleteTarget.name)}
-              confirmLabel="Delete"
-              tone="danger"
-              onConfirm={handleConfirmDelete}
-              onCancel={() => setDeleteTarget(null)}
-            />
-          )}
-        </>
+      {/* Delete confirmation modal — rendered over everything */}
+      {deleteTarget && (
+        <ConfirmDialog
+          title="Delete theme?"
+          body={deleteBody(deleteTarget.name)}
+          confirmLabel="Delete"
+          tone="danger"
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setDeleteTarget(null)}
+        />
       )}
     </div>
   );
