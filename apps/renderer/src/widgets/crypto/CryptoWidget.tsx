@@ -1,6 +1,5 @@
 import { useRef, useState, type KeyboardEvent } from 'react';
 import { Pencil, Plus, X, TrendingUp, TrendingDown } from 'lucide-react';
-import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { useCrypto } from './useCrypto';
 import { useCryptoStore } from '../../store/cryptoStore';
 import { useCryptoUiStore } from '../../store/cryptoUiStore';
@@ -8,8 +7,8 @@ import { ErrorState } from '../../components/ErrorState';
 import { HeaderAction } from '../../components/HeaderAction';
 import { RefreshAction } from '../../components/RefreshAction';
 import type { CryptoCoinData } from '@dash/shared';
-import { EmptyState, SkeletonLines } from '@nish/ui';
-import { tk } from '../../lib/tokens';
+import { Card, EmptyState, IconButton, Modal, SkeletonLines, Sparkline, cn } from '@nish/ui';
+import { Input } from '../../components/nishGaps';
 
 function fmtPrice(n: number): string {
   if (n >= 1000) return n.toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -20,33 +19,34 @@ function fmtPrice(n: number): string {
 
 function CoinCard({ coin }: { coin: CryptoCoinData }) {
   const up = coin.change24hPercent >= 0;
-  const color = up ? tk('ok-fill') : tk('loss-fill');
-  const points = coin.sparkline7d.map((v) => ({ v }));
 
   return (
     // @container: in a small tile the change % wraps under the name instead of
     // running past the card's right edge.
-    <div className="@container bg-th-elevated/50 rounded-lg p-2.5 flex flex-col gap-1.5 min-w-0">
+    <Card variant="inset" padding="none" className="@container p-2.5 flex flex-col gap-1.5 min-w-0">
       <div className="flex items-center gap-x-1.5 gap-y-0.5 min-w-0 @max-[8rem]:flex-wrap">
         <img src={coin.image} alt="" className="w-4 h-4 rounded-full shrink-0" />
         <span className="text-th-hi text-xs font-medium truncate flex-1 min-w-0">{coin.name}</span>
         <span className="text-th-hi3 text-[10px] uppercase shrink-0">{coin.symbol}</span>
-        <span className={`flex items-center gap-0.5 text-[10px] tabular-nums shrink-0 @max-[8rem]:basis-full ${up ? 'text-th-ok' : 'text-th-loss'}`}>
+        <span className={cn('flex items-center gap-0.5 text-[10px] tabular-nums shrink-0 @max-[8rem]:basis-full', up ? 'text-th-ok' : 'text-th-loss')}>
           {up ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
           {up ? '+' : ''}{coin.change24hPercent.toFixed(2)}%
         </span>
       </div>
       <span className="text-th-hi text-lg leading-none tabular-nums">${fmtPrice(coin.priceUsd)}</span>
-      {points.length > 1 && (
-        <div className="crypto-spark h-8 -mx-1">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={points} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
-              <Area dataKey="v" stroke={color} strokeWidth={1.2} fill={color} fillOpacity={0.12} dot={false} isAnimationActive={false} />
-            </AreaChart>
-          </ResponsiveContainer>
+      {coin.sparkline7d.length > 1 && (
+        <div className="crypto-spark h-8">
+          <Sparkline
+            values={coin.sparkline7d}
+            label={`${coin.name} price, last 7 days`}
+            tone={up ? 'ok' : 'loss'}
+            height={32}
+            fill
+            className="w-full"
+          />
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -65,45 +65,42 @@ function WatchlistModal({ onClose }: { onClose: () => void }) {
   }
   function onKey(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter') submit();
-    if (e.key === 'Escape') onClose();
   }
 
   return (
-    <div className="absolute inset-0 z-10 flex items-center justify-center bg-th-scrim/60 rounded-lg">
-      <div className="bg-th-surface border border-th-line rounded-xl p-4 w-72 max-h-[80%] flex flex-col gap-3 shadow-pop">
-        <div className="flex items-center justify-between">
-          <span className="text-th-hi font-semibold text-sm">Edit Coins</span>
-          <button onClick={onClose} className="text-th-hi3 hover:text-th-hi transition-colors">
-            <X size={16} />
-          </button>
-        </div>
-
+    <Modal title="Edit Coins" onClose={onClose}>
+      <div className="flex flex-col gap-3">
         <div className="flex gap-2">
-          <input
+          <Input
             ref={inputRef}
+            size="sm"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKey}
             placeholder="Add coin id… e.g. bitcoin"
-            className="flex-1 bg-th-elevated border border-th-line rounded-lg px-3 py-1.5 text-th-hi text-xs font-mono placeholder:text-th-ghost focus:outline-none focus:border-th-hi3"
+            aria-label="Coin id"
+            className="flex-1 font-mono"
             autoFocus
           />
-          <button onClick={submit} className="bg-th-overlay hover:bg-th-overlay/70 text-th-hi rounded-lg px-2.5 py-1.5 transition-colors">
+          <IconButton label="Add coin" size="sm" variant="subtle" onClick={submit}>
             <Plus size={14} />
-          </button>
+          </IconButton>
         </div>
 
-        <div className="flex-1 overflow-y-auto flex flex-col gap-1">
+        <div className="flex flex-col gap-1">
           {watchlist.map((id) => (
-            <div key={id} className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-th-elevated group">
+            <Card key={id} variant="inset" padding="none" className="flex items-center justify-between px-2.5 py-1 group">
               <span className="font-mono text-th-hi text-xs">{id}</span>
-              <button
+              <IconButton
+                label={`Remove ${id}`}
+                size="xs"
+                tone="danger"
                 onClick={() => removeCoin(id)}
-                className="text-th-hi3 hover:text-th-loss transition-colors opacity-0 group-hover:opacity-100"
+                className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
               >
                 <X size={12} />
-              </button>
-            </div>
+              </IconButton>
+            </Card>
           ))}
         </div>
 
@@ -112,7 +109,7 @@ function WatchlistModal({ onClose }: { onClose: () => void }) {
           Unknown ids are silently dropped from results.
         </p>
       </div>
-    </div>
+    </Modal>
   );
 }
 

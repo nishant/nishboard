@@ -1,7 +1,11 @@
 import type { ReactNode } from 'react';
-import { cn } from '@nish/ui';
+import { IconButton } from '@nish/ui';
 
-/** Icon button for the WidgetShell header action row — uniform 22px square. */
+/** Icon button for the WidgetShell header action row: the shared IconButton
+ *  (xs, ghost; danger tone for destructive actions), held at 22px so the
+ *  WidgetShell header keeps its height (TITLEBAR_PX in store/layoutStore.ts).
+ *  `title` becomes the IconButton label, which sets both aria-label and title
+ *  (tests query by title). */
 export function HeaderAction({
   title,
   onClick,
@@ -16,20 +20,15 @@ export function HeaderAction({
   children: ReactNode;
 }) {
   return (
-    <button
+    <IconButton
+      label={title}
+      size="xs"
+      active={active}
+      tone={danger ? 'danger' : 'neutral'}
       onClick={onClick}
-      title={title}
-      aria-label={title}
-      className={cn(
-        'flex items-center justify-center w-[22px] h-[22px] rounded transition-colors',
-        active
-          ? 'bg-th-overlay text-th-hi'
-          : danger
-            ? 'text-th-hi3 hover:text-th-loss hover:bg-th-loss-soft'
-            : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated/60',
-      )}
+      className="size-[22px] rounded"
     >
       {children}
-    </button>
+    </IconButton>
   );
 }

@@ -1,6 +1,5 @@
 import { memo, useState } from 'react';
-import { AreaChart, Area, ResponsiveContainer } from 'recharts';
-import { Activity, BarChart2, Gauge, Loader2, Radio, Settings, Wifi } from 'lucide-react';
+import { Activity, BarChart2, Gauge, Radio, Settings, Wifi } from 'lucide-react';
 import { useNetwork, type NetworkHistory } from './useNetwork';
 import { useNetmonStore, type NetmonView } from '../../store/netmonStore';
 import { ErrorState } from '../../components/ErrorState';
@@ -8,8 +7,8 @@ import { HeaderAction } from '../../components/HeaderAction';
 import { RefreshAction } from '../../components/RefreshAction';
 import { useDragScroll } from '../../hooks/useDragScroll';
 import type { NetworkMonitorData, PingHostStats } from '@dash/shared';
-import { SkeletonLines } from '@nish/ui';
-import { tk } from '../../lib/tokens';
+import { Button, Card, Meter, SkeletonLines, Sparkline, Spinner, cn, type MeterTone, type SparklineTone } from '@nish/ui';
+import { Input } from '../../components/nishGaps';
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -26,10 +25,10 @@ function latClass(ms: number): string {
   return 'text-th-loss';
 }
 
-function latHex(ms: number): string {
-  if (ms < 30) return tk('chart-1');
-  if (ms < 80) return tk('warn-fill');
-  return tk('loss-fill');
+function latTone(ms: number): MeterTone {
+  if (ms < 30) return 'chart-1';
+  if (ms < 80) return 'warn';
+  return 'loss';
 }
 
 function fmtMs(ms: number): string {
@@ -44,41 +43,14 @@ function isValidHost(host: string): boolean {
   return !host.startsWith('-') && HOST_RE.test(host);
 }
 
-// ── Presentational helpers — copied locally from HardwareWidget ──────────
-// (deliberately NOT extracted/shared in this PR; hardware stays untouched)
+// ── Presentational helpers (same recipes as HardwareWidget, on @nish/ui) ──
 
-function Spark({ data, color }: { data: number[]; color: string }) {
-  const points = data.map((v) => ({ v }));
-  return (
-    <ResponsiveContainer width="100%" height={32}>
-      <AreaChart data={points} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
-        <Area
-          dataKey="v"
-          stroke={color}
-          strokeWidth={1.5}
-          fill={color}
-          fillOpacity={0.15}
-          dot={false}
-          isAnimationActive={false}
-        />
-      </AreaChart>
-    </ResponsiveContainer>
-  );
+function Spark({ data, tone, label }: { data: number[]; tone: SparklineTone; label: string }) {
+  return <Sparkline values={data} label={label} tone={tone} height={32} min={0} fill className="w-full" />;
 }
 
-function UsageBar({ pct, color }: { pct: number; color: string }) {
-  return (
-    <div className="w-full h-2 rounded-full bg-th-elevated overflow-hidden">
-      <div
-        className="h-full rounded-full transition-all duration-300"
-        style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: color }}
-      />
-    </div>
-  );
-}
-
-function Card({ children }: { children: React.ReactNode }) {
-  return <div className="bg-th-elevated/50 rounded-lg p-3">{children}</div>;
+function UsageBar({ pct, tone, label, className }: { pct: number; tone: MeterTone; label: string; className?: string }) {
+  return <Meter value={pct} label={label} tone={tone} size="md" track="overlay" className={cn('h-2', className)} />;
 }
 
 // ── Latency card (one per host) ───────────────────────────────────────────
@@ -89,7 +61,7 @@ const LatencyCard = memo(function LatencyCard({ stats, spark, view }: {
   view: NetmonView;
 }) {
   return (
-    <Card>
+    <Card variant="inset" padding="sm">
       {/* @container: in a narrow tile the avg drops out before the host truncates. */}
       <div className="@container flex items-center justify-between gap-2 mb-1.5">
         <div className="flex items-center gap-1.5 min-w-0">
@@ -101,7 +73,7 @@ const LatencyCard = memo(function LatencyCard({ stats, spark, view }: {
             <span className="text-[10px] text-th-hi3 tabular-nums @max-[11rem]:hidden">avg {fmtMs(stats.avgMs)} ms</span>
           )}
           {stats.latestMs !== null ? (
-            <span className={`text-sm font-semibold tabular-nums ${latClass(stats.latestMs)}`}>
+            <span className={cn('text-sm font-semibold tabular-nums', latClass(stats.latestMs))}>
               {fmtMs(stats.latestMs)} ms
             </span>
           ) : (
@@ -114,14 +86,15 @@ const LatencyCard = memo(function LatencyCard({ stats, spark, view }: {
 
       {stats.samples < MIN_SAMPLES ? (
         <div className="flex items-center gap-2 py-1 text-th-hi3 text-[10px]">
-          <Loader2 size={11} className="animate-spin" /> Sampling…
+          <Spinner size="xs" /> Sampling…
         </div>
       ) : view === 'sparks' ? (
-        <Spark data={spark} color={tk('chart-1')} />
+        <Spark data={spark} tone="chart-1" label={`${stats.host} latency history`} />
       ) : (
         <UsageBar
           pct={((stats.latestMs ?? 0) / LAT_SCALE_MS) * 100}
-          color={stats.latestMs !== null ? latHex(stats.latestMs) : tk('ghost')}
+          tone={stats.latestMs !== null ? latTone(stats.latestMs) : 'chart-1'}
+          label={`${stats.host} latency`}
         />
       )}
     </Card>
@@ -132,7 +105,7 @@ const LatencyCard = memo(function LatencyCard({ stats, spark, view }: {
 
 const QualityCard = memo(function QualityCard({ hosts }: { hosts: PingHostStats[] }) {
   return (
-    <Card>
+    <Card variant="inset" padding="sm">
       <div className="flex items-center gap-1.5 mb-1.5">
         <Gauge size={12} className="text-th-violet" />
         <span className="text-xs text-th-hi2 font-medium">Quality</span>
@@ -146,7 +119,7 @@ const QualityCard = memo(function QualityCard({ hosts }: { hosts: PingHostStats[
                 jitter {h.jitterMs !== null ? `${h.jitterMs.toFixed(1)} ms` : '—'} · loss {h.lossPct.toFixed(0)}%
               </span>
             </div>
-            <UsageBar pct={h.lossPct} color={h.lossPct >= 5 ? tk('loss-fill') : tk('chart-1')} />
+            <UsageBar pct={h.lossPct} tone={h.lossPct >= 5 ? 'loss' : 'chart-1'} label={`${h.host} packet loss`} />
           </div>
         ))}
       </div>
@@ -163,7 +136,7 @@ const ThroughputCard = memo(function ThroughputCard({ totals, ifaces, history, v
   view: NetmonView;
 }) {
   return (
-    <Card>
+    <Card variant="inset" padding="sm">
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center gap-1.5">
           <Wifi size={12} className="text-th-sky" />
@@ -177,8 +150,8 @@ const ThroughputCard = memo(function ThroughputCard({ totals, ifaces, history, v
 
       {view === 'sparks' && (
         <div className="space-y-1">
-          <Spark data={history.netUp} color={tk('chart-5')} />
-          <Spark data={history.netDown} color={tk('chart-2')} />
+          <Spark data={history.netUp} tone="chart-5" label="Upload history" />
+          <Spark data={history.netDown} tone="chart-2" label="Download history" />
         </div>
       )}
 
@@ -206,12 +179,15 @@ function ConfigPanel() {
   const dirty = drafts[0] !== (hosts[0] ?? '') || drafts[1] !== (hosts[1] ?? '');
 
   return (
-    <div className="bg-th-elevated rounded-lg p-3 border border-th-line">
+    <Card variant="inset" padding="sm" className="border-th-line">
       <p className="text-[10px] text-th-hi3 mb-2 uppercase tracking-wide">Ping targets</p>
       <div className="flex flex-col gap-2">
         {([0, 1] as const).map((i) => (
-          <input
+          <Input
             key={i}
+            size="xs"
+            aria-label={`Ping target ${i + 1}`}
+            invalid={!isValidHost(drafts[i])}
             value={drafts[i]}
             onChange={(e) => {
               const next: [string, string] = [...drafts];
@@ -220,20 +196,20 @@ function ConfigPanel() {
             }}
             placeholder={i === 0 ? '1.1.1.1' : '8.8.8.8'}
             spellCheck={false}
-            className={`bg-th-elevated rounded px-2 py-1 text-xs font-mono text-th-hi border outline-none transition-colors placeholder:text-th-ghost ${
-              isValidHost(drafts[i]) ? 'border-th-line focus:border-th-hi3' : 'border-th-loss/60'
-            }`}
+            className="font-mono bg-th-surface"
           />
         ))}
-        <button
+        <Button
+          size="xs"
+          variant="primary"
           onClick={() => setHosts([drafts[0], drafts[1]])}
           disabled={!valid || !dirty}
-          className="self-end px-2.5 py-1 rounded text-[10px] uppercase tracking-wide bg-th-overlay text-th-hi disabled:opacity-40 disabled:cursor-default hover:enabled:bg-th-elevated transition-colors"
+          className="self-end"
         >
           Apply
-        </button>
+        </Button>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -292,7 +268,7 @@ export function NetworkMonitorWidget() {
       {/* Footer */}
       <div className="flex items-center justify-between px-0.5 shrink-0 mt-auto pt-1">
         <span className="text-[10px] text-th-hi3">Ping every 2s · last {WINDOW_LABEL}</span>
-        {query.isFetching && <Loader2 size={10} className="text-th-hi3 animate-spin" />}
+        {query.isFetching && <Spinner size="xs" label="Refreshing" className="text-th-hi3" />}
       </div>
     </div>
   );
