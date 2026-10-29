@@ -3,9 +3,8 @@ import { Clipboard, Pause, Play, Trash2 } from 'lucide-react';
 import { useClipboardUiStore } from '../../store/clipboardUiStore';
 import { HeaderAction } from '../../components/HeaderAction';
 import { toast } from '../../lib/alerts';
-import { relTimeAgo } from '../../lib/time';
 import type { ClipboardEntryData } from '@dash/shared';
-import { Badge, EmptyState, SearchInput } from '@nish/ui';
+import { Badge, EmptyState, RelativeTime, SearchInput } from '@nish/ui';
 
 /** WidgetShell header actions: pause/resume capture + clear history. */
 export function ClipboardActions() {
@@ -103,7 +102,7 @@ export function ClipboardWidget() {
               <p className="text-th-hi2 text-2xs leading-snug line-clamp-2 break-all whitespace-pre-wrap">
                 {entry.text}
               </p>
-              <p className="text-th-hi3 text-3xs mt-0.5">{relTimeAgo(new Date(entry.at).toISOString())}</p>
+              <p className="text-th-hi3 text-3xs mt-0.5"><RelativeTime value={entry.at} /></p>
             </button>
           ))
         )}

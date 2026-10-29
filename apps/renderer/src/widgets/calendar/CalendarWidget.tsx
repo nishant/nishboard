@@ -164,7 +164,7 @@ function DayPanel({
   };
 
   return (
-    <div className="absolute inset-0 z-20 bg-th-surface/95 backdrop-blur-sm rounded-lg p-3 flex flex-col">
+    <div className="absolute inset-0 z-20 bg-th-surface rounded-lg p-3 flex flex-col">
       <div className="flex items-center justify-between shrink-0 mb-2">
         <p className="text-xs font-semibold text-th-hi">{heading}</p>
         <IconButton label="Close day view" size="2xs" onClick={onClose}>

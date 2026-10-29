@@ -5,12 +5,13 @@ import { useStocks, useStockDetail, useMarketCalendar } from './useStocks';
 import { useStocksStore } from '../../store/stocksStore';
 import { useStocksUiStore } from '../../store/stocksUiStore';
 import { useAppSettingsStore } from '../../store/settingsStore';
-import { relTimeAgo, relTimeUntil, hourFormat } from '../../lib/time';
+import { relTimeUntil, hourFormat } from '../../lib/time';
 import { ErrorState } from '../../components/ErrorState';
 import { HeaderAction } from '../../components/HeaderAction';
 import { RefreshAction } from '../../components/RefreshAction';
 import type { StockQuote } from '@dash/shared';
-import { Card, IconButton, Modal, Skeleton, SkeletonLines, StatusDot, cardClass, cn, type StatusTone, Label, Input } from '@nish/ui';
+import { Card, IconButton, Modal, Skeleton, SkeletonLines, StatusDot, cardClass, cn, type StatusTone, Label, Input, RelativeTime, useNow } from '@nish/ui';
+import { num, pct, signed } from '@nish/ui/format';
 import { tk } from '../../lib/tokens';
 
 // ── Market session ────────────────────────────────────────────────────────────
@@ -45,17 +46,8 @@ function useMarketSession(): MarketSession {
   return session;
 }
 
-function fmt(n: number, decimals = 2): string {
-  return n.toLocaleString('en-US', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
-}
-
 function fmtPrice(n: number): string {
-  if (n >= 10000) return n.toLocaleString('en-US', { maximumFractionDigits: 0 });
-  if (n >= 1000) return fmt(n, 2);
-  return fmt(n, 2);
+  return num(n, { digits: n >= 10000 ? 0 : 2 });
 }
 
 
@@ -78,7 +70,7 @@ function QuoteCard({ q, onClick }: { q: StockQuote; onClick: () => void }) {
           </span>
         </div>
         <span className={cn('font-mono text-xs tabular-nums shrink-0', color)}>
-          {positive ? '+' : ''}{fmt(q.changePercent)}%
+          {pct(q.changePercent, { fromRatio: false, digits: 2, signed: true })}
         </span>
       </div>
 
@@ -87,7 +79,7 @@ function QuoteCard({ q, onClick }: { q: StockQuote; onClick: () => void }) {
           {fmtPrice(q.lastPrice)}
         </span>
         <span className={cn('font-mono text-xs tabular-nums shrink-0', color)}>
-          {positive ? '+' : ''}{fmt(q.change)}
+          {signed(q.change)}
         </span>
       </div>
     </button>
@@ -179,7 +171,7 @@ function StockDetailPanel({ ticker, onClose }: { ticker: string; onClose: () => 
                   {n.headline}
                   <ExternalLink className="w-2.5 h-2.5 shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition" />
                 </span>
-                <span className="text-th-hi3 text-3xs">{n.source}{n.createdAt && ` · ${relTimeAgo(n.createdAt)}`}</span>
+                <span className="text-th-hi3 text-3xs">{n.source}{n.createdAt && <> · <RelativeTime value={n.createdAt} /></>}</span>
               </button>
             ))
           )}
@@ -274,11 +266,7 @@ export function StocksWidget() {
 
   // Dedicated tick for the countdown text — useMarketSession's setState bails
   // out when the session label hasn't changed, so it can't drive re-renders.
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 30_000);
-    return () => clearInterval(id);
-  }, []);
+  const now = useNow(30_000);
 
   // No pulse: the dot marks the market session, not a live feed — prices
   // refresh on a 5-minute poll (deliberate; keeps Alpaca usage minimal).

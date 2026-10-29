@@ -234,7 +234,7 @@ export function DiscordHost() {
         )}
 
         {shareReq && (
-          <div className="absolute inset-0 z-20 flex flex-col gap-2 bg-th-surface/95 backdrop-blur-sm p-3">
+          <div className="absolute inset-0 z-20 flex flex-col gap-2 bg-th-surface p-3">
             <div className="flex items-center justify-between shrink-0">
               <span className="text-xs font-medium text-th-hi3 uppercase tracking-widest">
                 Share your screen
