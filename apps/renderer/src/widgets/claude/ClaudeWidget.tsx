@@ -14,7 +14,8 @@ import {
   respondToClaudePrompt, promptSummary, openClaudeCliLogin,
 } from './useClaude';
 import { HeaderAction } from '../../components/HeaderAction';
-import { Badge, Button, EmptyState, ErrorState, IconButton, Label, Meter, Popover, Segmented, SkeletonLines, Textarea, cn, toneFor } from '@nish/ui';
+import { Badge, Button, EmptyState, ErrorState, IconButton, Label, Meter, Popover, Segmented, SkeletonLines, Textarea, cn, toneFor, useNow } from '@nish/ui';
+import { num } from '@nish/ui/format';
 
 /** WidgetShell header actions: New chat always; Stop only mid-stream. */
 export function ClaudeActions() {
@@ -57,17 +58,13 @@ const WHIMSY = [
  *  prompt card is pending, the whimsy gives way to "Waiting for you". */
 function Shimmer({ startedAt, waiting = false }: { startedAt: number; waiting?: boolean }) {
   const [word, setWord] = useState(() => WHIMSY[Math.floor(Math.random() * WHIMSY.length)]);
-  const [now, setNow] = useState(() => Date.now());
+  const now = useNow(1_000);
   useEffect(() => {
     const wordTimer = setInterval(
       () => setWord(WHIMSY[Math.floor(Math.random() * WHIMSY.length)]),
       3_000,
     );
-    const clock = setInterval(() => setNow(Date.now()), 1_000);
-    return () => {
-      clearInterval(wordTimer);
-      clearInterval(clock);
-    };
+    return () => clearInterval(wordTimer);
   }, []);
   const secs = Math.max(0, Math.floor((now - startedAt) / 1000));
   return (
@@ -241,7 +238,7 @@ function UsagePanel({ anchor, onClose }: { anchor: React.RefObject<HTMLElement |
           <div className="flex items-baseline justify-between mb-0.5">
             <span className="text-3xs text-th-hi2">Context — this chat</span>
             <span className="text-3xs font-medium text-th-hi">
-              {formatTokens(lastContext)} / {formatTokens(CLAUDE_CONTEXT_WINDOW)}
+              {num(lastContext, { compact: true })} / {num(CLAUDE_CONTEXT_WINDOW, { compact: true })}
             </span>
           </div>
           <Meter value={contextPct} label="Context used" tone={usageTone(contextPct)} track="overlay" />
@@ -538,10 +535,6 @@ function ThinkingBlock({ text }: { text: string }) {
   );
 }
 
-function formatTokens(n: number): string {
-  return n < 1000 ? String(n) : `${(n / 1000).toFixed(1)}k`;
-}
-
 function MessageBubble({ msg, streaming }: { msg: ClaudeChatMessage; streaming: boolean }) {
   const [copied, setCopied] = useState(false);
   if (msg.role === 'user') {
@@ -586,7 +579,7 @@ function MessageBubble({ msg, streaming }: { msg: ClaudeChatMessage; streaming: 
         (msg.durationMs !== undefined || text) && (
           <div className="flex items-center gap-1.5 pt-0.5 text-3xs text-th-hi3 opacity-0 group-hover/msg:opacity-100 focus-within:opacity-100 transition-opacity">
             {msg.durationMs !== undefined && <span>{(msg.durationMs / 1000).toFixed(1)}s</span>}
-            {msg.outputTokens !== undefined && <span>· {formatTokens(msg.outputTokens)} tok</span>}
+            {msg.outputTokens !== undefined && <span>· {num(msg.outputTokens, { compact: true })} tok</span>}
             {text && (
               <IconButton label={copied ? 'Copied' : 'Copy response'} size="2xs" onClick={copy}>
                 {copied ? <Check size={10} className="text-th-ok" /> : <Copy size={10} />}

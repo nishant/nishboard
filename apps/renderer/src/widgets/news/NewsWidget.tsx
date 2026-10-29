@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Newspaper, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNews } from './useNews';
-import { relTimeAgo } from '../../lib/time';
 import { ErrorState } from '../../components/ErrorState';
 import { RefreshAction } from '../../components/RefreshAction';
-import { EmptyState, IconButton, SkeletonLines, cn, Label } from '@nish/ui';
+import { EmptyState, IconButton, SkeletonLines, cn, Label, RelativeTime } from '@nish/ui';
 
 /** WidgetShell header actions for the news tile. */
 export function NewsActions() {
@@ -62,7 +61,7 @@ export function NewsWidget() {
           {cur.title}
         </span>
         <span className="text-th-hi3 text-3xs mt-2 flex items-center gap-1 min-w-0">
-          <span className="truncate">{cur.source}{cur.pubDate && ` · ${relTimeAgo(cur.pubDate)}`}</span>
+          <span className="truncate">{cur.source}{cur.pubDate && <> · <RelativeTime value={cur.pubDate} /></>}</span>
           <ExternalLink className="w-2.5 h-2.5 shrink-0 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition" />
         </span>
       </button>

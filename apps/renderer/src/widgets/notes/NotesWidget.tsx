@@ -3,7 +3,7 @@ import { Eye, Pencil, Plus, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useNotesStore } from '../../store/notesStore';
-import { Button, IconButton, cn } from '@nish/ui';
+import { Button, IconButton, cn, useScrollEdges } from '@nish/ui';
 
 // Module-level so the plugin array stays referentially stable across renders.
 const MD_PLUGINS = [remarkGfm];
@@ -36,6 +36,8 @@ export function NotesWidget() {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   // Two-step delete: first click arms, second within the timeout deletes.
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
+  useScrollEdges(tabsRef);
   useEffect(() => {
     if (!confirmingId) return;
     const id = setTimeout(() => setConfirmingId(null), 2500);
@@ -48,7 +50,7 @@ export function NotesWidget() {
     <div className="h-full flex flex-col">
       {/* Tab strip + preview toggle */}
       <div className="flex items-center gap-1 px-2 pt-2 shrink-0">
-        <div role="tablist" aria-label="Notes" className="flex-1 min-w-0 flex items-center gap-0.5 overflow-x-auto scrollbar-none">
+        <div ref={tabsRef} role="tablist" aria-label="Notes" className="flex-1 min-w-0 flex items-center gap-0.5 overflow-x-auto scrollbar-none nish-scroll-fade">
           {notes.map((n) => {
             const isActive = n.id === active.id;
             return (

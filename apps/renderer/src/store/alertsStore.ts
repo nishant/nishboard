@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { num } from '@nish/ui/format';
 
 export const DEFAULT_COOLDOWN_MIN = 30;
 
@@ -49,20 +50,17 @@ export const useAlertsStore = create<AlertsState>()(
   ),
 );
 
-const fmtNum = (n: number): string =>
-  n.toLocaleString('en-US', { maximumFractionDigits: 2 });
-
 /** One-line human summary — used by the settings rows, palette actions, and
  *  as the toast/notification title when the rule fires. */
 export function describeRule(rule: AlertRule): string {
   switch (rule.kind) {
     case 'stock-price':
-      return `${rule.symbol} ${rule.dir} $${fmtNum(rule.threshold)}`;
+      return `${rule.symbol} ${rule.dir} $${num(rule.threshold)}`;
     case 'crypto-price':
-      return `${rule.coinId} ${rule.dir} $${fmtNum(rule.thresholdUsd)}`;
+      return `${rule.coinId} ${rule.dir} $${num(rule.thresholdUsd)}`;
     case 'crypto-change':
-      return `${rule.coinId} moves ±${fmtNum(rule.magnitudePct)}% in 24h`;
+      return `${rule.coinId} moves ±${num(rule.magnitudePct)}% in 24h`;
     case 'cpu-sustained':
-      return `CPU >${fmtNum(rule.thresholdPct)}% for ${rule.minutes}min`;
+      return `CPU >${num(rule.thresholdPct)}% for ${rule.minutes}min`;
   }
 }

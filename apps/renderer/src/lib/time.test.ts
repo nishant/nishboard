@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fmtDuration, fmtMs, fmtRemaining, fmtUptime, hourFormat, relTimeAgo, relTimeUntil } from './time';
+import { fmtDuration, fmtMs, fmtRemaining, fmtUptime, hourFormat, relTimeUntil } from './time';
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -33,20 +33,6 @@ describe('fmtRemaining', () => {
     expect(fmtRemaining(42_000)).toBe('42s');
     expect(fmtRemaining(0)).toBe('now');
     expect(fmtRemaining(-1)).toBe('now');
-  });
-});
-
-describe('relTimeAgo', () => {
-  it('buckets past timestamps', () => {
-    expect(relTimeAgo(new Date(Date.now() - 10_000).toISOString())).toBe('just now');
-    expect(relTimeAgo(new Date(Date.now() - 5 * MIN).toISOString())).toBe('5m ago');
-    expect(relTimeAgo(new Date(Date.now() - 2 * HOUR).toISOString())).toBe('2h ago');
-    expect(relTimeAgo(new Date(Date.now() - 3 * DAY).toISOString())).toBe('3d ago');
-  });
-
-  it('returns empty for missing or future timestamps', () => {
-    expect(relTimeAgo('')).toBe('');
-    expect(relTimeAgo(new Date(Date.now() + HOUR).toISOString())).toBe('');
   });
 });
 

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
   Droplets, Wind, Zap, Umbrella,
   Sunrise, Sunset, Radar, ChevronLeft, ChevronRight,
@@ -14,7 +14,7 @@ import { useAppSettingsStore } from '../../store/settingsStore';
 import { useWeatherUiStore } from '../../store/weatherUiStore';
 import { apiUrl } from '../../lib/apiClient';
 import { hourFormat } from '../../lib/time';
-import { Callout, Card, IconButton, Meter, SkeletonLines, Tooltip, cn } from '@nish/ui';
+import { Callout, Card, IconButton, Meter, SkeletonLines, Tooltip, cn, useScrollEdges } from '@nish/ui';
 
 function formatHour(isoTime: string, clock24h: boolean): string {
   const date = new Date(isoTime);
@@ -96,6 +96,11 @@ export function WeatherWidget() {
     hourlyEl.addEventListener('wheel', onWheel, { passive: false });
     return () => hourlyEl.removeEventListener('wheel', onWheel);
   }, [hourlyEl]);
+
+  // Edge fades on the strip (`nish-scroll-fade`). useScrollEdges re-runs when
+  // the ref object changes, so a new object per mounted element re-wires it.
+  const hourlyRef = useMemo(() => ({ current: hourlyEl }), [hourlyEl]);
+  useScrollEdges(hourlyRef);
 
   if (isLoading) {
     return <SkeletonLines lines={4} className="h-full overflow-hidden" />;
@@ -230,7 +235,7 @@ export function WeatherWidget() {
       {/* Hourly strip */}
       <div className="shrink-0">
         <p className="text-th-hi3 text-xs uppercase tracking-widest mb-2">Hourly</p>
-        <div ref={setHourlyEl} className="flex gap-2 overflow-x-auto scrollbar-none cursor-grab select-none">
+        <div ref={setHourlyEl} className="flex gap-2 overflow-x-auto scrollbar-none nish-scroll-fade cursor-grab select-none">
           {hourly.map((h) => {
             const hMeta = getWeatherMeta(h.weatherCode);
             return (

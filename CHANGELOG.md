@@ -4,6 +4,31 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #138] refactor: @nish/ui v0.7.1 and its shared formatters, hooks and opaque panels
+
+**Branch:** `refactor/ui-v0.7.1` → `master`
+**Date:** 2026-10-28
+
+### Context
+@nish/ui v0.7.0 (PR #137, a bump with no entry of its own) added the layout contract, phone navigation, `@nish/ui/format`, `useNow`, `RelativeTime` and `useScrollEdges`, and made sticky chrome opaque. v0.7.1 changes only the docs site. This PR moves to v0.7.1 and replaces the local code those pieces cover.
+
+### Changed
+- `@nish/ui` v0.7.0 → v0.7.1 (codeload tag); lockfile regenerated; `gen:themes` re-run (no change).
+- "5m ago" text in News, Stocks news and Clipboard is `<RelativeTime>`: a `<time>` element with the full date in its tooltip that keeps itself current (it was computed once per render).
+- Numbers use `@nish/ui/format`: Stocks prices (`num`), change (`signed`) and change percent (`pct`, signed); alert rule summaries (`num`); Claude token counts (`num` compact, so 200000 reads "200k", not "200.0k"). Negative values now use a true minus sign (−).
+- The Stocks market countdown and the Claude "thinking" timer tick through `useNow` (pauses while the window is hidden) instead of their own `setInterval`.
+- The Calendar day panel and the Discord screen-share picker are opaque `bg-th-surface` (were 95% with a backdrop blur), matching v0.7's no-see-through-chrome rule.
+- The Notes tab strip and the Weather hourly strip fade at the edge that has more to scroll (`nish-scroll-fade` + `useScrollEdges`); drag and wheel scrolling are unchanged.
+
+### Removed
+- `relTimeAgo` from `lib/time.ts` (and its test); `ago()` / `<RelativeTime>` replace it. `fmtMs`, `fmtDuration`, `fmtRemaining`, `fmtUptime` and `relTimeUntil` stay: `@nish/ui/format`'s `duration()` shows two units and skips zero ones ("1h 5s"), which reads wrong for countdowns.
+
+### Notes
+- Not adopted, on purpose: BottomNav, MoreSheet and NavRail (a single-screen desktop dashboard with a titlebar menu has no top-level destinations to switch between), `CommandPalette` (Nishboard's palette parses arguments and runs actions; the shared one only lists and navigates), `ResponsiveTable`, `LineChart`/`BarChart` (Recharts stays) and the layout-contract variables (no sticky header, bottom bar or app-level Toaster offset to publish or read; the Toaster already uses the default inset).
+- Checked in the browser at 1440, 840 and 360 wide in light and dark: no horizontal page scroll, Calendar day panel opaque, Notes strip wired. At 360 the 24-column grid squeezes every widget, as it did before this PR.
+
+---
+
 ## [PR #136] fix: @nish/ui v0.6.1, autonomy rule and Galaxy Z Fold 7 target
 
 **Branch:** `docs/fold7-target` → `master`

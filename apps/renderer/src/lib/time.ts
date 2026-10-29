@@ -1,6 +1,7 @@
 // Shared time/duration formatters — consolidates per-widget copies
-// (Spotify fmtMs ×2, Stocks/News relTime ×2, Timer fmtDur, Countdown
-// fmtRemaining, Hardware fmtUptime). Locale-specific one-offs stay local.
+// (Spotify fmtMs ×2, Timer fmtDur, Countdown fmtRemaining, Hardware
+// fmtUptime). Locale-specific one-offs stay local. "5m ago" text is
+// @nish/ui's <RelativeTime> / `ago()`; plain numbers use `@nish/ui/format`.
 
 /** m:ss — track positions/durations. */
 export function fmtMs(ms: number): string {
@@ -31,19 +32,6 @@ export function fmtRemaining(ms: number): string {
   if (h > 0) return `${h}h ${m}m`;
   if (m > 0) return `${m}m ${s % 60}s`;
   return `${s}s`;
-}
-
-/** Past-oriented "5m ago" / "2h ago" / "3d ago" from an ISO timestamp. */
-export function relTimeAgo(iso: string): string {
-  if (!iso) return '';
-  const ms = Date.now() - new Date(iso).getTime();
-  if (ms < 0) return '';
-  const m = Math.floor(ms / 60000);
-  if (m < 1) return 'just now';
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
 }
 
 /** Future-oriented "in 5m" / "in 2h 30m" / "in 3d 4h" to a timestamp. */
