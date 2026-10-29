@@ -14,11 +14,11 @@
     "@dash/shared": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^22.10.0",
+    "@types/node": "^22.20.5",
     "cross-env": "^7.0.3",
     "electron": "^33.0.0",
     "tsc-watch": "^6.2.1",
     "typescript": "^5.7.0",
-    "vitest": "^3.2.6"
+    "vitest": "^3.2.7"
   }
 }
