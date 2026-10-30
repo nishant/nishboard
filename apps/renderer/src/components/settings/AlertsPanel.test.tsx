@@ -1,24 +1,23 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AlertsPanel } from './AlertsPanel';
 import { useAlertsStore } from '../../store/alertsStore';
-import { useStocksStore } from '../../store/stocksStore';
+
+// Trading owns the watchlist; the panel only reads it.
+vi.mock('../../widgets/stocks/useStocks', () => ({ useWatchlistTickers: () => ['SPY', 'AAPL'] }));
 
 beforeEach(() => {
   cleanup();
   localStorage.clear();
   useAlertsStore.setState({ rules: [] });
-  useStocksStore.setState({ watchlist: ['SPY', 'AAPL'] });
 });
 
 describe('AlertsPanel add-rule flow', () => {
-  it('adding a stock rule also adds the ticker to the stocks watchlist', async () => {
+  it('adds a stock rule (nishboard no longer edits the watchlist)', async () => {
     const user = userEvent.setup();
     render(<AlertsPanel />);
 
-    // Off-watchlist ticker: without the auto-add the rule would never evaluate
-    // (the stocks query only fetches watchlist symbols).
     await user.type(screen.getByPlaceholderText('AAPL'), 'nvax');
     await user.type(screen.getByPlaceholderText('250'), '12.5');
     await user.click(screen.getByRole('button', { name: /add alert/i }));
@@ -26,7 +25,8 @@ describe('AlertsPanel add-rule flow', () => {
     const rules = useAlertsStore.getState().rules;
     expect(rules).toHaveLength(1);
     expect(rules[0]).toMatchObject({ kind: 'stock-price', symbol: 'NVAX', dir: 'above', threshold: 12.5, enabled: true });
-    expect(useStocksStore.getState().watchlist).toContain('NVAX');
+    // Off trading's watchlist → flagged, not silently added.
+    expect(screen.getByText(/not on trading's watchlist — won't fire/)).toBeTruthy();
   });
 
   it('disables Add for an invalid draft and adds nothing', async () => {
@@ -41,7 +41,6 @@ describe('AlertsPanel add-rule flow', () => {
 
     await user.click(addBtn);
     expect(useAlertsStore.getState().rules).toHaveLength(0);
-    expect(useStocksStore.getState().watchlist).toEqual(['SPY', 'AAPL']);
   });
 
   it('flags rules whose ticker left the watchlist as stranded', () => {
@@ -49,6 +48,6 @@ describe('AlertsPanel add-rule flow', () => {
       rules: [{ id: 'r1', enabled: true, cooldownMin: 30, kind: 'stock-price', symbol: 'GONE', dir: 'above', threshold: 10 }],
     });
     render(<AlertsPanel />);
-    expect(screen.getByText(/not in watchlist — won't fire/)).toBeTruthy();
+    expect(screen.getByText(/not on trading's watchlist — won't fire/)).toBeTruthy();
   });
 });

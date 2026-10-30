@@ -5,6 +5,8 @@ export const CREDENTIAL_KEYS = [
   'YOUTUBE_CLIENT_SECRET',
   'ALPACA_API_KEY',
   'ALPACA_API_SECRET',
+  'TRADING_API_URL',
+  'TRADING_API_TOKEN',
   'TWITCH_CLIENT_ID',
   'TWITCH_CLIENT_SECRET',
   'DISCORD_CLIENT_ID',
@@ -40,6 +42,20 @@ export const CREDENTIAL_DEFS: CredentialDef[] = [
   { key: 'YOUTUBE_CLIENT_SECRET', label: 'OAuth Client Secret', service: 'YouTube' },
   { key: 'ALPACA_API_KEY',       label: 'API Key',       service: 'Stocks (Alpaca)' },
   { key: 'ALPACA_API_SECRET',    label: 'API Secret',    service: 'Stocks (Alpaca)' },
+  {
+    // Deliberately NOT in build.mjs BUILTIN_KEYS (URL + token) — personal
+    // tailnet endpoint and account token, never baked into installers.
+    key: 'TRADING_API_URL',
+    label: 'API URL',
+    service: 'Stocks (Trading watchlist)',
+    hint: 'Optional — defaults to https://trading.nish.software (tailnet). On the PC that runs trading, http://127.0.0.1:7433 also works. The Stocks widget reads its tickers and badges from here.',
+  },
+  {
+    key: 'TRADING_API_TOKEN',
+    label: 'Read-only API token',
+    service: 'Stocks (Trading watchlist)',
+    hint: 'trading → Settings → API Access → Generate Token (shown once, starts with otar_). Rotating it there kills the old one instantly — paste the new one here.',
+  },
   { key: 'TWITCH_CLIENT_ID',     label: 'Client ID',     service: 'Twitch' },
   { key: 'TWITCH_CLIENT_SECRET', label: 'Client Secret', service: 'Twitch' },
   {

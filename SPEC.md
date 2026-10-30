@@ -258,6 +258,6 @@ pnpm package
 
 ### Still not built
 - **Google Calendar integration** — the Calendar widget is a pure-JS month grid, not synced calendar events.
-- **Generic per-widget config UI** — partially covered today (Widgets menu toggles tiles, Hardware has its own config panel, Stocks has a watchlist editor), but no unified config framework.
+- **Generic per-widget config UI** — partially covered today (Widgets menu toggles tiles, Hardware has its own config panel; the Stocks watchlist is edited in trading, not here), but no unified config framework.
 
 > **Note:** the Widgets sections above still describe the original five widgets and some early assumptions (e.g. Stocks via WebSocket, weather hardcoded to Austin) that have since changed — this file needs a fuller behavior refresh; CLAUDE.md's Widgets table + the CHANGELOG are the current source of truth.

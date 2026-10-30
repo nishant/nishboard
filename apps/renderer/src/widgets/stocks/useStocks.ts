@@ -1,8 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../../lib/apiClient';
-import { useStocksStore } from '../../store/stocksStore';
 import { useGatedInterval } from '../../hooks/useGatedInterval';
-import type { StocksData, StockDetail, MarketCalendarData } from '@dash/shared';
+import type { StocksData, StockDetail, MarketCalendarData, TradingWatchlistData } from '@dash/shared';
 
 /** Alpaca trading calendar (holiday-aware open/close). The countdown badge
  *  ticks client-side; a 30-min poll just keeps nextOpen/nextClose fresh.
@@ -19,10 +18,30 @@ export function useMarketCalendar() {
   });
 }
 
+/** Trading's watchlist (tickers + top-pick / open-position badges) via the
+ *  Fastify proxy — trading is the single source of truth, nishboard never
+ *  edits it. Always resolves (a disconnected state is data, not an error). */
+export function useTradingWatchlist(enabled = true) {
+  const gated = useGatedInterval(5 * 60 * 1000);
+  return useQuery<TradingWatchlistData>({
+    queryKey: ['stocks', 'watchlist'],
+    queryFn: () => apiClient.get<TradingWatchlistData>('/api/stocks/watchlist'),
+    refetchInterval: gated,
+    staleTime: 60_000,
+    enabled,
+  });
+}
+
+/** Watchlist tickers in trading's order; [] while loading or disconnected. */
+export function useWatchlistTickers(enabled = true): string[] {
+  const { data } = useTradingWatchlist(enabled);
+  return data?.connected ? data.items.map((i) => i.ticker) : [];
+}
+
 /** `enabled=false` observers (e.g. the alerts evaluator with no stock rules)
  *  read cache but never fetch or schedule refetches. */
 export function useStocks(enabled = true, interval?: number | false) {
-  const watchlist = useStocksStore((s) => s.watchlist);
+  const watchlist = useWatchlistTickers(enabled);
   const gated = useGatedInterval(5 * 60 * 1000);
   return useQuery<StocksData>({
     queryKey: ['stocks', watchlist],

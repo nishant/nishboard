@@ -46,3 +46,45 @@ export interface StockDetail {
   /** Which bar series `bars` holds: recent 5-min intraday, or a daily-close fallback (market long closed / illiquid). */
   range: 'intraday' | 'daily';
 }
+
+// ── Trading watchlist (nishant/trading is the single source of truth) ────────
+
+/** One watchlist ticker plus the badges trading's read-only API exposes. */
+export interface TradingWatchlistItem {
+  ticker: string;
+  /** Composite 0..100 of trading's best candidate for this ticker in its newest
+   *  finished scan; null = no candidate (render no badge, never 0). */
+  topPickScore: number | null;
+  /** Strategy of that candidate, e.g. "long_call"; null with the score. */
+  topPickStrategy: string | null;
+  /** At least one real (taken) open option position on this ticker. */
+  openPosition: boolean;
+  openPositionCount: number;
+}
+
+/** Why the Stocks widget can't show trading's watchlist. */
+export type TradingDisconnectReason =
+  /** TRADING_API_TOKEN not set in Settings → Developer. */
+  | 'not-configured'
+  /** Trading answered 401 — wrong, rotated or revoked token. */
+  | 'unauthorized'
+  /** Network error / timeout — trading is tailnet-only, so usually "not on the tailnet". */
+  | 'unreachable'
+  /** Trading answered, but with an unexpected status (403 caller bug, 404 trading too old) or body. */
+  | 'error';
+
+/** GET /api/stocks/watchlist — always 200; `connected` discriminates. */
+export type TradingWatchlistData =
+  | {
+      connected: true;
+      /** Trading's ACTIVE watchlist, sorted by ticker (trading's order). */
+      items: TradingWatchlistItem[];
+      /** When trading's newest finished scan ran (source of the scores); null = none yet. */
+      scannedAt: string | null;
+      updatedAt: string;
+    }
+  | {
+      connected: false;
+      reason: TradingDisconnectReason;
+      message: string;
+    };

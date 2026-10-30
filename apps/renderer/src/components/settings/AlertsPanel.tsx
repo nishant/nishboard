@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Plus, X, BellOff } from 'lucide-react';
 import { useAlertsStore, describeRule, DEFAULT_COOLDOWN_MIN } from '../../store/alertsStore';
 import type { AlertRule, AlertRuleKind, NewAlertRule } from '../../store/alertsStore';
-import { useStocksStore } from '../../store/stocksStore';
+import { useWatchlistTickers } from '../../widgets/stocks/useStocks';
 import { useCryptoStore } from '../../store/cryptoStore';
 import { Button, EmptyState, Field, IconButton, Segmented, Switch, cn, Input, Select } from '@nish/ui';
 
@@ -42,11 +42,12 @@ function NumField({
 
 function RuleRow({ rule }: { rule: AlertRule }) {
   const { toggleRule, removeRule } = useAlertsStore();
-  const stockWatchlist = useStocksStore((s) => s.watchlist);
-  // A stock rule whose ticker left the watchlist never evaluates (the stocks
-  // query only fetches watchlist symbols) — surface that instead of guessing.
+  const stockWatchlist = useWatchlistTickers(rule.kind === 'stock-price');
+  // A stock rule whose ticker isn't on trading's watchlist never evaluates
+  // (the stocks query only fetches watchlist symbols) — surface that instead
+  // of guessing. Skipped while the watchlist is unknown (loading/disconnected).
   const stranded =
-    rule.kind === 'stock-price' && !stockWatchlist.includes(rule.symbol.toUpperCase());
+    rule.kind === 'stock-price' && stockWatchlist.length > 0 && !stockWatchlist.includes(rule.symbol.toUpperCase());
 
   return (
     <div className="flex items-center gap-2.5 group">
@@ -57,7 +58,7 @@ function RuleRow({ rule }: { rule: AlertRule }) {
         </span>
         <span className="text-th-hi3 text-3xs">
           {stranded ? (
-            <span className="text-th-warn">not in watchlist — won't fire</span>
+            <span className="text-th-warn">not on trading's watchlist — won't fire</span>
           ) : (
             `cooldown ${rule.cooldownMin}min`
           )}
@@ -79,8 +80,7 @@ function RuleRow({ rule }: { rule: AlertRule }) {
 export function AlertsPanel() {
   const rules = useAlertsStore((s) => s.rules);
   const addRule = useAlertsStore((s) => s.addRule);
-  const stockWatchlist = useStocksStore((s) => s.watchlist);
-  const addTicker = useStocksStore((s) => s.addTicker);
+  const stockWatchlist = useWatchlistTickers();
   const cryptoWatchlist = useCryptoStore((s) => s.watchlist);
 
   const [kind, setKind] = useState<AlertRuleKind>('stock-price');
@@ -127,9 +127,6 @@ export function AlertsPanel() {
 
   function submit() {
     if (!draft) return;
-    // A rule for an off-watchlist ticker would silently never evaluate — the
-    // stocks query only fetches watchlist symbols. Adding it is the fix.
-    if (draft.kind === 'stock-price') addTicker(draft.symbol);
     addRule(draft);
     setSymbol('');
     setThreshold('');
@@ -227,9 +224,8 @@ export function AlertsPanel() {
 
         <p className="text-th-hi3 text-3xs leading-relaxed">
           Alerts chime, toast, and send a native notification. They're edge-triggered — a rule
-          fires when its condition becomes true, then re-arms once it's false again. Adding a
-          stock alert also adds the ticker to the Stocks watchlist (rules only evaluate
-          watched symbols). CPU rules note: the sustained timer restarts if monitoring is
+          fires when its condition becomes true, then re-arms once it's false again. Stock alerts
+          only evaluate tickers on trading's watchlist (edit it in trading). CPU rules note: the sustained timer restarts if monitoring is
           interrupted (sleep, server restart).
         </p>
       </div>
