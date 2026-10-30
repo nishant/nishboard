@@ -12,6 +12,32 @@ import type {
   InboxSnoozeRequestBody,
 } from '@dash/shared';
 
+/** Exported for tests. */
+export function nextPageParam(last: InboxFeedData): string | undefined {
+  return last.state === 'ok' ? (last.list.nextCursor ?? undefined) : undefined;
+}
+
+/** Exported for tests. Dedupes by id (first copy wins), skips non-ok pages; state/list come from the first page. */
+export function mergeInboxPages(pages: InboxFeedData[] | undefined): {
+  state: InboxFeedData['state'] | undefined;
+  items: InboxItemData[];
+  first: InboxListData | null;
+} {
+  if (!pages || pages.length === 0) return { state: undefined, items: [], first: null };
+  const first = pages[0];
+  const seen = new Set<number>();
+  const items: InboxItemData[] = [];
+  for (const p of pages) {
+    if (p.state !== 'ok') continue;
+    for (const it of p.list.items) {
+      if (seen.has(it.id)) continue;
+      seen.add(it.id);
+      items.push(it);
+    }
+  }
+  return { state: first.state, items, first: first.state === 'ok' ? first.list : null };
+}
+
 export function useInboxFeed() {
   const view = useInboxUiStore((s) => s.view);
   const source = useInboxUiStore((s) => s.source);
@@ -28,29 +54,13 @@ export function useInboxFeed() {
       return apiClient.get<InboxFeedData>(`/api/inbox/items?${qs.toString()}`);
     },
     initialPageParam: null as string | null,
-    getNextPageParam: (last): string | undefined =>
-      last.state === 'ok' ? (last.list.nextCursor ?? undefined) : undefined,
+    getNextPageParam: nextPageParam,
     refetchInterval: interval,
     staleTime: 30_000,
   });
 
   const pages = query.data?.pages;
-  const derived = useMemo(() => {
-    if (!pages || pages.length === 0) return { state: undefined, items: [] as InboxItemData[], first: null };
-    const first = pages[0];
-    const seen = new Set<number>();
-    const items: InboxItemData[] = [];
-    for (const p of pages) {
-      if (p.state !== 'ok') continue;
-      for (const it of p.list.items) {
-        if (seen.has(it.id)) continue;
-        seen.add(it.id);
-        items.push(it);
-      }
-    }
-    const firstList: InboxListData | null = first.state === 'ok' ? first.list : null;
-    return { state: first.state, items, first: firstList };
-  }, [pages]);
+  const derived = useMemo(() => mergeInboxPages(pages), [pages]);
 
   return {
     ...query,

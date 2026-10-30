@@ -44,7 +44,27 @@ function checkId(id: string): string {
   return id;
 }
 
+const ALLOWED_ORIGINS = new Set(['http://localhost:5173', 'file://', 'null']);
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
+
+function hostName(host: string): string {
+  return host.startsWith('[') ? host.slice(0, host.indexOf(']') + 1) : host.split(':')[0];
+}
+
 export const inboxRoutes: FastifyPluginAsync = async (app) => {
+  // CSRF + DNS-rebinding guard. The proxy attaches the real inbox session
+  // cookie, so the inbox's own Origin/Host defenses must be re-applied here.
+  app.addHook('onRequest', async (req) => {
+    const host = (req.headers.host ?? '').toLowerCase();
+    if (!LOOPBACK_HOSTS.has(hostName(host))) throw new HttpError(403, 'Forbidden host.');
+    const origin = req.headers.origin;
+    if (origin !== undefined && !ALLOWED_ORIGINS.has(origin)) throw new HttpError(403, 'Forbidden origin.');
+    // Non-JSON POSTs are "simple" cross-site requests (no preflight) — refuse.
+    if (req.method === 'POST' && !(req.headers['content-type'] ?? '').toLowerCase().startsWith('application/json')) {
+      throw new HttpError(415, 'JSON body required.');
+    }
+  });
+
   app.get<{ Querystring: { view?: string; source?: string; cursor?: string; limit?: string } }>(
     '/items',
     async (req): Promise<InboxFeedData> => {

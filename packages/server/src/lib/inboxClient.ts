@@ -25,11 +25,15 @@ export class InboxUpstreamError extends Error {
 
 let sessionToken: string | null = null;
 let loginInFlight: Promise<string> | null = null;
+// Password value the inbox rejected: no further login POSTs until it changes
+// (saving a new password restarts the server, which also clears this).
+let badPassword: string | null = null;
 
 /** Clears the cached cookie + in-flight login. Exported for tests. */
 export function resetInboxSession(): void {
   sessionToken = null;
   loginInFlight = null;
+  badPassword = null;
 }
 
 async function doLogin(password: string): Promise<string> {
@@ -57,10 +61,17 @@ async function doLogin(password: string): Promise<string> {
 /** Single-flight: concurrent callers share one login fetch. */
 function login(password: string): Promise<string> {
   if (!loginInFlight) {
-    const p = doLogin(password).then((t) => {
-      sessionToken = t;
-      return t;
-    });
+    const p = doLogin(password).then(
+      (t) => {
+        sessionToken = t;
+        badPassword = null;
+        return t;
+      },
+      (e: unknown) => {
+        if (e instanceof InboxBadPasswordError) badPassword = password;
+        throw e;
+      },
+    );
     const clear = (): void => {
       if (loginInFlight === p) loginInFlight = null;
     };
@@ -88,15 +99,24 @@ export async function inboxRequest<T>(method: 'GET' | 'POST', path: string, body
   const password = cred('INBOX_PASSWORD');
   if (!password) throw new InboxNoPasswordError('Inbox password is not set.');
 
+  if (badPassword !== null && badPassword === password) {
+    throw new InboxBadPasswordError('The Inbox password was not accepted.');
+  }
+
   let token = sessionToken ?? (await login(password));
   let res = await send(method, path, token, body);
   if (res.status === 401) {
     // Cached cookie rejected: log in once more and retry once, no loop.
-    if (sessionToken === token) sessionToken = null;
-    token = await login(password);
+    if (sessionToken && sessionToken !== token) {
+      // Another request already refreshed the cookie: reuse it, no extra login.
+      token = sessionToken;
+    } else {
+      sessionToken = null;
+      token = await login(password);
+    }
     res = await send(method, path, token, body);
     if (res.status === 401) {
-      sessionToken = null;
+      if (sessionToken === token) sessionToken = null;
       throw new InboxBadPasswordError('The Inbox password was not accepted.');
     }
   }

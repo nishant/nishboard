@@ -81,7 +81,7 @@ function InboxRow({ item, view, acked, busy, onAck, onSnooze, onResolve, onUnsno
           <button
             type="button"
             onClick={() => openLink(href)}
-            className="block max-w-full text-xs font-medium text-th-hi line-clamp-2 break-words hover:underline text-left"
+            className="max-w-full text-xs font-medium text-th-hi line-clamp-2 break-words hover:underline text-left"
           >
             {item.title}
           </button>
@@ -189,9 +189,21 @@ export function InboxWidget() {
     [items, view],
   );
 
-  const pending = new Set<number>();
-  for (const m of [handle, unhandle, unsnooze]) if (m.isPending && typeof m.variables === 'number') pending.add(m.variables);
-  if (snooze.isPending && snooze.variables) pending.add(snooze.variables.id);
+  // Track every in-flight call per row (a single useMutation only remembers the latest).
+  const [pending, setPending] = useState<ReadonlySet<number>>(() => new Set());
+  function track(id: number, run: Promise<unknown>) {
+    setPending((p) => new Set(p).add(id));
+    // Errors are surfaced by the mutation's own onError; this only clears the busy flag.
+    void run
+      .catch(() => undefined)
+      .finally(() =>
+        setPending((p) => {
+          const n = new Set(p);
+          n.delete(id);
+          return n;
+        }),
+      );
+  }
 
   const sourceSuffix = source ? ` from ${sourceLabel(source)}` : '';
   const resolveCount = source ? (sources.find((s) => s.id === source)?.open ?? items.length) : (counts?.open ?? items.length);
@@ -205,10 +217,10 @@ export function InboxWidget() {
         acked={isAckedIn(acked, item)}
         busy={pending.has(item.id)}
         onAck={() => toggleAck(item)}
-        onSnooze={(until) => snooze.mutate({ id: item.id, until })}
-        onResolve={() => handle.mutate(item.id)}
-        onUnsnooze={() => unsnooze.mutate(item.id)}
-        onUnhandle={() => unhandle.mutate(item.id)}
+        onSnooze={(until) => track(item.id, snooze.mutateAsync({ id: item.id, until }))}
+        onResolve={() => track(item.id, handle.mutateAsync(item.id))}
+        onUnsnooze={() => track(item.id, unsnooze.mutateAsync(item.id))}
+        onUnhandle={() => track(item.id, unhandle.mutateAsync(item.id))}
       />
     );
   }
@@ -298,7 +310,7 @@ export function InboxWidget() {
               Resolve all
             </Button>
           )}
-          {sources.length > 1 && (
+          {(sources.length > 1 || source !== null) && (
             <ChipGroup label="Filter by source" scroll className="basis-full min-w-0">
               <Chip size="sm" pressed={source === null} onClick={() => setSource(null)}>
                 All

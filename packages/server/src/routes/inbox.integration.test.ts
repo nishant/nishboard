@@ -255,3 +255,36 @@ describe('POST /api/inbox/items/...', () => {
     expect(bp.json().error).toBe('The Inbox password was not accepted.');
   });
 });
+
+describe('inbox request guards (CSRF / DNS rebinding)', () => {
+  it('rejects a foreign Origin with 403 and no upstream fetch', async () => {
+    const fn = stubFetch([]);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/inbox/items/handle-all',
+      headers: { origin: 'https://evil.example' },
+      payload: {},
+    });
+    expect(res.statusCode).toBe(403);
+    expect(fn).not.toHaveBeenCalled();
+  });
+
+  it('rejects a text/plain POST with no upstream fetch', async () => {
+    const fn = stubFetch([]);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/inbox/items/handle-all',
+      headers: { 'content-type': 'text/plain' },
+      payload: 'x',
+    });
+    expect(res.statusCode).toBe(415);
+    expect(fn).not.toHaveBeenCalled();
+  });
+
+  it('rejects a non-loopback Host with 403 and no upstream fetch', async () => {
+    const fn = stubFetch([]);
+    const res = await app.inject({ method: 'GET', url: '/api/inbox/items', headers: { host: 'evil.example:7432' } });
+    expect(res.statusCode).toBe(403);
+    expect(fn).not.toHaveBeenCalled();
+  });
+});
