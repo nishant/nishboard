@@ -29,3 +29,7 @@ export type {
 export type { IpcChannels, ElectronAPI, LauncherItemData, LauncherGroupData, LauncherStateData, ClipboardEntryData, AppPrefsData, UpdateCheckData, DiscordScreenShareSourceData, DiscordScreenShareRequestData, ClaudeLoginOpenResult, NativeThemeSource } from './types/ipc';
 export type { CredentialKey, CredentialDef } from './types/credentials';
 export { CREDENTIAL_KEYS, CREDENTIAL_DEFS } from './types/credentials';
+export type {
+  InboxSeverityData, InboxViewData, InboxItemData, InboxActionData, InboxActionResultData, InboxListData, InboxFeedData,
+  InboxSnoozeRequestBody, InboxHandleAllRequestBody,
+} from './types/inbox';
