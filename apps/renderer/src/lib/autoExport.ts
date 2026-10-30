@@ -2,7 +2,6 @@ import { buildBackupPayload } from './backup';
 import { useLayoutStore } from '../store/layoutStore';
 import { useThemeStore } from '../store/themeStore';
 import { useAppSettingsStore } from '../store/settingsStore';
-import { useStocksStore } from '../store/stocksStore';
 import { useCryptoStore } from '../store/cryptoStore';
 import { useNotesStore } from '../store/notesStore';
 import { useHardwareStore } from '../store/hardwareStore';
@@ -35,7 +34,7 @@ export function initAutoExport(): void {
   started = true;
   // Every zustand store persisted to localStorage (UI-only stores excluded).
   const stores = [
-    useLayoutStore, useThemeStore, useAppSettingsStore, useStocksStore,
+    useLayoutStore, useThemeStore, useAppSettingsStore,
     useCryptoStore, useNotesStore, useHardwareStore, useTasksStore,
     useTimersStore, useCountdownStore, useWorldClockStore,
   ];

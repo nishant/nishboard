@@ -1,8 +1,9 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { StocksData, StockQuote, StockDetail, StockBar, StockNewsItem, MarketCalendarData } from '@dash/shared';
+import type { StocksData, StockQuote, StockDetail, StockBar, StockNewsItem, MarketCalendarData, TradingWatchlistData } from '@dash/shared';
 import { fetchJson, HttpError } from '../lib/http';
 import { TtlCache } from '../lib/TtlCache';
 import { cred } from '../lib/env';
+import { fetchTradingWatchlist } from '../lib/trading';
 
 const DEFAULT_SYMBOLS = ['SPY', 'QQQ', 'AAPL', 'MSFT', 'NVDA', 'TSLA', 'GOOGL', 'AMZN'];
 
@@ -257,7 +258,27 @@ function buildCalendar(days: AlpacaCalendarDay[]): MarketCalendarData {
   return { isOpen: false, nextOpen: null, nextClose: null, source: 'alpaca' };
 }
 
+// ── Trading watchlist (tickers + badges come from nishant/trading) ─────────────
+// Success caches 60s; a disconnected state only 3s — enough to absorb a burst
+// of concurrent mounts, short enough that the widget's Retry really retries.
+const watchlistCache = new TtlCache<string, TradingWatchlistData>(60_000);
+
+/** Exported for tests. */
+export function clearWatchlistCache(): void {
+  watchlistCache.clear();
+}
+
 export const stocksRoutes: FastifyPluginAsync = async (fastify) => {
+  // Always 200: `connected` discriminates, so the widget renders a "not
+  // connected" state instead of an error panel.
+  fastify.get<{ Reply: TradingWatchlistData }>('/watchlist', async (_req, reply) => {
+    const cached = watchlistCache.get('w');
+    if (cached) return reply.send(cached);
+    const data = await fetchTradingWatchlist();
+    watchlistCache.set('w', data, data.connected ? 60_000 : 3_000);
+    return reply.send(data);
+  });
+
   fastify.get<{
     Querystring: { symbols?: string };
     Reply: StocksData | { error: string };

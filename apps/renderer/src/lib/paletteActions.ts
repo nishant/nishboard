@@ -18,7 +18,6 @@ import { useTimersStore } from '../store/timersStore';
 import { useCountdownStore } from '../store/countdownStore';
 import { useTasksStore } from '../store/tasksStore';
 import { useNotesStore } from '../store/notesStore';
-import { useStocksStore } from '../store/stocksStore';
 import { useCryptoStore } from '../store/cryptoStore';
 import { useWorldClockStore } from '../store/worldClockStore';
 import { useOverlayStore } from '../store/overlayStore';
@@ -472,29 +471,6 @@ const PARAM_COMMANDS: FillableCommand[] = [
         default:
           return null;
       }
-    },
-  },
-  {
-    id: 'param:ticker',
-    triggers: ['ticker'],
-    group: 'Widgets',
-    argHint: '[remove] <symbol> — e.g. AAPL',
-    fillTitle: 'Add or remove a stock ticker…',
-    parse: (args) => {
-      const tokens = args.trim().split(/\s+/).filter(Boolean);
-      const removing = tokens[0]?.toLowerCase() === 'remove';
-      const raw = removing ? tokens[1] : tokens[0];
-      if (!raw || tokens.length > (removing ? 2 : 1) || !/^[A-Za-z.]{1,6}$/.test(raw)) return null;
-      const sym = raw.toUpperCase();
-      return {
-        preview: `${removing ? 'Remove' : 'Add'} ticker: ${sym}`,
-        run: () => {
-          const s = useStocksStore.getState();
-          if (removing) s.removeTicker(sym);
-          else s.addTicker(sym);
-          toast(removing ? 'Ticker removed' : 'Ticker added', sym, 'success');
-        },
-      };
     },
   },
   {

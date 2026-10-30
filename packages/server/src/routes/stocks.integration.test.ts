@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import type { FastifyInstance } from 'fastify';
 import type { StocksData } from '@dash/shared';
 import { buildServer } from '../app';
+import { clearWatchlistCache } from './stocks';
 import { jsonRes, stubFetch, textRes } from '../test/fetchStub';
 
 // NOTE: module-level TTL cache keyed by the sorted symbol set — distinct
@@ -21,6 +22,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
   delete process.env.ALPACA_API_KEY;
   delete process.env.ALPACA_API_SECRET;
+  delete process.env.TRADING_API_URL;
+  delete process.env.TRADING_API_TOKEN;
+  clearWatchlistCache();
 });
 
 function withCreds(): void {
@@ -109,5 +113,25 @@ describe('GET /api/stocks/detail', () => {
     expect(data.range).toBe('daily');
     expect(data.bars).toHaveLength(1);
     expect(data.news).toEqual([]); // fail-soft
+  });
+});
+
+describe('GET /api/stocks/watchlist', () => {
+  it('200s with a not-configured state when no token is set', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/stocks/watchlist' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ connected: false, reason: 'not-configured' });
+  });
+
+  it('proxies trading and caches a connected result', async () => {
+    process.env.TRADING_API_URL = 'http://trading.test:7433';
+    process.env.TRADING_API_TOKEN = 'otar_test';
+    const fn = stubFetch([
+      ['http://trading.test:7433/api/watchlist/summary', () => jsonRes({ symbols: [{ symbol: 'QQQ', topPickScore: null, hasOpenPosition: false }] })],
+    ]);
+    const first = await app.inject({ method: 'GET', url: '/api/stocks/watchlist' });
+    expect(first.json()).toMatchObject({ connected: true, items: [{ ticker: 'QQQ' }] });
+    await app.inject({ method: 'GET', url: '/api/stocks/watchlist' });
+    expect(fn).toHaveBeenCalledTimes(1); // second request served from cache
   });
 });

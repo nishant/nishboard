@@ -4,6 +4,34 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #148] feat: Stocks widget reads its watchlist from trading
+
+**Branch:** `feat/trading-watchlist` → `master`
+**Date:** 2026-10-30
+
+### Context
+nishant/trading's watchlist is now the single source of truth (workstream S3). Trading issues a read-only API token (generated, shown and rotated in trading → Settings → API Access; stored there only as a SHA-256 hash) accepted only on its GET watchlist routes. Nishboard stops keeping its own list.
+
+### Added
+- `GET /api/stocks/watchlist` (Fastify, `lib/trading.ts`): one call to trading's `GET /api/watchlist/summary` with `Authorization: Bearer <TRADING_API_TOKEN>`, mapped to `TradingWatchlistData` (shared). Always 200 with a `connected` discriminant: `not-configured` (no token), `unauthorized` (401: wrong, rotated or revoked token), `unreachable` (network/timeout; trading is tailnet-only), `error` (403 caller bug, 404 trading too old, non-JSON body). Cached 60s when connected, 3s when not (so Retry really retries). The token is sent only in the header; it never reaches the renderer, a log or an error message.
+- Credentials `TRADING_API_URL` (optional, default `https://trading.nish.software`; `http://127.0.0.1:7433` on trading's own PC) and `TRADING_API_TOKEN` in Settings → Developer under "Stocks (Trading watchlist)", write-only via safeStorage like the other keys. Deliberately not in `build.mjs` BUILTIN_KEYS: personal endpoint + token never get baked into installers.
+- Stocks quote cards show trading's per-ticker badges: ★ top-pick composite score (0..100; tooltip has the exact score and strategy; no badge when trading has no candidate, never 0) and a briefcase for an open option position.
+- Not-connected states in the widget: "Not connected to trading" / "Trading token rejected" / "Trading error" with an Open Settings → Developer button (hidden in popouts, which have no Settings), and "Trading unreachable" with Retry. An empty trading watchlist says so.
+- Tests: `lib/trading.test.ts` (mapping, status → reason, default URL, bearer header, no token leak), route tests in `stocks.integration.test.ts`, `StocksWidget.test.tsx` (not-connected states, badges).
+
+### Changed
+- `useStocks` takes its symbols from trading's watchlist (`useTradingWatchlist` / `useWatchlistTickers`, query key `['stocks', 'watchlist']`, 5-min gated poll; the alerts evaluator's hidden-window interval carries through to the watchlist too); Alpaca quotes, bars, news and the market calendar are unchanged. The header refresh covers both.
+- Settings → Alerts: stock rules flag tickers not on trading's watchlist ("won't fire") instead of adding them to a local list; the ticker suggestions come from trading.
+
+### Removed
+- The watchlist editor (pencil + modal), `stocksStore` (`stocks-watchlist` localStorage) and `stocksUiStore`; the `ticker <symbol>` command-palette action; `stocks-watchlist` from settings backup/auto-export (old backups' copy is ignored on import).
+
+### Notes
+- Read-only by design: nishboard never writes to trading, so no composite score can move from here.
+- Needs one step on the PC: paste trading's token into Settings → Developer → Stocks (Trading watchlist) → Read-only API token. Until then the widget shows "Not connected to trading".
+
+---
+
 ## [PR #149] feat: Inbox widget
 
 **Branch:** `feat/inbox-widget` → `master`

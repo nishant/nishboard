@@ -1,5 +1,5 @@
 // Settings backup — export/import the renderer's localStorage preferences as one
-// JSON file. Covers layout, theme, app settings, watchlist, hardware config, and
+// JSON file. Covers layout, theme, app settings, hardware config, and
 // any widget store keyed `dashboard-*`. Secrets are NOT here (API keys live in the
 // main process via safeStorage), so they're never written to the file.
 
@@ -7,7 +7,6 @@ const KNOWN_KEYS = [
   'dashboard-layout',
   'dashboard-theme',
   'dashboard-app-settings',
-  'stocks-watchlist',
   'hardware-config',
 ];
 

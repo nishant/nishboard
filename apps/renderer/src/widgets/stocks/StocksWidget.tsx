@@ -1,16 +1,15 @@
-import { useState, useRef, useEffect, type KeyboardEvent } from 'react';
-import { TrendingUp, TrendingDown, Pencil, X, Plus, ArrowLeft, ExternalLink } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { TrendingUp, TrendingDown, ArrowLeft, ExternalLink, Star, Briefcase, Unplug } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer, YAxis, Tooltip } from 'recharts';
-import { useStocks, useStockDetail, useMarketCalendar } from './useStocks';
-import { useStocksStore } from '../../store/stocksStore';
-import { useStocksUiStore } from '../../store/stocksUiStore';
+import { useStocks, useStockDetail, useMarketCalendar, useTradingWatchlist } from './useStocks';
+import { useOverlayStore } from '../../store/overlayStore';
 import { useAppSettingsStore } from '../../store/settingsStore';
 import { relTimeUntil, hourFormat } from '../../lib/time';
 import { ErrorState } from '../../components/ErrorState';
-import { HeaderAction } from '../../components/HeaderAction';
 import { RefreshAction } from '../../components/RefreshAction';
-import type { StockQuote } from '@dash/shared';
-import { Card, IconButton, Modal, Skeleton, SkeletonLines, StatusDot, cardClass, cn, type StatusTone, Label, Input, RelativeTime, useNow } from '@nish/ui';
+import type { StockQuote, TradingWatchlistData, TradingWatchlistItem } from '@dash/shared';
+import { Button, EmptyState, IconButton, Skeleton, SkeletonLines, StatusDot, cardClass, cn, type StatusTone, Label, RelativeTime, useNow } from '@nish/ui';
 import { num, pct, signed } from '@nish/ui/format';
 import { tk } from '../../lib/tokens';
 
@@ -51,7 +50,12 @@ function fmtPrice(n: number): string {
 }
 
 
-function QuoteCard({ q, onClick }: { q: StockQuote; onClick: () => void }) {
+function QuoteCard({ q, badges, onClick }: {
+  q: StockQuote;
+  /** Trading's per-ticker badges (top-pick score, open position). */
+  badges: TradingWatchlistItem | undefined;
+  onClick: () => void;
+}) {
   const positive = q.change >= 0;
   const color = positive ? 'text-th-ok' : 'text-th-loss';
   const Icon = positive ? TrendingUp : TrendingDown;
@@ -68,6 +72,25 @@ function QuoteCard({ q, onClick }: { q: StockQuote; onClick: () => void }) {
           <span className="font-mono font-bold text-th-hi text-sm leading-none truncate">
             {q.ticker}
           </span>
+          {badges?.topPickScore != null && (
+            <span
+              className="flex items-center gap-0.5 text-3xs text-th-warn font-mono tabular-nums shrink-0"
+              title={`Trading top pick score ${num(badges.topPickScore, { digits: 1 })} / 100${badges.topPickStrategy ? ` · ${badges.topPickStrategy.replace(/_/g, ' ')}` : ''}`}
+            >
+              <Star size={10} aria-hidden="true" />
+              {num(badges.topPickScore, { digits: 0 })}
+            </span>
+          )}
+          {badges?.openPosition && (
+            <span
+              className="text-th-info shrink-0"
+              title={`Open position in trading${badges.openPositionCount > 1 ? ` (${badges.openPositionCount})` : ''}`}
+              aria-label="Open position"
+              role="img"
+            >
+              <Briefcase size={10} aria-hidden="true" />
+            </span>
+          )}
         </div>
         <span className={cn('font-mono text-xs tabular-nums shrink-0', color)}>
           {pct(q.changePercent, { fromRatio: false, digits: 2, signed: true })}
@@ -181,87 +204,54 @@ function StockDetailPanel({ ticker, onClose }: { ticker: string; onClose: () => 
   );
 }
 
-function WatchlistModal({ onClose }: { onClose: () => void }) {
-  const { watchlist, addTicker, removeTicker } = useStocksStore();
-  const [input, setInput] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  function submit() {
-    const ticker = input.trim().toUpperCase();
-    if (ticker) {
-      addTicker(ticker);
-      setInput('');
-      inputRef.current?.focus();
-    }
-  }
-
-  function onKey(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter') submit();
-  }
-
+/** Not connected to trading — no token, rejected token, or trading off the
+ *  tailnet. Alpaca quotes need trading's ticker list, so nothing else renders. */
+function NotConnected({ data }: { data: Extract<TradingWatchlistData, { connected: false }> }) {
+  const openSettings = useOverlayStore((s) => s.openSettings);
+  const queryClient = useQueryClient();
+  // Popouts (?widget=…) have no Settings modal to open.
+  const inPopout = new URLSearchParams(window.location.search).has('widget');
+  const title =
+    data.reason === 'unauthorized' ? 'Trading token rejected'
+    : data.reason === 'unreachable' ? 'Trading unreachable'
+    : data.reason === 'error' ? 'Trading error'
+    : 'Not connected to trading';
+  const needsSettings = data.reason === 'not-configured' || data.reason === 'unauthorized' || data.reason === 'error';
   return (
-    <Modal title="Edit Watchlist" onClose={onClose}>
-      <div className="flex flex-col gap-3">
-        <div className="flex gap-2">
-          <Input
-            ref={inputRef}
-            size="sm"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={onKey}
-            placeholder="Add ticker…"
-            aria-label="Ticker"
-            className="flex-1 font-mono"
-            autoFocus
-          />
-          <IconButton label="Add ticker" size="sm" variant="subtle" onClick={submit}>
-            <Plus size={14} />
-          </IconButton>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          {watchlist.map((ticker) => (
-            <Card key={ticker} variant="inset" padding="none" className="flex items-center justify-between px-2.5 py-1 group">
-              <span className="font-mono text-th-hi text-xs">{ticker}</span>
-              <IconButton
-                label={`Remove ${ticker}`}
-                size="xs"
-                tone="danger"
-                onClick={() => removeTicker(ticker)}
-                className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
-              >
-                <X size={12} />
-              </IconButton>
-            </Card>
-          ))}
-        </div>
-
-        <p className="text-th-hi3 text-3xs">
-          Note: US equities only (Alpaca IEX feed). Futures/crypto tickers not supported.
-        </p>
-      </div>
-    </Modal>
+    <EmptyState
+      compact
+      className="h-full"
+      icon={<Unplug size={14} />}
+      title={title}
+      detail={data.message}
+      action={
+        needsSettings && !inPopout ? (
+          <Button size="sm" variant="secondary" onClick={() => openSettings('dev')}>
+            Open Settings → Developer
+          </Button>
+        ) : (
+          <Button size="sm" variant="secondary" onClick={() => void queryClient.refetchQueries({ queryKey: ['stocks', 'watchlist'] })}>
+            Retry
+          </Button>
+        )
+      }
+    />
   );
 }
 
-/** WidgetShell header actions: watchlist edit pencil + refresh. */
+/** WidgetShell header actions: refresh. The ['stocks'] prefix covers both the
+ *  trading watchlist and the quotes. The watchlist is edited in trading, never here. */
 export function StocksActions() {
-  const setEditing = useStocksUiStore((s) => s.setEditing);
-  return (
-    <>
-      <HeaderAction title="Edit watchlist" onClick={() => setEditing(true)}>
-        <Pencil size={11} />
-      </HeaderAction>
-      <RefreshAction queryKey={['stocks']} title="Refresh quotes" />
-    </>
-  );
+  return <RefreshAction queryKey={['stocks']} title="Refresh watchlist + quotes" />;
 }
 
 export function StocksWidget() {
+  const watchlist = useTradingWatchlist();
   const { data, isLoading, isError, error } = useStocks();
-  const { editing, setEditing } = useStocksUiStore();
   const [selected, setSelected] = useState<string | null>(null);
   const session = useMarketSession();
+  const connected = watchlist.data?.connected ? watchlist.data : null;
+  const badgeMap = new Map((connected?.items ?? []).map((i) => [i.ticker, i]));
   const calendar = useMarketCalendar().data;
 
   // Dedicated tick for the countdown text — useMarketSession's setState bails
@@ -297,7 +287,6 @@ export function StocksWidget() {
 
   return (
     <div className="relative h-full flex flex-col overflow-hidden">
-      {editing && <WatchlistModal onClose={() => setEditing(false)} />}
       {selected && <StockDetailPanel ticker={selected} onClose={() => setSelected(null)} />}
 
       <div className="flex items-center px-3 py-1.5 border-b border-th-line shrink-0">
@@ -311,8 +300,15 @@ export function StocksWidget() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
-        {isLoading && <SkeletonLines lines={4} className="h-full overflow-hidden" />}
-        {isError && (
+        {watchlist.data && !watchlist.data.connected && <NotConnected data={watchlist.data} />}
+        {watchlist.isError && !watchlist.data && (
+          <ErrorState message="Couldn't load the trading watchlist" queryKey={['stocks', 'watchlist']} />
+        )}
+        {connected && connected.items.length === 0 && (
+          <EmptyState compact className="h-full" title="Trading's watchlist is empty" detail="Add tickers in trading — they show up here." />
+        )}
+        {(watchlist.isLoading || isLoading) && <SkeletonLines lines={4} className="h-full overflow-hidden" />}
+        {connected && isError && (
           // Surface the server's message (e.g. the missing-keys pointer to
           // Settings → Developer) rather than a generic failure string.
           <ErrorState
@@ -320,10 +316,15 @@ export function StocksWidget() {
             queryKey={['stocks']}
           />
         )}
-        {data && (
+        {connected && data && (
           <div className="grid grid-cols-2 gap-2">
             {data.equities.map((q) => (
-              <QuoteCard key={q.ticker} q={q} onClick={() => setSelected(q.ticker)} />
+              <QuoteCard
+                key={q.ticker}
+                q={q}
+                badges={badgeMap.get(q.ticker)}
+                onClick={() => setSelected(q.ticker)}
+              />
             ))}
           </div>
         )}

@@ -34,7 +34,8 @@ describe('importSettings', () => {
       }),
     );
     expect(localStorage.getItem('dashboard-app-settings')).toBe(JSON.stringify({ state: { clock24h: true }, version: 1 }));
-    expect(localStorage.getItem('stocks-watchlist')).toBe(JSON.stringify(['AAPL']));
+    // Legacy key from old backups — the watchlist now lives in trading.
+    expect(localStorage.getItem('stocks-watchlist')).toBeNull();
     expect(localStorage.getItem('evil-key')).toBeNull();
     expect(localStorage.getItem('spotify-token')).toBeNull();
   });
@@ -49,7 +50,7 @@ describe('buildBackupPayload', () => {
   it('snapshots known keys plus every dashboard-* key, parsing JSON values', () => {
     localStorage.setItem('dashboard-app-settings', JSON.stringify({ state: {}, version: 1 }));
     localStorage.setItem('dashboard-future-widget', JSON.stringify({ a: 1 }));
-    localStorage.setItem('stocks-watchlist', JSON.stringify(['SPY']));
+    localStorage.setItem('hardware-config', JSON.stringify({ a: 2 }));
     localStorage.setItem('unrelated', 'x');
 
     const payload = buildBackupPayload();
@@ -57,7 +58,7 @@ describe('buildBackupPayload', () => {
     expect(payload.version).toBe(1);
     expect(payload.data['dashboard-app-settings']).toEqual({ state: {}, version: 1 });
     expect(payload.data['dashboard-future-widget']).toEqual({ a: 1 });
-    expect(payload.data['stocks-watchlist']).toEqual(['SPY']);
+    expect(payload.data['hardware-config']).toEqual({ a: 2 });
     expect('unrelated' in payload.data).toBe(false);
   });
 
