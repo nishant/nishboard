@@ -17,33 +17,48 @@ afterEach(() => {
 });
 
 describe('inboxRequest re-login', () => {
-  it('does exactly one re-login when two requests both get 401 on a cached cookie', async () => {
+  it('reuses a cookie refreshed by another request instead of logging in again', async () => {
     let logins = 0;
-    const fn = vi.fn(async (input: string | URL, init?: RequestInit): Promise<Response> => {
-      const url = String(input);
-      if (url.endsWith('/login')) {
-        logins += 1;
-        return loginRes(logins === 1 ? 'old' : 'new');
-      }
-      const cookie = (init?.headers as Record<string, string>).cookie;
-      return cookie.endsWith('=new') ? jsonRes({ ok: true }) : jsonRes({ error: 'no' }, 401);
+    const cookieOf = (init?: RequestInit): string => (init?.headers as Record<string, string>).cookie;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL) => {
+        if (String(input).endsWith('/login')) {
+          logins += 1;
+          return loginRes('old');
+        }
+        return jsonRes({ ok: true });
+      }),
+    );
+    await inboxRequest('GET', '/items'); // caches 'old'; logins === 1
+
+    // From here the inbox rejects 'old'. B's first send stalls until released.
+    let releaseB: (r: Response) => void = () => undefined;
+    const bGate = new Promise<Response>((resolve) => {
+      releaseB = resolve;
     });
-    vi.stubGlobal('fetch', fn);
-    await inboxRequest('GET', '/items'); // caches 'old', which the inbox now rejects
-    // Make the cached cookie stale: the stub only accepts 'new' from here on.
-    fn.mockImplementation(async (input: string | URL, init?: RequestInit) => {
-      const url = String(input);
-      if (url.endsWith('/login')) {
+    let oldSends = 0;
+    const fn = vi.fn(async (input: string | URL, init?: RequestInit): Promise<Response> => {
+      if (String(input).endsWith('/login')) {
         logins += 1;
         return loginRes('new');
       }
-      const cookie = (init?.headers as Record<string, string>).cookie;
-      return cookie.endsWith('=new') ? jsonRes({ ok: true }) : jsonRes({ error: 'no' }, 401);
+      if (cookieOf(init).endsWith('=new')) return jsonRes({ ok: true });
+      oldSends += 1;
+      return oldSends === 1 ? bGate : jsonRes({ error: 'no' }, 401);
     });
-    const [a, b] = await Promise.all([inboxRequest('GET', '/items'), inboxRequest('GET', '/items')]);
-    expect(a).toEqual({ ok: true });
-    expect(b).toEqual({ ok: true });
+    vi.stubGlobal('fetch', fn);
+
+    const b = inboxRequest('GET', '/items');
+    await vi.waitFor(() => expect(oldSends).toBe(1)); // B is parked on its first send
+    // A runs to completion: 401, re-login ('new'), retry OK.
+    expect(await inboxRequest('GET', '/items')).toEqual({ ok: true });
     expect(logins).toBe(2);
+
+    // B's 401 arrives only now, after A's re-login finished.
+    releaseB(jsonRes({ error: 'no' }, 401));
+    expect(await b).toEqual({ ok: true });
+    expect(logins).toBe(2); // B reused 'new' rather than logging in a third time
   });
 
   it('remembers a rejected password and stops posting logins until it changes', async () => {
