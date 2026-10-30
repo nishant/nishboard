@@ -105,5 +105,15 @@ export function useInboxMutations() {
     ...common,
   });
 
-  return { handle, unhandle, snooze, unsnooze, handleAll };
+  // Producer-defined action: 200 + the updated item even when the target failed.
+  const runAction = useMutation({
+    mutationFn: ({ id, actionId }: { id: number; actionId: string }) =>
+      apiClient.post<InboxItemData>(`/api/inbox/items/${id}/actions/${encodeURIComponent(actionId)}`, {}),
+    onSuccess: (item: InboxItemData) => {
+      if (item.lastAction && !item.lastAction.ok) toast('Inbox', item.lastAction.error ?? 'The action failed.', 'error');
+    },
+    ...common,
+  });
+
+  return { handle, unhandle, snooze, unsnooze, handleAll, runAction };
 }

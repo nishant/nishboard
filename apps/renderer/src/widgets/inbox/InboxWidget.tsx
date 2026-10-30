@@ -60,12 +60,15 @@ interface RowProps {
   onResolve: () => void;
   onUnsnooze: () => void;
   onUnhandle: () => void;
+  onAction: (actionId: string) => void;
 }
 
-function InboxRow({ item, view, acked, busy, onAck, onSnooze, onResolve, onUnsnooze, onUnhandle }: RowProps) {
+function InboxRow({ item, view, acked, busy, onAck, onSnooze, onResolve, onUnsnooze, onUnhandle, onAction }: RowProps) {
   const severity: InboxSeverityData = item.severity === 'urgent' || item.severity === 'info' ? item.severity : 'normal';
   const href = safeHref(item.url);
   const dimmed = view === 'open' && acked;
+  const actions = view === 'handled' ? [] : (item.actions ?? []);
+  const failed = item.lastAction && !item.lastAction.ok ? item.lastAction.error ?? 'The last action failed.' : null;
 
   return (
     <li className={cn('flex items-start gap-2 px-2 py-1.5', dimmed && 'opacity-60')}>
@@ -90,6 +93,23 @@ function InboxRow({ item, view, acked, busy, onAck, onSnooze, onResolve, onUnsno
         )}
         {item.body && (
           <div className="text-2xs text-th-hi2 line-clamp-2 break-words whitespace-pre-line">{item.body}</div>
+        )}
+        {failed && view !== 'handled' && <div className="text-3xs text-th-loss break-words">{failed}</div>}
+        {actions.length > 0 && (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {actions.map((a) => (
+              <Button
+                key={a.id}
+                size="xs"
+                variant="subtle"
+                className="pointer-coarse:min-h-11"
+                disabled={busy}
+                onClick={() => onAction(a.id)}
+              >
+                {a.label}
+              </Button>
+            ))}
+          </div>
         )}
         {view === 'snoozed' && item.snoozedUntil && (
           <div className="text-3xs text-th-hi3">
@@ -160,7 +180,7 @@ function InboxRow({ item, view, acked, busy, onAck, onSnooze, onResolve, onUnsno
 export function InboxWidget() {
   const { data, isLoading, isError, error, state, items, counts, sources, hasNextPage, isFetchingNextPage, fetchNextPage } =
     useInboxFeed();
-  const { handle, unhandle, snooze, unsnooze, handleAll } = useInboxMutations();
+  const { handle, unhandle, snooze, unsnooze, handleAll, runAction } = useInboxMutations();
   const view = useInboxUiStore((s) => s.view);
   const source = useInboxUiStore((s) => s.source);
   const acked = useInboxUiStore((s) => s.acked);
@@ -221,6 +241,7 @@ export function InboxWidget() {
         onResolve={() => track(item.id, handle.mutateAsync(item.id))}
         onUnsnooze={() => track(item.id, unsnooze.mutateAsync(item.id))}
         onUnhandle={() => track(item.id, unhandle.mutateAsync(item.id))}
+        onAction={(actionId) => track(item.id, runAction.mutateAsync({ id: item.id, actionId }))}
       />
     );
   }

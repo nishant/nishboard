@@ -81,9 +81,9 @@ function login(password: string): Promise<string> {
   return loginInFlight;
 }
 
-async function send(method: 'GET' | 'POST', path: string, token: string, body: unknown): Promise<Response> {
+async function send(method: 'GET' | 'POST', path: string, token: string, body: unknown, timeoutMs: number): Promise<Response> {
   const headers: Record<string, string> = { cookie: `${COOKIE_NAME}=${token}`, accept: 'application/json' };
-  const init: RequestInit = { method, headers, signal: AbortSignal.timeout(TIMEOUT_MS) };
+  const init: RequestInit = { method, headers, signal: AbortSignal.timeout(timeoutMs) };
   if (method === 'POST') {
     headers['content-type'] = 'application/json';
     init.body = JSON.stringify(body ?? {});
@@ -95,7 +95,8 @@ async function send(method: 'GET' | 'POST', path: string, token: string, body: u
   }
 }
 
-export async function inboxRequest<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
+/** `timeoutMs` defaults to 2s; item actions pass more, since the service waits up to 8s on the action's target. */
+export async function inboxRequest<T>(method: 'GET' | 'POST', path: string, body?: unknown, timeoutMs = TIMEOUT_MS): Promise<T> {
   const password = cred('INBOX_PASSWORD');
   if (!password) throw new InboxNoPasswordError('Inbox password is not set.');
 
@@ -104,7 +105,7 @@ export async function inboxRequest<T>(method: 'GET' | 'POST', path: string, body
   }
 
   let token = sessionToken ?? (await login(password));
-  let res = await send(method, path, token, body);
+  let res = await send(method, path, token, body, timeoutMs);
   if (res.status === 401) {
     // Cached cookie rejected: log in once more and retry once, no loop.
     if (sessionToken && sessionToken !== token) {
@@ -114,7 +115,7 @@ export async function inboxRequest<T>(method: 'GET' | 'POST', path: string, body
       sessionToken = null;
       token = await login(password);
     }
-    res = await send(method, path, token, body);
+    res = await send(method, path, token, body, timeoutMs);
     if (res.status === 401) {
       if (sessionToken === token) sessionToken = null;
       throw new InboxBadPasswordError('The Inbox password was not accepted.');

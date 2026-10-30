@@ -15,6 +15,9 @@ const VIEWS = new Set(['open', 'snoozed', 'handled']);
 const SOURCE_RE = /^[a-z0-9][a-z0-9-]{0,31}$/;
 const CURSOR_RE = /^[A-Za-z0-9_\-=.:]{1,200}$/;
 const ID_RE = /^\d{1,15}$/;
+const ACTION_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+// The inbox waits up to 8s on an action's target; leave headroom past that.
+const ACTION_TIMEOUT_MS = 10_000;
 const PASSTHROUGH = new Set([400, 404, 409, 429]);
 
 function upstreamError(err: InboxUpstreamError): HttpError {
@@ -31,9 +34,9 @@ function mutationError(err: unknown): unknown {
   return err;
 }
 
-async function mutate<T>(path: string, body: unknown): Promise<T> {
+async function mutate<T>(path: string, body: unknown, timeoutMs?: number): Promise<T> {
   try {
-    return await inboxRequest<T>('POST', path, body);
+    return await inboxRequest<T>('POST', path, body, timeoutMs);
   } catch (err) {
     throw mutationError(err);
   }
@@ -124,4 +127,12 @@ export const inboxRoutes: FastifyPluginAsync = async (app) => {
       return mutate<InboxItemData>(`/items/${id}/snooze`, { until });
     },
   );
+
+  // Producer-defined action (S5). The inbox runs its stored target; we only pass ids.
+  // 200 + the updated item whether the target succeeded or not (see item.lastAction).
+  app.post<{ Params: { id: string; actionId: string } }>('/items/:id/actions/:actionId', async (req) => {
+    const id = checkId(req.params.id);
+    if (!ACTION_ID_RE.test(req.params.actionId)) throw new HttpError(404, 'Not found.');
+    return mutate<InboxItemData>(`/items/${id}/actions/${req.params.actionId}`, {}, ACTION_TIMEOUT_MS);
+  });
 };

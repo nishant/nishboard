@@ -256,6 +256,40 @@ describe('POST /api/inbox/items/...', () => {
   });
 });
 
+describe('POST /api/inbox/items/:id/actions/:actionId', () => {
+  it('proxies the action with {} and returns the updated item, even when the target failed', async () => {
+    const item = { id: 5, lastAction: { actionId: 'rerun', ok: false, status: 500, error: 'The job did not start.', at: '2026-10-30T00:00:00.000Z' } };
+    const fn = stubFetch([
+      ['/api/login', () => loginOk()],
+      ['/items/5/actions/rerun', () => jsonRes(item)],
+    ]);
+    const res = await app.inject({ method: 'POST', url: '/api/inbox/items/5/actions/rerun', payload: {} });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual(item);
+    const [, init] = callsTo(fn, '/items/5/actions/rerun')[0];
+    expect(init.body).toBe('{}');
+  });
+
+  it('404s a bad item or action id without calling upstream', async () => {
+    const fn = stubFetch([]);
+    for (const url of ['/api/inbox/items/x/actions/rerun', '/api/inbox/items/5/actions/a%2F..%2Fingest', '/api/inbox/items/5/actions/a.b']) {
+      const res = await app.inject({ method: 'POST', url, payload: {} });
+      expect(res.statusCode).toBe(404);
+    }
+    expect(fn).not.toHaveBeenCalled();
+  });
+
+  it('passes the inbox 409 (already running) through', async () => {
+    stubFetch([
+      ['/api/login', () => loginOk()],
+      ['/items/5/actions/rerun', () => jsonRes({ error: 'An action on this item is already running.' }, 409)],
+    ]);
+    const res = await app.inject({ method: 'POST', url: '/api/inbox/items/5/actions/rerun', payload: {} });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toBe('An action on this item is already running.');
+  });
+});
+
 describe('inbox request guards (CSRF / DNS rebinding)', () => {
   it('rejects a foreign Origin with 403 and no upstream fetch', async () => {
     const fn = stubFetch([]);

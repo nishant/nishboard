@@ -18,6 +18,27 @@ export interface InboxItemData {
   handledBy: 'user' | 'source' | 'expired' | null;
   snoozedUntil: string | null;
   data: Record<string, string | number | boolean | null> | null;
+  /** Producer-defined buttons (@nish/ui InboxAction). Absent on inbox builds before actions shipped. */
+  actions?: InboxActionData[];
+  /** Outcome of the last action run on this item, or null. */
+  lastAction?: InboxActionResultData | null;
+}
+
+/** Mirrors @nish/ui InboxAction. The service keeps the target; the client only sends the id. */
+export interface InboxActionData {
+  id: string;
+  label: string;
+  method: 'POST';
+  target: string;
+}
+
+/** Mirrors @nish/ui InboxActionResult. `error` is a short user-facing sentence when ok is false. */
+export interface InboxActionResultData {
+  actionId: string;
+  ok: boolean;
+  status: number | null;
+  error: string | null;
+  at: string;
 }
 
 /** Mirrors @nish/ui InboxListResponse. */
