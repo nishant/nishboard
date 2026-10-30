@@ -4,7 +4,7 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
-## [PR #TBD] feat: Stocks widget reads its watchlist from trading
+## [PR #148] feat: Stocks widget reads its watchlist from trading
 
 **Branch:** `feat/trading-watchlist` → `master`
 **Date:** 2026-10-30
