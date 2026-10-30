@@ -14,6 +14,7 @@ export const CREDENTIAL_KEYS = [
   'COINGECKO_API_KEY',
   'GITHUB_TOKEN',
   'CLAUDE_CODE_OAUTH_TOKEN',
+  'INBOX_PASSWORD',
 ] as const;
 
 export type CredentialKey = typeof CREDENTIAL_KEYS[number];
@@ -84,5 +85,12 @@ export const CREDENTIAL_DEFS: CredentialDef[] = [
     label: 'Claude Code OAuth Token',
     service: 'Claude',
     hint: "Optional — only needed if Claude Code isn't logged in on this machine. Generate with `claude setup-token`.",
+  },
+  {
+    // Deliberately NOT in build.mjs BUILTIN_KEYS — a personal password.
+    key: 'INBOX_PASSWORD',
+    label: 'Password',
+    service: 'Inbox',
+    hint: 'The Inbox page password (the inbox service on the PC, 127.0.0.1:8805). Leave empty on the Mac.',
   },
 ];

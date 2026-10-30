@@ -32,6 +32,22 @@ nishant/trading's watchlist is now the single source of truth (workstream S3). T
 
 ---
 
+## [PR #149] feat: Inbox widget
+
+**Branch:** `feat/inbox-widget` → `master`
+**Date:** 2026-10-30
+
+### Context
+The PC runs the inbox service (`nishant/inbox`, loopback `127.0.0.1:8805`) that collects events from every app. Nishboard now shows it as a widget.
+
+### Added
+- **Inbox widget**: open items grouped Urgent → Normal → Info, with Ack (Nishboard-local, lapses when the item repeats), Snooze, Resolve, Snoozed/Handled views, source filter, Resolve all. Shows a quiet "Inbox is on the PC" state when the service is unreachable (the Mac).
+- `/api/inbox/*` Fastify proxy to the inbox's `/api/*` (never `/ingest/*`): password login with an in-memory cookie, one re-login on 401, offline/no-password/bad-password as 200 states, CSRF and DNS-rebinding guards.
+- Item actions (S5 contract, optional `actions`/`lastAction`): buttons → `POST /api/inbox/items/:id/actions/:actionId`. Inert until the inbox service ships actions.
+- `INBOX_PASSWORD` credential (Settings → Developer → Inbox). Not baked into builds.
+
+---
+
 ## [PR #138] refactor: @nish/ui v0.7.1 and its shared formatters, hooks and opaque panels
 
 **Branch:** `refactor/ui-v0.7.1` → `master`

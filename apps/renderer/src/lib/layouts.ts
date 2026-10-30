@@ -5,7 +5,8 @@ export type WidgetId =
   | 'tasks' | 'worldclock' | 'notes' | 'timer' | 'countdown' | 'news' | 'crypto' | 'launcher' | 'clipboard'
   | 'claude'
   | 'netmon'
-  | 'discord';
+  | 'discord'
+  | 'inbox';
 
 export const ALL_WIDGET_IDS: WidgetId[] = [
   'weather', 'spotify', 'stocks', 'hardware', 'sound', 'calendar', 'youtube', 'twitch',
@@ -13,6 +14,7 @@ export const ALL_WIDGET_IDS: WidgetId[] = [
   'claude',
   'netmon',
   'discord',
+  'inbox',
 ];
 
 export const WIDGET_TITLES: Record<WidgetId, string> = {
@@ -36,6 +38,7 @@ export const WIDGET_TITLES: Record<WidgetId, string> = {
   claude: 'Claude',
   netmon: 'Net Monitor',
   discord: 'Discord',
+  inbox: 'Inbox',
 };
 
 export interface WidgetCategory {
@@ -50,7 +53,7 @@ export interface WidgetCategory {
  *  widget without categorizing it fails the suite. */
 export const WIDGET_CATEGORIES: WidgetCategory[] = [
   { id: 'media', label: 'Media', widgets: ['spotify', 'youtube', 'twitch', 'discord'] },
-  { id: 'feeds', label: 'Feeds', widgets: ['weather', 'stocks', 'crypto', 'news'] },
+  { id: 'feeds', label: 'Feeds', widgets: ['weather', 'stocks', 'crypto', 'news', 'inbox'] },
   {
     id: 'productivity',
     label: 'Productivity',
@@ -254,6 +257,7 @@ export const WIDGET_CONSTRAINTS: Record<WidgetId, { minW: number; minH: number }
   countdown:  { minW: 3, minH: 2 },
   news:       { minW: 3, minH: 3 },
   crypto:     { minW: 3, minH: 2 },
+  inbox:      { minW: 3, minH: 2 },
   launcher:   { minW: 3, minH: 2 },
   clipboard:  { minW: 3, minH: 2 },
   // Chat needs room for the input row + a few message lines.
