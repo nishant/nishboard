@@ -259,8 +259,8 @@ function buildCalendar(days: AlpacaCalendarDay[]): MarketCalendarData {
 }
 
 // ── Trading watchlist (tickers + badges come from nishant/trading) ─────────────
-// Success caches 60s; a disconnected state only 15s so fixing the token or
-// rejoining the tailnet shows up fast without hammering a dead host.
+// Success caches 60s; a disconnected state only 3s — enough to absorb a burst
+// of concurrent mounts, short enough that the widget's Retry really retries.
 const watchlistCache = new TtlCache<string, TradingWatchlistData>(60_000);
 
 /** Exported for tests. */
@@ -275,7 +275,7 @@ export const stocksRoutes: FastifyPluginAsync = async (fastify) => {
     const cached = watchlistCache.get('w');
     if (cached) return reply.send(cached);
     const data = await fetchTradingWatchlist();
-    watchlistCache.set('w', data, data.connected ? 60_000 : 15_000);
+    watchlistCache.set('w', data, data.connected ? 60_000 : 3_000);
     return reply.send(data);
   });
 

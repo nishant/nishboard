@@ -301,7 +301,7 @@ export function StocksWidget() {
 
       <div className="flex-1 overflow-y-auto p-2">
         {watchlist.data && !watchlist.data.connected && <NotConnected data={watchlist.data} />}
-        {watchlist.isError && (
+        {watchlist.isError && !watchlist.data && (
           <ErrorState message="Couldn't load the trading watchlist" queryKey={['stocks', 'watchlist']} />
         )}
         {connected && connected.items.length === 0 && (
