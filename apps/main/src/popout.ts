@@ -30,6 +30,7 @@ const DEFAULT_SIZES: Record<string, { width: number; height: number }> = {
   countdown: { width: 320, height: 260 },
   news: { width: 420, height: 220 },
   crypto: { width: 360, height: 380 },
+  inbox: { width: 380, height: 480 },
   launcher: { width: 360, height: 380 },
   clipboard: { width: 340, height: 400 },
   discord: { width: 480, height: 560 },

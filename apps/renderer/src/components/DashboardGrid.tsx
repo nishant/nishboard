@@ -23,6 +23,7 @@ import { TimerWidget } from '../widgets/timer/TimerWidget';
 import { CountdownWidget } from '../widgets/countdown/CountdownWidget';
 import { NewsWidget, NewsActions } from '../widgets/news/NewsWidget';
 import { CryptoWidget, CryptoActions } from '../widgets/crypto/CryptoWidget';
+import { InboxWidget, InboxActions } from '../widgets/inbox/InboxWidget';
 import { LauncherWidget, LauncherActions } from '../widgets/launcher/LauncherWidget';
 import { ClipboardWidget, ClipboardActions } from '../widgets/clipboard/ClipboardWidget';
 import { ClaudeWidget, ClaudeActions } from '../widgets/claude/ClaudeWidget';
@@ -58,6 +59,7 @@ export const WIDGET_REGISTRY: Record<WidgetId, WidgetEntry> = {
   countdown: { Component: CountdownWidget },
   news: { Component: NewsWidget, Actions: NewsActions },
   crypto: { Component: CryptoWidget, Actions: CryptoActions },
+  inbox: { Component: InboxWidget, Actions: InboxActions },
   launcher: { Component: LauncherWidget, Actions: LauncherActions },
   clipboard: { Component: ClipboardWidget, Actions: ClipboardActions },
   claude: { Component: ClaudeWidget, Actions: ClaudeActions },
