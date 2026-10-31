@@ -1,14 +1,11 @@
 {
+  "extends": "@nish/ui/tsconfig/base.json",
   "compilerOptions": {
-    "strict": true,
-    "target": "ES2022",
-    "lib": ["ES2022"],
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "resolveJsonModule": true,
+    // The preset is noEmit; the packages that build dist/ (shared, server, main)
+    // need declarations, maps and real emit, so those deltas live here.
+    "noEmit": false,
     "declaration": true,
     "declarationMap": true,
-    "sourceMap": true,
-    "forceConsistentCasingInFileNames": true
+    "sourceMap": true
   }
 }
