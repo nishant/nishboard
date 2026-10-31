@@ -82,8 +82,8 @@ export function Titlebar() {
 
   return (
     <div
-      style={dragStyle}
-      className="h-8 relative z-40 flex items-center px-3 bg-th-bg border-b border-th-line/50 shrink-0 select-none"
+      style={{ ...dragStyle, height: TITLEBAR_H }}
+      className="relative z-40 flex items-center px-3 bg-th-bg border-b border-th-line/50 shrink-0 select-none"
     >
       {/* Left: brand + pinned layouts (inline when wide, dropdown when compact) */}
       <div className="flex items-center gap-1.5 min-w-0">

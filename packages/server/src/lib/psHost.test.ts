@@ -35,7 +35,7 @@ class FakeChild extends EventEmitter {
   }
 }
 
-function setup(opts: { idleMs?: number; timeoutMs?: number; autoReady?: boolean } = {}) {
+function setup(opts: { idleMs?: number; timeoutMs?: number; readyTimeoutMs?: number; autoReady?: boolean } = {}) {
   const children: FakeChild[] = [];
   const spawnFn = vi.fn(() => {
     const c = new FakeChild();
@@ -81,6 +81,32 @@ describe('PsHost', () => {
     expect(req.script).toBe('A');
     children[0].reply({ id: req.id, ok: true, out: 'a' });
     await expect(p).resolves.toBe('a');
+    host.dispose();
+  });
+
+  it('does not cut off a slow bootstrap with the request timeout', async () => {
+    const { host, children } = setup({ autoReady: false, timeoutMs: 1000, readyTimeoutMs: 5000 });
+    const p = host.run('A');
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(children[0].killed).toBe(false);
+    children[0].stdout.emit('data', Buffer.from('{"ready":true}\n'));
+    const [req] = children[0].requests();
+    children[0].reply({ id: req.id, ok: true, out: 'late' });
+    await expect(p).resolves.toBe('late');
+    host.dispose();
+  });
+
+  it('kills the child and fails the queue when ready never arrives', async () => {
+    const { host, children } = setup({ autoReady: false, timeoutMs: 1000, readyTimeoutMs: 5000 });
+    const a = host.run('A');
+    const b = host.run('B');
+    const aAssert = expect(a).rejects.toThrow('did not become ready');
+    const bAssert = expect(b).rejects.toThrow('did not become ready');
+    await vi.advanceTimersByTimeAsync(5000);
+    await aAssert;
+    await bAssert;
+    expect(children[0].killed).toBe(true);
+    expect(children[0].requests()).toHaveLength(0);
     host.dispose();
   });
 
