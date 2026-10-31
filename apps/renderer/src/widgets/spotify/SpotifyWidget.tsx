@@ -649,7 +649,8 @@ function NowPlayingView({
         <button onClick={handleRewind}
           className="text-th-hi3 hover:text-th-hi transition-colors relative" title="Rewind 15s" aria-label="Rewind 15 seconds">
           <RotateCcw size={seekSz} />
-          <span className="absolute inset-0 flex items-center justify-center text-[6px] font-bold text-current mt-1.5 ml-0.5">15</span>
+          {/* 6px is an intentional micro-label on the seek icon, below the type scale */}
+          <span className="absolute inset-0 flex items-center justify-center font-bold text-current mt-1.5 ml-0.5" style={{ fontSize: 6 }}>15</span>
         </button>
         <button onClick={() => previous.mutate()}
           className="text-th-hi2 hover:text-th-hi transition-colors" title="Previous" aria-label="Previous">
@@ -669,7 +670,8 @@ function NowPlayingView({
         <button onClick={handleSkipFwd}
           className="text-th-hi3 hover:text-th-hi transition-colors relative" title="Skip forward 15s" aria-label="Skip forward 15 seconds">
           <RotateCw size={seekSz} />
-          <span className="absolute inset-0 flex items-center justify-center text-[6px] font-bold text-current mt-1.5 mr-0.5">15</span>
+          {/* 6px is an intentional micro-label on the seek icon, below the type scale */}
+          <span className="absolute inset-0 flex items-center justify-center font-bold text-current mt-1.5 mr-0.5" style={{ fontSize: 6 }}>15</span>
         </button>
       </div>
       <button onClick={() => repeat.mutate(nextRepeatState(data.repeatState))}

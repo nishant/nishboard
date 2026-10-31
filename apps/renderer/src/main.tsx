@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { AppErrorBoundary } from '@nish/ui';
 import { App } from './App';
 import { PopoutShell } from './components/PopoutShell';
 import { WIDGET_TITLES } from './lib/layouts';
@@ -16,6 +17,6 @@ const popoutId =
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    {popoutId ? <PopoutShell widgetId={popoutId} /> : <App />}
+    <AppErrorBoundary>{popoutId ? <PopoutShell widgetId={popoutId} /> : <App />}</AppErrorBoundary>
   </React.StrictMode>,
 );

@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { createHash } from 'node:crypto';
 
 const SERVER_ORIGINS = 'http://127.0.0.1:7432 http://localhost:7432';
