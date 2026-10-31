@@ -4,7 +4,7 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
-## [PR #TBD] feat: modernise Nishboard (Electron 45, auto-update, responsive grid, hardening)
+## [PR #155] feat: modernise Nishboard (Electron 45, auto-update, responsive grid, hardening)
 **Branch:** `feat/modernise` → `master`
 **Date:** 2026-10-31
 
