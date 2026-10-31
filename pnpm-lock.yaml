@@ -64,8 +64,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared
       '@nish/ui':
-        specifier: https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v0.10.0
-        version: https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v0.10.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        specifier: https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v1.0.0
+        version: https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v1.0.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@tanstack/react-query':
         specifier: ^5.105.0
         version: 5.105.0(@types/react@19.3.0)(react@19.3.1)
@@ -646,13 +646,18 @@ packages:
     os: [linux]
     libc: [glibc]
 
-  '@nish/ui@https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v0.10.0':
-    resolution: {tarball: https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v0.10.0}
-    version: 0.10.0
+  '@nish/ui@https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v1.0.0':
+    resolution: {gitHosted: true, integrity: sha512-2k03WkZGWqDDpyfDLM8zfhvV4SiHiIA+orbxZLqFkYCjMf0AGQd8Bl4bVlrfZ5DUanqJtcc2UnqekxZZ6b0yAQ==, tarball: https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v1.0.0}
+    version: 1.0.0
+    engines: {node: '>=20'}
+    hasBin: true
     peerDependencies:
+      hono: '>=4'
       react: '>=19'
       react-dom: '>=19'
     peerDependenciesMeta:
+      hono:
+        optional: true
       react:
         optional: true
       react-dom:
@@ -4011,7 +4016,7 @@ snapshots:
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     optional: true
 
-  '@nish/ui@https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v0.10.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
+  '@nish/ui@https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v1.0.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
       clsx: 2.1.1
       tailwind-merge: 3.7.0
