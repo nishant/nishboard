@@ -2,36 +2,26 @@ import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { readFileSync } from 'fs';
-import { createRequire } from 'module';
 import path from 'path';
 import { APP_PRESETS } from './src/lib/appPresets.ts';
 import { LEGACY_THEME_IDS } from './src/lib/legacyThemes.ts';
+import { nishThemeInit } from '@nish/ui/vite';
 import { buildCsp } from './src/csp.ts';
 
-const require = createRequire(import.meta.url);
-
-/** Inlines Nishboard's prelude (src/theme-init-app.js: app-local theme ids on
- *  window.__nishExtraThemes, the saved choice, Custom colors) and then @nish/ui's
- *  theme-init.js at the top of <head>, so the saved theme is on <html> before the
- *  first paint. Inline, not a file: the packaged app loads from file://, and a
- *  render-blocking inline script is the one thing that cannot arrive late. */
-function themeInit(): Plugin {
-  return {
-    name: 'nishboard-theme-init',
-    transformIndexHtml() {
-      const app = readFileSync(path.resolve(import.meta.dirname, 'src/theme-init-app.js'), 'utf8')
-        .replace('__APP__', JSON.stringify(Object.fromEntries(APP_PRESETS.map((p) => [p.id, p.base.scheme]))))
-        .replace('__LEGACY__', JSON.stringify(LEGACY_THEME_IDS));
-      const shared = readFileSync(require.resolve('@nish/ui/theme-init.js'), 'utf8');
-      return [{ tag: 'script', children: `${app}\n${shared}`.replace(/\r\n?/g, '\n'), injectTo: 'head-prepend' }];
-    },
-  };
-}
+/** Nishboard's prelude (src/theme-init-app.js: app-local theme ids on
+ *  window.__nishExtraThemes, the saved choice, Custom colors), which @nish/ui's
+ *  nishThemeInit() inlines ahead of theme-init.js at the top of <head>, so the saved
+ *  theme is on <html> before the first paint. Inline, not a file: the packaged app loads
+ *  from file://, and a render-blocking inline script is the one thing that cannot arrive late. */
+const themePrelude = readFileSync(path.resolve(import.meta.dirname, 'src/theme-init-app.js'), 'utf8')
+  .replace('__APP__', JSON.stringify(Object.fromEntries(APP_PRESETS.map((p) => [p.id, p.base.scheme]))))
+  .replace('__LEGACY__', JSON.stringify(LEGACY_THEME_IDS))
+  .replace(/\r\n?/g, '\n');
 
 /** Injects a Content-Security-Policy <meta> as the first child of <head> in production
  *  builds. Every inline <script> in the final HTML is allowed by SHA-256 hash. A meta CSP
  *  only governs content after it, hence head-prepend and a post-order hook that runs after
- *  themeInit() has added its inline script. */
+ *  nishThemeInit() has added its inline script. */
 function csp(): Plugin {
   return {
     name: 'nishboard-csp',
@@ -60,7 +50,7 @@ const MARKDOWN_PKG =
   /[\\/]node_modules[\\/](?:\.pnpm[\\/][^\\/]+[\\/]node_modules[\\/])?(?:react-markdown|remark-[^\\/]+|micromark[^\\/]*|mdast-[^\\/]+|unified)[\\/]/;
 
 export default defineConfig({
-  plugins: [themeInit(), csp(), react(), tailwindcss()],
+  plugins: [nishThemeInit({ prelude: themePrelude }), csp(), react(), tailwindcss()],
   resolve: {
     alias: {
       '@dash/shared': path.resolve(import.meta.dirname, '../../packages/shared/src/index.ts'),
