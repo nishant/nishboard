@@ -139,7 +139,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14 # arm64 → Nishboard-x.y.z-arm64.dmg (+ blockmap and latest-mac.yml when emitted)
+          - os: macos-15 # arm64 → Nishboard-x.y.z-arm64.dmg (+ blockmap and latest-mac.yml when emitted)
             upload: release/*.dmg release/*.dmg.blockmap release/latest-mac.yml
           - os: windows-latest # x64 NSIS → Nishboard-Setup-x.y.z.exe + blockmap + latest.yml
             upload: release/*.exe release/*.exe.blockmap release/latest.yml

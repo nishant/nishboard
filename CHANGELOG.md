@@ -4,6 +4,13 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #157] fix: build the macOS release on macos-15
+**Branch:** `fix/release-macos-15` → `master`
+**Date:** 2026-10-31
+
+### Fixed
+- `release.yml`: the DMG leg runs on `macos-15` (still arm64, same `Nishboard-x.y.z-arm64.dmg`). GitHub's scheduled macos-14 brownouts (image retires 2026-11-02, actions/runner-images#13518) cancelled the macOS leg of v0.23.3 and v0.24.0 before it started; under the draft → publish flow v0.24.0 therefore stayed a draft. This release ships both installers with `SHA256SUMS`. Supersedes #156 (same change against the old workflow file).
+
 ## [PR #155] feat: modernise Nishboard (Electron 45, auto-update, responsive grid, hardening)
 **Branch:** `feat/modernise` → `master`
 **Date:** 2026-10-31
