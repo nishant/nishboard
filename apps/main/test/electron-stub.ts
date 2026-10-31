@@ -12,7 +12,10 @@ export const app = {
 
 export const dialog = {};
 export const shell = {};
-export const clipboard = {};
+export const clipboard = {
+  readText: (): Promise<string> => Promise.resolve(''),
+  writeText: (_text: string): Promise<void> => Promise.resolve(),
+};
 
 export const desktopCapturer = {
   getSources: (): Promise<never[]> => Promise.resolve([]),
@@ -44,6 +47,32 @@ export const safeStorage = {
   isEncryptionAvailable: (): boolean => false,
   encryptString: (s: string): Buffer => Buffer.from(s, 'utf8'),
   decryptString: (b: Buffer): string => b.toString('utf8'),
+  isAsyncEncryptionAvailable: (): Promise<boolean> => Promise.resolve(false),
+  encryptStringAsync: (s: string): Promise<Buffer> => Promise.resolve(Buffer.from(s, 'utf8')),
+  decryptStringAsync: (b: Buffer): Promise<string> => Promise.resolve(b.toString('utf8')),
+};
+
+const stubWorkArea = { x: 0, y: 0, width: 1920, height: 1040 };
+export const screen = {
+  getAllDisplays: (): { workArea: typeof stubWorkArea }[] => [{ workArea: stubWorkArea }],
+  getPrimaryDisplay: (): { workArea: typeof stubWorkArea } => ({ workArea: stubWorkArea }),
+  on: (_event: string, _cb: unknown): void => undefined,
+};
+
+export const globalShortcut = {
+  register: (_accelerator: string, _cb: unknown): boolean => true,
+  unregister: (_accelerator: string): void => undefined,
+  unregisterAll: (): void => undefined,
+};
+
+export const ipcMain = {
+  handle: (_channel: string, _cb: unknown): void => undefined,
+  on: (_channel: string, _cb: unknown): void => undefined,
+};
+
+export const nativeImage = {
+  createFromPath: (_p: string): { isEmpty: () => boolean } => ({ isEmpty: () => true }),
+  createEmpty: (): { isEmpty: () => boolean } => ({ isEmpty: () => true }),
 };
 
 export const nativeTheme = {

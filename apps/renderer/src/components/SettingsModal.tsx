@@ -1,7 +1,7 @@
 import { useState, useEffect, useId, useRef } from 'react';
 import { X, Eye, EyeOff, Check, Lock, Minus, Plus, Download, Upload, FolderOpen, RotateCw, FolderSync, Terminal } from 'lucide-react';
 import { CREDENTIAL_DEFS, CREDENTIAL_KEYS } from '@dash/shared';
-import type { CredentialKey, AppPrefsData, UpdateCheckData } from '@dash/shared';
+import type { CredentialKey, AppPrefsData, UpdateCheckData, ElectronAPI } from '@dash/shared';
 import { useAppSettingsStore } from '../store/settingsStore';
 import type { Density, TempUnit, WindUnit, LowPowerMode, WeatherAlertNotify } from '../store/settingsStore';
 import { useLayoutStore } from '../store/layoutStore';
@@ -127,15 +127,53 @@ function BuiltinRow({ label }: { label: string }) {
 
 // ── About + update check (Electron only) ──────────────────────────────────────
 
+// Not re-exported from the shared index; derive it from the API contract.
+type UpdateStatusData = Awaited<ReturnType<ElectronAPI['app']['getUpdateStatus']>>;
+
+/** Status line (and restart button) for builds that install updates themselves. */
+function AutoUpdateStatus({ status, result }: { status: UpdateStatusData; result: UpdateCheckData | null }) {
+  switch (status.state) {
+    case 'checking':
+      return <span className="text-th-hi3">Checking for updates…</span>;
+    case 'downloading':
+      return <span className="text-th-hi3">Downloading v{status.version}… {status.percent ?? 0}%</span>;
+    case 'downloaded':
+      return (
+        <>
+          <span className="text-th-hi3">v{status.version} is ready.</span>
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={() => void window.electron?.app.installUpdate()}
+            className="self-start"
+          >
+            Restart to update
+          </Button>
+        </>
+      );
+    case 'error':
+      return <span className="text-th-loss">Update failed: {status.message}</span>;
+    case 'idle':
+      return result ? <span className="text-th-hi3">{result.message ?? 'You are up to date.'}</span> : null;
+  }
+}
+
 function AboutSection() {
   const [version, setVersion] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const [result, setResult] = useState<UpdateCheckData | null>(null);
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatusData>({
+    state: 'idle', version: null, percent: null, message: null,
+  });
 
   useEffect(() => {
     let cancelled = false;
     void window.electron?.app?.getVersion().then((v) => { if (!cancelled) setVersion(v); });
-    return () => { cancelled = true; };
+    const app = window.electron?.app;
+    if (!app?.getUpdateStatus) return () => { cancelled = true; };
+    void app.getUpdateStatus().then((st) => { if (!cancelled) setUpdateStatus(st); });
+    const off = app.onUpdateStatus((st) => setUpdateStatus(st));
+    return () => { cancelled = true; off(); };
   }, []);
 
   if (!window.electron?.app) return null;
@@ -159,7 +197,11 @@ function AboutSection() {
           Check for updates
         </Button>
       </div>
-      {result && (
+      {(result?.autoUpdate || updateStatus.state !== 'idle') ? (
+        <div className="text-3xs leading-relaxed pl-[calc(7rem+0.75rem)] flex flex-col gap-1">
+          <AutoUpdateStatus status={updateStatus} result={result} />
+        </div>
+      ) : result && (
         <div className="text-3xs leading-relaxed pl-[calc(7rem+0.75rem)] flex flex-col gap-1">
           {result.hasUpdate && result.latestVersion ? (
             <>

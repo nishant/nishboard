@@ -8,66 +8,15 @@ import { useAppSettingsStore } from '../store/settingsStore';
 import { usePopoutStore } from '../store/popoutStore';
 import { useWidgetUiStore } from '../store/widgetUiStore';
 import { WidgetShell } from './WidgetShell';
-import { WeatherWidget, WeatherActions } from '../widgets/weather/WeatherWidget';
-import { SpotifyWidget, SpotifyActions } from '../widgets/spotify/SpotifyWidget';
-import { StocksWidget, StocksActions } from '../widgets/stocks/StocksWidget';
-import { HardwareWidget, HardwareActions } from '../widgets/hardware/HardwareWidget';
-import { SoundWidget, SoundActions } from '../widgets/sound/SoundWidget';
-import { CalendarWidget, CalendarActions } from '../widgets/calendar/CalendarWidget';
-import { YoutubeWidget, YoutubeActions } from '../widgets/youtube/YoutubeWidget';
-import { TwitchWidget, TwitchActions } from '../widgets/twitch/TwitchWidget';
-import { TasksWidget } from '../widgets/tasks/TasksWidget';
-import { WorldClockWidget } from '../widgets/worldclock/WorldClockWidget';
-import { NotesWidget } from '../widgets/notes/NotesWidget';
-import { TimerWidget } from '../widgets/timer/TimerWidget';
-import { CountdownWidget } from '../widgets/countdown/CountdownWidget';
-import { NewsWidget, NewsActions } from '../widgets/news/NewsWidget';
-import { CryptoWidget, CryptoActions } from '../widgets/crypto/CryptoWidget';
-import { InboxWidget, InboxActions } from '../widgets/inbox/InboxWidget';
-import { LauncherWidget, LauncherActions } from '../widgets/launcher/LauncherWidget';
-import { ClipboardWidget, ClipboardActions } from '../widgets/clipboard/ClipboardWidget';
-import { ClaudeWidget, ClaudeActions } from '../widgets/claude/ClaudeWidget';
-import { NetworkMonitorWidget, NetworkMonitorActions } from '../widgets/netmon/NetworkMonitorWidget';
-import { DiscordWidget, DiscordActions } from '../widgets/discord/DiscordWidget';
 import { TITLEBAR_H } from './Titlebar';
-import { WIDGET_TITLES } from '../lib/layouts';
+import { WIDGET_TITLES, NARROW_ROW_HEIGHT, gridColumnsFor, deriveNarrowLayout } from '../lib/layouts';
+import { WIDGET_REGISTRY } from '../widgets/registry';
+import { useElementSize } from '../hooks/useElementSize';
 import type { WidgetId } from '../lib/layouts';
 import { HeaderAction } from './HeaderAction';
 import { Button, EmptyState, cn } from '@nish/ui';
 
 const GridLayout = WidthProvider(ReactGridLayout);
-
-interface WidgetEntry {
-  Component: React.ComponentType;
-  /** Rendered in the WidgetShell header's hover-revealed action row. */
-  Actions?: React.ComponentType;
-}
-
-export const WIDGET_REGISTRY: Record<WidgetId, WidgetEntry> = {
-  weather: { Component: WeatherWidget, Actions: WeatherActions },
-  spotify: { Component: SpotifyWidget, Actions: SpotifyActions },
-  stocks: { Component: StocksWidget, Actions: StocksActions },
-  hardware: { Component: HardwareWidget, Actions: HardwareActions },
-  sound: { Component: SoundWidget, Actions: SoundActions },
-  calendar: { Component: CalendarWidget, Actions: CalendarActions },
-  youtube: { Component: YoutubeWidget, Actions: YoutubeActions },
-  twitch: { Component: TwitchWidget, Actions: TwitchActions },
-  tasks: { Component: TasksWidget },
-  worldclock: { Component: WorldClockWidget },
-  notes: { Component: NotesWidget },
-  timer: { Component: TimerWidget },
-  countdown: { Component: CountdownWidget },
-  news: { Component: NewsWidget, Actions: NewsActions },
-  crypto: { Component: CryptoWidget, Actions: CryptoActions },
-  inbox: { Component: InboxWidget, Actions: InboxActions },
-  launcher: { Component: LauncherWidget, Actions: LauncherActions },
-  clipboard: { Component: ClipboardWidget, Actions: ClipboardActions },
-  claude: { Component: ClaudeWidget, Actions: ClaudeActions },
-  netmon: { Component: NetworkMonitorWidget, Actions: NetworkMonitorActions },
-  // The webview itself lives in the app-lifetime DiscordHost (App.tsx) — this
-  // tile only positions it, so unmounting here never drops the session.
-  discord: { Component: DiscordWidget, Actions: DiscordActions },
-};
 
 /** Rightmost header action on EVERY widget: float it in its own window.
  *  Hidden in the plain browser (no Electron popout API). */
@@ -178,16 +127,38 @@ export function DashboardGrid() {
     );
   }, [rowHeight, gap, collapsed]);
 
+  // Below 1200px of grid width the grid renders a layout derived from the desktop
+  // one (never saved): fixed row height, no drag/resize, the page scrolls. Until
+  // the first measure lands we assume the window width so desktop doesn't flash narrow.
+  const { ref: setWrapperEl, width: measuredWidth } = useElementSize<HTMLDivElement>();
+  const cols = gridColumnsFor(measuredWidth > 0 ? measuredWidth : window.innerWidth);
+  const narrow = cols !== 24;
+  const collapsedIds = useMemo(
+    () => new Set(Object.keys(collapsed).filter((id) => collapsed[id as WidgetId])),
+    [collapsed],
+  );
+  const gridLayout = useMemo(
+    () =>
+      cols === 24
+        ? visibleLayout
+        : deriveNarrowLayout(visibleLayout, cols, collapsedIds, collapsedRowsFor(NARROW_ROW_HEIGHT, gap)),
+    [cols, visibleLayout, collapsedIds, gap],
+  );
+
   return (
+    <div
+      ref={setWrapperEl}
+      className={cn('h-full', narrow ? 'overflow-y-auto overscroll-contain' : 'overflow-hidden')}
+    >
     <GridLayout
       className={cn(!animReady && 'rgl-no-anim')}
-      layout={visibleLayout}
-      cols={24}
-      rowHeight={rowHeight}
+      layout={gridLayout}
+      cols={cols}
+      rowHeight={narrow ? NARROW_ROW_HEIGHT : rowHeight}
       margin={[gap, gap]}
       containerPadding={[gap, gap]}
       draggableHandle=".widget-drag-handle"
-      onLayoutChange={(newVisible) => {
+      onLayoutChange={narrow ? undefined : (newVisible) => {
         // Merge incoming positions with stored positions of hidden widgets so
         // drag/resize doesn't wipe out hidden-widget position state. This also
         // fires on mount and after applyPreset, so it must only sync geometry —
@@ -197,22 +168,22 @@ export function DashboardGrid() {
         const hiddenItems = layout.filter((i) => !visibleIds.has(i.i));
         syncLayout([...newVisible, ...hiddenItems]);
       }}
-      onDragStart={() => setDiscordInteracting(true)}
-      onResizeStart={() => setDiscordInteracting(true)}
-      onDragStop={() => {
+      onDragStart={narrow ? undefined : () => setDiscordInteracting(true)}
+      onResizeStart={narrow ? undefined : () => setDiscordInteracting(true)}
+      onDragStop={narrow ? undefined : () => {
         setDiscordInteracting(false);
         markUserEdited();
       }}
-      onResizeStop={() => {
+      onResizeStop={narrow ? undefined : () => {
         setDiscordInteracting(false);
         markUserEdited();
       }}
       compactType="vertical"
-      isResizable
-      isDraggable
+      isResizable={!narrow}
+      isDraggable={!narrow}
       resizeHandles={['se', 'sw', 'ne', 'nw', 'e', 'w', 's', 'n']}
     >
-      {visibleLayout.map((item) => {
+      {gridLayout.map((item) => {
         const id = item.i as WidgetId;
         const { Component, Actions } = WIDGET_REGISTRY[id];
         const isPopped = popped.includes(id);
@@ -242,5 +213,6 @@ export function DashboardGrid() {
         );
       })}
     </GridLayout>
+    </div>
   );
 }

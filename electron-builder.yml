@@ -2,7 +2,7 @@ appId: com.nish.nishboard
 productName: Nishboard
 copyright: Copyright © 2025 Nish
 # Electron lives in apps/main/node_modules (workspace), not at root — pin the version explicitly.
-electronVersion: "33.4.11"
+electronVersion: "45.2.1"
 # electron-builder reads "main" from the root package.json (monorepo root has none → defaults to index.js).
 # Override it so the bundled package.json correctly points at dist/index.js.
 extraMetadata:
@@ -18,12 +18,12 @@ directories:
   output: release
 
 files:
-  # apps/main/package.json has "main": "dist/index.js", so compiled files must land in dist/
+  # apps/main/package.json has "main": "dist/index.js", so the esbuild bundles must land in dist/
   # so Electron finds the entry at app/dist/index.js and __dirname is app/dist/
   - from: apps/main/dist
     to: dist
-    filter: ["**/*"]
-  # electron-builder requires package.json at the app root (not emitted by tsc)
+    filter: ["index.js", "preload.js"]
+  # electron-builder requires package.json at the app root (not emitted by the bundler)
   - from: apps/main
     to: .
     filter: ["package.json"]
@@ -31,25 +31,21 @@ files:
   # __dirname = app/dist  →  ../../renderer/dist  =  app/renderer/dist  → must match this layout
   - from: apps/renderer/dist
     to: renderer/dist
-    filter: ["**/*"]
+    filter: ["**/*", "!**/*.map"]
   # Server is bundled by esbuild (all deps inlined) — only the single output file needed
   - from: packages/server/dist
     to: server
     filter: ["index.js"]
-  # apps/main is tsc-compiled (NOT bundled), so value imports from @dash/shared survive as a
-  # runtime `require('@dash/shared')` (e.g. CREDENTIAL_KEYS in credentials.ts — added in #63).
-  # Ship the compiled workspace package as a resolvable node_module: Node resolution walks up
-  # from app/dist/*.js to app/node_modules/@dash/shared, whose package.json "main" is dist/index.js.
-  - from: packages/shared/dist
-    to: node_modules/@dash/shared/dist
-    filter: ["**/*"]
-  - from: packages/shared
-    to: node_modules/@dash/shared
-    filter: ["package.json"]
 
 win:
   target: nsis
   icon: build/icon.ico
+
+publish:
+  provider: github
+  owner: nishant
+  repo: nishboard
+  releaseType: release
 
 mac:
   target: dmg
@@ -59,7 +55,12 @@ mac:
   extendInfo:
     NSMicrophoneUsageDescription: Voice chat in the Discord widget uses the microphone.
     NSCameraUsageDescription: Video chat in the Discord widget uses the camera.
+    NSAudioCaptureUsageDescription: Screen sharing in the Discord widget can include system audio.
 
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
+  artifactName: ${productName}-Setup-${version}.${ext}
+
+dmg:
+  artifactName: ${productName}-${version}-${arch}.${ext}

@@ -2,6 +2,7 @@ import { BrowserWindow, app } from 'electron';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import path from 'path';
 import { readWindowTheme } from './windowTheme';
+import { clampToScreen } from './windowBounds';
 
 // Pop-out widget windows: each widget can float in its own small frameless
 // window loading the same renderer bundle with ?widget=<id> (the renderer
@@ -88,15 +89,16 @@ export function openPopout(id: string): void {
 
   const stored = readBoundsFile()[id];
   const size = DEFAULT_SIZES[id] ?? FALLBACK_SIZE;
+  const rect = stored ? clampToScreen(stored) : null;
   // Windows: transparent frameless window so the renderer rounds its own
   // corners, matching the main window (see createWindow in index.ts).
   const isWin = process.platform === 'win32';
 
   const win = new BrowserWindow({
-    width: stored?.width ?? size.width,
-    height: stored?.height ?? size.height,
-    x: stored?.x,
-    y: stored?.y,
+    width: rect?.width ?? size.width,
+    height: rect?.height ?? size.height,
+    x: rect?.x,
+    y: rect?.y,
     minWidth: 220,
     minHeight: 160,
     frame: false,

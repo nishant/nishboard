@@ -1,6 +1,68 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ReleaseAsset } from './updates';
-import { normalize, pickAsset } from './updates';
+import { compareSemver, normalize, pickAsset } from './updates';
+
+vi.mock('electron-updater', () => ({
+  autoUpdater: {
+    on: vi.fn(),
+    checkForUpdates: vi.fn(() => Promise.resolve(null)),
+    quitAndInstall: vi.fn(),
+  },
+}));
+
+describe('compareSemver', () => {
+  it('compares numerically, not lexically', () => {
+    expect(compareSemver('1.10.0', '1.9.9')).toBeGreaterThan(0);
+    expect(compareSemver('v2.0.0', '1.99.99')).toBeGreaterThan(0);
+    expect(compareSemver('1.0.0', '1.0.1')).toBeLessThan(0);
+  });
+  it('ranks a prerelease below its release', () => {
+    expect(compareSemver('1.0.0', '1.0.0-beta.2')).toBeGreaterThan(0);
+    expect(compareSemver('1.0.0-beta.2', '1.0.0')).toBeLessThan(0);
+  });
+  it('compares prerelease identifiers', () => {
+    expect(compareSemver('1.0.0-beta.10', '1.0.0-beta.2')).toBeGreaterThan(0);
+    expect(compareSemver('1.0.0-beta', '1.0.0-1')).toBeGreaterThan(0);
+    expect(compareSemver('1.0.0-alpha', '1.0.0-beta')).toBeLessThan(0);
+    expect(compareSemver('1.0.0-beta', '1.0.0-beta.1')).toBeLessThan(0);
+  });
+  it('treats equal versions as 0 (v prefix ignored)', () => {
+    expect(compareSemver('1.2.3', 'v1.2.3')).toBe(0);
+  });
+  it('returns 0 for unparseable input', () => {
+    expect(compareSemver('garbage', '1.0.0')).toBe(0);
+    expect(compareSemver('1.0.0', '')).toBe(0);
+    expect(compareSemver('1.0', '1.0.1')).toBe(0);
+  });
+});
+
+describe('checkUpdates', () => {
+  // The stub app reports version 0.0.0-test. checkUpdates memoises for 24h, so
+  // each case imports a fresh module.
+  async function runWith(tag: string): Promise<{ hasUpdate: boolean; latestVersion: string | null; autoUpdate: boolean }> {
+    vi.resetModules();
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
+      status: 200,
+      ok: true,
+      json: () => Promise.resolve({ tag_name: tag, html_url: 'https://gh.test/r', assets: [] }),
+    })));
+    const mod = await import('./updates');
+    return mod.checkUpdates();
+  }
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('reports no update when the local build is newer than the latest release', async () => {
+    const r = await runWith('v0.0.0-alpha'); // 0.0.0-alpha < local 0.0.0-test
+    expect(r.latestVersion).toBe('0.0.0-alpha');
+    expect(r.hasUpdate).toBe(false);
+  });
+
+  it('reports an update when the latest release is newer', async () => {
+    const r = await runWith('v0.0.1');
+    expect(r.hasUpdate).toBe(true);
+    expect(r.autoUpdate).toBe(false); // not packaged under the stub
+  });
+});
 
 describe('normalize', () => {
   it('strips a leading v (any case) and trims', () => {

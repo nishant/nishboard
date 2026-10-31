@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { UpstreamError } from './http';
+import { decryptJson, encryptJson, isEncryptedFile, tokenKey, writePrivateFile } from './tokenCrypto';
 
 /** The token endpoint definitively rejected the refresh (400/401/403 with
  *  client credentials present) — the refresh token is dead and the store
@@ -30,8 +31,9 @@ export function rethrowRefreshFailure(err: unknown): never {
   throw err;
 }
 
-/** Persisted OAuth user tokens (plain JSON under ~/.dash — home dir so they
- *  survive reinstalls; these are user-session tokens, not app secrets). */
+/** Persisted OAuth user tokens under ~/.dash (home dir so they survive
+ *  reinstalls). Encrypted at rest (AES-256-GCM) when the app supplies a key
+ *  via DASH_TOKEN_KEY; otherwise plaintext JSON written with mode 0600. */
 export interface StoredUserTokens {
   access_token: string;
   refresh_token: string;
@@ -70,16 +72,38 @@ export class UserTokenStore {
   }
 
   private load(): StoredUserTokens | null {
+    const name = path.basename(this.file);
+    let parsed: unknown;
     try {
-      return JSON.parse(fs.readFileSync(this.file, 'utf8')) as StoredUserTokens;
+      parsed = JSON.parse(fs.readFileSync(this.file, 'utf8'));
     } catch {
       return null;
     }
+    const key = tokenKey();
+    if (isEncryptedFile(parsed)) {
+      if (!key) {
+        console.warn(`[tokens] ${name}: cannot decrypt — reconnect the service`);
+        return null;
+      }
+      try {
+        return decryptJson<StoredUserTokens>(parsed, key);
+      } catch {
+        console.warn(`[tokens] ${name}: cannot decrypt — reconnect the service`);
+        return null;
+      }
+    }
+    if (typeof parsed !== 'object' || parsed === null) return null;
+    const tokens = parsed as StoredUserTokens;
+    // Migration: plaintext tokens + a key → rewrite encrypted right away.
+    if (key) {
+      try { this.save(tokens); } catch { /* keep serving the in-memory tokens */ }
+    }
+    return tokens;
   }
 
   private save(t: StoredUserTokens): void {
-    fs.mkdirSync(path.dirname(this.file), { recursive: true });
-    fs.writeFileSync(this.file, JSON.stringify(t), 'utf8');
+    const key = tokenKey();
+    writePrivateFile(this.file, JSON.stringify(key ? encryptJson(t, key) : t));
   }
 
   get authenticated(): boolean {

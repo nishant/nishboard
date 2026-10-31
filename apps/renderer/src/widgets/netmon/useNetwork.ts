@@ -5,7 +5,7 @@ import { useGatedInterval } from '../../hooks/useGatedInterval';
 import { useNetmonStore } from '../../store/netmonStore';
 import type { NetworkMonitorData } from '@dash/shared';
 
-const HISTORY_SIZE = 60; // 60 samples — 1min at the base 1s poll, 4min in low power
+const HISTORY_SIZE = 60; // 60 samples — 5 min at 5s
 
 export interface NetworkHistory {
   /** Per-host latency, keyed by host. Lost samples are SKIPPED — the Loss stat
@@ -28,12 +28,12 @@ export function useNetwork() {
   const histRef = useRef<NetworkHistory>({ latency: {}, netUp: [], netDown: [] });
   const [history, setHistory] = useState<NetworkHistory>(histRef.current);
 
-  const interval = useGatedInterval(1000);
+  const interval = useGatedInterval(5000);
   const query = useQuery<NetworkMonitorData>({
     queryKey: ['network', hostsKey],
     queryFn: () => apiClient.get<NetworkMonitorData>(`/api/network?hosts=${encodeURIComponent(hostsKey)}`),
     refetchInterval: interval,
-    staleTime: 900,
+    staleTime: 4500,
   });
 
   // Changing the host set restarts the server-side buffers too — a stale local

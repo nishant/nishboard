@@ -142,7 +142,7 @@ Four workspaces, each with a single responsibility:
 
 **Prerequisites**
 
-- **Node.js ≥ 20**
+- **Node.js ≥ 22.12** (macOS 13 Ventura or newer to run the packaged app)
 - **pnpm 11.3.0** — `corepack enable && corepack prepare pnpm@11.3.0 --activate`
 
 **Install & run**

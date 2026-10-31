@@ -20,10 +20,8 @@
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-grid-layout": "^1.5.4",
-    "react-is": "^19.3.1",
     "react-markdown": "^10.1.0",
     "react-resizable": "^4.0.2",
-    "recharts": "^3.10.1",
     "remark-gfm": "^4.0.1",
     "zustand": "^5.0.16"
   },

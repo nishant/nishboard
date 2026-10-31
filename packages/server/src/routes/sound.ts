@@ -2,11 +2,9 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { SoundData, AudioDevice, AudioSession } from '@dash/shared';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { writeFile, unlink } from 'fs/promises';
-import { tmpdir } from 'os';
-import { join } from 'path';
 import { SimpleCache } from '../cache/SimpleCache';
 import { HttpError } from '../lib/http';
+import { PsHost, buildBootstrap } from '../lib/psHost';
 
 const execFileAsync = promisify(execFile);
 const cache = new SimpleCache<SoundData>();
@@ -17,32 +15,6 @@ const TTL_MS = 5_000;
 async function run(cmd: string, args: string[]): Promise<string> {
   const { stdout } = await execFileAsync(cmd, args, { encoding: 'utf8' });
   return stdout.trim();
-}
-
-// The WASAPI Add-Type payload base64-encoded blows past Windows' 8191-char
-// command-line limit when passed via -EncodedCommand, so the session
-// enumeration script silently failed and the mixer rendered empty.
-// Write the script to a UTF-16 LE temp file and invoke it with -File instead —
-// matches what -EncodedCommand decodes internally, so PowerShell 5.1 parses it
-// identically. -ExecutionPolicy Bypass is needed because -File does not
-// auto-bypass execution policy the way -EncodedCommand does.
-async function psRun(script: string): Promise<string> {
-  const tmp = join(
-    tmpdir(),
-    `dash-ps-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.ps1`,
-  );
-  const buf = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(script, 'utf16le')]);
-  await writeFile(tmp, buf);
-  try {
-    const { stdout } = await execFileAsync(
-      'powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', tmp],
-      { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 },
-    );
-    return stdout.trim();
-  } finally {
-    void unlink(tmp).catch(() => {});
-  }
 }
 
 // ── macOS ────────────────────────────────────────────────────────────────
@@ -96,9 +68,9 @@ async function macSwitchDevice(id: string): Promise<void> {
 // All COM walking is therefore done inside C# static methods, where the casts
 // trigger QI at compile time. PowerShell only ever sees the final string[].
 //
-// Encoding: the C# source is base64-encoded so it survives a UTF-16 LE .ps1
-// file with no here-string quoting fragility. Add-Type is invoked once per
-// PowerShell process (each psRun spawns a fresh one).
+// All snippets run in ONE long-lived PowerShell process (lib/psHost.ts). The C# below
+// is compiled once by the host bootstrap, so snippets call [W]::… directly, and
+// AudioDeviceCmdlets (if installed) is imported once into $HasCmdlets.
 
 const WASAPI_CS = [
   'using System;',
@@ -188,15 +160,14 @@ const WASAPI_CS = [
   '    [PreserveSig] int UnregisterEndpointNotificationCallback(IntPtr p);',
   '}',
   '',
-  '[Guid("BCDE0395-E52F-467C-8E3D-C4579291692E"), ComImport]',
-  'public class MMDeviceEnumeratorComObj {}',
-  '',
   'public static class W {',
   '    static readonly Guid IID_AEV = new Guid("5CDF2C82-841E-4546-9722-0CF74078229A");',
   '    static readonly Guid IID_SessMgr = new Guid("77AA99A0-1BD6-484F-8BC7-2C654C9A9B6F");',
   '',
   '    static IMMDevice DefaultDevice() {',
-  '        var e = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObj();',
+  '        // Activator + interface cast (not a ComImport class): AudioDeviceCmdlets registers its own',
+  '        // class for this CLSID in the same process, and a class cast would then fail.',
+  '        var e = (IMMDeviceEnumerator)Activator.CreateInstance(Type.GetTypeFromCLSID(new Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")));',
   '        object o; e.GetDefaultAudioEndpoint(0, 1, out o);',
   '        return (IMMDevice)o;',
   '    }',
@@ -291,108 +262,115 @@ const WASAPI_CS = [
   '}',
 ].join('\n');
 
-const WASAPI_CS_B64 = Buffer.from(WASAPI_CS, 'utf8').toString('base64');
+let host: PsHost | null = null;
+function psRun(script: string): Promise<string> {
+  host ??= new PsHost({ bootstrap: buildBootstrap(WASAPI_CS) });
+  return host.run(script);
+}
 
-const WASAPI = `
-$_cs = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${WASAPI_CS_B64}'))
-Add-Type -ErrorAction Stop -TypeDefinition $_cs
-Remove-Variable _cs
-`;
-
-// ── Windows — device / master volume ─────────────────────────────────────
+// ── Windows — device / master volume + per-app sessions ──────────────────
 
 type WinDeviceData = Omit<SoundData, 'sessions'>;
 
-async function winGetDeviceData(): Promise<WinDeviceData> {
-  // Prefer AudioDeviceCmdlets (Install-Module AudioDeviceCmdlets)
+const SESSIONS_MARK = '---SESSIONS---';
+
+// Device data and sessions in ONE round-trip. Device line is `C|vol|mute|def|list`
+// (AudioDeviceCmdlets; Get-AudioDevice -PlaybackVolume returns "42%") or
+// `W|vol|mute` (WASAPI fallback: volume + mute only, no device list).
+const WIN_GET_DATA = `
+$d = $null
+if ($HasCmdlets) {
   try {
-    const out = await psRun(`
-      $vol  = Get-AudioDevice -PlaybackVolume
-      $mute = Get-AudioDevice -PlaybackMute
-      $def  = (Get-AudioDevice -Playback).Name
-      $list = (Get-AudioDevice -List | Where-Object { $_.Type -eq 'Playback' } | ForEach-Object { $_.Name }) -join ','
-      "$vol|$mute|$def|$list"
-    `);
-    const [volStr, muteStr, defName, listStr] = out.split('|');
-    // Get-AudioDevice -PlaybackVolume returns "42%" (string with trailing %)
-    const volumePercent = Math.round(Number(volStr.replace('%', '').trim()));
-    if (!Number.isFinite(volumePercent)) throw new Error('AudioDeviceCmdlets returned non-numeric volume');
-    const muted = muteStr.trim() === 'True';
-    const activeDeviceName = defName.trim();
-    const names = listStr ? listStr.split(',').map((s) => s.trim()).filter(Boolean) : [activeDeviceName];
-    const devices: AudioDevice[] = names.map((name) => ({ id: name, name, isDefault: name === activeDeviceName }));
-    return { volumePercent, muted, activeDeviceName, devices };
-  } catch {
-    // WASAPI fallback — volume+mute only, no device list
-    const out = await psRun(`${WASAPI}\n[W]::GetMaster()`);
-    const [volStr, muteStr] = out.split('|');
-    const volumePercent = Math.min(100, Math.max(0, Math.round(Number(volStr.trim())) || 0));
-    return {
-      volumePercent,
-      muted: muteStr.trim() === 'True',
-      activeDeviceName: 'Default Device',
-      devices: [{ id: 'default', name: 'Default Device', isDefault: true }],
-    };
+    $vol  = Get-AudioDevice -PlaybackVolume
+    $mute = Get-AudioDevice -PlaybackMute
+    $def  = (Get-AudioDevice -Playback).Name
+    $list = (Get-AudioDevice -List | Where-Object { $_.Type -eq 'Playback' } | ForEach-Object { $_.Name }) -join ','
+    $d = "C|$vol|$mute|$def|$list"
+  } catch { }
+}
+if (-not $d) { $d = 'W|' + [W]::GetMaster() }
+$d
+'${SESSIONS_MARK}'
+try { [W]::GetSessions() -join [string][char]10 } catch { }
+`;
+
+function parseWinDevice(text: string): WinDeviceData {
+  const parts = text.trim().split('|');
+  if (parts[0] === 'C' && parts.length >= 5) {
+    const volumePercent = Math.round(Number(parts[1].replace('%', '').trim()));
+    if (Number.isFinite(volumePercent)) {
+      const muted = parts[2].trim() === 'True';
+      const activeDeviceName = parts[3].trim();
+      const names = parts[4] ? parts[4].split(',').map((s) => s.trim()).filter(Boolean) : [activeDeviceName];
+      const devices: AudioDevice[] = names.map((name) => ({ id: name, name, isDefault: name === activeDeviceName }));
+      return { volumePercent, muted, activeDeviceName, devices };
+    }
   }
+  // WASAPI fallback shape: W|vol|mute
+  const volStr = parts[1] ?? '';
+  const muteStr = parts[2] ?? '';
+  return {
+    volumePercent: Math.min(100, Math.max(0, Math.round(Number(volStr.trim())) || 0)),
+    muted: muteStr.trim() === 'True',
+    activeDeviceName: 'Default Device',
+    devices: [{ id: 'default', name: 'Default Device', isDefault: true }],
+  };
 }
 
-// ── Windows — per-app session mixer ──────────────────────────────────────
-
-async function winGetSessions(): Promise<AudioSession[]> {
-  const out = await psRun(`${WASAPI}\n[W]::GetSessions() -join "\`n"`);
-  if (!out) return [];
-  return out
-    .split('\n')
+function parseWinSessions(text: string): AudioSession[] {
+  return text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
     .filter(Boolean)
     .map((line) => {
       const [pidStr, name, volStr, mutedStr] = line.split('|');
       return {
         pid: Number(pidStr),
-        name: name.trim(),
+        name: (name ?? '').trim(),
         volumePercent: Number(volStr),
-        muted: mutedStr.trim() === 'True',
+        muted: (mutedStr ?? '').trim() === 'True',
       };
     });
 }
 
-async function winSetSessionVolume(pid: number, vol: number): Promise<void> {
-  const scalar = (vol / 100).toFixed(6);
-  await psRun(`${WASAPI}\n[W]::SetSessionVolume([uint32]${pid}, [float]${scalar})`);
+async function winGetData(): Promise<SoundData> {
+  const out = await psRun(WIN_GET_DATA);
+  const at = out.indexOf(SESSIONS_MARK);
+  const deviceText = at === -1 ? out : out.slice(0, at);
+  const sessionText = at === -1 ? '' : out.slice(at + SESSIONS_MARK.length);
+  return { ...parseWinDevice(deviceText), sessions: parseWinSessions(sessionText) };
 }
 
-async function winGetData(): Promise<SoundData> {
-  // Run device query and session enumeration in parallel
-  const [deviceData, sessions] = await Promise.all([
-    winGetDeviceData(),
-    winGetSessions().catch((): AudioSession[] => []),
-  ]);
-  return { ...deviceData, sessions };
+async function winSetSessionVolume(pid: number, vol: number): Promise<void> {
+  const scalar = (vol / 100).toFixed(6);
+  await psRun(`[W]::SetSessionVolume([uint32]${pid}, [float]${scalar})`);
 }
 
 async function winSetVolume(vol: number): Promise<void> {
-  try {
-    await psRun(`Set-AudioDevice -PlaybackVolume ${Math.round(vol)}`);
-  } catch {
-    const scalar = (vol / 100).toFixed(6);
-    await psRun(`${WASAPI}\n[W]::SetMasterVolume([float]${scalar})`);
-  }
+  const scalar = (vol / 100).toFixed(6);
+  await psRun(`
+$ok = $false
+if ($HasCmdlets) { try { Set-AudioDevice -PlaybackVolume ${Math.round(vol)} | Out-Null; $ok = $true } catch { } }
+if (-not $ok) { [W]::SetMasterVolume([float]${scalar}) }
+`);
 }
 
 async function winSetMute(muted: boolean): Promise<void> {
-  try {
-    await psRun(`Set-AudioDevice -PlaybackMute ${muted ? '$true' : '$false'}`);
-  } catch {
-    await psRun(`${WASAPI}\n[W]::SetMasterMute([bool]${muted ? '$true' : '$false'})`);
-  }
+  const flag = muted ? '$true' : '$false';
+  await psRun(`
+$ok = $false
+if ($HasCmdlets) { try { Set-AudioDevice -PlaybackMute ${flag} | Out-Null; $ok = $true } catch { } }
+if (-not $ok) { [W]::SetMasterMute([bool]${flag}) }
+`);
 }
 
 async function winSwitchDevice(id: string): Promise<void> {
   // ''-doubling is the complete escape inside PowerShell single quotes, and the
-  // script reaches PowerShell via a temp .ps1 (-File) — never through cmd.exe —
+  // script reaches PowerShell as base64 over stdin (psHost) — never through cmd.exe —
   // so this interpolation is injection-safe. Don't "simplify" to double quotes.
   const safe = id.replace(/'/g, "''");
   await psRun(
-    `Get-AudioDevice -List | Where-Object { $_.Name -eq '${safe}' -and $_.Type -eq 'Playback' } | Set-AudioDevice`,
+    `Get-AudioDevice -List | Where-Object { $_.Name -eq '${safe}' -and $_.Type -eq 'Playback' } | Set-AudioDevice | Out-Null`,
   );
 }
 
@@ -429,13 +407,27 @@ async function switchDevice(id: string): Promise<void> {
 
 // ── Routes ───────────────────────────────────────────────────────────────
 
+let inFlight: Promise<SoundData> | null = null;
+
 export const soundRoutes: FastifyPluginAsync = async (fastify) => {
+  fastify.addHook('onClose', async () => {
+    host?.dispose();
+    host = null;
+  });
+
   fastify.get<{ Reply: SoundData | { error: string } }>('/', async (_req, reply) => {
     const cached = cache.get();
     if (cached) return reply.send(cached);
-    const data = await getData();
-    cache.set(data, TTL_MS);
-    return reply.send(data);
+    // Concurrent polls share one in-flight fetch.
+    inFlight ??= getData()
+      .then((data) => {
+        cache.set(data, TTL_MS);
+        return data;
+      })
+      .finally(() => {
+        inFlight = null;
+      });
+    return reply.send(await inFlight);
   });
 
   // Runtime body schemas — the Fastify generics above are compile-time only, so

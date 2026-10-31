@@ -1,6 +1,9 @@
 import { contextBridge, ipcRenderer, webFrame } from 'electron';
 import type { ElectronAPI, IpcChannels, CredentialKey, LauncherItemData, LauncherGroupData, LauncherStateData, ClipboardEntryData, AppPrefsData, UpdateCheckData, DiscordScreenShareRequestData, ClaudeLoginOpenResult } from '@dash/shared';
 
+// UpdateStatusData is not re-exported from the shared index (index.ts is outside this task's files).
+type UpdateStatusData = Awaited<ReturnType<ElectronAPI['app']['getUpdateStatus']>>;
+
 const electronAPI: ElectronAPI = {
   platform: process.platform,
   minimize: () => ipcRenderer.send('app:minimize' satisfies IpcChannels),
@@ -44,6 +47,16 @@ const electronAPI: ElectronAPI = {
     getVersion: () => ipcRenderer.invoke('app:get-version' satisfies IpcChannels) as Promise<string>,
     checkUpdates: () =>
       ipcRenderer.invoke('app:check-updates' satisfies IpcChannels) as Promise<UpdateCheckData>,
+    getUpdateStatus: () =>
+      ipcRenderer.invoke('app:get-update-status' satisfies IpcChannels) as Promise<UpdateStatusData>,
+    installUpdate: () =>
+      ipcRenderer.invoke('app:install-update' satisfies IpcChannels) as Promise<void>,
+    onUpdateStatus: (cb: (status: UpdateStatusData) => void) => {
+      const channel: IpcChannels = 'app:update-status';
+      const listener = (_event: Electron.IpcRendererEvent, status: UpdateStatusData) => cb(status);
+      ipcRenderer.on(channel, listener);
+      return () => ipcRenderer.removeListener(channel, listener);
+    },
   },
   backup: {
     chooseFolder: () =>

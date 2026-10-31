@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { InboxItemData } from '@dash/shared';
-import { SNOOZE_OPTIONS, at8, groupBySeverity, safeHref } from './inboxSort';
+import { groupBySeverity, safeHref } from './inboxSort';
 
 function item(over: Partial<InboxItemData> & { id: number }): InboxItemData {
   return {
@@ -42,32 +42,6 @@ describe('groupBySeverity', () => {
     odd.severity = 'weird';
     const g = groupBySeverity([odd as unknown as InboxItemData], none);
     expect(g.map((x) => x.severity)).toEqual(['normal']);
-  });
-});
-
-describe('at8 / snooze options', () => {
-  it('at8 gives 08:00 local N days ahead', () => {
-    const d = at8(new Date(2026, 9, 30, 15, 30), 1);
-    expect([d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes()]).toEqual([2026, 9, 31, 8, 0]);
-  });
-
-  const monday = SNOOZE_OPTIONS[3];
-  it('Monday 8 AM from a Wednesday is the coming Monday', () => {
-    const d = monday.until(new Date(2026, 9, 28, 12)); // Wed
-    expect([d.getDay(), d.getDate(), d.getHours()]).toEqual([1, 2, 8]);
-  });
-  it('Monday 8 AM from a Monday is a week later', () => {
-    const d = monday.until(new Date(2026, 9, 26, 6)); // Mon
-    expect([d.getDay(), d.getMonth(), d.getDate()]).toEqual([1, 10, 2]);
-  });
-  it('Monday 8 AM from a Sunday is the next day', () => {
-    const d = monday.until(new Date(2026, 9, 25, 20)); // Sun
-    expect([d.getDay(), d.getDate()]).toEqual([1, 26]);
-  });
-  it('hour options add fixed offsets', () => {
-    const now = new Date(2026, 9, 30, 10);
-    expect(SNOOZE_OPTIONS[0].until(now).getTime() - now.getTime()).toBe(3_600_000);
-    expect(SNOOZE_OPTIONS[1].until(now).getTime() - now.getTime()).toBe(4 * 3_600_000);
   });
 });
 

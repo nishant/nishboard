@@ -119,13 +119,17 @@ export function Titlebar() {
               Settings
             </Button>
           )}
-          <div className="w-px h-3 bg-th-line mx-1" />
-          <IconButton label="Minimize" size="xs" onClick={() => window.electron?.minimize()}>
-            <Minus size={13} />
-          </IconButton>
-          <IconButton label="Maximize" size="xs" onClick={() => window.electron?.toggleMaximize()}>
-            <Square size={11} />
-          </IconButton>
+          {/* Below 600px the bar has no room for them (touch targets grow to 44px):
+              minimize/maximize hide, Close stays. */}
+          <div className="w-px h-3 bg-th-line mx-1 max-[599px]:hidden" />
+          <div className="contents max-[599px]:hidden">
+            <IconButton label="Minimize" size="xs" onClick={() => window.electron?.minimize()}>
+              <Minus size={13} />
+            </IconButton>
+            <IconButton label="Maximize" size="xs" onClick={() => window.electron?.toggleMaximize()}>
+              <Square size={11} />
+            </IconButton>
+          </div>
           <IconButton label="Close" size="xs" tone="danger" onClick={() => window.electron?.close()}>
             <X size={13} />
           </IconButton>
