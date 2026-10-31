@@ -134,7 +134,9 @@ Four workspaces, each with a single responsibility:
 
 **User OAuth tokens** (Spotify, Twitch, YouTube) are stored separately as plain JSON at `~/.dash/<service>_tokens.json` (home dir, survives reinstalls).
 
-**Embed proxy** — the packaged app loads from `file://`, which breaks origin checks. YouTube/Twitch players are served from `http://localhost:7432/api/<svc>/embed`, giving the iframe a valid HTTP parent origin.
+**Local server lock** — the server on `127.0.0.1:7432` answers only the app itself: every request carries a random token the main process mints per launch, the Host must be `127.0.0.1:7432` or `localhost:7432`, and CORS allows only the renderer's own origin, `app://nishboard` (the packaged renderer's custom scheme; it used to be `file://`, whose `null` origin any web page's sandboxed iframe can send too). The first launch on this version copies the renderer's saved state from the old `file://` origin.
+
+**Embed proxy** — the renderer's custom origin is not a web origin, which breaks the players' origin checks. YouTube/Twitch players are served from `http://localhost:7432/api/<svc>/embed`, giving the iframe a valid HTTP parent origin.
 
 ---
 

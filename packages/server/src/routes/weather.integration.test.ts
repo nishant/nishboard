@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { WeatherData } from '@dash/shared';
-import { buildServer } from '../app';
+import { testServer } from '../test/server';
 import { fnv1a } from './weather';
 import { jsonRes, stubFetch, textRes } from '../test/fetchStub';
 import { vi } from 'vitest';
@@ -58,7 +58,7 @@ const aqFixture = (): Response =>
 let app: FastifyInstance;
 
 beforeAll(async () => {
-  app = await buildServer({ logger: false });
+  app = await testServer();
 });
 
 afterAll(async () => {

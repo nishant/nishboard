@@ -31,6 +31,7 @@ const inertSession = {
   setDisplayMediaRequestHandler: (_h: unknown): void => undefined,
   clearStorageData: (): Promise<void> => Promise.resolve(),
   clearCache: (): Promise<void> => Promise.resolve(),
+  flushStorageData: (): void => undefined,
   webRequest: { onHeadersReceived: (_filter: unknown, _cb: unknown): void => undefined },
 };
 
@@ -41,6 +42,11 @@ export const session = {
 
 export const net = {
   fetch: (): Promise<never> => Promise.reject(new Error('net.fetch not stubbed')),
+};
+
+export const protocol = {
+  registerSchemesAsPrivileged: (_schemes: unknown): void => undefined,
+  handle: (_scheme: string, _handler: unknown): void => undefined,
 };
 
 export const safeStorage = {

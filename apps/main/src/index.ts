@@ -10,13 +10,24 @@ import { initDiscordSession, registerWebviewGuards } from './discord';
 import { loadCredentials } from './credentials';
 import { startAutoUpdates, isInstallingUpdate } from './updates';
 import { clampToDisplays, readMainBounds, trackMainBounds, watchDisplays } from './windowBounds';
+import { APP_ORIGIN, appUrl, handleAppProtocol, registerAppScheme } from './appProtocol';
+import { migrateFileOriginStorage } from './storageMigration';
+import { registerApiTokenIpc } from './apiToken';
 
 const isDev = process.env.NODE_ENV === 'development';
+
+// Before 'ready': the packaged renderer is served from app://nishboard, not
+// file:// (appProtocol.ts says why).
+registerAppScheme();
 
 let mainWindow: BrowserWindow | null = null;
 // Set by before-quit: distinguishes a real quit from the titlebar X, which the
 // close intercept below may translate into hide-to-tray.
 let quitting = false;
+// True until the main window exists. The storage migration's hidden window is
+// the only window while it runs, so closing it fires window-all-closed, which
+// would quit the app on Windows before the dashboard ever opened.
+let startingUp = true;
 
 const GLOBAL_HOTKEY = 'CommandOrControl+Shift+D';
 
@@ -82,7 +93,7 @@ function createWindow(): void {
   // CSP strip below) — never let them open windows or navigate the top frame.
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    const allowed = isDev ? url.startsWith('http://localhost:5173') : url.startsWith('file://');
+    const allowed = isDev ? url.startsWith('http://localhost:5173') : url.startsWith(`${APP_ORIGIN}/`);
     if (!allowed) event.preventDefault();
   });
 
@@ -101,7 +112,8 @@ function createWindow(): void {
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
     // __dirname = app/dist/ → one level up reaches app/ → renderer/dist/index.html
-    mainWindow.loadFile(path.join(__dirname, '../renderer/dist/index.html'));
+    // Served from app/renderer/dist by handleAppProtocol (registered in whenReady).
+    mainWindow.loadURL(appUrl());
   }
 
   // Close-to-tray: when the pref says 'tray' and this isn't a real quit,
@@ -145,11 +157,11 @@ if (!gotLock) {
     session.defaultSession.setUserAgent(ua);
 
     // Some embedded documents send a `frame-ancestors` CSP that validates the ENTIRE
-    // ancestor chain — so the top-level renderer (file:// in prod) violates it even
+    // ancestor chain — so the top-level renderer (app:// in prod) violates it even
     // though our embed proxy is on localhost:
     //   • player.twitch.tv → `frame-ancestors http://localhost:*`
     //   • www.rainviewer.com/map.html (weather radar) → `frame-ancestors *`, and `*`
-    //     matches only network schemes, not file://.
+    //     matches only network schemes, not app://.
     // Strip CSP only from these framed document responses — media/tile CDNs
     // (*.ttvnw.net, rainviewer tile hosts) are untouched, so playback/tiles/auth are
     // unaffected. Radar works in dev (renderer is http://localhost:5173) regardless.
@@ -171,10 +183,16 @@ if (!gotLock) {
     initDiscordSession();
     registerWebviewGuards();
 
+    if (!isDev) {
+      // __dirname = app/dist/ → one level up reaches app/ → renderer/dist
+      handleAppProtocol(path.join(__dirname, '../renderer/dist'));
+    }
+    registerApiTokenIpc(ipcMain);
     await loadCredentials();
-    await spawnServer();
+    await Promise.all([spawnServer(), isDev ? Promise.resolve() : migrateFileOriginStorage()]);
     registerIpcHandlers(ipcMain, { onPrefsChanged: syncGlobalHotkey });
     createWindow();
+    startingUp = false;
     createTray(() => mainWindow);
     syncGlobalHotkey();
     watchDisplays(() => BrowserWindow.getAllWindows());
@@ -186,6 +204,7 @@ if (!gotLock) {
     // closes, and `activate` only re-creates the window — a server killed here
     // would leave every widget dead on reopen. before-quit covers both platforms
     // (on Windows/Linux app.quit() below triggers it).
+    if (startingUp) return;
     if (process.platform !== 'darwin') app.quit();
   });
 

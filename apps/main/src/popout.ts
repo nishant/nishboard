@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync, existsSync } from 'fs';
 import path from 'path';
 import { readWindowTheme } from './windowTheme';
 import { clampToScreen } from './windowBounds';
+import { APP_ORIGIN, appUrl } from './appProtocol';
 
 // Pop-out widget windows: each widget can float in its own small frameless
 // window loading the same renderer bundle with ?widget=<id> (the renderer
@@ -119,16 +120,14 @@ export function openPopout(id: string): void {
   // Popouts host the same third-party embeds as the main window — same guards.
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (event, url) => {
-    const allowed = isDev ? url.startsWith('http://localhost:5173') : url.startsWith('file://');
+    const allowed = isDev ? url.startsWith('http://localhost:5173') : url.startsWith(`${APP_ORIGIN}/`);
     if (!allowed) event.preventDefault();
   });
 
   if (isDev) {
     void win.loadURL(`http://localhost:5173/?widget=${encodeURIComponent(id)}`);
   } else {
-    void win.loadFile(path.join(__dirname, '../renderer/dist/index.html'), {
-      query: { widget: id },
-    });
+    void win.loadURL(appUrl({ widget: id }));
   }
 
   win.on('close', () => {

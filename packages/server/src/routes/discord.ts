@@ -18,6 +18,7 @@ import {
   mapVoiceMember,
 } from '../lib/discordRpc';
 import { cred } from '../lib/env';
+import { ALLOWED_ORIGINS } from '../lib/access';
 
 // Discord native mode — local RPC to the RUNNING desktop client (see
 // lib/discordRpc.ts for the pipe transport). This file owns the HTTP surface
@@ -25,11 +26,8 @@ import { cred } from '../lib/env';
 
 const SNOWFLAKE = '^[0-9]{5,25}$';
 
-// Mirror of app.ts's CORS origin list. reply.hijack() bypasses @fastify/cors
-// entirely, so the SSE response must set Access-Control-Allow-Origin itself —
-// only ever echoing an origin from this allowed set. Keep in sync with app.ts
-// (and routes/claude.ts, the other hijacked route).
-const ALLOWED_ORIGINS = new Set(['http://localhost:5173', 'file://', 'null']);
+// reply.hijack() bypasses @fastify/cors, so the SSE stream sets
+// Access-Control-Allow-Origin itself from ALLOWED_ORIGINS (lib/access.ts).
 
 // Voice events are subscribed per voice channel_id; message events per text
 // channel_id; the two globals need no args.

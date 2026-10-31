@@ -1,12 +1,12 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import { buildServer } from './app';
+import { testServer } from './test/server';
 import { stubFetch, textRes } from './test/fetchStub';
 
 let app: FastifyInstance;
 
 beforeAll(async () => {
-  app = await buildServer({ logger: false });
+  app = await testServer();
 });
 
 afterAll(async () => {

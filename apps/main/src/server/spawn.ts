@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { readCredentials } from '../credentials';
 import { loadTokenKey } from '../tokenKey';
+import { apiToken } from '../apiToken';
 
 // ── Server log tee ────────────────────────────────────────────────────────────
 // Child stdout/stderr also land in userData/logs/server.log so "why is a
@@ -119,6 +120,8 @@ function startChild(tokenKey: string | null): void {
       SERVER_PORT: String(port),
       ...credentials,
       ...(tokenKey ? { DASH_TOKEN_KEY: tokenKey } : {}),
+      // After the credentials, so no stored key can shadow it.
+      DASH_API_TOKEN: apiToken(),
     },
     stdio: 'pipe',
   });
