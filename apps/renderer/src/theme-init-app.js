@@ -9,20 +9,22 @@
 //  - the Custom theme's colors, set inline on <html>.
 // The two maps below are filled in by vite.config.ts.
 (function () {
-  var APP = __APP__; // app-local preset → scheme
-  var LEGACY = __LEGACY__; // pre-@nish/ui theme ids → new ids
-  var extra = {};
-  for (var id in APP) extra[id] = APP[id];
+  const APP = __APP__; // app-local preset → scheme
+  const LEGACY = __LEGACY__; // pre-@nish/ui theme ids → new ids
+  const extra = {};
+  for (const id in APP) extra[id] = APP[id];
   try {
-    var custom = JSON.parse(localStorage.getItem('dashboard-theme-custom-vars') || 'null');
+    const custom = JSON.parse(localStorage.getItem('dashboard-theme-custom-vars') || 'null');
     if (custom) extra.custom = custom.scheme;
-    var saved = JSON.parse(localStorage.getItem('dashboard-theme') || 'null');
-    var theme = saved && saved.state ? saved.state.theme : null;
+    const saved = JSON.parse(localStorage.getItem('dashboard-theme') || 'null');
+    let theme = saved && saved.state ? saved.state.theme : null;
     if (theme && (saved.version || 0) < 1 && LEGACY[theme]) theme = LEGACY[theme];
     if (theme === 'custom' && custom) {
-      for (var k in custom.vars) document.documentElement.style.setProperty(k, custom.vars[k]);
+      for (const k in custom.vars) document.documentElement.style.setProperty(k, custom.vars[k]);
     }
     if (theme) localStorage.setItem('nish-theme', theme);
-  } catch (e) {}
+  } catch (e) {
+    // storage unavailable or corrupt: the shared script falls back to its defaults
+  }
   window.__nishExtraThemes = extra;
 })();

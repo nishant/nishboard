@@ -1,5 +1,6 @@
 import tseslint from 'typescript-eslint';
 import reactHooks from 'eslint-plugin-react-hooks';
+import nish from '@nish/ui/eslint';
 
 export default tseslint.config(
   {
@@ -31,6 +32,9 @@ export default tseslint.config(
       ],
     },
   },
+  // @nish/ui preset: core rules everywhere in src; theme-class rules only in the UI.
+  ...nish.configs.node.map((c) => ({ ...c, files: ['apps/main/src/**', 'packages/**/src/**'] })),
+  ...nish.configs.react.map((c) => ({ ...c, files: ['apps/renderer/src/**'] })),
   {
     files: ['apps/renderer/src/**/*.{ts,tsx}'],
     plugins: { 'react-hooks': reactHooks },
