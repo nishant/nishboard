@@ -12,6 +12,7 @@ import type { ChildProcessWithoutNullStreams } from 'child_process';
 
 const DEFAULT_IDLE_MS = 60_000;
 const DEFAULT_TIMEOUT_MS = 10_000;
+const DEFAULT_READY_TIMEOUT_MS = 30_000;
 
 /** The request loop. A single line on purpose: `-Command -` feeds stdin line by line. */
 const LOOP_LINE =
@@ -61,6 +62,7 @@ interface PsHostOptions {
   timeoutMs?: number;
   spawnFn?: typeof spawn;
   bootstrap?: string;
+  readyTimeoutMs?: number;
 }
 
 interface HostReply {
@@ -81,6 +83,8 @@ export class PsHost {
   private readonly timeoutMs: number;
   private readonly spawnFn: typeof spawn;
   private readonly bootstrap: string;
+  private readonly readyTimeoutMs: number;
+  private readyTimer: ReturnType<typeof setTimeout> | null = null;
 
   private child: ChildProcessWithoutNullStreams | null = null;
   private queue: Pending[] = [];
@@ -97,6 +101,7 @@ export class PsHost {
     this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.spawnFn = opts.spawnFn ?? spawn;
     this.bootstrap = opts.bootstrap ?? buildBootstrap();
+    this.readyTimeoutMs = opts.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS;
   }
 
   /** Run a PowerShell snippet in the long-lived process; resolves with its trimmed stdout text. */
@@ -112,6 +117,13 @@ export class PsHost {
     this.disposed = true;
     this.stopChild();
     this.failAll(new Error('PowerShell host disposed'));
+  }
+
+  private clearReadyTimer(): void {
+    if (this.readyTimer) {
+      clearTimeout(this.readyTimer);
+      this.readyTimer = null;
+    }
   }
 
   private clearIdle(): void {
@@ -134,13 +146,6 @@ export class PsHost {
       return;
     }
     this.current = next;
-    next.timer = setTimeout(() => {
-      if (this.current !== next) return;
-      this.current = null;
-      this.stopChild();
-      next.reject(new Error(`PowerShell request timed out after ${this.timeoutMs}ms`));
-      this.pump();
-    }, this.timeoutMs);
     this.flush();
   }
 
@@ -151,6 +156,14 @@ export class PsHost {
     const child = this.child;
     if (!cur || !child || !this.ready || cur.sent) return;
     cur.sent = true;
+    // The request timer only covers the request itself, not process startup.
+    cur.timer = setTimeout(() => {
+      if (this.current !== cur) return;
+      this.current = null;
+      this.stopChild();
+      cur.reject(new Error(`PowerShell request timed out after ${this.timeoutMs}ms`));
+      this.pump();
+    }, this.timeoutMs);
     const payload = Buffer.from(cur.script, 'utf8').toString('base64');
     try {
       child.stdin.write(`${cur.id} ${payload}\n`);
@@ -169,6 +182,13 @@ export class PsHost {
     this.child = child;
     this.buf = '';
     this.ready = false;
+    this.clearReadyTimer();
+    this.readyTimer = setTimeout(() => {
+      this.readyTimer = null;
+      if (this.child !== child || this.ready) return;
+      this.stopChild();
+      this.failAll(new Error(`PowerShell host did not become ready in ${this.readyTimeoutMs}ms`));
+    }, this.readyTimeoutMs);
 
     child.stdout.on('data', (chunk: Buffer | string) => {
       if (this.child !== child) return;
@@ -208,6 +228,7 @@ export class PsHost {
     }
     if (typeof parsed === 'object' && parsed !== null && 'ready' in parsed) {
       this.ready = true;
+      this.clearReadyTimer();
       this.flush();
       return;
     }
@@ -243,6 +264,7 @@ export class PsHost {
 
   private stopChild(): void {
     this.clearIdle();
+    this.clearReadyTimer();
     const child = this.child;
     if (!child) return;
     this.child = null;

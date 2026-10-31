@@ -219,6 +219,8 @@ export function buildRows(query: string, actions: PaletteAction[], recents: stri
       .sort((x, y) => y.score - x.score)
       .map((x) => x.a)
       .slice(0, LIST_MAX)
+      // Stable: rows keep their score order inside each group, groups follow GROUP_ORDER.
+      .sort((x, y) => groupRank(x.group) - groupRank(y.group))
       .map((a) => toItem(a, a.group));
   }
   rows.push(...flat);

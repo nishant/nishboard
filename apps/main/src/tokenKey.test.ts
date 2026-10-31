@@ -41,16 +41,30 @@ describe('loadTokenKey', () => {
     expect(await again.loadTokenKey()).toBe(key);
   });
 
-  it('does not overwrite an undecryptable key file', async () => {
+  it('does not overwrite an undecryptable key file that encrypted tokens depend on', async () => {
     vi.spyOn(await storage(), 'isAsyncEncryptionAvailable').mockResolvedValue(true);
     vi.spyOn(await storage(), 'decryptStringAsync').mockRejectedValue(new Error('bad'));
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const file = path.join(home, '.dash', '.token-key');
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, 'garbage');
+    fs.writeFileSync(path.join(home, '.dash', 'spotify_tokens.json'), JSON.stringify({ v: 1, alg: 'aes-256-gcm', data: 'x' }));
     const { loadTokenKey } = await import('./tokenKey');
     expect(await loadTokenKey()).toBeNull();
     expect(fs.readFileSync(file, 'utf8')).toBe('garbage');
+  });
+
+  it('regenerates an undecryptable key file when no encrypted tokens exist', async () => {
+    vi.spyOn(await storage(), 'isAsyncEncryptionAvailable').mockResolvedValue(true);
+    vi.spyOn(await storage(), 'decryptStringAsync').mockRejectedValue(new Error('bad'));
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const file = path.join(home, '.dash', '.token-key');
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, '');
+    const { loadTokenKey } = await import('./tokenKey');
+    const key = await loadTokenKey();
+    expect(Buffer.from(key ?? '', 'base64')).toHaveLength(32);
+    expect(fs.readdirSync(path.dirname(file)).filter((n) => n.endsWith('.tmp'))).toEqual([]);
   });
 
   it('accepts the { result } return shape of Electron 45', async () => {

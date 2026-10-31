@@ -27,4 +27,13 @@ describe('csp', () => {
     const script = buildCsp([]).split('; ').find((d) => d.startsWith('script-src'));
     expect(script).toBe("script-src 'self'");
   });
+
+  it('hashes LF-normalised text for CRLF input, as the browser does', () => {
+    const crlf = 'a();\r\nb();\r\n';
+    const lf = 'a();\nb();\n';
+    const html = `<head><script>${crlf}</script></head>`;
+    const text = (/<script\b[^>]*>([\s\S]*?)<\/script>/i.exec(html)?.[1] ?? '').replace(/\r\n?/g, '\n');
+    expect(scriptHash(text)).toBe(scriptHash(lf));
+    expect(scriptHash(crlf)).not.toBe(scriptHash(lf));
+  });
 });

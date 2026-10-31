@@ -28,6 +28,43 @@ function decryptedText(value: unknown): string | null {
   return null;
 }
 
+/** True when any ~/.dash/*_tokens.json already holds an encrypted payload, i.e. the
+ *  existing key file is the only way to read it and must never be replaced. */
+async function hasEncryptedTokens(dir: string): Promise<boolean> {
+  let names: string[];
+  try {
+    names = await fsp.readdir(dir);
+  } catch {
+    return false;
+  }
+  for (const name of names) {
+    if (!name.endsWith('_tokens.json')) continue;
+    try {
+      const parsed: unknown = JSON.parse(await fsp.readFile(path.join(dir, name), 'utf8'));
+      if (typeof parsed === 'object' && parsed !== null && (parsed as { alg?: unknown }).alg === 'aes-256-gcm') return true;
+    } catch {
+      // unreadable or plaintext: not an encrypted payload
+    }
+  }
+  return false;
+}
+
+async function createKey(file: string): Promise<string> {
+  const key = randomBytes(32).toString('base64');
+  const encrypted = await safeStorage.encryptStringAsync(key);
+  await fsp.mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
+  // Atomic: a crash or full disk must never leave a truncated key file behind.
+  const tmp = `${file}.${process.pid}.tmp`;
+  try {
+    await fsp.writeFile(tmp, encrypted, { mode: 0o600 });
+    await fsp.rename(tmp, file);
+  } catch (err) {
+    await fsp.rm(tmp, { force: true }).catch(() => undefined);
+    throw err;
+  }
+  return key;
+}
+
 async function load(): Promise<string | null> {
   try {
     const file = keyFile();
@@ -38,27 +75,33 @@ async function load(): Promise<string | null> {
       existing = null;
     }
 
-    if (existing) {
-      // Never overwrite an existing key file, even when it cannot be decrypted:
-      // the tokens encrypted with it would be lost for good.
-      const text = decryptedText(await safeStorage.decryptStringAsync(existing));
-      return text !== null && isValidKey(text) ? text : null;
+    if (existing && existing.length > 0) {
+      let text: string | null = null;
+      try {
+        text = decryptedText(await safeStorage.decryptStringAsync(existing));
+      } catch {
+        text = null;
+      }
+      if (text !== null && isValidKey(text)) return text;
+      // Unreadable key. If encrypted tokens depend on it, never replace it.
+      if (await hasEncryptedTokens(path.dirname(file))) {
+        console.warn('[tokenKey] existing key cannot be read and encrypted tokens depend on it; OAuth tokens will fall back to plaintext until it is fixed');
+        cached = null; // let a later restartServer() try again
+        return null;
+      }
     }
 
     if (!(await safeStorage.isAsyncEncryptionAvailable())) return null;
-    const key = randomBytes(32).toString('base64');
-    const encrypted = await safeStorage.encryptStringAsync(key);
-    await fsp.mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
-    await fsp.writeFile(file, encrypted, { mode: 0o600 });
-    return key;
+    return await createKey(file);
   } catch (err) {
-    console.warn('[tokenKey] unavailable, OAuth tokens stay plaintext (mode 0600):', err instanceof Error ? err.message : 'unknown error');
+    console.warn('[tokenKey] unavailable, OAuth tokens fall back to plaintext (mode 0600):', err instanceof Error ? err.message : 'unknown error');
+    cached = null;
     return null;
   }
 }
 
 /** Base64 32-byte token key for the server, or null when safeStorage is unavailable
- *  or the stored key cannot be read. Computed once; never logs the key. */
+ *  or the stored key cannot be read. Computed once on success (a failure is retried on the next call); never logs the key. */
 export function loadTokenKey(): Promise<string | null> {
   cached ??= load();
   return cached;

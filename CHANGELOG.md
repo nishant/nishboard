@@ -4,6 +4,20 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #TBD] feat: modernise the stack (Electron 45, bundled main, encrypted tokens)
+**Branch:** `feat/modernise` → `master`
+**Date:** 2026-10-31
+
+### Changed
+- Electron 45; `apps/main` is esbuild-bundled to `dist/index.js` and `dist/preload.js` with `@dash/shared` inlined (electron-builder no longer ships it in `node_modules`).
+- Charts use the `@nish/ui` `LineChart` instead of Recharts.
+- OAuth tokens under `~/.dash/` are AES-256-GCM encrypted (`DASH_TOKEN_KEY`, persisted in `~/.dash/.token-key`).
+- Net Monitor polls every 5s (20s in low power) and the server sampler ticks every 5s to match.
+- Release gate job runs typecheck, lint, test and build.
+
+### Fixed
+- Windows hidden in the tray are brought back on-screen when shown after a monitor is unplugged.
+
 ## [PR #152] chore: allow add_repo in cloud sessions
 **Branch:** `ccr-88e656c5-bsa5vm` → `master`
 **Date:** 2026-10-31

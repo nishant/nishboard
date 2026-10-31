@@ -154,7 +154,14 @@ function AutoUpdateStatus({ status, result }: { status: UpdateStatusData; result
     case 'error':
       return <span className="text-th-loss">Update failed: {status.message}</span>;
     case 'idle':
-      return result ? <span className="text-th-hi3">{result.message ?? 'You are up to date.'}</span> : null;
+      if (!result) return null;
+      return (
+        <span className="text-th-hi3">
+          {result.hasUpdate && result.latestVersion
+            ? `v${result.latestVersion} is available. Downloading soon…`
+            : (result.message ?? 'You are up to date.')}
+        </span>
+      );
   }
 }
 

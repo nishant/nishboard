@@ -106,6 +106,8 @@ export function trackMainBounds(win: BrowserWindow): void {
   };
   win.on('resize', schedule);
   win.on('move', schedule);
+  // A window hidden in the tray can outlive its monitor; re-check when it comes back.
+  win.on('show', () => ensureOnScreen(win));
   win.on('close', () => {
     if (timer) clearTimeout(timer);
     timer = null;
@@ -127,7 +129,7 @@ export function clampToScreen(r: Rect): Rect {
 }
 
 export function ensureOnScreen(win: BrowserWindow): void {
-  if (win.isDestroyed() || win.isMaximized() || win.isFullScreen() || !win.isVisible()) return;
+  if (win.isDestroyed() || win.isMaximized() || win.isFullScreen()) return; // hidden windows too: setBounds works while hidden (tray)
   const cur = win.getBounds();
   const next = clampToScreen(cur);
   if (next.x !== cur.x || next.y !== cur.y || next.width !== cur.width || next.height !== cur.height) {

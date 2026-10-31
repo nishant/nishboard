@@ -23,7 +23,7 @@ function themeInit(): Plugin {
         .replace('__APP__', JSON.stringify(Object.fromEntries(APP_PRESETS.map((p) => [p.id, p.base.scheme]))))
         .replace('__LEGACY__', JSON.stringify(LEGACY_THEME_IDS));
       const shared = readFileSync(require.resolve('@nish/ui/theme-init.js'), 'utf8');
-      return [{ tag: 'script', children: `${app}\n${shared}`, injectTo: 'head-prepend' }];
+      return [{ tag: 'script', children: `${app}\n${shared}`.replace(/\r\n?/g, '\n'), injectTo: 'head-prepend' }];
     },
   };
 }
@@ -41,7 +41,7 @@ function csp(): Plugin {
       handler(html) {
         const inline: string[] = [];
         for (const m of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
-          if (!/\bsrc\s*=/i.test(m[1] ?? '')) inline.push(m[2] ?? '');
+          if (!/\bsrc\s*=/i.test(m[1] ?? '')) inline.push((m[2] ?? '').replace(/\r\n?/g, '\n'));
         }
         return [
           {
@@ -80,12 +80,15 @@ export default defineConfig({
         // Keep node_modules in ONE vendor chunk (caches independently of app code).
         // Do NOT hand-split react out of its consumers: a circular chunk leaves React
         // uninitialized at module-init → blank screen in the packaged build.
-        // grid-layout and markdown (react-markdown/remark-gfm: Claude, Notes) stay separate
-        // leaf chunks that depend on vendor one-way, never back.
+        // grid-layout stays a separate chunk; react-markdown/remark-gfm are left to the
+        // bundler so they stay lazy with the Claude and Notes widgets.
         manualChunks(id) {
           if (!id.includes('node_modules')) return;
           if (id.includes('react-grid-layout') || id.includes('react-resizable')) return 'grid-layout';
-          if (MARKDOWN_PKG.test(id)) return 'markdown';
+          // No named chunk: markdown follows its lazy importers (Claude, Notes), so it is
+          // not preloaded at startup. A named group pulls shared deps (react/jsx-runtime)
+          // into it and makes vendor depend on it.
+          if (MARKDOWN_PKG.test(id)) return;
           return 'vendor';
         },
       },

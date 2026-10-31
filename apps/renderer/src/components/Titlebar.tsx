@@ -12,11 +12,15 @@ import { useOverlayStore } from '../store/overlayStore';
 import { useWeather } from '../widgets/weather/useWeather';
 import { hourFormat } from '../lib/time';
 
-export const TITLEBAR_H = 32;
+/** Touch screens get a taller bar so the 44px IconButton hit areas fit inside it.
+ *  Read once at load (the primary pointer does not change at runtime); the grid
+ *  height maths in DashboardGrid reads this same value. */
+export const TITLEBAR_H =
+  typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches ? 44 : 32;
 
 // ── Clock ─────────────────────────────────────────────────────────────────────
 
-function formatClock(d: Date, clock24h: boolean): string {
+function formatClock(d: Date, clock24h: boolean, short = false): string {
   const parts = new Intl.DateTimeFormat('en-US', {
     weekday: 'short',
     month: 'short',
@@ -26,17 +30,18 @@ function formatClock(d: Date, clock24h: boolean): string {
     ...hourFormat(clock24h),
   }).formatToParts(d);
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
-  const base = `${get('weekday')} ${get('month')} ${get('day')} ${get('hour')}:${get('minute')}`;
+  const time = `${get('hour')}:${get('minute')}`;
+  const base = short ? `${get('weekday')} ${time}` : `${get('weekday')} ${get('month')} ${get('day')} ${time}`;
   return clock24h ? base : `${base} ${get('dayPeriod')}`;
 }
 
-function useClock(clock24h: boolean) {
-  const [str, setStr] = useState(() => formatClock(new Date(), clock24h));
+function useClock(clock24h: boolean, short: boolean) {
+  const [str, setStr] = useState(() => formatClock(new Date(), clock24h, short));
   useEffect(() => {
-    setStr(formatClock(new Date(), clock24h)); // re-render immediately on format toggle
-    const id = setInterval(() => setStr(formatClock(new Date(), clock24h)), 1000);
+    setStr(formatClock(new Date(), clock24h, short)); // re-render immediately on format toggle
+    const id = setInterval(() => setStr(formatClock(new Date(), clock24h, short)), 1000);
     return () => clearInterval(id);
-  }, [clock24h]);
+  }, [clock24h, short]);
   return str;
 }
 
@@ -64,10 +69,10 @@ function useIsNarrow(threshold: number): boolean {
 
 export function Titlebar() {
   const clock24h = useAppSettingsStore((s) => s.clock24h);
-  const clock = useClock(clock24h);
   const showTempInClock = useAppSettingsStore((s) => s.showTempInClock);
   const forceCompact = useAppSettingsStore((s) => s.compactTitlebar);
   const narrow = useIsNarrow(COMPACT_BREAKPOINT);
+  const clock = useClock(clock24h, useIsNarrow(600));
   const compact = forceCompact || narrow;
   const weather = useWeather(showTempInClock);
   const temp = weather.data?.current?.temp;
@@ -78,7 +83,7 @@ export function Titlebar() {
   return (
     <div
       style={dragStyle}
-      className="h-8 relative flex items-center px-3 bg-th-bg border-b border-th-line/50 shrink-0 select-none"
+      className="h-8 relative z-40 flex items-center px-3 bg-th-bg border-b border-th-line/50 shrink-0 select-none"
     >
       {/* Left: brand + pinned layouts (inline when wide, dropdown when compact) */}
       <div className="flex items-center gap-1.5 min-w-0">

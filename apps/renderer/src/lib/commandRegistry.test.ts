@@ -45,6 +45,14 @@ describe('buildRows', () => {
     expect(rows.slice(1).map((r) => r.group)).toEqual(['Layouts', 'Widgets', 'Timers']);
   });
 
+  it('non-empty query: rows are grouped in the fixed group order', () => {
+    const rows = buildRows('widget', actions, []);
+    const groups = rows.map((r) => r.group);
+    expect(groups).toContain('Layouts');
+    expect(groups).toContain('Widgets');
+    expect(groups.indexOf('Layouts')).toBeLessThan(groups.indexOf('Widgets'));
+  });
+
   it('parameterised query that parses puts the preview row first and records a recent when run', () => {
     const rows = buildRows('timer 25m tea', actions, []);
     expect(rows[0].label).toBe('Start 25m tea timer');

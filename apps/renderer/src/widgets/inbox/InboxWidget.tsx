@@ -132,7 +132,7 @@ export function InboxWidget() {
 
   const failed = isError && !data;
   return (
-    <div className="h-full min-h-0 overflow-y-auto" onClickCapture={openLinksExternally}>
+    <div className="h-full min-h-0 overflow-y-auto overflow-x-hidden" onClickCapture={openLinksExternally}>
       <Inbox
         className="border-0 rounded-none bg-transparent"
         items={failed ? [] : shown}

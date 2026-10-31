@@ -288,6 +288,7 @@ if ($HasCmdlets) {
     $d = "C|$vol|$mute|$def|$list"
   } catch { }
 }
+if ($d -and (($vol -replace '%','').Trim() -notmatch '^\d+(\.\d+)?$')) { $d = $null }
 if (-not $d) { $d = 'W|' + [W]::GetMaster() }
 $d
 '${SESSIONS_MARK}'
@@ -365,12 +366,11 @@ if (-not $ok) { [W]::SetMasterMute([bool]${flag}) }
 }
 
 async function winSwitchDevice(id: string): Promise<void> {
-  // ''-doubling is the complete escape inside PowerShell single quotes, and the
-  // script reaches PowerShell as base64 over stdin (psHost) — never through cmd.exe —
-  // so this interpolation is injection-safe. Don't "simplify" to double quotes.
-  const safe = id.replace(/'/g, "''");
+  // The name travels as base64 and is decoded inside PowerShell, so no character of
+  // it can end the quoted string (PowerShell also treats curly quotes as quotes).
+  const b64 = Buffer.from(id, 'utf8').toString('base64');
   await psRun(
-    `Get-AudioDevice -List | Where-Object { $_.Name -eq '${safe}' -and $_.Type -eq 'Playback' } | Set-AudioDevice | Out-Null`,
+    `$n = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${b64}')); Get-AudioDevice -List | Where-Object { $_.Name -eq $n -and $_.Type -eq 'Playback' } | Set-AudioDevice | Out-Null`,
   );
 }
 
