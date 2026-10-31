@@ -320,7 +320,7 @@ New IPC channels: `app:get-update-status` (invoke → `UpdateStatusData`), `app:
 - Owns: `.github/workflows/release.yml`, `.github/dependabot.yml`
 - Depends on: none
 - Change: Design → "Release workflow".
-- Acceptance: both YAML files parse (`node -e "require('yaml')"` is not available; use `npx --yes yaml-lint` is NOT allowed — instead run `python -c "import yaml,sys;[yaml.safe_load(open(f)) for f in sys.argv[1:]]" .github/workflows/release.yml .github/dependabot.yml`). Every `gh` call has `GH_TOKEN` and `--repo` or runs after checkout.
+- Acceptance: re-read both files for indentation and quoting; every `gh` call has `GH_TOKEN` set and runs after checkout (or passes `--repo "$GITHUB_REPOSITORY"`). The planner validates the YAML with a parser before pushing.
 
 ### T3 Auto-update
 - Owns: `apps/main/src/updates.ts`, `apps/main/src/updates.test.ts`, `apps/main/src/ipc/index.ts`, `apps/main/src/preload.ts`, `packages/shared/src/types/ipc.ts`, `apps/renderer/src/components/SettingsModal.tsx`, `apps/renderer/src/types/electron.d.ts` (only if it re-declares the API)
