@@ -1,8 +1,13 @@
 import { contextBridge, ipcRenderer, webFrame } from 'electron';
 import type { ElectronAPI, IpcChannels, CredentialKey, LauncherItemData, LauncherGroupData, LauncherStateData, ClipboardEntryData, AppPrefsData, UpdateCheckData, DiscordScreenShareRequestData, ClaudeLoginOpenResult } from '@dash/shared';
 
+// Synchronous so the very first fetch already carries it. Main answers only
+// our own top frame (apiToken.ts); anything else gets ''.
+const token: unknown = ipcRenderer.sendSync('app:api-token' satisfies IpcChannels);
+
 const electronAPI: ElectronAPI = {
   platform: process.platform,
+  apiToken: typeof token === 'string' ? token : '',
   minimize: () => ipcRenderer.send('app:minimize' satisfies IpcChannels),
   toggleMaximize: () => ipcRenderer.send('app:toggle-maximize' satisfies IpcChannels),
   setNativeTheme: (source, bg) => ipcRenderer.send('app:set-theme' satisfies IpcChannels, source, bg),

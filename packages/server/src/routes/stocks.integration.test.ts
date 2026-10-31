@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { StocksData } from '@dash/shared';
-import { buildServer } from '../app';
+import { testServer } from '../test/server';
 import { clearWatchlistCache } from './stocks';
 import { jsonRes, stubFetch, textRes } from '../test/fetchStub';
 
@@ -11,7 +11,7 @@ import { jsonRes, stubFetch, textRes } from '../test/fetchStub';
 let app: FastifyInstance;
 
 beforeAll(async () => {
-  app = await buildServer({ logger: false });
+  app = await testServer();
 });
 
 afterAll(async () => {

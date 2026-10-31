@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import { buildServer } from '../app';
+import { testServer } from '../test/server';
 import { resetInboxSession } from '../lib/inboxClient';
 import { jsonRes, stubFetch, type FetchRoute } from '../test/fetchStub';
 
@@ -22,7 +22,7 @@ function callsTo(fn: ReturnType<typeof stubFetch>, part: string): Array<[string,
 let app: FastifyInstance;
 
 beforeAll(async () => {
-  app = await buildServer({ logger: false });
+  app = await testServer();
 });
 
 afterAll(async () => {

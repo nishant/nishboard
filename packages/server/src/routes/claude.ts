@@ -14,6 +14,7 @@ import { claudeStatus, getClaudeMeta, isSessionNotFoundError, spawnClaudeChat } 
 import { fetchClaudeUsage } from '../lib/claudeUsage';
 import { TtlCache } from '../lib/TtlCache';
 import { HttpError } from '../lib/http';
+import { ALLOWED_ORIGINS } from '../lib/access';
 
 /** Expand a leading `~` and require the result to be absolute — the CLI's
  *  sandbox derives from these paths, so a relative path (resolved against the
@@ -41,10 +42,9 @@ const usageCache = new TtlCache<'usage', ClaudeUsageData>(60_000);
 // and the widget UI only ever has one in-flight turn.
 let activeChat: ClaudeChatHandle | null = null;
 
-// Mirror of app.ts's CORS origin list. reply.hijack() bypasses @fastify/cors
-// entirely, so the SSE response must set Access-Control-Allow-Origin itself —
-// only ever echoing an origin from this allowed set.
-const ALLOWED_ORIGINS = new Set(['http://localhost:5173', 'file://', 'null']);
+// reply.hijack() bypasses @fastify/cors entirely, so the SSE response sets
+// Access-Control-Allow-Origin itself, only ever echoing an origin from
+// ALLOWED_ORIGINS (lib/access.ts, the list app.ts gives @fastify/cors).
 
 export const claudeRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/claude/status — CLI availability + version for the widget shell.

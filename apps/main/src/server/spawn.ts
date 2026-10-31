@@ -3,6 +3,7 @@ import { app } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { readCredentials } from '../credentials';
+import { apiToken } from '../apiToken';
 
 // ── Server log tee ────────────────────────────────────────────────────────────
 // Child stdout/stderr also land in userData/logs/server.log so "why is a
@@ -116,6 +117,8 @@ function startChild(): void {
       NODE_ENV: 'production',
       SERVER_PORT: String(port),
       ...credentials,
+      // After the credentials, so no stored key can shadow it.
+      DASH_API_TOKEN: apiToken(),
     },
     stdio: 'pipe',
   });

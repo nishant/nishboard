@@ -17,6 +17,7 @@ import { networkRoutes } from './routes/network';
 import { discordRoutes } from './routes/discord';
 import { inboxRoutes } from './routes/inbox';
 import { HttpError, UpstreamError } from './lib/http';
+import { ALLOWED_ORIGINS, registerAccessGuard } from './lib/access';
 
 // Upstream statuses worth passing through — they tell the user something
 // actionable (bad key, dev-mode allowlist, missing resource, rate limit).
@@ -28,14 +29,27 @@ const PASSTHROUGH_STATUSES = [401, 403, 404, 429];
  * plugin, /health, and the builtin-credentials probe. No listen(), no dotenv,
  * no warmup — those are process concerns and live in index.ts, which keeps
  * this factory injectable for integration tests (`app.inject()`).
+ *
+ * `apiToken` is the per-launch bearer token the Electron main process minted
+ * (env `DASH_API_TOKEN`); every request but /health, the embeds and the OAuth
+ * callbacks must carry it (lib/access.ts). It is removed from process.env once
+ * read, so the children this server spawns (the claude CLI, PowerShell) never
+ * inherit it. `port` sets the allowed Host headers.
  */
-export async function buildServer(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
+export async function buildServer(
+  opts: { logger?: boolean; apiToken?: string; port?: number } = {},
+): Promise<FastifyInstance> {
+  const apiToken = opts.apiToken ?? process.env.DASH_API_TOKEN;
+  delete process.env.DASH_API_TOKEN;
+  if (!apiToken) throw new Error('DASH_API_TOKEN must be set (the Electron main process passes it)');
+  const port = opts.port ?? Number(process.env.SERVER_PORT ?? 7432);
+
   const server = Fastify({ logger: opts.logger === false ? false : { level: 'info' } });
 
-  // 'file://' is what Electron sends as the Origin from file:// pages today;
-  // 'null' is what stock Chromium serializes — allow both so an Electron
-  // upgrade can't silently break every packaged-app fetch.
-  await server.register(cors, { origin: ['http://localhost:5173', 'file://', 'null'] });
+  // Registered before the guard so a 401 or 403 still carries its CORS headers
+  // and the renderer can read the error.
+  await server.register(cors, { origin: [...ALLOWED_ORIGINS] });
+  registerAccessGuard(server, { token: apiToken, port });
 
   // Central error handler — routes throw HttpError/UpstreamError (or let
   // fetchJson throw) instead of repeating try/catch → reply.code().send().
@@ -67,7 +81,7 @@ export async function buildServer(opts: { logger?: boolean } = {}): Promise<Fast
   server.register(newsRoutes, { prefix: '/api/news' });
   server.register(cryptoRoutes, { prefix: '/api/crypto' });
   // NOTE: /api/claude/chat and /api/discord/stream hijack the reply for SSE —
-  // they mirror the CORS origin list above manually (keep the lists in sync).
+  // they set Access-Control-Allow-Origin themselves from ALLOWED_ORIGINS.
   server.register(claudeRoutes, { prefix: '/api/claude' });
   server.register(networkRoutes, { prefix: '/api/network' });
   server.register(discordRoutes, { prefix: '/api/discord' });

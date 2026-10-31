@@ -3,6 +3,7 @@ import type {
   InboxFeedData, InboxItemData, InboxListData, InboxSnoozeRequestBody, InboxHandleAllRequestBody,
 } from '@dash/shared';
 import { HttpError } from '../lib/http';
+import { ALLOWED_ORIGINS } from '../lib/access';
 import {
   inboxRequest, InboxOfflineError, InboxNoPasswordError, InboxBadPasswordError, InboxUpstreamError,
 } from '../lib/inboxClient';
@@ -47,7 +48,6 @@ function checkId(id: string): string {
   return id;
 }
 
-const ALLOWED_ORIGINS = new Set(['http://localhost:5173', 'file://', 'null']);
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
 
 function hostName(host: string): string {

@@ -4,6 +4,13 @@ export const API_BASE = 'http://127.0.0.1:7432';
 
 export const apiUrl = (path: string): string => `${API_BASE}${path}`;
 
+/** The per-launch bearer token from the main process (preload). The server
+ *  answers nothing under /api without it, apart from the embeds and OAuth
+ *  callbacks, which are navigations and cannot send a header. */
+export function authHeaders(): Record<string, string> {
+  return { Authorization: `Bearer ${window.electron?.apiToken ?? ''}` };
+}
+
 /** Embed iframes stay on localhost, NOT 127.0.0.1: the Twitch player's parent=
  *  param is "localhost" (Twitch rejects bare IPs), and iframe navigations
  *  fall back between v4/v6 fine. API fetches use apiClient/apiUrl instead. */
@@ -22,7 +29,7 @@ async function errorMessage(res: Response, path: string): Promise<string> {
 }
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(apiUrl(path));
+  const res = await fetch(apiUrl(path), { headers: authHeaders() });
   if (!res.ok) throw new Error(await errorMessage(res, path));
   return res.json() as Promise<T>;
 }
@@ -30,7 +37,7 @@ async function get<T>(path: string): Promise<T> {
 async function post<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(apiUrl(path), {
     method: 'POST',
-    headers: body !== undefined ? { 'Content-Type': 'application/json' } : {},
+    headers: body !== undefined ? { ...authHeaders(), 'Content-Type': 'application/json' } : authHeaders(),
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) throw new Error(await errorMessage(res, path));
