@@ -22,28 +22,37 @@ function notify(): void {
   }
 }
 
-function poll(): void {
-  let text = '';
+// Electron 44+: clipboard access in main is async. The guard keeps 1s ticks from overlapping.
+let polling = false;
+
+async function poll(): Promise<void> {
+  if (polling) return;
+  polling = true;
   try {
-    text = clipboard.readText();
-  } catch {
-    return; // clipboard occupied by another app mid-write — try next tick
+    let text = '';
+    try {
+      text = await clipboard.readText();
+    } catch {
+      return; // clipboard occupied by another app mid-write — try next tick
+    }
+    if (!text || text === lastText) return; // dedupe consecutive reads
+    lastText = text;
+    history = [
+      { id: randomUUID(), text: text.slice(0, MAX_TEXT_LEN), at: Date.now() },
+      ...history,
+    ].slice(0, MAX_ENTRIES);
+    notify();
+  } finally {
+    polling = false;
   }
-  if (!text || text === lastText) return; // dedupe consecutive reads
-  lastText = text;
-  history = [
-    { id: randomUUID(), text: text.slice(0, MAX_TEXT_LEN), at: Date.now() },
-    ...history,
-  ].slice(0, MAX_ENTRIES);
-  notify();
 }
 
 export function setClipboardWatch(enabled: boolean, sender: WebContents): void {
   subscriber = sender;
   if (enabled && !timer) {
     lastText = null; // capture whatever is on the clipboard right now
-    timer = setInterval(poll, POLL_MS);
-    poll();
+    timer = setInterval(() => void poll(), POLL_MS);
+    void poll();
   } else if (!enabled && timer) {
     clearInterval(timer);
     timer = null;
@@ -54,11 +63,11 @@ export function getClipboardHistory(): ClipboardEntryData[] {
   return history;
 }
 
-export function copyClipboardEntry(id: string): void {
+export async function copyClipboardEntry(id: string): Promise<void> {
   const entry = history.find((e) => e.id === id);
   if (!entry) return;
   lastText = entry.text; // don't re-capture our own write as a new entry
-  clipboard.writeText(entry.text);
+  await clipboard.writeText(entry.text);
 }
 
 export function clearClipboardHistory(): void {

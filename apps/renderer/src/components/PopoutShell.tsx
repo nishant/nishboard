@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { X } from 'lucide-react';
 import { Toaster } from '@nish/ui';
 import { ThemeManager } from '../App';
-import { WIDGET_REGISTRY } from './DashboardGrid';
+import { WIDGET_REGISTRY } from '../widgets/registry';
 import { DiscordHost } from '../widgets/discord/DiscordHost';
 import { HeaderAction } from './HeaderAction';
 import { WIDGET_TITLES } from '../lib/layouts';

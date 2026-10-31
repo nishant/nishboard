@@ -84,8 +84,24 @@ export interface UpdateCheckData {
   assetUrl: string | null;
   /** Filename of that asset, for the download-button label. */
   assetName: string | null;
+  /** true when this build installs updates itself (Windows packaged). The UI then
+   *  shows UpdateStatusData instead of the download button. */
+  autoUpdate: boolean;
   /** Human-readable status ("No releases yet…", rate-limit/auth errors, …). */
   message?: string;
+}
+
+export type UpdateState = 'idle' | 'checking' | 'downloading' | 'downloaded' | 'error';
+
+/** Live state of the background auto-updater (Windows packaged builds). */
+export interface UpdateStatusData {
+  state: UpdateState;
+  /** Version being downloaded or ready to install; null otherwise. */
+  version: string | null;
+  /** 0..100 while downloading; null otherwise. */
+  percent: number | null;
+  /** Error text for state 'error'; null otherwise. */
+  message: string | null;
 }
 
 /** What Electron's nativeTheme.themeSource follows: the OS, or a fixed scheme. */
@@ -141,6 +157,9 @@ export type IpcChannels =
   | 'server:restart'
   | 'app:get-version'
   | 'app:check-updates'
+  | 'app:get-update-status'
+  | 'app:install-update'
+  | 'app:update-status'
   | 'backup:choose-folder'
   | 'backup:write'
   | 'logs:open-folder';
@@ -193,6 +212,12 @@ export interface ElectronAPI {
     getVersion: () => Promise<string>;
     /** Manual GitHub latest-release check (24h memo main-side). */
     checkUpdates: () => Promise<UpdateCheckData>;
+    /** Current auto-updater state (Windows packaged builds; 'idle' elsewhere). */
+    getUpdateStatus: () => Promise<UpdateStatusData>;
+    /** Quit and install the downloaded update (no-op unless state is 'downloaded'). */
+    installUpdate: () => Promise<void>;
+    /** Subscribe to auto-updater state pushes; returns an unsubscribe function. */
+    onUpdateStatus: (cb: (status: UpdateStatusData) => void) => () => void;
   };
   backup: {
     /** Native directory picker; persists the choice in main prefs and returns

@@ -9,8 +9,8 @@ const execFileAsync = promisify(execFile);
 
 const DEFAULT_HOSTS = ['1.1.1.1', '8.8.8.8'];
 const MAX_HOSTS = 4;
-const WINDOW = 30; // ring buffer — last 30 samples per host (~1min at the 2s tick)
-const TICK_MS = 2_000;
+const WINDOW = 30; // ring buffer — last 30 samples per host (~2.5min at the 5s tick)
+const TICK_MS = 5_000;
 const IDLE_STOP_MS = 60_000; // sampler self-stops when no GET has landed for this long
 const PING_TIMEOUT_MS = 1_000; // ping's own reply timeout (-w / -W)
 const EXEC_TIMEOUT_MS = 1_500; // belt-and-braces: kill the child if ping itself hangs
@@ -106,7 +106,7 @@ export function computeStats(buffer: ReadonlyArray<number | null>): Omit<PingHos
 }
 
 // ── Sampler ───────────────────────────────────────────────────────────────
-// Module-level background sampler — pings run on a 2s tick, NOT per request,
+// Module-level background sampler — pings run on a 5s tick, NOT per request,
 // so four widget polls a second cost zero extra child processes. Lazy
 // lifecycle: the first GET starts it; each tick self-stops (and clears the
 // buffers) once no request has landed for IDLE_STOP_MS.

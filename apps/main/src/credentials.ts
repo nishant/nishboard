@@ -16,76 +16,93 @@ function isCredentialKey(key: string): key is CredentialKey {
   return (CREDENTIAL_KEYS as readonly string[]).includes(key);
 }
 
-export function readCredentials(): Partial<Record<CredentialKey, string>> {
+type Credentials = Partial<Record<CredentialKey, string>>;
+
+// Decrypted once (loadCredentials) so the sync readers below never touch
+// safeStorage's deprecated sync API.
+let cache: Credentials = {};
+
+function readStored(): Record<string, string> {
   const file = credentialsPath();
   if (!existsSync(file)) return {};
-
   try {
-    const raw = JSON.parse(readFileSync(file, 'utf8')) as Record<string, string>;
-    const result: Partial<Record<CredentialKey, string>> = {};
-
+    const raw = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
+    const stored: Record<string, string> = {};
     for (const [key, val] of Object.entries(raw)) {
-      if (!isCredentialKey(key) || typeof val !== 'string') continue;
-      try {
-        result[key] = safeStorage.isEncryptionAvailable()
-          ? safeStorage.decryptString(Buffer.from(val, 'base64'))
-          : val; // fallback: plaintext (safeStorage unavailable on some Linux setups)
-      } catch {
-        // corrupted entry — skip silently
-      }
+      if (isCredentialKey(key) && typeof val === 'string') stored[key] = val;
     }
-    return result;
+    return stored;
   } catch {
     return {};
   }
 }
 
-/** Which credential keys are stored — a presence check on the JSON file that
- *  never decrypts anything. This is all the renderer is allowed to know. */
-export function readCredentialStatus(): Partial<Record<CredentialKey, boolean>> {
-  const file = credentialsPath();
-  if (!existsSync(file)) return {};
-  try {
-    const raw = JSON.parse(readFileSync(file, 'utf8')) as Record<string, string>;
-    const result: Partial<Record<CredentialKey, boolean>> = {};
-    for (const key of Object.keys(raw)) {
-      if (isCredentialKey(key)) result[key] = true;
-    }
-    return result;
-  } catch {
-    return {};
+/** Electron types decryptStringAsync as `{ result, shouldReEncrypt }`; accept a bare string too. */
+function decryptedText(value: unknown): string | null {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && value !== null && 'result' in value) {
+    const result = (value as { result: unknown }).result;
+    return typeof result === 'string' ? result : null;
   }
+  return null;
+}
+
+/** Decrypt the stored credentials into the module cache. Call once before spawnServer(). */
+export async function loadCredentials(): Promise<void> {
+  const stored = readStored();
+  const available = await safeStorage.isAsyncEncryptionAvailable();
+  const result: Credentials = {};
+  for (const [key, val] of Object.entries(stored)) {
+    if (!isCredentialKey(key)) continue;
+    try {
+      // fallback: plaintext (safeStorage unavailable on some Linux setups)
+      const text = available
+        ? decryptedText(await safeStorage.decryptStringAsync(Buffer.from(val, 'base64')))
+        : val;
+      if (text !== null) result[key] = text;
+    } catch {
+      // corrupted entry — skip silently
+    }
+  }
+  cache = result;
+}
+
+/** The decrypted credentials (empty before loadCredentials() has run). */
+export function readCredentials(): Credentials {
+  return cache;
+}
+
+/** Which credential keys are stored — a presence check that never exposes values.
+ *  This is all the renderer is allowed to know. */
+export function readCredentialStatus(): Partial<Record<CredentialKey, boolean>> {
+  const result: Partial<Record<CredentialKey, boolean>> = {};
+  for (const key of Object.keys(cache)) {
+    if (isCredentialKey(key)) result[key] = true;
+  }
+  return result;
 }
 
 /** Merge-on-save: the write-only Settings UI sends only touched keys.
  *  Non-empty string = set/replace; '' = clear; absent = keep the stored value.
  *  Existing entries are carried over as-is (still encrypted) — they are never
  *  round-tripped through the renderer. */
-export function writeCredentials(creds: Partial<Record<CredentialKey, string>>): void {
+export async function writeCredentials(creds: Credentials): Promise<void> {
   const dir = path.dirname(credentialsPath());
   mkdirSync(dir, { recursive: true });
 
-  let stored: Record<string, string> = {};
-  if (existsSync(credentialsPath())) {
-    try {
-      const raw = JSON.parse(readFileSync(credentialsPath(), 'utf8')) as Record<string, string>;
-      for (const [key, val] of Object.entries(raw)) {
-        if (isCredentialKey(key) && typeof val === 'string') stored[key] = val;
-      }
-    } catch {
-      stored = {};
-    }
-  }
+  const stored = readStored();
+  const available = await safeStorage.isAsyncEncryptionAvailable();
 
   for (const [key, val] of Object.entries(creds)) {
     if (!isCredentialKey(key) || typeof val !== 'string') continue;
     if (val === '') {
       delete stored[key];
     } else {
-      stored[key] = safeStorage.isEncryptionAvailable()
-        ? safeStorage.encryptString(val).toString('base64')
+      stored[key] = available
+        ? (await safeStorage.encryptStringAsync(val)).toString('base64')
         : val;
     }
   }
   writeFileSync(credentialsPath(), JSON.stringify(stored, null, 2), 'utf8');
+  await loadCredentials();
 }
