@@ -1,0 +1,24 @@
+# Line endings: LF in the repo and in every checkout, whatever core.autocrlf says (the PC's Git
+# for Windows sets it to true, which put CRLF into served files and build inputs).
+* text=auto eol=lf
+
+# Binary files: never convert.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.avif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.mp4 binary
+*.webm binary
+*.mp3 binary
+*.wav binary
+*.zip binary
+*.pdf binary
+*.db binary
+*.sqlite binary
