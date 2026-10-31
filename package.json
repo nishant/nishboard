@@ -18,7 +18,7 @@
   },
   "devDependencies": {
     "concurrently": "^9.2.5",
-    "@nish/ui": "https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v1.0.0",
+    "@nish/ui": "https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v1.0.2",
     "cross-env": "^7.0.3",
     "electron-builder": "^26.18.1",
     "eslint": "^10.13.0",
