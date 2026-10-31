@@ -98,6 +98,7 @@ export type IpcChannels =
   | 'app:close'
   | 'app:notify'
   | 'app:open-external'
+  | 'app:api-token'
   | 'spotify:open-auth'
   | 'spotify:token-store'
   | 'twitch:open-auth'
@@ -147,6 +148,9 @@ export type IpcChannels =
 export interface ElectronAPI {
   /** Host OS, from the main process (`process.platform`): 'win32' | 'darwin' | 'linux' | … */
   platform: string;
+  /** This launch's bearer token for the local server (127.0.0.1:7432). Every
+   *  /api request carries it; a web page in a browser never learns it. */
+  apiToken: string;
   minimize: () => void;
   /** Toggle the main window between maximized and its previous size. */
   toggleMaximize: () => void;

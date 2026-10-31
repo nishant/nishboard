@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { NewsData } from '@dash/shared';
-import { buildServer } from '../app';
+import { testServer } from '../test/server';
 import { stubFetch, textRes } from '../test/fetchStub';
 
 // NOTE: module-level TTL cache keyed by topic — distinct topics per test.
@@ -29,7 +29,7 @@ const RSS = `<?xml version="1.0"?>
 let app: FastifyInstance;
 
 beforeAll(async () => {
-  app = await buildServer({ logger: false });
+  app = await testServer();
 });
 
 afterAll(async () => {

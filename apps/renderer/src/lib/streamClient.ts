@@ -1,4 +1,4 @@
-import { apiUrl } from './apiClient';
+import { apiUrl, authHeaders } from './apiClient';
 
 /**
  * SSE-style event-stream helpers — one `data: <json>\n\n` frame per event.
@@ -56,7 +56,7 @@ export async function postEventStream<T>(
 ): Promise<void> {
   const res = await fetch(apiUrl(path), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
     signal: opts.signal,
   });
@@ -70,6 +70,6 @@ export async function getEventStream<T>(
   path: string,
   opts: { signal: AbortSignal; onEvent: (e: T) => void },
 ): Promise<void> {
-  const res = await fetch(apiUrl(path), { signal: opts.signal });
+  const res = await fetch(apiUrl(path), { headers: authHeaders(), signal: opts.signal });
   await consumeEventStream(res, path, opts.onEvent);
 }

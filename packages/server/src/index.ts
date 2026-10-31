@@ -1,5 +1,8 @@
 import { config } from 'dotenv';
-import { resolve } from 'path';
+import { randomBytes } from 'crypto';
+import fs from 'fs';
+import os from 'os';
+import path, { resolve } from 'path';
 import si from 'systeminformation';
 import { buildServer } from './app';
 
@@ -8,8 +11,33 @@ config({ path: resolve(__dirname, '../../../.env') });
 
 const port = Number(process.env.SERVER_PORT ?? 7432);
 
+/** `pnpm dev` starts this server through concurrently, not from Electron main,
+ *  so the two meet at a token file instead of an env var. Whichever starts
+ *  first links it into place; the other reads it. apps/main/src/apiToken.ts holds
+ *  the other half. Production never reads it: main always passes the env var. */
+function devApiToken(): string {
+  const file = path.join(os.homedir(), '.dash', 'dev-api-token');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  if (!fs.existsSync(file)) {
+    // Written whole, then linked into place: the other side never reads a
+    // half-written file, and a link that already exists means it won.
+    const tmp = `${file}.${process.pid}.tmp`;
+    fs.writeFileSync(tmp, randomBytes(32).toString('base64url'), { mode: 0o600 });
+    try {
+      fs.linkSync(tmp, file);
+    } catch (err) {
+      if (!(err instanceof Error && 'code' in err && err.code === 'EEXIST')) throw err;
+    } finally {
+      fs.rmSync(tmp, { force: true });
+    }
+  }
+  return fs.readFileSync(file, 'utf8').trim();
+}
+
 async function start(): Promise<void> {
-  const server = await buildServer();
+  const apiToken = process.env.DASH_API_TOKEN
+    ?? (process.env.NODE_ENV === 'production' ? undefined : devApiToken());
+  const server = await buildServer({ apiToken, port });
 
   await server.listen({ port, host: '127.0.0.1' });
 
