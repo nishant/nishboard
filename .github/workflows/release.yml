@@ -131,7 +131,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14 # arm64 → Nishboard-x.y.z-arm64.dmg
+          - os: macos-15 # arm64 (macos-14 retires 2026-11-02; its brownouts cancel the job) → Nishboard-x.y.z-arm64.dmg
             artifact: release/*.dmg
           - os: windows-latest # x64 NSIS → Nishboard Setup x.y.z.exe
             artifact: release/*.exe
