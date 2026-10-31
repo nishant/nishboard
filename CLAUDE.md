@@ -101,10 +101,7 @@ Three places a key can live — checked in this order at runtime:
 - Helpers exported solely for tests are marked `/** Exported for tests. */`.
 - **Releases are test-gated**: `release.yml`'s `version` job (tag creation) `needs: test` — a red suite means no tag/build/release, including manual dispatches. CI also runs `pnpm test` on every PR.
 - Unit tests don't cover packaged-app-only failures (`file://`, chunking, electron-builder file lists) — see **Embedding & Platform Gotchas**; verify those in a real packaged build.
-- **Target device for every Nish UI: Samsung Galaxy Z Fold 7** (cover screen ~360–390 CSS px, unfolded a near-square ~840px). Every window, popout and page must look right, with no horizontal page scroll, at 360px wide (not just 375/390), ~840px and desktop width, in light and dark, with 44px touch targets. Check in a browser (`pnpm dev`, renderer on `http://localhost:5173`) at those widths before calling UI work done.
-- **Every page is reachable on the phone.** It has a visible way in (bottom bar, More sheet,
-  menu, or a link on another page), never only by typing its URL: no desktop-only nav entries,
-  and no page that tells a phone user to open it on a desktop.
+- UI follows "Phones and layout" in [`global/CLAUDE.md`](https://github.com/nishant/skills/blob/master/global/CLAUDE.md) in `nishant/skills`: 360px, ~840px and desktop, light and dark, 44px targets, no horizontal page scroll, and every page reachable through visible UI. Check the renderer with `pnpm dev` (`http://localhost:5173`) at those widths.
 
 ## Working With Nish
 - Senior software engineer (7 years), TypeScript/Angular/Node expert — no hand-holding
@@ -119,7 +116,8 @@ Three places a key can live — checked in this order at runtime:
 - Flag API rate limits or auth quirks immediately
 
 ## Autonomy
-Nish's standing rule (2026-10-26): Claude sessions build, commit, push, open and merge PRs, release, and deploy on their own judgment, without asking Nish. Work is done only when it is merged, released, and confirmed live: for this app that means the `Release` run on master is green and the GitHub Release (DMG + EXE) exists, or the PR carried `[skip release]` on purpose. If CI or the release fails, read the log, fix it and re-ship; don't leave master red. Pick sensible defaults instead of asking; stop for Nish only when it is critically necessary (credentials or account signups such as the rclone OAuth below, or anything destructive to user data).
+
+Nish's standing rule: build, merge, release and deploy without asking; stop only for credentials, account signups, anything destructive to production data, and hosting's hard rules. The canonical text is "Autonomy" in [`global/CLAUDE.md`](https://github.com/nishant/skills/blob/master/global/CLAUDE.md) in `nishant/skills`. Done here means the `Release` run on master green and the GitHub Release (DMG + EXE) published, or the PR carried `[skip release]` on purpose. Account steps such as the rclone OAuth below are Nish's.
 
 ## Git Workflow
 1. **Branch first** — `git checkout -b <branch>` before touching any files. Never make changes on `master` then branch for the PR.
