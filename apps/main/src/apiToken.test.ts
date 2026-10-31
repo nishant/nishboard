@@ -12,10 +12,10 @@ function handler(): Handler {
 }
 
 function ask(url: string, opts: { subframe?: boolean } = {}): unknown {
-  const mainFrame = { url };
+  const mainFrame = { url, parent: null };
   const event = {
     sender: { mainFrame },
-    senderFrame: opts.subframe ? { url } : mainFrame,
+    senderFrame: opts.subframe ? { url, parent: mainFrame } : mainFrame,
     returnValue: undefined as unknown,
   };
   handler()(event as unknown as IpcMainEvent);

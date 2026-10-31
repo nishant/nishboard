@@ -31,7 +31,7 @@ describe('parseEntries', () => {
 });
 
 describe('writeScript', () => {
-  it('copies every absent key, keeps the ones already set, and survives awkward text', () => {
+  it('copies every key, file:// values winning over saved defaults, and survives awkward text', () => {
     const { localStorage, data } = fakeStorage({ kept: 'new' });
     const notes = JSON.stringify({ state: { notes: ['</script> "quotes" `ticks` ${x}   line'] }, version: 2 });
     const entries: Array<[string, string]> = [
@@ -40,7 +40,7 @@ describe('writeScript', () => {
       ['nish-theme', 'mocha'],
     ];
     const copied: unknown = vm.runInNewContext(writeScript(entries), { localStorage });
-    expect(copied).toBe(2);
-    expect(data).toEqual({ kept: 'new', 'dashboard-notes': notes, 'nish-theme': 'mocha' });
+    expect(copied).toBe(3);
+    expect(data).toEqual({ kept: 'old', 'dashboard-notes': notes, 'nish-theme': 'mocha' });
   });
 });

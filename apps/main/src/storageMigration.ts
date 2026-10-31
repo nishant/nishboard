@@ -16,19 +16,17 @@ export function parseEntries(dump: unknown): Array<[string, string]> {
   );
 }
 
-/** The script that writes `entries` on the app origin, keeping any key that is
- *  already there. JSON is valid JavaScript, so the data needs no escaping.
- *  Exported for tests. */
+/** The script that writes `entries` on the app origin. The file:// value wins
+ *  over anything already there: with no marker, app:// is either empty (first
+ *  launch) or holds the defaults a renderer saved after a failed copy, never
+ *  the user's real state. JSON is valid JavaScript, so the data needs no
+ *  escaping. Exported for tests. */
 export function writeScript(entries: Array<[string, string]>): string {
-  return `(() => { let n = 0; for (const [k, v] of ${JSON.stringify(entries)}) { if (localStorage.getItem(k) === null) { localStorage.setItem(k, v); n++; } } return n; })()`;
+  return `(() => { let n = 0; for (const [k, v] of ${JSON.stringify(entries)}) { localStorage.setItem(k, v); n++; } return n; })()`;
 }
 
-async function copyFileOriginStorage(): Promise<number> {
+async function copyFileOriginStorage(win: BrowserWindow): Promise<number> {
   const blankFile = path.join(app.getPath('userData'), 'storage-migration.html');
-  const win = new BrowserWindow({
-    show: false,
-    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
-  });
   try {
     // Every file:// page shares one origin, so any file reads the old storage.
     fs.writeFileSync(blankFile, '<!doctype html><title></title>');
@@ -40,26 +38,37 @@ async function copyFileOriginStorage(): Promise<number> {
     session.defaultSession.flushStorageData();
     return entries.length;
   } finally {
-    win.destroy();
     fs.rmSync(blankFile, { force: true });
   }
 }
 
 /** One time, before the first app:// window: copy the renderer's localStorage
  *  (layouts, notes, tasks, theme, every persisted store) from the old file://
- *  origin to app://nishboard. The old copy stays where it is. A failure is
+ *  origin to app://nishboard, file:// values winning. The old copy stays where it is. A failure is
  *  logged and retried next launch; it never blocks startup. */
 export async function migrateFileOriginStorage(): Promise<void> {
   const marker = path.join(app.getPath('userData'), MARKER);
   if (fs.existsSync(marker)) return;
+  const win = new BrowserWindow({
+    show: false,
+    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
+  });
+  let timer: NodeJS.Timeout | undefined;
   try {
     const copied = await Promise.race([
-      copyFileOriginStorage(),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timed out')), TIMEOUT_MS)),
+      copyFileOriginStorage(win),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('timed out')), TIMEOUT_MS);
+      }),
     ]);
     fs.writeFileSync(marker, JSON.stringify({ origin: APP_ORIGIN, from: 'file://', keys: copied, at: new Date().toISOString() }));
     console.log(`[storage] copied ${copied} localStorage keys from file:// to ${APP_ORIGIN}`);
   } catch (err) {
     console.error('[storage] could not copy localStorage from file:// (retrying next launch):', err);
+  } finally {
+    clearTimeout(timer);
+    // Destroyed here, not in the copy, so a timed-out copy cannot keep writing
+    // after the dashboard has loaded.
+    win.destroy();
   }
 }

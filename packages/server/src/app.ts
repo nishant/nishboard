@@ -48,7 +48,9 @@ export async function buildServer(
 
   // Registered before the guard so a 401 or 403 still carries its CORS headers
   // and the renderer can read the error.
-  await server.register(cors, { origin: [...ALLOWED_ORIGINS] });
+  // Authorization makes every request non-simple, so each one needs a
+  // preflight; maxAge lets Chromium cache it instead of doubling every poll.
+  await server.register(cors, { origin: [...ALLOWED_ORIGINS], maxAge: 600 });
   registerAccessGuard(server, { token: apiToken, port });
 
   // Central error handler — routes throw HttpError/UpstreamError (or let

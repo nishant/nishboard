@@ -13,14 +13,22 @@ let token: string | null = null;
 
 /** `pnpm dev` starts the server through concurrently, so main and server meet
  *  at a token file (packages/server/src/index.ts holds the other half):
- *  whichever starts first creates it, the other reads it. */
+ *  whichever links it into place first wins, the other reads it. */
 function devToken(): string {
   const file = path.join(os.homedir(), '.dash', 'dev-api-token');
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  try {
-    fs.writeFileSync(file, randomBytes(32).toString('base64url'), { flag: 'wx', mode: 0o600 });
-  } catch (err) {
-    if (!(err instanceof Error && 'code' in err && err.code === 'EEXIST')) throw err;
+  if (!fs.existsSync(file)) {
+    // Written whole, then linked into place: the other side never reads a
+    // half-written file, and a link that already exists means it won.
+    const tmp = `${file}.${process.pid}.tmp`;
+    fs.writeFileSync(tmp, randomBytes(32).toString('base64url'), { mode: 0o600 });
+    try {
+      fs.linkSync(tmp, file);
+    } catch (err) {
+      if (!(err instanceof Error && 'code' in err && err.code === 'EEXIST')) throw err;
+    } finally {
+      fs.rmSync(tmp, { force: true });
+    }
   }
   return fs.readFileSync(file, 'utf8').trim();
 }
@@ -38,7 +46,8 @@ export function apiToken(): string {
  *  is refused by its origin. */
 function trustedSender(event: IpcMainEvent): boolean {
   const frame = event.senderFrame;
-  if (!frame || frame !== event.sender.mainFrame) return false;
+  // parent === null is the top frame, without relying on WebFrameMain identity.
+  if (!frame || frame.parent !== null) return false;
   try {
     // Not URL.origin: Node's WHATWG URL reports "null" for a non-special
     // scheme such as app:, whatever Chromium registered.

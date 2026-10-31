@@ -3,10 +3,14 @@ import type { FastifyInstance } from 'fastify';
 
 /** The only origins allowed to read responses. The packaged renderer is served
  *  from the app:// scheme (apps/main/src/appProtocol.ts); `pnpm dev` serves it
- *  from Vite. `null` and `file://` are gone on purpose: a sandboxed iframe on
+ *  from Vite, an origin allowed only outside production, since any local Vite
+ *  project can sit on 5173. `null` and `file://` are gone on purpose: a sandboxed iframe on
  *  any web page sends `Origin: null`. The hijacked SSE routes (claude, discord)
  *  and the inbox guard read this same set, since @fastify/cors never runs there. */
-export const ALLOWED_ORIGINS: ReadonlySet<string> = new Set(['app://nishboard', 'http://localhost:5173']);
+export const ALLOWED_ORIGINS: ReadonlySet<string> = new Set([
+  'app://nishboard',
+  ...(process.env.NODE_ENV === 'production' ? [] : ['http://localhost:5173']),
+]);
 
 /** Routes that answer without the bearer token, matched on the route pattern
  *  (never the raw URL, which a percent-escape can disguise). Iframe embeds and

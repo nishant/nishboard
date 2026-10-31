@@ -15,13 +15,15 @@ Portfolio audit 2026-10-31, item 3: `127.0.0.1:7432` had no auth and no Host che
 - `packages/server/src/lib/access.ts`: one onRequest guard. Host must be `127.0.0.1:7432` or `localhost:7432` (403), then `Authorization: Bearer <token>` in constant time (401). Open without the token, by route pattern and GET only: `/health`, the YouTube/Twitch/radar embeds and the four OAuth callbacks. Unmatched routes need the token, so new routes are protected by default. `ALLOWED_ORIGINS` (`app://nishboard`, `http://localhost:5173`) is the one origin list for CORS, the hijacked SSE routes and the inbox guard.
 - `apps/main/src/apiToken.ts`: a random token per launch, to the server as env `DASH_API_TOKEN` and to the renderer through preload (`window.electron.apiToken`, sync IPC answered for our own top frame only). `pnpm dev` shares `~/.dash/dev-api-token` instead.
 - `apps/main/src/appProtocol.ts`: the packaged renderer and popouts load from `app://nishboard` (standard, secure scheme serving `renderer/dist`, traversal-checked) instead of `file://`.
-- `apps/main/src/storageMigration.ts`: on the first launch, copies every `file://` localStorage key to `app://nishboard` (keys already there win), marker `userData/storage-origin.json`; a failure is retried next launch and never blocks startup.
+- `apps/main/src/storageMigration.ts`: on the first launch, copies every `file://` localStorage key to `app://nishboard` (`file://` values win), marker `userData/storage-origin.json`; a failure or a 10 s timeout destroys the hidden window, is retried next launch, and never blocks startup.
 - Tests: `lib/access.integration.test.ts`, `appProtocol.test.ts`, `storageMigration.test.ts`, `apiToken.test.ts`, renderer `apiClient.test.ts`; `src/test/server.ts` builds the server for the existing integration tests.
 
 ### Changed
 - `buildServer()` takes `apiToken` and `port`, refuses to start without a token, and deletes `DASH_API_TOKEN` from its env once read, so the claude CLI and PowerShell never inherit it.
 - `apiClient` and `streamClient` send the token on every request, SSE included.
 - `window-all-closed` is ignored until the main window exists: closing the migration's hidden window quit the app on Windows (found in a packaged test run).
+- The tray's Spotify play/pause (a main-process fetch) sends the token too.
+- CORS preflights are cached for 10 minutes (`maxAge: 600`): the Authorization header makes every poll non-simple. `http://localhost:5173` is allowed only outside production.
 
 ### Removed
 - The `null` and `file://` CORS origins.

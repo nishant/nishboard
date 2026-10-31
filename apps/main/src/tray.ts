@@ -2,6 +2,7 @@ import { Tray, Menu, nativeImage, app } from 'electron';
 import type { BrowserWindow } from 'electron';
 import type { IpcChannels } from '@dash/shared';
 import { restartServer } from './server/spawn';
+import { apiToken } from './apiToken';
 
 // 16×16 four-square "dashboard" glyph, white on transparent. Marked as a
 // template image on macOS so the menu bar recolors it for light/dark.
@@ -24,13 +25,17 @@ function toggleWindow(win: BrowserWindow | null): void {
  *  renderer involvement, so it works while the window is hidden. */
 async function toggleSpotify(): Promise<void> {
   try {
+    // The server answers nothing without the per-launch token (apiToken.ts).
+    const headers = { Authorization: `Bearer ${apiToken()}` };
     const res = await fetch('http://127.0.0.1:7432/api/spotify/now-playing', {
+      headers,
       signal: AbortSignal.timeout(4000),
     });
     if (!res.ok) return; // not authenticated / server down — silently no-op
     const data = (await res.json()) as { isPlaying?: boolean };
     await fetch(`http://127.0.0.1:7432/api/spotify/${data.isPlaying ? 'pause' : 'play'}`, {
       method: 'POST',
+      headers,
       signal: AbortSignal.timeout(4000),
     });
   } catch { /* server restarting — ignore */ }

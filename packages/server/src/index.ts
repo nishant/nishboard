@@ -13,15 +13,23 @@ const port = Number(process.env.SERVER_PORT ?? 7432);
 
 /** `pnpm dev` starts this server through concurrently, not from Electron main,
  *  so the two meet at a token file instead of an env var. Whichever starts
- *  first creates it (`wx`); the other reads it. apps/main/src/apiToken.ts holds
+ *  first links it into place; the other reads it. apps/main/src/apiToken.ts holds
  *  the other half. Production never reads it: main always passes the env var. */
 function devApiToken(): string {
   const file = path.join(os.homedir(), '.dash', 'dev-api-token');
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  try {
-    fs.writeFileSync(file, randomBytes(32).toString('base64url'), { flag: 'wx', mode: 0o600 });
-  } catch (err) {
-    if (!(err instanceof Error && 'code' in err && err.code === 'EEXIST')) throw err;
+  if (!fs.existsSync(file)) {
+    // Written whole, then linked into place: the other side never reads a
+    // half-written file, and a link that already exists means it won.
+    const tmp = `${file}.${process.pid}.tmp`;
+    fs.writeFileSync(tmp, randomBytes(32).toString('base64url'), { mode: 0o600 });
+    try {
+      fs.linkSync(tmp, file);
+    } catch (err) {
+      if (!(err instanceof Error && 'code' in err && err.code === 'EEXIST')) throw err;
+    } finally {
+      fs.rmSync(tmp, { force: true });
+    }
   }
   return fs.readFileSync(file, 'utf8').trim();
 }
