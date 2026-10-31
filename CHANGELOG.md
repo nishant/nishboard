@@ -4,6 +4,13 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #152] chore: allow add_repo in cloud sessions
+**Branch:** `ccr-88e656c5-bsa5vm` → `master`
+**Date:** 2026-10-31
+
+### Changed
+- New `.claude/settings.json` with `permissions.allow: ["mcp__claude-code-remote__add_repo"]`, so a Claude cloud session started on this repo (e.g. a coordinator's child session) can attach other repos, push included, without the auto-mode classifier denying it. Config only, `[skip release]`. Same rule added to every fleet repo.
+
 ## [PR #148] feat: Stocks widget reads its watchlist from trading
 
 **Branch:** `feat/trading-watchlist` → `master`
