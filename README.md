@@ -75,8 +75,8 @@ Everything lives on a **draggable, resizable grid** (react-grid-layout) with bui
 
 | Layer | Tech |
 |---|---|
-| **Shell** | Electron 33 (frameless), TypeScript main process |
-| **Frontend** | React 19 · Vite 8 · Tailwind CSS 4 · @nish/ui · Zustand · TanStack Query v5 · Recharts 3 |
+| **Shell** | Electron 45 (frameless), TypeScript main process bundled with esbuild, electron-updater |
+| **Frontend** | React 19 · Vite 8 · Tailwind CSS 4 · @nish/ui · Zustand · TanStack Query v5 · @nish/ui charts |
 | **Backend** | Fastify + TypeScript, spawned as a child process on `localhost:7432` |
 | **Monorepo** | Turborepo + pnpm workspaces |
 | **Language** | TypeScript everywhere, strict mode — no `any`, no untyped casts |
@@ -144,7 +144,7 @@ Four workspaces, each with a single responsibility:
 
 **Prerequisites**
 
-- **Node.js ≥ 20**
+- **Node.js ≥ 22.12** (macOS 13 Ventura or newer to run the packaged app)
 - **pnpm 11.3.0** — `corepack enable && corepack prepare pnpm@11.3.0 --activate`
 
 **Install & run**
@@ -202,7 +202,7 @@ Run from the repo root:
 |---|---|
 | `pnpm dev` | Builds `@dash/shared`, then runs **shared + server + renderer + main** concurrently (color-coded). Your everyday command. |
 | `pnpm build` | `turbo build` across every package (type-checks + bundles). |
-| `pnpm package` | `build` → `scripts/prepare-wincodesign.cjs` → `electron-builder`. Produces a distributable DMG/EXE (unsigned, `CSC_IDENTITY_AUTO_DISCOVERY=false`). |
+| `pnpm package` | `build` → `electron-builder` (via `scripts/package-app.mjs`, which stamps the latest tag's version). Produces a distributable DMG/EXE (unsigned, `CSC_IDENTITY_AUTO_DISCOVERY=false`). |
 | `pnpm typecheck` | `turbo typecheck` — `tsc --noEmit` everywhere. |
 | `pnpm lint` | `turbo lint`. |
 
@@ -211,7 +211,7 @@ Run from the repo root:
 ```bash
 pnpm --filter @dash/server   dev   # tsx watch  — Fastify only
 pnpm --filter @dash/renderer dev   # vite       — UI only
-pnpm --filter @dash/main     dev   # tsc-watch → electron
+pnpm --filter @dash/main     dev   # esbuild watch → electron (restarts on rebuild)
 pnpm --filter @dash/shared   dev   # tsc --watch — rebuild shared types
 ```
 
@@ -232,9 +232,10 @@ Artifacts land in `release/`. Both targets are **unsigned** (no code-signing cer
 - First launch is Gatekeeper-blocked because it's unsigned → **right-click the app → Open** (one-time).
 
 ### 🪟 Windows (Microsoft / NSIS)
-- Output: `release/Nishboard Setup 0.1.0.exe` (NSIS installer).
+- Output: `release/Nishboard-Setup-0.1.0.exe` (NSIS installer) plus `.exe.blockmap` and `latest.yml` for auto-update.
 - **SmartScreen** will warn on an unsigned installer: **"Windows protected your PC" → More info → Run anyway.**
-- **Non-admin builds are supported.** `electron-builder` normally extracts `winCodeSign` (which contains macOS dylib *symlinks*), and creating symlinks on Windows needs admin/Developer Mode — so the build would abort for a normal user. `scripts/prepare-wincodesign.cjs` runs first and extracts the archive with `-xr!darwin`, skipping the symlink entries entirely.
+- **Non-admin builds are supported.** electron-builder 26 no longer downloads `winCodeSign` for unsigned builds, so the old symlink-extraction workaround is gone.
+- **Auto-update (Windows only):** installed builds check GitHub Releases 30s after launch and every 6h, download in the background and install on quit (or Settings → About → Restart to update). macOS builds are unsigned, so they only check and offer the DMG.
 
 ### Packaging notes
 - **`asar: false`** — the Fastify server is spawned from disk as a child process and can't run from inside an `.asar` archive, so app files stay unpacked.
@@ -314,7 +315,7 @@ nishboard/
 │   └── shared/            # shared TypeScript types
 ├── .github/workflows/     # ci.yml (checks) + release.yml (auto semver + installers)
 ├── build/                 # app icons
-├── scripts/               # prepare-wincodesign.cjs, bump-version.mjs
+├── scripts/               # package-app.mjs, bump-version.mjs
 ├── electron-builder.yml   # packaging config (DMG + NSIS)
 ├── turbo.json             # build pipeline
 ├── CLAUDE.md              # project + workflow instructions

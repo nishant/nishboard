@@ -3,7 +3,7 @@ import type { Layout } from 'react-grid-layout';
 import type { WidgetId } from './layouts';
 import {
   ALL_WIDGET_IDS, applyConstraints, autoFillLayout, DEFAULT_LAYOUT, generateLayout, PRESETS,
-  WIDGET_CATEGORIES,
+  WIDGET_CATEGORIES, deriveNarrowLayout, gridColumnsFor,
 } from './layouts';
 
 const COLS = 24;
@@ -136,5 +136,53 @@ describe('applyConstraints', () => {
   it('leaves unknown ids untouched', () => {
     const item: Layout = { i: 'not-a-widget', x: 0, y: 0, w: 2, h: 2, minW: 9 };
     expect(applyConstraints([item])[0]).toBe(item);
+  });
+});
+
+describe('gridColumnsFor', () => {
+  it('maps width boundaries to column counts', () => {
+    expect(gridColumnsFor(599)).toBe(1);
+    expect(gridColumnsFor(600)).toBe(2);
+    expect(gridColumnsFor(899)).toBe(2);
+    expect(gridColumnsFor(900)).toBe(3);
+    expect(gridColumnsFor(1199)).toBe(3);
+    expect(gridColumnsFor(1200)).toBe(24);
+  });
+});
+
+describe('deriveNarrowLayout', () => {
+  const item = (i: string, x: number, y: number, h: number): Layout => ({ i, x, y, w: 6, h });
+  const desktop: Layout[] = [item('c', 12, 0, 10), item('a', 0, 0, 10), item('b', 0, 10, 2), item('d', 0, 12, 30)];
+
+  it('stacks one column in (y, x) order with scaled, clamped heights', () => {
+    const out = deriveNarrowLayout(desktop, 1, new Set(), 2);
+    expect(out.map((l) => l.i)).toEqual(['a', 'c', 'b', 'd']);
+    expect(out.every((l) => l.x === 0 && l.w === 1)).toBe(true);
+    expect(out.map((l) => l.h)).toEqual([14, 14, 6, 24]);
+    expect(out.map((l) => l.y)).toEqual([0, 14, 28, 34]);
+  });
+
+  it('balances two columns, ties going to the leftmost', () => {
+    const out = deriveNarrowLayout(desktop, 2, new Set(), 2);
+    const by = Object.fromEntries(out.map((l) => [l.i, l]));
+    expect(by.a.x).toBe(0);
+    expect(by.c.x).toBe(1);
+    expect(by.b.x).toBe(0);
+    expect(by.d.x).toBe(1);
+    expect(by.b.y).toBe(14);
+    expect(by.d.y).toBe(14);
+  });
+
+  it('uses collapsedRows for collapsed ids and marks items static', () => {
+    const out = deriveNarrowLayout(desktop, 3, new Set(['a']), 3);
+    const a = out.find((l) => l.i === 'a');
+    expect(a?.h).toBe(3);
+    expect(out.every((l) => l.static && l.isDraggable === false && l.isResizable === false)).toBe(true);
+  });
+
+  it('does not mutate its input', () => {
+    const copy = JSON.parse(JSON.stringify(desktop)) as Layout[];
+    deriveNarrowLayout(desktop, 2, new Set(['a']), 2);
+    expect(desktop).toEqual(copy);
   });
 });

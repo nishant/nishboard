@@ -3,6 +3,7 @@ import { app } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { readCredentials } from '../credentials';
+import { loadTokenKey } from '../tokenKey';
 import { apiToken } from '../apiToken';
 
 // ── Server log tee ────────────────────────────────────────────────────────────
@@ -73,8 +74,9 @@ const port = Number(process.env.SERVER_PORT ?? 7432);
 function killStaleOnPort(p: number): void {
   try {
     if (process.platform === 'win32') {
-      const out = execSync(`netstat -ano | findstr :${p} | findstr LISTENING`, { encoding: 'utf8' });
-      const match = out.match(/\s+(\d+)\s*$/m);
+      const out = execSync('netstat -ano -p tcp', { encoding: 'utf8' });
+      // Match the LOCAL address column exactly (":7432", not ":74320").
+      const match = out.match(new RegExp(String.raw`^\s*TCP\s+\S+:${p}\s+\S+\s+LISTENING\s+(\d+)\s*$`, 'm'));
       if (match) execSync(`taskkill /PID ${match[1]} /F`, { stdio: 'ignore' });
     } else {
       const pids = execSync(`lsof -ti tcp:${p}`, { encoding: 'utf8' }).trim();
@@ -99,7 +101,7 @@ async function waitForServer(timeoutMs = 15000): Promise<void> {
   throw new Error(`Server on :${port} did not start within ${timeoutMs}ms`);
 }
 
-function startChild(): void {
+function startChild(tokenKey: string | null): void {
   // In production the server lives at {appPath}/server/index.js
   // (electron-builder maps packages/server/dist → server/ with asar: false)
   const serverEntry = path.join(app.getAppPath(), 'server', 'index.js');
@@ -117,6 +119,7 @@ function startChild(): void {
       NODE_ENV: 'production',
       SERVER_PORT: String(port),
       ...credentials,
+      ...(tokenKey ? { DASH_TOKEN_KEY: tokenKey } : {}),
       // After the credentials, so no stored key can shadow it.
       DASH_API_TOKEN: apiToken(),
     },
@@ -148,7 +151,7 @@ function startChild(): void {
     console.error(
       `[server] exited (code ${code}, signal ${signal}) — restarting in ${delay}ms (attempt ${restartAttempts}/${MAX_RESTART_ATTEMPTS})`,
     );
-    restartTimer = setTimeout(startChild, delay);
+    restartTimer = setTimeout(() => startChild(tokenKey), delay);
   });
 }
 
@@ -161,7 +164,7 @@ export async function spawnServer(): Promise<void> {
     killStaleOnPort(port);
     intentionalStop = false;
     restartAttempts = 0;
-    startChild();
+    startChild(await loadTokenKey());
   }
   // In dev, concurrently already started the server — just wait for it.
 

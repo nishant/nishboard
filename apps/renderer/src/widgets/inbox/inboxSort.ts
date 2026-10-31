@@ -42,22 +42,6 @@ export function groupBySeverity(
   }));
 }
 
-/** The next 08:00 local, `days` ahead of `now`. */
-export function at8(now: Date, days: number): Date {
-  const d = new Date(now);
-  d.setDate(d.getDate() + days);
-  d.setHours(8, 0, 0, 0);
-  return d;
-}
-
-export const SNOOZE_OPTIONS: Array<{ label: string; until: (now: Date) => Date }> = [
-  { label: '1 hour', until: (now) => new Date(now.getTime() + 60 * 60 * 1000) },
-  { label: '4 hours', until: (now) => new Date(now.getTime() + 4 * 60 * 60 * 1000) },
-  { label: 'Tomorrow 8 AM', until: (now) => at8(now, 1) },
-  // Next Monday (a full week ahead when today is Monday).
-  { label: 'Monday 8 AM', until: (now) => at8(now, (8 - now.getDay()) % 7 || 7) },
-];
-
 /** http/https href or null. */
 export function safeHref(url: string | null): string | null {
   if (!url) return null;

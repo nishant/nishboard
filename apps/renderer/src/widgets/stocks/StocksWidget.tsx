@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { TrendingUp, TrendingDown, ArrowLeft, ExternalLink, Star, Briefcase, Unplug } from 'lucide-react';
-import { AreaChart, Area, ResponsiveContainer, YAxis, Tooltip } from 'recharts';
 import { useStocks, useStockDetail, useMarketCalendar, useTradingWatchlist } from './useStocks';
 import { useOverlayStore } from '../../store/overlayStore';
 import { useAppSettingsStore } from '../../store/settingsStore';
@@ -9,9 +8,8 @@ import { relTimeUntil, hourFormat } from '../../lib/time';
 import { ErrorState } from '../../components/ErrorState';
 import { RefreshAction } from '../../components/RefreshAction';
 import type { StockQuote, TradingWatchlistData, TradingWatchlistItem } from '@dash/shared';
-import { Button, EmptyState, IconButton, Skeleton, SkeletonLines, StatusDot, cardClass, cn, type StatusTone, Label, RelativeTime, useNow } from '@nish/ui';
+import { Button, EmptyState, IconButton, Skeleton, SkeletonLines, StatusDot, cardClass, cn, type StatusTone, Label, RelativeTime, useNow, LineChart } from '@nish/ui';
 import { num, pct, signed } from '@nish/ui/format';
-import { tk } from '../../lib/tokens';
 
 // ── Market session ────────────────────────────────────────────────────────────
 
@@ -120,8 +118,6 @@ function StockDetailPanel({ ticker, onClose }: { ticker: string; onClose: () => 
   const first = bars[0]?.c ?? 0;
   const last = bars[bars.length - 1]?.c ?? 0;
   const up = last >= first;
-  const color = up ? tk('ok-fill') : tk('loss-fill');
-  const gradId = `stk-${ticker}`;
   const rangeLabel = range === 'daily' ? 'Daily · ~2mo' : 'Intraday';
 
   return (
@@ -151,29 +147,19 @@ function StockDetailPanel({ ticker, onClose }: { ticker: string; onClose: () => 
           ) : bars.length === 0 ? (
             <div className="h-full flex items-center justify-center text-th-hi3 text-xs">No chart data available</div>
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={bars} margin={{ top: 4, right: 2, bottom: 0, left: 2 }}>
-                <defs>
-                  <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={color} stopOpacity={0.3} />
-                    <stop offset="100%" stopColor={color} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <YAxis domain={['dataMin', 'dataMax']} hide />
-                <Tooltip
-                  isAnimationActive={false}
-                  cursor={{ stroke: tk('ghost'), strokeWidth: 1 }}
-                  contentStyle={{ background: tk('elevated'), border: `1px solid ${tk('line')}`, color: tk('hi'), borderRadius: 'var(--nish-radius-sm)', fontSize: 11 }}
-                  labelFormatter={(t) =>
-                    range === 'daily'
-                      ? new Date(String(t)).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                      : new Date(String(t)).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', ...hourFormat(clock24h) })
-                  }
-                  formatter={(v) => [fmtPrice(Number(v)), 'Price']}
-                />
-                <Area type="monotone" dataKey="c" stroke={color} strokeWidth={1.5} fill={`url(#${gradId})`} isAnimationActive={false} />
-              </AreaChart>
-            </ResponsiveContainer>
+            <LineChart
+              data={bars.map((b) => ({ x: Date.parse(b.t), y: b.c }))}
+              area
+              tone={up ? 'ok' : 'loss'}
+              height={112}
+              label={`${ticker} price`}
+              xFormat={(t) =>
+                range === 'daily'
+                  ? new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                  : new Date(t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', ...hourFormat(clock24h) })
+              }
+              yFormat={(v) => `$${v.toFixed(2)}`}
+            />
           )}
         </div>
 

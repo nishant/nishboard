@@ -4,20 +4,21 @@
   "private": true,
   "main": "dist/index.js",
   "scripts": {
-    "dev": "tsc-watch --onSuccess \"cross-env NODE_ENV=development electron .\"",
-    "build": "tsc",
+    "dev": "node build.mjs --dev",
+    "build": "tsc --noEmit && node build.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "test": "vitest run"
   },
   "dependencies": {
-    "@dash/shared": "workspace:*"
+    "@dash/shared": "workspace:*",
+    "electron-updater": "^6.8.11"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
     "cross-env": "^7.0.3",
-    "electron": "^33.0.0",
-    "tsc-watch": "^6.2.1",
+    "electron": "45.2.1",
+    "esbuild": "^0.28.2",
     "typescript": "^5.7.0",
     "vitest": "^3.2.7"
   }

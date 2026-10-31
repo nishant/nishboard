@@ -6,12 +6,12 @@
   "private": true,
   "packageManager": "pnpm@11.3.0",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12"
   },
   "scripts": {
     "dev": "pnpm --filter @dash/shared build && concurrently -k -n shared,server,renderer,main -c cyan,blue,green,yellow \"pnpm --filter @dash/shared dev\" \"pnpm --filter @dash/server dev\" \"pnpm --filter @dash/renderer dev\" \"pnpm --filter @dash/main dev\"",
     "build": "turbo build",
-    "package": "pnpm build && node scripts/prepare-wincodesign.cjs && node scripts/package-app.mjs",
+    "package": "pnpm build && node scripts/package-app.mjs",
     "typecheck": "turbo typecheck",
     "lint": "turbo lint",
     "test": "turbo test"
@@ -19,7 +19,7 @@
   "devDependencies": {
     "concurrently": "^9.2.5",
     "cross-env": "^7.0.3",
-    "electron-builder": "^25.1.8",
+    "electron-builder": "^26.18.1",
     "eslint": "^10.13.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "turbo": "^2.11.10",

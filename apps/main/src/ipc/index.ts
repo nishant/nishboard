@@ -1,7 +1,7 @@
 import { app, BrowserWindow, IpcMain, Notification, safeStorage, shell } from 'electron';
 import { readCredentialStatus, writeCredentials } from '../credentials';
 import { restartServer, logsDir } from '../server/spawn';
-import { checkUpdates } from '../updates';
+import { checkUpdates, getUpdateStatus, installUpdate } from '../updates';
 import { chooseBackupFolder, writeBackup } from '../backup';
 import {
   getLauncherState, addLauncherApp, addLauncherUrl,
@@ -49,7 +49,9 @@ export function registerIpcHandlers(
 
   ipcMain.on('app:notify', (_event, title: string, body: string) => {
     if (Notification.isSupported()) {
-      new Notification({ title, body }).show(); // silent defaults to false → OS sound
+      const n = new Notification({ title, body }); // silent defaults to false → OS sound
+      n.on('failed', (_e, err) => console.warn('[notify] failed:', err));
+      n.show();
     }
   });
 
@@ -119,6 +121,8 @@ export function registerIpcHandlers(
 
   ipcMain.handle('app:get-version', () => app.getVersion());
   ipcMain.handle('app:check-updates', () => checkUpdates());
+  ipcMain.handle('app:get-update-status', () => getUpdateStatus());
+  ipcMain.handle('app:install-update', () => installUpdate());
 
   ipcMain.handle('backup:choose-folder', (event) =>
     chooseBackupFolder(BrowserWindow.fromWebContents(event.sender)));
@@ -172,11 +176,11 @@ export function registerIpcHandlers(
   });
 
   ipcMain.handle('credentials:save-all', async (_event, creds: Partial<Record<CredentialKey, string>>) => {
-    writeCredentials(creds);
+    await writeCredentials(creds);
     await restartServer();
   });
 
-  ipcMain.handle('credentials:encryption-available', () => {
-    return safeStorage.isEncryptionAvailable();
+  ipcMain.handle('credentials:encryption-available', async () => {
+    return await safeStorage.isAsyncEncryptionAvailable();
   });
 }

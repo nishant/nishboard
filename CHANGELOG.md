@@ -9,7 +9,39 @@ All changes organized by pull request, newest first. Format is documented under 
 **Date:** 2026-10-31
 
 ### Fixed
-- `release.yml` builds the DMG on `macos-15` (arm64, same artifact name). v0.23.3's macOS job was cancelled by GitHub's scheduled `macos-14` brownout (the image retires 2026-11-02), so that release shipped the EXE only; this merge's release carries both.
+- `release.yml` builds the DMG on `macos-15` (arm64, same artifact name). v0.23.3's macOS job was cancelled by GitHub's scheduled `macos-14` brownout (the image retires 2026-11-02), so that release shipped the EXE only, and v0.24.0 (#155) stayed a draft for the same reason; this merge's release carries both installers.
+
+## [PR #155] feat: modernise Nishboard (Electron 45, auto-update, responsive grid, hardening)
+**Branch:** `feat/modernise` → `master`
+**Date:** 2026-10-31
+
+### Context
+Audit item 21 (2026-10-31 portfolio audit) plus Nishboard's parts of items 13, 18 and 19: an unsupported Electron, no real auto-update, a fixed 24-column grid, plain-JSON OAuth tokens, no renderer CSP, shipped source maps, hand-built copies of `@nish/ui` components, eager widgets and a PowerShell spawn every 5s.
+
+### Added
+- **Auto-update (Windows):** electron-updater with the GitHub provider; checks 30s after launch and every 6h, downloads in the background, installs on quit or via Settings → About → **Restart to update**; native notification when ready. macOS stays check-only (unsigned) with the DMG link.
+- **Releases are draft → build → publish** with `SHA256SUMS`; the release gate runs typecheck, lint, test and build.
+- **Responsive grid:** 1 column under 600px, 2 under 900px, 3 under 1200px, derived from the desktop layout and never saved (no drag/resize, the grid scrolls); titlebar fits at 360px.
+- **Window bounds:** the main window remembers size, position and maximized state (`userData/window-bounds.json`); every window is moved back onto a connected display at open, on show and when a monitor is removed. Min size 360×480.
+- **Encrypted OAuth tokens:** `~/.dash/*_tokens.json` are AES-256-GCM encrypted with a key kept in `~/.dash/.token-key` (protected by `safeStorage`), passed to the server as `DASH_TOKEN_KEY` and deleted from its env; files are written atomically with mode 0600. Plaintext files migrate on first read; `pnpm dev` (no key) keeps plaintext.
+- **Renderer CSP** (meta, build only) with a hash for the inline theme script; `object-src 'none'`, `base-uri 'none'`.
+- Dependabot opens Electron major PRs (second npm entry for `/apps/main`).
+
+### Changed
+- Electron 33 → 45.2.1, electron-builder 25 → 26; `apps/main` is esbuild-bundled to `dist/index.js` + `dist/preload.js` (`@dash/shared` inlined; no `node_modules` shipped). Clipboard and safeStorage use the async APIs.
+- `@nish/ui` `CommandPalette` (nishboard keeps recents, group order, Ctrl/Cmd+K toggle, double-Shift and parameterised commands), `Inbox` (local Ack as an item action, severity order, links via `openExternal`) and `LineChart` (Stocks detail) replace the hand-built versions; `recharts` and `react-is` removed.
+- Widgets are lazy-loaded (one chunk per widget, `widgets/registry.tsx`); markdown libs load with their widgets.
+- Sound uses one long-lived PowerShell process (WASAPI compiled once; started on demand, stopped after 60s idle, restarted on crash/timeout).
+- Net Monitor polls every 5s (20s in low power) and the server sampler ticks every 5s.
+- NSIS installer is `Nishboard-Setup-<ver>.exe` (no spaces). Root `engines.node` is `>=22.12`.
+
+### Fixed
+- A second launch no longer registers anything (the old `whenReady` ran even without the single-instance lock and could kill the first instance's server); `killStaleOnPort` matches `:7432` exactly.
+- The update check compares semver (a newer local build no longer reports an "update").
+- No `*.map` files ship in the installer.
+
+### Removed
+- `scripts/prepare-wincodesign.cjs` (electron-builder 26 no longer needs it).
 
 ## [PR #154] fix: lock the local server to the app with a per-launch token
 **Branch:** `fix/local-server-auth` → `master`
@@ -34,7 +66,6 @@ Portfolio audit 2026-10-31, item 3: `127.0.0.1:7432` had no auth and no Host che
 
 ### Removed
 - The `null` and `file://` CORS origins.
-
 ## [PR #152] chore: allow add_repo in cloud sessions
 **Branch:** `ccr-88e656c5-bsa5vm` → `master`
 **Date:** 2026-10-31

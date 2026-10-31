@@ -440,3 +440,52 @@ export function autoFillLayout(layout: Layout[]): Layout[] {
   const maxY = Math.max(...layout.map((item) => item.y + item.h), 0);
   return [...layout, ...appendWidgets(missing, maxY)];
 }
+
+// ── Narrow (derived) layouts ──────────────────────────────────────────────────
+
+/** Fixed row height (px) of the derived narrow grid; the page scrolls instead. */
+export const NARROW_ROW_HEIGHT = 32;
+
+/** Grid columns for a grid container width: <600 → 1, <900 → 2, <1200 → 3, else the desktop 24. */
+export function gridColumnsFor(width: number): 1 | 2 | 3 | 24 {
+  if (width < 600) return 1;
+  if (width < 900) return 2;
+  if (width < 1200) return 3;
+  return 24;
+}
+
+/** Pure: a layout for 1–3 columns from the desktop layout. Items are ordered by (y, x), each
+ *  gets w=1. One column stacks in order; 2–3 columns put each item in the column whose current
+ *  bottom is lowest (ties → leftmost). Height: collapsed ids → `collapsedRows`, otherwise
+ *  clamp(round(h * 1.4), 6, 24). Every item is static (not draggable or resizable). The input
+ *  is never mutated. */
+export function deriveNarrowLayout(
+  desktop: Layout[],
+  cols: 1 | 2 | 3,
+  collapsed: ReadonlySet<string>,
+  collapsedRows: number,
+): Layout[] {
+  const ordered = [...desktop].sort((a, b) => a.y - b.y || a.x - b.x);
+  const bottoms: number[] = new Array<number>(cols).fill(0);
+  return ordered.map((item) => {
+    let col = 0;
+    for (let c = 1; c < cols; c++) {
+      if (bottoms[c] < bottoms[col]) col = c;
+    }
+    const h = collapsed.has(item.i)
+      ? collapsedRows
+      : Math.min(24, Math.max(6, Math.round(item.h * 1.4)));
+    const y = bottoms[col];
+    bottoms[col] = y + h;
+    return {
+      i: item.i,
+      x: col,
+      y,
+      w: 1,
+      h,
+      static: true,
+      isDraggable: false,
+      isResizable: false,
+    };
+  });
+}

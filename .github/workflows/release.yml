@@ -2,8 +2,11 @@ name: Release
 
 # Fully automated releases — no human versioning:
 # every merge to master derives the semver bump from the squash-commit subject
-# (= the PR title), commits the bump + tag back to master, builds the installers,
-# and publishes a GitHub Release.
+# (= the PR title) and tags master. The release is created as a DRAFT, both
+# platform builds upload their installers (plus the updater metadata) to it, and
+# only when every build succeeded does the publish job add SHA256SUMS and flip
+# the draft to published. A failed build leaves a draft, which is invisible to
+# the auto-updater and to releases/latest.
 #
 #   feat!: / fix!: / "BREAKING CHANGE" in body  → major
 #   feat:                                        → minor
@@ -37,9 +40,9 @@ permissions:
 
 jobs:
   # Release gate: `version` (which creates the tag) depends on this job, so a
-  # red suite means no tag, no build, no release — for merge-triggered AND
-  # manual workflow_dispatch releases alike.
-  test:
+  # red typecheck, lint, test or build means no tag, no build, no release — for
+  # merge-triggered AND manual workflow_dispatch releases alike.
+  gate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -54,10 +57,16 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - run: pnpm typecheck
+
+      - run: pnpm lint
+
       - run: pnpm test
 
+      - run: pnpm build
+
   version:
-    needs: test
+    needs: gate
     runs-on: ubuntu-latest
     outputs:
       released: ${{ steps.bump.outputs.released }}
@@ -110,19 +119,18 @@ jobs:
           echo "released=true" >> "$GITHUB_OUTPUT"
           echo "tag=v$next" >> "$GITHUB_OUTPUT"
 
-  # Create the release ONCE, with generated notes. The build matrix jobs only
-  # attach their assets — both previously passed generate_release_notes:true,
-  # and whichever finished second APPENDED a duplicate "What's Changed" body.
+  # Create the release ONCE, as a draft, with generated notes. The build matrix
+  # jobs only attach their assets; `publish` flips the draft once all succeeded.
   create-release:
     needs: version
     if: needs.version.outputs.released == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ needs.version.outputs.tag }}
-          draft: false
-          generate_release_notes: true
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: gh release create "$TAG" --draft --generate-notes --title "$TAG" --repo "$GITHUB_REPOSITORY"
 
   build:
     needs: [version, create-release]
@@ -131,10 +139,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-15 # arm64 (macos-14 retires 2026-11-02; its brownouts cancel the job) → Nishboard-x.y.z-arm64.dmg
-            artifact: release/*.dmg
-          - os: windows-latest # x64 NSIS → Nishboard Setup x.y.z.exe
-            artifact: release/*.exe
+          - os: macos-15 # arm64 (macos-14 retires 2026-11-02; its brownouts cancel the job) → Nishboard-x.y.z-arm64.dmg (+ blockmap and latest-mac.yml when emitted)
+            upload: release/*.dmg release/*.dmg.blockmap release/latest-mac.yml
+          - os: windows-latest # x64 NSIS → Nishboard-Setup-x.y.z.exe + blockmap + latest.yml
+            upload: release/*.exe release/*.exe.blockmap release/latest.yml
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -166,12 +174,52 @@ jobs:
       # users right-click → Open past Gatekeeper; signing needs paid certs).
       - run: pnpm package
 
-      - name: Attach artifacts to the release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ needs.version.outputs.tag }}
-          files: ${{ matrix.artifact }}
-          # Both matrix jobs target the same release (created with notes by
-          # create-release) and ONLY add their asset — no body writes here,
-          # or the second job would duplicate the notes.
-          draft: false
+      # Upload to the draft release. Globs that match nothing are skipped (an
+      # optional blockmap or latest-mac.yml may not exist), but at least one
+      # installer (.exe or .dmg) must match or the job fails.
+      - name: Upload artifacts to the draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.version.outputs.tag }}
+          UPLOAD: ${{ matrix.upload }}
+        run: |
+          shopt -s nullglob
+          files=()
+          for pattern in $UPLOAD; do
+            for f in $pattern; do
+              files+=("$f")
+            done
+          done
+          installers=0
+          for f in "${files[@]}"; do
+            case "$f" in
+              *.exe|*.dmg) installers=$((installers + 1)) ;;
+            esac
+          done
+          if [ "$installers" -eq 0 ]; then
+            echo "::error::no installer matched: $UPLOAD"
+            exit 1
+          fi
+          printf 'uploading: %s\n' "${files[@]}"
+          gh release upload "$TAG" "${files[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+
+  # Runs only when every build leg succeeded: checksum all assets, then publish
+  # the draft and mark it latest.
+  publish:
+    needs: [version, build]
+    if: needs.version.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checksum and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          gh release download "$TAG" -D assets --repo "$GITHUB_REPOSITORY"
+          cd assets
+          rm -f SHA256SUMS
+          sha256sum -- * > SHA256SUMS
+          cd ..
+          gh release upload "$TAG" assets/SHA256SUMS --clobber --repo "$GITHUB_REPOSITORY"
+          gh release edit "$TAG" --draft=false --latest --repo "$GITHUB_REPOSITORY"
