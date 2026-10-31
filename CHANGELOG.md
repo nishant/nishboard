@@ -4,6 +4,13 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #156] fix: build the macOS release on macos-15
+**Branch:** `fix/macos-15-runner` → `master`
+**Date:** 2026-10-31
+
+### Fixed
+- `release.yml` builds the DMG on `macos-15` (arm64, same artifact name). v0.23.3's macOS job was cancelled by GitHub's scheduled `macos-14` brownout (the image retires 2026-11-02), so that release shipped the EXE only; this merge's release carries both.
+
 ## [PR #154] fix: lock the local server to the app with a per-launch token
 **Branch:** `fix/local-server-auth` → `master`
 **Date:** 2026-10-31
