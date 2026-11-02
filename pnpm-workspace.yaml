@@ -8,3 +8,6 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - electron@45.2.1
   - nish-ui
+  - minimatch@11.0.4
+overrides:
+  minimatch: ^11.0.4
