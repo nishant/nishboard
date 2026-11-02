@@ -12,11 +12,15 @@ export interface YoutubeVideo {
   /** Heuristic Short flag — ≤60s duration OR a `#shorts` title tag. The server
    *  always sets this so the renderer can filter without another request. */
   isShort: boolean;
+  /** Live right now (snippet.liveBroadcastContent === 'live'). Absent when unknown. */
+  isLive?: boolean;
 }
 
 export interface YoutubeSearchPage {
   items: YoutubeVideo[];
   nextPageToken: string | null;
+  /** /search only: ISO time a saved result was fetched (it cost no quota), null for a fresh search. */
+  cachedAt?: string | null;
 }
 
 export interface YoutubeAuthStatus {
