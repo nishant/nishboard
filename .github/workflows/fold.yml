@@ -1,0 +1,27 @@
+name: Fold
+
+# Fold check: renders the PR and its base branch and diffs the pages (nishant/ui
+# docs/fold-check.md). Only for ui/* bump PRs, Dependabot PRs and PRs labeled `fold`.
+# Its own workflow so that the `labeled` trigger never starts a run of the PR check workflow.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+concurrency:
+  # A label other than `fold` gets its own group, so it never cancels a running check.
+  group: fold-${{ github.event.pull_request.number }}-${{ github.event.action == 'labeled' && github.event.label.name != 'fold' && github.run_id || 'run' }}
+  cancel-in-progress: true
+
+permissions: { contents: read }
+
+jobs:
+  fold:
+    permissions:
+      contents: read
+      pull-requests: write
+    if: (github.event.action != 'labeled' || github.event.label.name == 'fold') && (startsWith(github.head_ref, 'ui/') || github.actor == 'dependabot[bot]' || contains(github.event.pull_request.labels.*.name, 'fold'))
+    uses: nishant/ui/.github/workflows/fold-check.yml@master
+    with:
+      install: 'corepack enable && pnpm install --frozen-lockfile'
+      serve: 'node scripts/fold-serve.mjs'
+      node-version: '24'

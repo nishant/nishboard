@@ -4,6 +4,20 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #174] chore: Fold check for the renderer, actions pinned by SHA
+**Branch:** `ci-supply-chain` → `master`
+**Date:** 2026-11-02
+
+### Context
+Two hosting ROADMAP items: every UI repo runs the shared Fold check (nishant/ui), and the CI supply-chain hardening (audit item 7).
+
+### Added
+- **Fold check** (`.github/workflows/fold.yml`): runs on `ui/*` PRs, Dependabot PRs and PRs labeled `fold`. `scripts/fold-serve.mjs` builds the renderer with `VITE_API_BASE=/` and serves it with fixed fixture answers for every `/api` route the default dashboard calls, so the base and the PR render side by side without Electron, network or keys. `fold.visual.json` covers the dashboard at 360, 840 and 1440 in light and dark, plus three scroll positions of the stacked phone layout.
+- `resolveApiBase()` in `apiClient.ts`: `VITE_API_BASE` overrides the API origin at build time (`/` = same origin); unset, every normal and release build still calls `http://127.0.0.1:7432`.
+
+### Changed
+- Every action in `ci.yml` and `release.yml` is pinned by full commit SHA with a version comment; `ci.yml` has read-only top-level permissions. Dependabot gets a `github-actions` entry to keep the pins current.
+
 ## [PR #170] feat: cheaper YouTube search, Twitch videos and games, shared MediaRow rows
 **Branch:** `feat/media-browse` → `master`
 **Date:** 2026-11-01

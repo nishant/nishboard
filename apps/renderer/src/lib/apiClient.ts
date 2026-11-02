@@ -1,6 +1,16 @@
 // 127.0.0.1, not localhost: the server binds 127.0.0.1 only, and on Windows
 // `localhost` can resolve to ::1 first. Matches the spawn health check.
-export const API_BASE = 'http://127.0.0.1:7432';
+const DEFAULT_API_BASE = 'http://127.0.0.1:7432';
+
+/** The API origin. Unset (every normal build) it is the local server. The Fold check
+ *  (scripts/fold-serve.mjs) builds with VITE_API_BASE=/ so the page asks the origin that
+ *  served it, a fixture server, instead of the Electron-started one on 7432.
+ *  Exported for tests. */
+export function resolveApiBase(override: string | undefined): string {
+  return override ? override.replace(/\/+$/, '') : DEFAULT_API_BASE;
+}
+
+export const API_BASE = resolveApiBase(import.meta.env.VITE_API_BASE as string | undefined);
 
 export const apiUrl = (path: string): string => `${API_BASE}${path}`;
 

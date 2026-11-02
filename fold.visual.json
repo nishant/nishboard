@@ -1,0 +1,12 @@
+{
+  "name": "nishboard",
+  "viewports": ["phone-small", "fold", "desktop"],
+  "themes": ["light", "dark"],
+  "fullPage": true,
+  "pages": [
+    {"name": "dashboard", "url": "http://127.0.0.1:{port}/", "waitFor": ".app-shell", "settle": 1500, "mask": ["span.text-th-hi3.text-2xs.tabular-nums.whitespace-nowrap", "span[title=\"Prices refresh every 5 minutes\"]", "span.text-th-hi.text-sm.tabular-nums.leading-tight"]},
+    {"name": "dashboard-third", "url": "http://127.0.0.1:{port}/", "waitFor": ".app-shell", "setup": "(()=>{const sc=[...document.querySelectorAll('div.overflow-y-auto')].filter((e)=>e.scrollHeight>e.clientHeight+40&&e.clientHeight>300)[0];if(sc)sc.scrollTop=(sc.scrollHeight-sc.clientHeight)*0.33})()", "settle": 1500, "mask": ["span.text-th-hi3.text-2xs.tabular-nums.whitespace-nowrap", "span[title=\"Prices refresh every 5 minutes\"]", "span.text-th-hi.text-sm.tabular-nums.leading-tight"]},
+    {"name": "dashboard-two-thirds", "url": "http://127.0.0.1:{port}/", "waitFor": ".app-shell", "setup": "(()=>{const sc=[...document.querySelectorAll('div.overflow-y-auto')].filter((e)=>e.scrollHeight>e.clientHeight+40&&e.clientHeight>300)[0];if(sc)sc.scrollTop=(sc.scrollHeight-sc.clientHeight)*0.66})()", "settle": 1500, "mask": ["span.text-th-hi3.text-2xs.tabular-nums.whitespace-nowrap", "span[title=\"Prices refresh every 5 minutes\"]", "span.text-th-hi.text-sm.tabular-nums.leading-tight"]},
+    {"name": "dashboard-end", "url": "http://127.0.0.1:{port}/", "waitFor": ".app-shell", "setup": "(()=>{const sc=[...document.querySelectorAll('div.overflow-y-auto')].filter((e)=>e.scrollHeight>e.clientHeight+40&&e.clientHeight>300)[0];if(sc)sc.scrollTop=(sc.scrollHeight-sc.clientHeight)*1})()", "settle": 1500, "mask": ["span.text-th-hi3.text-2xs.tabular-nums.whitespace-nowrap", "span[title=\"Prices refresh every 5 minutes\"]", "span.text-th-hi.text-sm.tabular-nums.leading-tight"]}
+  ]
+}
