@@ -4,7 +4,7 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
-## [PR #TBD] chore: patch Dependabot security alerts
+## [PR #177] chore: patch Dependabot security alerts
 **Branch:** `dep-alerts` → `master`
 **Date:** 2026-11-02
 
