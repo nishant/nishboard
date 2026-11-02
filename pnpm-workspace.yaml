@@ -7,4 +7,4 @@ allowBuilds:
   esbuild: true
 minimumReleaseAgeExclude:
   - electron@45.2.1
-  - nish-ui@1.4.1
+  - nish-ui
