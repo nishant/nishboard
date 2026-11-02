@@ -646,7 +646,7 @@ packages:
     engines: {node: '>= 10.0.0'}
 
   '@nish/ui@https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v1.4.0':
-    resolution: {tarball: https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v1.4.0}
+    resolution: {gitHosted: true, integrity: sha512-EumsRQvpXFvNO7VME5lAj6kMG2We0hxmoP4/Lb0qJ7L9PSePN0lFFzmwIzovSPsKhOmEC9MX9ZS7xNGebNRqmg==, tarball: https://codeload.github.com/nishant/ui/tar.gz/refs/tags/v1.4.0}
     version: 1.4.0
     engines: {node: '>=20'}
     hasBin: true
