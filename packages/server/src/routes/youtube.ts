@@ -1,12 +1,13 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { YoutubeVideo, YoutubeSearchPage, YoutubeAuthStatus, YoutubePlaylist, YoutubeChannel } from '@dash/shared';
 import crypto from 'crypto';
-import { fetchJson, HttpError } from '../lib/http';
+import { fetchJson, HttpError, UpstreamError } from '../lib/http';
 import { TtlCache } from '../lib/TtlCache';
 import { cred } from '../lib/env';
 import { parseIso8601Duration, isShortDuration } from '../lib/youtubeDuration';
 import { UserTokenStore, rethrowRefreshFailure } from '../lib/userTokenStore';
 import type { StoredUserTokens } from '../lib/userTokenStore';
+import { YoutubeSearchCache, defaultCachePath, searchKey, ttlFor, LIVE_TTL_MS } from '../lib/youtubeSearchCache';
 
 const BASE = 'https://www.googleapis.com/youtube/v3';
 
@@ -111,18 +112,21 @@ async function attachDurations(videos: YoutubeVideo[]): Promise<YoutubeVideo[]> 
   const apiKey = cred('YOUTUBE_API_KEY');
 
   const durations = new Map<string, number>();
+  const liveById = new Map<string, boolean>();
   if (apiKey) {
     for (let i = 0; i < videos.length; i += 50) {
       const ids = videos.slice(i, i + 50).map((v) => v.videoId);
       const d = await fetchJson<{
-        items?: { id: string; contentDetails?: { duration?: string } }[];
+        items?: { id: string; contentDetails?: { duration?: string }; snippet?: { liveBroadcastContent?: string } }[];
       }>(
-        `${BASE}/videos?part=contentDetails&id=${ids.join(',')}&key=${apiKey}`,
+        // part=snippet adds the live flag at no extra quota (1 unit per call).
+        `${BASE}/videos?part=contentDetails,snippet&id=${ids.join(',')}&key=${apiKey}`,
         undefined,
         { label: 'YouTube durations' },
       );
       for (const item of d.items ?? []) {
         durations.set(item.id, parseIso8601Duration(item.contentDetails?.duration ?? ''));
+        liveById.set(item.id, item.snippet?.liveBroadcastContent === 'live');
       }
     }
   }
@@ -133,6 +137,8 @@ async function attachDurations(videos: YoutubeVideo[]): Promise<YoutubeVideo[]> 
       ...v,
       durationSeconds,
       isShort: isShortDuration(durationSeconds) || /#shorts/i.test(v.title),
+      // A video missing from the response keeps whatever the caller set.
+      isLive: liveById.get(v.videoId) ?? v.isLive,
     };
   });
 }
@@ -166,28 +172,35 @@ function clearUserCaches(): void {
   LIKED_CACHE.clear();
 }
 
-// Each search costs 100 of the 10,000/day quota units (~100 searches/day).
-// The renderer's search-on-Enter + client cache is the first line of defense,
-// but nothing server-side stopped a stuck client or a second window from
-// burning the whole day's quota. Budget slightly under the real limit and
-// cache responses so repeat queries are free.
-const SEARCH_CACHE = new TtlCache<string, YoutubeSearchPage>(10 * 60 * 1000);
-const DAILY_SEARCH_BUDGET = 90;
-let budgetDay = '';
-let searchesToday = 0;
+// Each search costs 100 of the 10,000/day quota units, shared with another app.
+// Saved results (2h Live now, 24h All videos) and the daily search count live in
+// ~/.dash/youtube_search_cache.json so a restart neither re-spends searches nor
+// resets the budget. Created lazily so tests can inject their own.
+let searchCache: YoutubeSearchCache | null = null;
 
-function takeSearchBudget(): boolean {
-  // YouTube quota resets at midnight Pacific; local-date granularity is close
-  // enough for a personal budget.
-  const today = new Date().toDateString();
-  if (today !== budgetDay) {
-    budgetDay = today;
-    searchesToday = 0;
-  }
-  if (searchesToday >= DAILY_SEARCH_BUDGET) return false;
-  searchesToday += 1;
-  return true;
+function getSearchCache(): YoutubeSearchCache {
+  searchCache ??= new YoutubeSearchCache(defaultCachePath());
+  return searchCache;
 }
+
+/** Exported for tests. */
+export function setSearchCacheForTests(store: YoutubeSearchCache | null): void {
+  searchCache = store;
+}
+
+// Identical searches that miss the cache at the same moment (a double submit,
+// main window + popout) share one upstream call and one search from the budget.
+const SEARCHES_IN_FLIGHT = new Map<string, Promise<YoutubeSearchPage>>();
+
+/** A saved page older than the live TTL may show streams that have ended as
+ *  live, so its live flags are dropped rather than trusted. */
+function withoutStaleLive(page: YoutubeSearchPage, fetchedAt: string, now = Date.now()): YoutubeSearchPage {
+  if (now - Date.parse(fetchedAt) < LIVE_TTL_MS) return page;
+  return { ...page, items: page.items.map((v) => ({ ...v, isLive: undefined })) };
+}
+
+// Channel -> uploads playlist id never changes in practice; saves 1 unit on a re-open.
+const UPLOADS_ID_CACHE = new TtlCache<string, string>(24 * 60 * 60 * 1000, 500);
 
 // Browse tabs use videos.list (chart=mostPopular) — 1 quota unit per call vs
 // 100 for a search. 45-min cache per category → worst case ~96 units/day for
@@ -503,24 +516,31 @@ export const youtubeRoutes: FastifyPluginAsync = async (fastify) => {
 
     // Channel uploads playlist = 'UU' + channel suffix, but resolve it properly
     // (1 unit) instead of assuming the convention.
-    const ch = await get<{
-      items?: { contentDetails?: { relatedPlaylists?: { uploads?: string } } }[];
-    }>(`/channels?part=contentDetails&id=${channelId}`, 'YouTube channel');
-    const uploadsId = ch.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
-    if (!uploadsId) throw new HttpError(404, 'Channel not found');
+    let uploadsId = UPLOADS_ID_CACHE.get(channelId);
+    if (!uploadsId) {
+      const ch = await get<{
+        items?: { contentDetails?: { relatedPlaylists?: { uploads?: string } } }[];
+      }>(`/channels?part=contentDetails&id=${channelId}`, 'YouTube channel');
+      const found = ch.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+      if (!found) throw new HttpError(404, 'Channel not found');
+      UPLOADS_ID_CACHE.set(channelId, found);
+      uploadsId = found;
+    }
 
     const items = await get<{ items?: { snippet: YtSnippet }[] }>(
       `/playlistItems?part=snippet&playlistId=${encodeURIComponent(uploadsId)}&maxResults=30`,
       'YouTube channel videos',
     );
-    const page: YoutubeSearchPage = {
-      items: await attachDurations(
-        (items.items ?? [])
-          .filter((i) => i.snippet.resourceId?.videoId && i.snippet.title !== 'Private video' && i.snippet.title !== 'Deleted video')
-          .map((i) => snippetToVideo(i.snippet, i.snippet.resourceId!.videoId!)),
-      ),
-      nextPageToken: null,
-    };
+    const videos = await attachDurations(
+      (items.items ?? [])
+        .filter((i) => i.snippet.resourceId?.videoId && i.snippet.title !== 'Private video' && i.snippet.title !== 'Deleted video')
+        .map((i) => snippetToVideo(i.snippet, i.snippet.resourceId!.videoId!)),
+    );
+    // Live first, then newest first.
+    videos.sort((x, y) =>
+      Number(y.isLive === true) - Number(x.isLive === true) ||
+      (x.publishedAt < y.publishedAt ? 1 : x.publishedAt > y.publishedAt ? -1 : 0));
+    const page: YoutubeSearchPage = { items: videos, nextPageToken: null };
     CHANNEL_VIDEOS_CACHE.set(channelId, page);
     return reply.send(page);
   });
@@ -578,6 +598,7 @@ export const youtubeRoutes: FastifyPluginAsync = async (fastify) => {
           channelId?: string;
           thumbnails: { medium?: { url: string }; default?: { url: string } };
           publishedAt: string;
+          liveBroadcastContent?: string;
         };
       }>;
     }>(url.toString(), undefined, { label: 'YouTube API' });
@@ -593,6 +614,7 @@ export const youtubeRoutes: FastifyPluginAsync = async (fastify) => {
         publishedAt: item.snippet.publishedAt,
         durationSeconds: 0,
         isShort: false,
+        isLive: item.snippet.liveBroadcastContent === 'live',
       }))),
     };
 
@@ -600,65 +622,98 @@ export const youtubeRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send(page);
   });
 
-  // GET /api/youtube/search?q=...&pageToken=...
+  // GET /api/youtube/search?q=...&live=0|1&refresh=1&pageToken=...
+  // A saved result costs nothing; a fresh one costs a search (100 units).
   fastify.get<{
-    Querystring: { q: string; pageToken?: string };
+    Querystring: { q?: string; live?: string; refresh?: string; pageToken?: string };
   }>('/search', async (req, reply) => {
+    const q = (req.query.q ?? '').trim();
+    if (q.length < 1 || q.length > 100) throw new HttpError(400, 'q must be 1-100 characters');
+    const { live: liveParam = '0', refresh, pageToken } = req.query;
+    if (liveParam !== '0' && liveParam !== '1') throw new HttpError(400, 'live must be 0 or 1');
+    if (refresh !== undefined && refresh !== '1') throw new HttpError(400, 'refresh must be 1');
+    if (pageToken !== undefined && !/^[A-Za-z0-9_-]{1,200}$/.test(pageToken)) throw new HttpError(400, 'Invalid pageToken');
+    const live = liveParam === '1';
+
     const apiKey = cred('YOUTUBE_API_KEY');
     if (!apiKey) throw new HttpError(503, 'YOUTUBE_API_KEY not configured');
 
-    const { q, pageToken } = req.query;
-    if (!q?.trim()) throw new HttpError(400, 'q is required');
-
-    const cacheKey = `${q.trim().toLowerCase()}|${pageToken ?? ''}`;
-    const cached = SEARCH_CACHE.get(cacheKey);
-    if (cached) return reply.send(cached);
-
-    if (!takeSearchBudget()) {
-      throw new HttpError(429, 'Daily YouTube search budget reached — resets tomorrow');
+    const store = getSearchCache();
+    const key = searchKey(q, live, pageToken ?? '');
+    if (refresh !== '1') {
+      const saved = store.get(key, ttlFor(live));
+      if (saved) return reply.send({ ...withoutStaleLive(saved.page, saved.fetchedAt), cachedAt: saved.fetchedAt });
     }
 
-    const url = new URL(`${BASE}/search`);
-    url.searchParams.set('part', 'snippet');
-    url.searchParams.set('q', q.trim());
-    url.searchParams.set('type', 'video');
-    url.searchParams.set('maxResults', '12');
-    url.searchParams.set('safeSearch', 'none');
-    url.searchParams.set('key', apiKey);
-    if (pageToken) url.searchParams.set('pageToken', pageToken);
-
-    const data = await fetchJson<{
-      nextPageToken?: string;
-      items?: Array<{
-        id: { videoId: string };
-        snippet: {
-          title: string;
-          channelTitle: string;
-          channelId?: string;
-          thumbnails: { medium?: { url: string }; default?: { url: string } };
-          publishedAt: string;
-        };
-      }>;
-    }>(url.toString(), undefined, { label: 'YouTube API' });
-
-    const page: YoutubeSearchPage = {
-      nextPageToken: data.nextPageToken ?? null,
-      items: await attachDurations((data.items ?? []).map((item): YoutubeVideo => ({
-        videoId: item.id.videoId,
-        title: decodeHTMLEntities(item.snippet.title),
-        channelTitle: item.snippet.channelTitle,
-        channelId: item.snippet.channelId,
-        thumbnailUrl: item.snippet.thumbnails.medium?.url ?? item.snippet.thumbnails.default?.url ?? '',
-        publishedAt: item.snippet.publishedAt,
-        durationSeconds: 0,
-        isShort: false,
-      }))),
-    };
-
-    SEARCH_CACHE.set(cacheKey, page);
-    return reply.send(page);
+    let pending = SEARCHES_IN_FLIGHT.get(key);
+    if (!pending) {
+      if (!store.takeSearch()) {
+        throw new HttpError(429, 'Daily YouTube search budget reached — resets tomorrow');
+      }
+      pending = fetchSearchPage(apiKey, q, live, pageToken)
+        .then(
+          (page) => {
+            store.put(key, q, live, pageToken ?? '', page);
+            return page;
+          },
+          (err: unknown) => {
+            // No answer (network, timeout) or a YouTube 5xx was never charged:
+            // give the search back. A 4xx (bad request, quota, key) keeps it spent.
+            if (!(err instanceof UpstreamError) || err.status >= 500) store.refundSearch();
+            throw err;
+          },
+        )
+        .finally(() => SEARCHES_IN_FLIGHT.delete(key));
+      SEARCHES_IN_FLIGHT.set(key, pending);
+    }
+    const page = await pending;
+    return reply.send({ ...page, cachedAt: null });
   });
 };
+
+/** One search.list call (100 units), mapped and enriched like every list. */
+async function fetchSearchPage(apiKey: string, q: string, live: boolean, pageToken: string | undefined): Promise<YoutubeSearchPage> {
+  const url = new URL(`${BASE}/search`);
+  url.searchParams.set('part', 'snippet');
+  url.searchParams.set('q', q);
+  url.searchParams.set('type', 'video');
+  url.searchParams.set('maxResults', '12');
+  url.searchParams.set('safeSearch', 'none');
+  if (live) url.searchParams.set('eventType', 'live');
+  url.searchParams.set('key', apiKey);
+  if (pageToken) url.searchParams.set('pageToken', pageToken);
+
+  const data = await fetchJson<{
+    nextPageToken?: string;
+    items?: Array<{
+      id: { videoId: string };
+      snippet: {
+        title: string;
+        channelTitle: string;
+        channelId?: string;
+        thumbnails: { medium?: { url: string }; default?: { url: string } };
+        publishedAt: string;
+        liveBroadcastContent?: string;
+      };
+    }>;
+  }>(url.toString(), undefined, { label: 'YouTube API' });
+
+  const page: YoutubeSearchPage = {
+    nextPageToken: data.nextPageToken ?? null,
+    items: await attachDurations((data.items ?? []).map((item): YoutubeVideo => ({
+      videoId: item.id.videoId,
+      title: decodeHTMLEntities(item.snippet.title),
+      channelTitle: item.snippet.channelTitle,
+      channelId: item.snippet.channelId,
+      thumbnailUrl: item.snippet.thumbnails.medium?.url ?? item.snippet.thumbnails.default?.url ?? '',
+      publishedAt: item.snippet.publishedAt,
+      durationSeconds: 0,
+      isShort: false,
+      isLive: item.snippet.liveBroadcastContent === 'live',
+    }))),
+  };
+  return page;
+}
 
 // YouTube API returns HTML-encoded titles (&amp; etc)
 function decodeHTMLEntities(str: string): string {

@@ -27,6 +27,18 @@ export function useYoutubeSearch(query: string, pageToken?: string) {
   });
 }
 
+/** Fresh first-page results for a search (spends one search, `refresh=1`),
+ *  written over the saved page in the query cache. A one-off call, never part
+ *  of a query key, so a later background refetch can't spend another search. */
+export function useYoutubeSearchRefresh() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (query: string) =>
+      apiClient.get<YoutubeSearchPage>(`/api/youtube/search?${new URLSearchParams({ q: query, refresh: '1' }).toString()}`),
+    onSuccess: (page, query) => qc.setQueryData<YoutubeSearchPage>(['youtube-search', query, undefined], page),
+  });
+}
+
 // ── Account (Google OAuth) ────────────────────────────────────────────────────
 
 /** Poll auth state so the widget flips to the signed-in tabs automatically

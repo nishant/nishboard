@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { TwitchSearchPage, TwitchAuthStatus } from '@dash/shared';
+import type {
+  TwitchSearchPage, TwitchAuthStatus, TwitchCategory, TwitchVideosPage, TwitchVideoType,
+} from '@dash/shared';
 import { apiClient } from '../../lib/apiClient';
 import { useGatedInterval } from '../../hooks/useGatedInterval';
 
@@ -74,5 +76,56 @@ export function useTwitchSearch(query: string, after?: string) {
     },
     enabled: query.length > 0,
     staleTime: 60 * 1000, // streams go on/offline — shorter cache than YouTube
+  });
+}
+
+// ── Browse: games and a channel's videos (app token, no sign-in) ─────────────
+
+/** Top games right now (Games tab). Server caches 10 min. */
+export function useTwitchTopGames(enabled: boolean) {
+  return useQuery<TwitchCategory[]>({
+    queryKey: ['twitch-top-games'],
+    queryFn: () => apiClient.get<TwitchCategory[]>('/api/twitch/top-games'),
+    enabled,
+    staleTime: 10 * 60 * 1000,
+    retry: 1,
+  });
+}
+
+/** Games matching a submitted search (shown above the channel results). The
+ *  server takes 2-60 characters. */
+export function useTwitchCategories(query: string) {
+  return useQuery<TwitchCategory[]>({
+    queryKey: ['twitch-categories', query],
+    queryFn: () => apiClient.get<TwitchCategory[]>(`/api/twitch/categories?q=${encodeURIComponent(query)}`),
+    enabled: query.trim().length >= 2 && query.trim().length <= 60,
+    staleTime: 10 * 60 * 1000,
+    retry: 1,
+  });
+}
+
+/** Live streams in a game (an open game folder). Server caches 60s. */
+export function useTwitchCategoryStreams(gameId: string | null) {
+  return useQuery<TwitchSearchPage>({
+    queryKey: ['twitch-category-streams', gameId],
+    queryFn: () => apiClient.get<TwitchSearchPage>(`/api/twitch/category-streams?gameId=${encodeURIComponent(gameId!)}`),
+    enabled: gameId !== null,
+    staleTime: 55_000,
+    retry: 1,
+  });
+}
+
+/** A channel's past broadcasts, highlights or last-30-days clips (an open
+ *  channel folder). Server caches 5 min. */
+export function useTwitchVideos(login: string | null, type: TwitchVideoType) {
+  return useQuery<TwitchVideosPage>({
+    queryKey: ['twitch-videos', login, type],
+    queryFn: () =>
+      apiClient.get<TwitchVideosPage>(
+        `/api/twitch/videos?login=${encodeURIComponent(login!)}&type=${encodeURIComponent(type)}`,
+      ),
+    enabled: login !== null,
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
   });
 }

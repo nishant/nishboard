@@ -2,11 +2,15 @@ import type { ReactElement } from 'react';
 
 /** A playable search result, normalized across services. */
 export interface EmbedItem {
-  /** Service-specific embed key (YouTube videoId, Twitch login) — also the row/iframe key. */
+  /** Service-specific embed key (YouTube videoId, Twitch login / `video:…` /
+   *  `clip:…`) — also the row/iframe key. */
   id: string;
   title: string;
   subtitle: string;
   thumbnailUrl: string;
+  /** Overrides the adapter's thumbShape for this row (e.g. a VOD still in a
+   *  channel-avatar service). */
+  thumbShape?: EmbedThumbShape;
   /** Renders the pulsing live dot in rows and the control bar when true. */
   isLive?: boolean;
   /** When set (and the adapter has useFolderItems), the row subtitle becomes a
@@ -14,13 +18,17 @@ export interface EmbedItem {
   channel?: { id: string; title: string };
 }
 
-/** A drillable container of items (a playlist, or a channel's uploads). */
+export type EmbedThumbShape = 'wide' | 'round' | 'square';
+
+/** A drillable container of items (a playlist, a channel's uploads, a game). */
 export interface EmbedFolder {
   /** Adapter-interpreted key, e.g. 'PLxyz…' or 'channel:UCxyz…'. */
   id: string;
   title: string;
   subtitle?: string;
   thumbnailUrl?: string | null;
+  /** Row thumbnail shape. Default 'wide'. */
+  thumbShape?: EmbedThumbShape;
 }
 
 export interface EmbedFoldersState {
@@ -40,6 +48,10 @@ export interface EmbedSearchState {
   /** Shown in the browse body when there's nothing to fetch yet
    *  (e.g. "Connect your Twitch account…"). */
   hint?: string;
+  /** Search only: a quiet line above the results, e.g. "Saved 3h ago". */
+  note?: string;
+  /** Search only: shown as a Refresh link next to `note` (fetch fresh results). */
+  onRefresh?: () => void;
 }
 
 export interface EmbedBrowseTab {
@@ -61,8 +73,12 @@ export interface EmbedBrowse {
    *  real hook; `enabled` gates fetching. */
   useFolders?: (tabId: string, enabled: boolean) => EmbedFoldersState;
   /** Items inside an open folder (also serves channel-uploads folders opened
-   *  from a row's channel click). Must be a real hook; null folder = disabled. */
-  useFolderItems?: (folder: EmbedFolder | null) => EmbedSearchState;
+   *  from a row's channel click). Must be a real hook; null folder = disabled.
+   *  `tabId` is the folder's selected tab when `folderTabs` gives it some. */
+  useFolderItems?: (folder: EmbedFolder | null, tabId: string) => EmbedSearchState;
+  /** Sub-tabs for an open folder (e.g. a Twitch channel's Past broadcasts /
+   *  Highlights / Clips). Pure function; undefined = no tab strip. */
+  folderTabs?: (folder: EmbedFolder) => EmbedBrowseTab[] | undefined;
 }
 
 /** Everything service-specific about an embed-search widget. The generic
@@ -79,11 +95,17 @@ export interface EmbedServiceAdapter {
   /** Search-error hint — point at Settings, not .env (packaged builds have no .env). */
   errorHint: string;
   /** Row thumbnail shape: 16:9 video still vs round channel avatar. */
-  thumbShape: 'wide' | 'round';
+  thumbShape: EmbedThumbShape;
   /** Close-button tooltip, e.g. "Close video". */
   closeLabel: string;
   embedUrl: (item: EmbedItem) => string;
   useSearch: (query: string) => EmbedSearchState;
+  /** Folder matches for the same submitted query (e.g. Twitch games), listed
+   *  above the item results under `searchFoldersLabel`. Must be a real hook. */
+  useSearchFolders?: (query: string) => EmbedFoldersState;
+  /** Section headings when search returns folders too, e.g. 'Games' / 'Channels'. */
+  searchFoldersLabel?: string;
+  searchItemsLabel?: string;
   /** When present, the home view becomes a browse feed (if the tile is tall enough). */
   browse?: EmbedBrowse;
 }

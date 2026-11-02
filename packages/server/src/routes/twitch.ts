@@ -1,11 +1,15 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { TwitchChannel, TwitchSearchPage, TwitchAuthStatus } from '@dash/shared';
+import type {
+  TwitchChannel, TwitchSearchPage, TwitchAuthStatus, TwitchVideosPage, TwitchVideoType, TwitchCategory,
+} from '@dash/shared';
 import crypto from 'crypto';
 import { fetchJson, HttpError, UpstreamError } from '../lib/http';
 import { TtlCache } from '../lib/TtlCache';
 import { cred } from '../lib/env';
 import { UserTokenStore, rethrowRefreshFailure } from '../lib/userTokenStore';
 import type { StoredUserTokens } from '../lib/userTokenStore';
+import { mapCategory, mapClip, mapStream, mapVideo } from '../lib/twitchHelix';
+import type { HelixCategory, HelixClip, HelixStream, HelixVideo } from '../lib/twitchHelix';
 
 const TOKEN_URL = 'https://id.twitch.tv/oauth2/token';
 const AUTHORIZE_URL = 'https://id.twitch.tv/oauth2/authorize';
@@ -86,6 +90,57 @@ async function getAppToken(clientId: string, clientSecret: string): Promise<stri
     expiresAt: Date.now() + (data.expires_in - 60) * 1000,
   };
   return cachedToken.value;
+}
+
+/** App-token Helix GET. Missing credentials → 503; a 401 drops the cached token
+ *  and retries once with a fresh one. */
+async function helixApp<T>(path: string, build: (u: URL) => void, label: string): Promise<T> {
+  const clientId = cred('TWITCH_CLIENT_ID');
+  const clientSecret = cred('TWITCH_CLIENT_SECRET');
+  if (!clientId || !clientSecret) {
+    throw new HttpError(503, 'TWITCH_CLIENT_ID / TWITCH_CLIENT_SECRET not configured');
+  }
+  for (let attempt = 0; ; attempt++) {
+    const url = new URL(`${HELIX}/${path}`);
+    build(url);
+    try {
+      const token = await getAppToken(clientId, clientSecret);
+      return await fetchJson<T>(
+        url.toString(),
+        { headers: { 'Client-Id': clientId, Authorization: `Bearer ${token}` } },
+        { label },
+      );
+    } catch (err) {
+      if (err instanceof UpstreamError && err.status === 401 && attempt === 0) {
+        cachedToken = null;
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
+const LOGIN_RE = /^[A-Za-z0-9_]{1,25}$/;
+const CURSOR_RE = /^[A-Za-z0-9+/=_-]{1,400}$/;
+const GAME_ID_RE = /^\d{1,20}$/;
+const VIDEO_ID_RE = /^\d{1,20}$/;
+const CLIP_SLUG_RE = /^[A-Za-z0-9_-]{1,100}$/;
+const VIDEO_TYPES: readonly TwitchVideoType[] = ['archive', 'highlight', 'upload', 'clips'];
+
+const userIdCache = new TtlCache<string, string>(24 * 60 * 60_000);
+const videosCache = new TtlCache<string, TwitchVideosPage>(5 * 60_000);
+const categoriesCache = new TtlCache<string, TwitchCategory[]>(10 * 60_000);
+const topGamesCache = new TtlCache<string, TwitchCategory[]>(10 * 60_000);
+const categoryStreamsCache = new TtlCache<string, TwitchSearchPage>(60_000);
+
+function isVideoType(t: string): t is TwitchVideoType {
+  return (VIDEO_TYPES as readonly string[]).includes(t);
+}
+
+function validCursor(after: string | undefined): string | undefined {
+  if (!after) return undefined;
+  if (!CURSOR_RE.test(after)) throw new HttpError(400, 'Invalid cursor');
+  return after;
 }
 
 // 60s cache — followed-live status doesn't move faster, and the widget refetch
@@ -346,15 +401,23 @@ export const twitchRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send(page);
   });
 
-  // GET /api/twitch/embed?channel=...
+  // GET /api/twitch/embed?channel=... | ?video=<id> | ?clip=<slug>
   // Serves a minimal HTML page wrapping the Twitch player. The parent origin
   // becomes http://localhost:7432, which matches the parent= param Twitch requires.
-  fastify.get<{ Querystring: { channel: string } }>('/embed', async (req, reply) => {
-    const { channel } = req.query;
-    if (!channel || !/^[A-Za-z0-9_]{1,25}$/.test(channel)) {
-      return reply.status(400).send('Invalid channel');
+  fastify.get<{ Querystring: { channel?: string; video?: string; clip?: string } }>('/embed', async (req, reply) => {
+    const { channel, video, clip } = req.query;
+    const given = [channel, video, clip].filter((v) => v !== undefined);
+    let src = '';
+    if (given.length === 1) {
+      if (channel !== undefined && LOGIN_RE.test(channel)) {
+        src = `https://player.twitch.tv/?channel=${channel}&parent=localhost&autoplay=true`;
+      } else if (video !== undefined && VIDEO_ID_RE.test(video)) {
+        src = `https://player.twitch.tv/?video=v${video}&parent=localhost&autoplay=true`;
+      } else if (clip !== undefined && CLIP_SLUG_RE.test(clip)) {
+        src = `https://clips.twitch.tv/embed?clip=${clip}&parent=localhost&autoplay=true`;
+      }
     }
-    const src = `https://player.twitch.tv/?channel=${channel}&parent=localhost&autoplay=true`;
+    if (!src) return reply.status(400).send('Invalid embed target');
     const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -372,23 +435,14 @@ export const twitchRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{
     Querystring: { q: string; after?: string };
   }>('/search', async (req, reply) => {
-    const clientId = cred('TWITCH_CLIENT_ID');
-    const clientSecret = cred('TWITCH_CLIENT_SECRET');
-    if (!clientId || !clientSecret) {
+    if (!cred('TWITCH_CLIENT_ID') || !cred('TWITCH_CLIENT_SECRET')) {
       throw new HttpError(503, 'TWITCH_CLIENT_ID / TWITCH_CLIENT_SECRET not configured');
     }
 
     const { q, after } = req.query;
     if (!q?.trim()) throw new HttpError(400, 'q is required');
 
-    const token = await getAppToken(clientId, clientSecret);
-
-    const url = new URL(`${HELIX}/search/channels`);
-    url.searchParams.set('query', q.trim());
-    url.searchParams.set('first', '12');
-    if (after) url.searchParams.set('after', after);
-
-    let data: {
+    const data = await helixApp<{
       pagination?: { cursor?: string };
       data: Array<{
         id: string;
@@ -400,18 +454,15 @@ export const twitchRoutes: FastifyPluginAsync = async (fastify) => {
         game_name: string;
         started_at: string;
       }>;
-    };
-    try {
-      data = await fetchJson(
-        url.toString(),
-        { headers: { 'Client-Id': clientId, Authorization: `Bearer ${token}` } },
-        { label: 'Twitch API' },
-      );
-    } catch (err) {
-      // 401 → token rejected/expired; drop cache so the next call re-auths.
-      if (err instanceof UpstreamError && err.status === 401) cachedToken = null;
-      throw err;
-    }
+    }>(
+      'search/channels',
+      (u) => {
+        u.searchParams.set('query', q.trim());
+        u.searchParams.set('first', '12');
+        if (after) u.searchParams.set('after', after);
+      },
+      'Twitch API',
+    );
 
     const page: TwitchSearchPage = {
       nextCursor: data.pagination?.cursor ?? null,
@@ -427,6 +478,135 @@ export const twitchRoutes: FastifyPluginAsync = async (fastify) => {
       })),
     };
 
+    return reply.send(page);
+  });
+
+  // GET /api/twitch/videos?login=&type=archive|highlight|upload|clips&after=
+  fastify.get<{ Querystring: { login?: string; type?: string; after?: string } }>('/videos', async (req, reply) => {
+    const login = (req.query.login ?? '').trim();
+    if (!LOGIN_RE.test(login)) throw new HttpError(400, 'Invalid login');
+    const type = req.query.type ?? 'archive';
+    if (!isVideoType(type)) throw new HttpError(400, 'type must be archive, highlight, upload or clips');
+    const after = validCursor(req.query.after);
+    const name = login.toLowerCase();
+
+    const key = `${name}|${type}|${after ?? ''}`;
+    const cached = videosCache.get(key);
+    if (cached) return reply.send(cached);
+
+    let userId = userIdCache.get(name);
+    if (!userId) {
+      const users = await helixApp<{ data?: Array<{ id?: string }> }>(
+        'users',
+        (u) => u.searchParams.set('login', name),
+        'Twitch users',
+      );
+      userId = users.data?.[0]?.id ?? null;
+      if (!userId) throw new HttpError(404, 'No Twitch channel by that name');
+      userIdCache.set(name, userId);
+    }
+    const id = userId;
+
+    let page: TwitchVideosPage;
+    if (type === 'clips') {
+      // Helix treats a missing ended_at as started_at plus one week, so send both.
+      const end = new Date();
+      const start = new Date(end.getTime() - 30 * 864e5);
+      const data = await helixApp<{ data?: HelixClip[]; pagination?: { cursor?: string } }>(
+        'clips',
+        (u) => {
+          u.searchParams.set('broadcaster_id', id);
+          u.searchParams.set('first', '20');
+          u.searchParams.set('started_at', start.toISOString());
+          u.searchParams.set('ended_at', end.toISOString());
+          if (after) u.searchParams.set('after', after);
+        },
+        'Twitch clips',
+      );
+      page = {
+        items: (data.data ?? []).filter((c) => c.id).map((c) => mapClip(c, name)),
+        nextCursor: data.pagination?.cursor ?? null,
+      };
+    } else {
+      const data = await helixApp<{ data?: HelixVideo[]; pagination?: { cursor?: string } }>(
+        'videos',
+        (u) => {
+          u.searchParams.set('user_id', id);
+          u.searchParams.set('type', type);
+          u.searchParams.set('first', '20');
+          if (after) u.searchParams.set('after', after);
+        },
+        'Twitch videos',
+      );
+      page = {
+        items: (data.data ?? []).filter((v) => v.id).map((v) => mapVideo(v, name)),
+        nextCursor: data.pagination?.cursor ?? null,
+      };
+    }
+    videosCache.set(key, page);
+    return reply.send(page);
+  });
+
+  // GET /api/twitch/categories?q=
+  fastify.get<{ Querystring: { q?: string } }>('/categories', async (req, reply) => {
+    const q = (req.query.q ?? '').trim();
+    if (q.length < 2 || q.length > 60) throw new HttpError(400, 'q must be 2 to 60 characters');
+    const key = q.toLowerCase();
+    const cached = categoriesCache.get(key);
+    if (cached) return reply.send(cached);
+
+    const data = await helixApp<{ data?: HelixCategory[] }>(
+      'search/categories',
+      (u) => {
+        u.searchParams.set('query', q);
+        u.searchParams.set('first', '8');
+      },
+      'Twitch categories',
+    );
+    const items = (data.data ?? []).filter((c) => c.id).map(mapCategory);
+    categoriesCache.set(key, items);
+    return reply.send(items);
+  });
+
+  // GET /api/twitch/top-games
+  fastify.get('/top-games', async (_req, reply) => {
+    const cached = topGamesCache.get('top');
+    if (cached) return reply.send(cached);
+
+    const data = await helixApp<{ data?: HelixCategory[] }>(
+      'games/top',
+      (u) => u.searchParams.set('first', '20'),
+      'Twitch top games',
+    );
+    const items = (data.data ?? []).filter((c) => c.id).map(mapCategory);
+    topGamesCache.set('top', items);
+    return reply.send(items);
+  });
+
+  // GET /api/twitch/category-streams?gameId=&after= — live streams in a game.
+  fastify.get<{ Querystring: { gameId?: string; after?: string } }>('/category-streams', async (req, reply) => {
+    const gameId = req.query.gameId ?? '';
+    if (!GAME_ID_RE.test(gameId)) throw new HttpError(400, 'Invalid gameId');
+    const after = validCursor(req.query.after);
+
+    const key = `${gameId}|${after ?? ''}`;
+    const cached = categoryStreamsCache.get(key);
+    if (cached) return reply.send(cached);
+
+    const data = await helixApp<{ data?: HelixStream[]; pagination?: { cursor?: string } }>(
+      'streams',
+      (u) => {
+        u.searchParams.set('game_id', gameId);
+        u.searchParams.set('first', '20');
+        if (after) u.searchParams.set('after', after);
+      },
+      'Twitch streams',
+    );
+    const page: TwitchSearchPage = {
+      items: (data.data ?? []).filter((s) => s.user_login && (!s.type || s.type === 'live')).map(mapStream),
+      nextCursor: data.pagination?.cursor ?? null,
+    };
+    categoryStreamsCache.set(key, page);
     return reply.send(page);
   });
 };

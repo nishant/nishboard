@@ -4,6 +4,24 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #170] feat: cheaper YouTube search, Twitch videos and games, shared MediaRow rows
+**Branch:** `feat/media-browse` → `master`
+**Date:** 2026-11-01
+
+### Context
+streams.nish.software shares the YouTube key's 10,000 daily units with Nishboard, so every search Nishboard repeats also costs streams. streams just gained saved searches, cheap channel uploads, Twitch videos/clips/games and the shared `MediaRow` (@nish/ui 1.3.0); this brings the same to Nishboard.
+
+### Added
+- **Saved YouTube searches** (`lib/youtubeSearchCache.ts`): results are kept in `~/.dash/youtube_search_cache.json` (500 entries, written on every change) and reused for 24 h (2 h for `live=1`), across restarts. A saved hit costs nothing and carries `cachedAt`, and the widget shows "Saved Xh ago · Refresh" (`refresh=1` spends a search on purpose). A saved page older than 2 h drops its live flags. The 90/day search budget lives in the same file, so a restart no longer resets it, and it resets at midnight Pacific like YouTube's quota; a search YouTube never answered (network, 5xx) is given back, and identical concurrent searches share one call. `/search` validates `q` (1-100), `live`, `refresh` and `pageToken`.
+- **YouTube live flag**: search, browse and every enriched list carry `isLive` (the duration lookup now asks for `snippet` too, still 1 unit per 50 ids); rows show a Live badge and channel uploads list live videos first.
+- **Twitch browse** (app token, no sign-in): `/api/twitch/videos` (a channel's past broadcasts, highlights or last-30-days clips), `/categories` (game search), `/top-games`, `/category-streams` (live streams in a game). `/api/twitch/embed` also plays `?video=` (VOD) and `?clip=`; `clips.twitch.tv` joins `player.twitch.tv` in main's frame-ancestors CSP strip. Helix calls share a `helixApp` helper that refreshes the app token once on a 401.
+- **Twitch widget**: a Games tab (top games, each opening its live streams); a search also lists the top 3 matching games above the channels; inside a game, rows show the stream title; clicking a channel name opens its Past broadcasts / Highlights / Clips; VODs and clips play inline.
+- **Embed widget**: folder sub-tabs (`folderTabs`), folder matches in search (`useSearchFolders`), and a folder stack, so Back from a channel opened inside a game returns to the game.
+
+### Changed
+- YouTube and Twitch rows (results and folders) are `@nish/ui` `MediaRow` with the new `compact` size (@nish/ui 1.4.0), replacing the local `ResultRow`/`FolderRow` markup at the same 11px/10px text. The channel-name link and the live state are kept; live is now a Live badge.
+- `/channel-videos` caches the channel's uploads-playlist id for 24 h (one unit less per re-open).
+
 ## [PR #156] fix: build the macOS release on macos-15
 **Branch:** `fix/macos-15-runner` → `master`
 **Date:** 2026-10-31

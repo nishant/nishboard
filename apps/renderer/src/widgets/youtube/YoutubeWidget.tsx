@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
+import { ago } from '@nish/ui/format';
 import { LogIn, LogOut } from 'lucide-react';
 import {
-  useYoutubeSearch, useYoutubeBrowse,
+  useYoutubeSearch, useYoutubeSearchRefresh, useYoutubeBrowse,
   useYoutubeAuthStatus, useYoutubeConnect, useYoutubeLogout,
   useYoutubeSubsFeed, useYoutubeSubsList, useYoutubeLiked, useYoutubeMyPlaylists, useYoutubeFolderVideos,
 } from './useYoutube';
@@ -43,6 +44,7 @@ function useEmbedState(
       title: v.title,
       subtitle: v.channelTitle,
       thumbnailUrl: v.thumbnailUrl,
+      isLive: v.isLive,
       channel: v.channelId ? { id: v.channelId, title: v.channelTitle } : undefined,
     })),
     isFetching,
@@ -52,7 +54,11 @@ function useEmbedState(
 
 function useYoutubeEmbedSearch(query: string): EmbedSearchState {
   const { data, isFetching, isError } = useYoutubeSearch(query);
-  return useEmbedState(data, isFetching, isError);
+  const refresh = useYoutubeSearchRefresh();
+  const state = useEmbedState(data, isFetching || refresh.isPending, isError);
+  // Saved results are up to 24h old (they cost no quota); say so and offer fresh ones.
+  if (!data?.cachedAt) return state;
+  return { ...state, note: `Saved ${ago(data.cachedAt)}`, onRefresh: () => refresh.mutate(query) };
 }
 
 const ACCOUNT_TABS = new Set(['subs', 'liked', 'playlists']);

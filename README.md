@@ -49,8 +49,8 @@
 | 🧮 **Hardware** | CPU / GPU / RAM / disk / network as bars or live sparklines | `systeminformation` (nvidia-smi / WASAPI under the hood) |
 | 🔊 **Sound** | Master volume, mute, output switching, per-app mixer (Windows) | `osascript` (mac) / PowerShell + WASAPI (Windows) |
 | 📅 **Calendar** | Month grid + Google Calendar: event dots, click a day for its events, inline quick-add | Google Calendar API (shares the YouTube OAuth client) |
-| ▶️ **YouTube** | Search, Trending/Music/Gaming, and — signed in — your Subs feed, Playlists, Liked; click any channel name for its uploads; watch inline; optionally hide Shorts across every tab, or switch the Subs tab to a plain channel list (click a channel for its uploads) — both in Settings → App | YouTube Data API v3 + Google OAuth + localhost embed proxy |
-| 🟣 **Twitch** | Search channels; signed in: Live + All followed channels, go-live notifications; watch inline | Twitch Helix (app token + user OAuth) + localhost embed proxy |
+| ▶️ **YouTube** | Search, Trending/Music/Gaming, and — signed in — your Subs feed, Playlists, Liked; click any channel name for its uploads; watch inline; a repeated search is free (results are saved in `~/.dash` for 24 h, 2 h for live, and survive restarts); optionally hide Shorts across every tab, or switch the Subs tab to a plain channel list (click a channel for its uploads) — both in Settings → App | YouTube Data API v3 + Google OAuth + localhost embed proxy |
+| 🟣 **Twitch** | Search channels and games; a Games tab of top games, each opening its live streams; click a channel name for its past broadcasts, highlights and clips; signed in: Live + All followed channels, go-live notifications; watch streams, VODs and clips inline | Twitch Helix (app token + user OAuth) + localhost embed proxy |
 | 📰 **News** | Rotating headline ticker, click to open the article | Google News RSS — no key |
 | 📝 **Notes** | Markdown scratchpad, edit ↔ rendered toggle | Local (localStorage) |
 | ✅ **Tasks** | Quick checklist — add, check off, clear completed | Local (localStorage) |
@@ -282,7 +282,7 @@ CI-built installers carry **no baked API keys** (there's no `.env` in CI) — en
 
 - **Spotify Development Mode caps at 25 allowlisted users** — a non-allowlisted account gets a 403. Add accounts under your Spotify app → *User Management*.
 - **Stale Spotify token after a client_id change** — refresh tokens are bound to the client_id that minted them; if it changes, hit **Disconnect → Connect** (or delete `~/.dash/spotify_tokens.json`).
-- **YouTube** needs the Electron UA stripped (done automatically) plus the localhost embed proxy; the Data API free tier is ~100 searches/day.
+- **YouTube** needs the Electron UA stripped (done automatically) plus the localhost embed proxy; the Data API free tier is ~100 searches/day (shared with streams.nish.software); saved results make repeats free.
 - **macOS GPU usage** isn't available on Apple Silicon via `systeminformation`; **audio device switching** needs `brew install switchaudio-osx`.
 - **Windows audio device switching** needs `Install-Module AudioDeviceCmdlets` (volume/mute work without it via WASAPI).
 - **Alpaca IEX** covers US equities only — no futures or crypto.
