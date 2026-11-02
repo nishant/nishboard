@@ -12,8 +12,8 @@ importers:
   .:
     devDependencies:
       '@nish/ui':
-        specifier: npm:nish-ui@1.8.0
-        version: nish-ui@1.8.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        specifier: npm:nish-ui@1.9.0
+        version: nish-ui@1.9.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       concurrently:
         specifier: ^9.2.5
         version: 9.2.5
@@ -70,8 +70,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared
       '@nish/ui':
-        specifier: npm:nish-ui@1.8.0
-        version: nish-ui@1.8.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        specifier: npm:nish-ui@1.9.0
+        version: nish-ui@1.9.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@tanstack/react-query':
         specifier: ^5.105.0
         version: 5.105.0(@types/react@19.3.0)(react@19.3.1)
@@ -2454,8 +2454,8 @@ packages:
   natural-compare@1.4.0:
     resolution: {integrity: sha512-OWND8ei3VtNC9h7V60qff3SVobHr996CTwgxubgyQYEpg290h9J0buyECNNJexkFm5sOajh5G116RYA1c8ZMSw==}
 
-  nish-ui@1.8.0:
-    resolution: {integrity: sha512-g/1Ybq7w+5N3S5g7Ki3SP2bQVOHfC33KlHjzvHSW3uPEJ+WM1ZoOnN9TIOtWdGVrpUu1iteW1QCzqlRvzCiL5A==}
+  nish-ui@1.9.0:
+    resolution: {integrity: sha512-Q2GEeoKlYqCl3dmfBL0mMZ3EPc6uFRRyL2R0E79/Ycib8lbMiha87ejBy3kJOY0KZ65C59Afn+0HQKQSEGZtiQ==}
     engines: {node: '>=20'}
     hasBin: true
     peerDependencies:
@@ -5859,7 +5859,7 @@ snapshots:
 
   natural-compare@1.4.0: {}
 
-  nish-ui@1.8.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
+  nish-ui@1.9.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
     dependencies:
       clsx: 2.1.1
       tailwind-merge: 3.7.0
