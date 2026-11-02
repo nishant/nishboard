@@ -4,6 +4,21 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #177] chore: patch Dependabot security alerts
+**Branch:** `dep-alerts` → `master`
+**Date:** 2026-11-02
+
+### Context
+Ten open Dependabot alerts, all in `pnpm-lock.yaml` (two classed runtime, eight dev; every consumer turned out to be dev-side tooling). No `package.json` dependency spec changed; `@nish/ui` stays `npm:nish-ui@1.5.0` and the lockfile still resolves it from registry.npmjs.org.
+
+### Changed
+- **Lockfile upgrades** (`pnpm update -r --depth Infinity <pkgs>`, in-range, no override needed): `undici` 7.28.0 → 7.30.1 (via `@electron/get` and `jsdom`), `source-map-js` 1.2.1 → 1.2.2 (via Tailwind and `jsdom`; the old 1.2.1 entry is gone), `js-yaml` 4.1.1 → 4.3.2, `@xmldom/xmldom` 0.9.10 → 0.9.12 (0.8.15 is outside the alert range and stays), `baseline-browser-mapping` 2.10.32 → 2.11.34, `browserslist` 4.28.2 → 4.29.5, `form-data` 4.0.5 → 4.0.6, `@babel/core` 7.29.0 → 7.29.7 (plus the `@babel/*` packages it pulls), `tmp` 0.2.5 → 0.2.7. The refresh also moved `caniuse-lite`, `electron-to-chromium`, `node-releases`, `update-browserslist-db` and `hasown` forward as dependents. `undici` 6.29.1 is untouched (outside the alert range).
+- **Override** (`pnpm-workspace.yaml` `overrides`, because pnpm 11 reads overrides from the workspace file, where `allowBuilds` already lives): `minimatch: ^11.0.4`. Every minimatch (3.1.5, 5.1.9, 9.0.9, 10.2.6) now resolves to 11.0.4 for eslint 10, typescript-eslint, electron-builder (`app-builder-lib`, `@electron/asar`, `@electron/universal`, `dir-compare`, `filelist`) and `glob@7`.
+- `minimumReleaseAgeExclude` gains `minimatch@11.0.4` (published the same day; pnpm added it itself). Drop that line once the version is a day old.
+
+### Notes
+- Verified: `pnpm typecheck`, `lint`, `test` and `build` green; `pnpm package` builds the Windows installer locally with the new `tmp`, `minimatch` and `@xmldom/xmldom`.
+
 ## [PR #174] chore: Fold check for the renderer, actions pinned by SHA
 **Branch:** `ci-supply-chain` → `master`
 **Date:** 2026-11-02
