@@ -16,7 +16,7 @@
     "@dash/shared": "workspace:*",
     "@nish/ui": "npm:nish-ui@1.4.1",
     "@tanstack/react-query": "^5.105.0",
-    "lucide-react": "^1.63.0",
+    "lucide-react": "^1.65.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-grid-layout": "^1.5.4",
