@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ElectronAPI } from '@dash/shared';
-import { apiClient } from './apiClient';
+import { apiClient, resolveApiBase } from './apiClient';
 import { getEventStream, postEventStream } from './streamClient';
 
 function stubFetch(): ReturnType<typeof vi.fn> {
@@ -38,5 +38,17 @@ describe('apiClient bearer token', () => {
     const fn = stubFetch();
     await apiClient.get('/api/weather');
     expect(sentHeaders(fn).get('authorization')).toBe('Bearer');
+  });
+});
+
+describe('resolveApiBase', () => {
+  it('is the local server unless overridden', () => {
+    expect(resolveApiBase(undefined)).toBe('http://127.0.0.1:7432');
+    expect(resolveApiBase('')).toBe('http://127.0.0.1:7432');
+  });
+
+  it('takes the Fold check override, where "/" means the origin that served the page', () => {
+    expect(resolveApiBase('/')).toBe('');
+    expect(resolveApiBase('http://127.0.0.1:5301/')).toBe('http://127.0.0.1:5301');
   });
 });

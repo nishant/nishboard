@@ -14,7 +14,8 @@
     "package": "pnpm build && node scripts/package-app.mjs",
     "typecheck": "turbo typecheck",
     "lint": "turbo lint",
-    "test": "turbo test"
+    "test": "turbo test",
+    "fold:serve": "node scripts/fold-serve.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.2.5",
