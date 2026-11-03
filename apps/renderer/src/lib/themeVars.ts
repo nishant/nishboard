@@ -10,7 +10,7 @@ export type Scheme = 'dark' | 'light';
 
 /** Every color role @nish/ui defines, typed (mirrors COLOR_ROLES; a test keeps them in sync). */
 export const NISH_COLOR_ROLES = [
-  'bg', 'surface', 'elevated', 'overlay', 'line', 'line-strong',
+  'bg', 'surface', 'elevated', 'overlay', 'line', 'line-strong', 'line-control',
   'hi', 'hi2', 'hi3', 'ghost', 'accent', 'accent2', 'on-accent',
   'on-accent2', 'on-ok', 'on-loss', 'on-warn', 'on-info',
   'ok', 'loss', 'warn', 'info', 'ok-fill', 'loss-fill', 'warn-fill', 'info-fill', 'scrim', 'invert-bg', 'invert-text',
@@ -141,6 +141,8 @@ export function deriveThemeColors(base: ThemeBase): ThemeColors {
     overlay: base.overlay,
     line,
     'line-strong': mixHex(hi, base.overlay, 0.2),
+    // Form-control borders: the line color, nudged toward the text until it reads at 3:1 on the panels.
+    'line-control': ensureContrast(line, panels, 3, hi),
     hi,
     hi2: ensureContrast(base.hi2, panels, 4.5, hi),
     hi3: ensureContrast(base.hi3, panels, 4.5, hi),
