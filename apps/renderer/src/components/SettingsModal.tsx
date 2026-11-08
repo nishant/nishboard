@@ -325,7 +325,7 @@ function SystemPrefsSection() {
         label="Global show/hide hotkey"
         description="Ctrl+Shift+D (Cmd+Shift+D on macOS) toggles the dashboard from anywhere."
         checked={prefs.globalHotkey}
-        onChange={(v) => void update({ globalHotkey: v })}
+        onCheckedChange={(v) => void update({ globalHotkey: v })}
       />
       <p className="text-th-hi3 text-3xs leading-relaxed">
         The tray icon is always available: show/hide, Spotify play/pause, restart server, quit.
@@ -372,7 +372,7 @@ function WidgetsSection() {
                 labelSide="end"
                 label={WIDGET_TITLES[id]}
                 checked={!disabledWidgets.includes(id)}
-                onChange={(v) => onToggle(id, v)}
+                onCheckedChange={(v) => onToggle(id, v)}
               />
             ))}
           </div>
@@ -521,7 +521,7 @@ function AppSettingsPanel() {
           label="Go-live alerts"
           description="Chime, toast, and native notification when a followed channel goes live. Needs a connected Twitch account (widget → Connect)."
           checked={twitchLiveNotify}
-          onChange={setTwitchLiveNotify}
+          onCheckedChange={setTwitchLiveNotify}
         />
       </div>
 
@@ -534,7 +534,7 @@ function AppSettingsPanel() {
           label="Hide YouTube Shorts"
           description="Filter Shorts (≤60s) out of every YouTube tab — Subs, Trending, Search, and the rest."
           checked={hideYoutubeShorts}
-          onChange={setHideYoutubeShorts}
+          onCheckedChange={setHideYoutubeShorts}
         />
         <Switch
           size="sm"
@@ -542,7 +542,7 @@ function AppSettingsPanel() {
           label="Subs tab: channel list only"
           description="Show your subscriptions as a channel list instead of a video feed — click a channel to see its uploads."
           checked={youtubeSubsChannelsOnly}
-          onChange={setYoutubeSubsChannelsOnly}
+          onCheckedChange={setYoutubeSubsChannelsOnly}
         />
       </div>
 
@@ -617,7 +617,7 @@ function AppSettingsPanel() {
           label="24-hour clock"
           description="Applies to the titlebar clock, world clock, alarms and countdowns."
           checked={clock24h}
-          onChange={setClock24h}
+          onCheckedChange={setClock24h}
         />
       </div>
 
@@ -630,7 +630,7 @@ function AppSettingsPanel() {
           label="Show temperature"
           description="Display the current temperature next to the clock."
           checked={showTempInClock}
-          onChange={setShowTempInClock}
+          onCheckedChange={setShowTempInClock}
         />
         <Switch
           size="sm"
@@ -638,7 +638,7 @@ function AppSettingsPanel() {
           label="Compact titlebar"
           description="Always use icon-only menus and a pinned-layouts dropdown. Off = compact only on narrow windows."
           checked={compactTitlebar}
-          onChange={setCompactTitlebar}
+          onCheckedChange={setCompactTitlebar}
         />
       </div>
 

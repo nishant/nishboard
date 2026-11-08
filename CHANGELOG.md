@@ -4,6 +4,17 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #188] chore: move to @nish/ui subpath imports and Switch onCheckedChange
+**Branch:** `chore/ui-3-prep` → `master`
+**Date:** 2026-11-07
+
+### Context
+@nish/ui 3.0 drops the fleet-only names (Inbox and its helpers and types) from the root entry and removes `Switch onChange`. Both replacements already exist on the pinned 2.x, so moving now lets the 3.0 bump land with no code.
+
+### Changed
+- `InboxWidget.tsx` imports `Inbox`, `INBOX_SOURCE_LABELS`, `InboxAction` and `InboxItem` from `@nish/ui/inbox`.
+- The eight Switches in `SettingsModal.tsx` and the one in `AlertsPanel.tsx` use `onCheckedChange`. No behavior change.
+
 ## [PR #177] chore: patch Dependabot security alerts
 **Branch:** `dep-alerts` → `master`
 **Date:** 2026-11-02
