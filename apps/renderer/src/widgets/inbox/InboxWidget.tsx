@@ -1,8 +1,9 @@
 import { useEffect, useMemo } from 'react';
 import type { MouseEvent } from 'react';
 import { ExternalLink, Inbox as InboxIcon, KeyRound } from 'lucide-react';
-import { Button, EmptyState, INBOX_SOURCE_LABELS, Inbox, toast } from '@nish/ui';
-import type { InboxAction, InboxItem } from '@nish/ui';
+import { Button, EmptyState, toast } from '@nish/ui';
+import { INBOX_SOURCE_LABELS, Inbox } from '@nish/ui/inbox';
+import type { InboxAction, InboxItem } from '@nish/ui/inbox';
 import { useInboxFeed, useInboxMutations } from './useInbox';
 import { groupBySeverity, safeHref } from './inboxSort';
 import { isAckedIn, useInboxUiStore } from '../../store/inboxUiStore';

@@ -51,7 +51,7 @@ function RuleRow({ rule }: { rule: AlertRule }) {
 
   return (
     <div className="flex items-center gap-2.5 group">
-      <Switch size="sm" checked={rule.enabled} onChange={() => toggleRule(rule.id)} aria-label={`Enable: ${describeRule(rule)}`} />
+      <Switch size="sm" checked={rule.enabled} onCheckedChange={() => toggleRule(rule.id)} aria-label={`Enable: ${describeRule(rule)}`} />
       <div className="flex flex-col min-w-0 flex-1">
         <span className={cn('text-2xs truncate', rule.enabled ? 'text-th-hi' : 'text-th-hi3')}>
           {describeRule(rule)}
