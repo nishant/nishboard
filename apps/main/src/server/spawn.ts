@@ -24,12 +24,22 @@ function logFile(): string {
   return path.join(logsDir(), 'server.log');
 }
 
+/** Logging is best-effort: an async open/write failure (log dir removed, disk full)
+ *  must drop logging, never surface as an unhandled 'error' that crashes main. */
+function createLogStream(): fs.WriteStream {
+  const stream = fs.createWriteStream(logFile(), { flags: 'a' });
+  stream.on('error', () => {
+    if (logStream === stream) logStream = null;
+  });
+  return stream;
+}
+
 function openLogStream(): void {
   try {
     fs.mkdirSync(logsDir(), { recursive: true });
     logBytes = fs.existsSync(logFile()) ? fs.statSync(logFile()).size : 0;
     if (logBytes > LOG_MAX_BYTES) rotateLog();
-    logStream = fs.createWriteStream(logFile(), { flags: 'a' });
+    logStream = createLogStream();
   } catch {
     logStream = null; // logging is best-effort — never block the server on it
   }
@@ -47,7 +57,7 @@ function teeToLog(chunk: Buffer | string): void {
   if (logBytes > LOG_MAX_BYTES) {
     logStream.end();
     rotateLog();
-    logStream = fs.createWriteStream(logFile(), { flags: 'a' });
+    logStream = createLogStream();
   }
   logStream.write(chunk);
   logBytes += typeof chunk === 'string' ? Buffer.byteLength(chunk) : chunk.length;

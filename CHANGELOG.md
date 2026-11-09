@@ -4,6 +4,14 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #195] fix: deflake the crash-restart backoff test and guard the server log stream
+**Branch:** fix/spawn-test-flake → master
+**Date:** 2026-11-09
+
+### Fixed
+- `apps/main/src/server/spawn.test.ts` "respawns after 1s, 2s, 4s, 8s, 16s, then gives up" used `vi.useFakeTimers({ shouldAdvanceTime: true })`, so real elapsed milliseconds leaked into the fake clock and a backoff timer could fire during `advanceTimersByTimeAsync(delay - 1)` on a slow runner (master CI red after #193, which blocked the @nish/ui 3.1.0 bump). It now uses plain fake timers.
+- `apps/main/src/server/spawn.ts`: the server log `WriteStream` had no `'error'` listener, so an async open or write failure (log dir removed, disk full) became an unhandled error that could crash the main process, despite the "best-effort" comment. `createLogStream()` now drops logging on error. This also showed up as an unhandled ENOENT in CI once the test's `afterEach` removed the logs dir.
+
 ## [PR #191] docs: audit follow-ups in ROADMAP and CLAUDE.md
 **Branch:** docs/audit-1108-followups → master
 **Date:** 2026-11-09
