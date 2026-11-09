@@ -22,6 +22,11 @@ import { useTimersStore } from './store/timersStore';
 import { useCountdownStore } from './store/countdownStore';
 import { useWorldClockStore } from './store/worldClockStore';
 import { useAlertsStore } from './store/alertsStore';
+import { useCryptoStore } from './store/cryptoStore';
+import { useHardwareStore } from './store/hardwareStore';
+import { useNetmonStore } from './store/netmonStore';
+import { useLauncherUiStore } from './store/launcherUiStore';
+import { useInboxUiStore } from './store/inboxUiStore';
 import { initAutoExport } from './lib/autoExport';
 
 /** Persisted stores kept in step across windows, by persist key. Left out on
@@ -36,6 +41,11 @@ const SYNCED_STORES: Record<string, { persist: { rehydrate: () => Promise<void> 
   'dashboard-countdown': useCountdownStore,
   'dashboard-worldclock': useWorldClockStore,
   'dashboard-alerts': useAlertsStore,
+  'crypto-watchlist': useCryptoStore,
+  'hardware-config': useHardwareStore,
+  'dashboard-netmon': useNetmonStore,
+  'dashboard-launcher-ui': useLauncherUiStore,
+  'dashboard-inbox-ui': useInboxUiStore,
 };
 
 const queryClient = new QueryClient({

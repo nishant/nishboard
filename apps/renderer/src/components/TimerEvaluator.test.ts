@@ -37,5 +37,12 @@ describe('sweepDueAlerts', () => {
     expect(fireAlert).toHaveBeenCalledTimes(1);
     expect(fireAlert.mock.calls[0]?.[0]).toBe('Missed alerts');
     expect(useTimersStore.getState().alarms.every((a) => a.done)).toBe(true);
+    expect(fireAlert.mock.calls[0]?.[1]).toContain('x, y');
+  });
+
+  it('fires a throttled alarm (45s late) with its own label', () => {
+    useTimersStore.setState({ alarms: [{ id: 'a', label: 'wake up', at: NOW - 45_000, done: false }] });
+    sweepDueAlerts(NOW);
+    expect(fireAlert).toHaveBeenCalledWith('Alarm', 'wake up');
   });
 });

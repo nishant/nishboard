@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from '../../lib/alerts';
 import { apiClient } from '../../lib/apiClient';
 import { useGatedInterval } from '../../hooks/useGatedInterval';
 import type {
@@ -96,9 +97,22 @@ export function useDevices(enabled: boolean) {
 
 // ── Playback mutations ────────────────────────────────────────────────────────
 
+/** Shared onError for transport commands: roll back the optimistic now-playing
+ *  value (by refetching the truth) and show the server's message, e.g.
+ *  "No Spotify device found". */
+function useTransportError() {
+  const qc = useQueryClient();
+  return (err: unknown) => {
+    void qc.invalidateQueries({ queryKey: ['spotify-now-playing'] });
+    toast('Spotify', err instanceof Error ? err.message : 'Command failed', 'error');
+  };
+}
+
 export function usePlay() {
   const qc = useQueryClient();
+  const onError = useTransportError();
   return useMutation({
+    onError,
     mutationFn: () => apiClient.post('/api/spotify/play'),
     onMutate: () => {
       qc.setQueryData<TrackData>(['spotify-now-playing'], (old) =>
@@ -111,7 +125,9 @@ export function usePlay() {
 
 export function usePause() {
   const qc = useQueryClient();
+  const onError = useTransportError();
   return useMutation({
+    onError,
     mutationFn: () => apiClient.post('/api/spotify/pause'),
     onMutate: () => {
       qc.setQueryData<TrackData>(['spotify-now-playing'], (old) =>
@@ -124,7 +140,9 @@ export function usePause() {
 
 export function useNext() {
   const qc = useQueryClient();
+  const onError = useTransportError();
   return useMutation({
+    onError,
     mutationFn: () => apiClient.post('/api/spotify/next'),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['spotify-now-playing'] }),
   });
@@ -132,7 +150,9 @@ export function useNext() {
 
 export function usePrevious() {
   const qc = useQueryClient();
+  const onError = useTransportError();
   return useMutation({
+    onError,
     mutationFn: () => apiClient.post('/api/spotify/previous'),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['spotify-now-playing'] }),
   });
@@ -140,7 +160,9 @@ export function usePrevious() {
 
 export function useSeek() {
   const qc = useQueryClient();
+  const onError = useTransportError();
   return useMutation({
+    onError,
     mutationFn: (positionMs: number) => apiClient.post('/api/spotify/seek', { positionMs }),
     onMutate: (positionMs) => {
       qc.setQueryData<TrackData>(['spotify-now-playing'], (old) =>
@@ -153,7 +175,9 @@ export function useSeek() {
 
 export function useSpotifyVolume() {
   const qc = useQueryClient();
+  const onError = useTransportError();
   return useMutation({
+    onError,
     mutationFn: (volumePercent: number) =>
       apiClient.post('/api/spotify/volume', { volumePercent }),
     onMutate: (volumePercent) => {
@@ -169,7 +193,9 @@ export function useSpotifyVolume() {
 
 export function useShuffle() {
   const qc = useQueryClient();
+  const onError = useTransportError();
   return useMutation({
+    onError,
     mutationFn: (state: boolean) => apiClient.post('/api/spotify/shuffle', { state }),
     onMutate: (state) => {
       qc.setQueryData<TrackData>(['spotify-now-playing'], (old) =>
@@ -182,7 +208,9 @@ export function useShuffle() {
 
 export function useRepeat() {
   const qc = useQueryClient();
+  const onError = useTransportError();
   return useMutation({
+    onError,
     mutationFn: (state: 'off' | 'track' | 'context') =>
       apiClient.post('/api/spotify/repeat', { state }),
     onMutate: (state) => {

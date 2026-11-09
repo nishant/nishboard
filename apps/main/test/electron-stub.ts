@@ -2,8 +2,16 @@
 // Exports every name the main-process modules destructure at module scope;
 // tests exercise pure logic only, so the members are inert placeholders.
 
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+
+// A fresh temp dir per test file, so state a test writes (window-theme.json,
+// logs) never leaks into other runs or into a shared folder like /tmp.
+const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'nishboard-test-'));
+
 export const app = {
-  getPath: (_name: string): string => '/tmp/nishboard-test',
+  getPath: (_name: string): string => userData,
   getVersion: (): string => '0.0.0-test',
   getFileIcon: (): Promise<{ toDataURL: () => string }> =>
     Promise.resolve({ toDataURL: () => 'data:image/png;base64,' }),

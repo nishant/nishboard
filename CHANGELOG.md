@@ -21,10 +21,17 @@ All changes organized by pull request, newest first. Format is documented under 
 - **NISHBOARD-010:** the Claude CLI child env drops credentials and Nishboard-injected variables (`buildChildEnv`), keeping `CLAUDE_CODE_OAUTH_TOKEN`, PATH and system variables.
 - **NISHBOARD-011:** a transient failure during Discord AUTHENTICATE (timeout, closed pipe) no longer clears the stored grant; only a Discord rejection does.
 - **NISHBOARD-012:** Spotify transport routes (`pause`, `next`, `previous`, `seek`, `volume`, `shuffle`, `repeat`) now report upstream failures (404 as "No Spotify device found"), and `/play` wakes an inactive device.
+- **Review follow-ups (NISHBOARD-008):** the live `TimerEvaluator` uses a 5 minute grace (not the 30s launch grace), the "Missed alerts" summary lists the labels and covers countdowns, and the main window sets `backgroundThrottling: false` so timers are not run up to a minute late when hidden.
+- **Review follow-ups (NISHBOARD-003):** cross-window sync now also covers `crypto-watchlist`, `hardware-config`, `dashboard-netmon`, `dashboard-launcher-ui` and `dashboard-inbox-ui`.
+- **Review follow-ups (NISHBOARD-007):** the Spotify sentinel re-checks after each page lands, so a tall panel keeps loading until the list overflows.
+- **Review follow-ups (NISHBOARD-002):** overlapping `restartServer()` calls are serialized; `spawn.test.ts` and the electron test stub use a temp dir instead of `/tmp/nishboard-test` (which left stray state in `C:	mp` and made `windowTheme.test.ts` order-dependent).
+- **Review follow-ups (NISHBOARD-010):** `buildChildEnv` also drops any `*SECRET*`, `*TOKEN*`, `*PASSWORD*`, `*API_KEY*` and similar variables (except `CLAUDE_CODE_OAUTH_TOKEN`).
+- **Review follow-ups (NISHBOARD-006):** Allow is disabled (Deny stays) when the permission input was truncated, and the label no longer repeats a command already shown in the input block.
+- **Review follow-ups (NISHBOARD-012):** Spotify transport mutations show the server's error as a toast and roll back the optimistic now-playing value.
 
 ### Notes
 - A timers rehydrate triggered by another window also runs the stale-item sweep (items older than 30s settle silently).
-- Not done: a per-child server log stream, the same env filter for PowerShell/osascript spawns, and disabling Allow on truncated permission input.
+- Deferred items (a per-child server log stream, the env filter for PowerShell/osascript spawns, a server-sent `truncated` flag) are in ROADMAP.md.
 
 ## [PR #188] chore: move to @nish/ui subpath imports and Switch onCheckedChange
 **Branch:** `chore/ui-3-prep` → `master`

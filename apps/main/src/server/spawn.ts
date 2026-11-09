@@ -204,8 +204,17 @@ export function stopServer(): Promise<void> {
 
 /** Save new credentials and restart the server child process with updated env vars.
  *  No-op in dev (server is managed externally by concurrently). */
-export async function restartServer(): Promise<void> {
-  if (isDev) return;
-  await stopServer();
-  await spawnServer();
+export function restartServer(): Promise<void> {
+  if (isDev) return Promise.resolve();
+  // Serialized: overlapping callers (credentials save + tray) queue, so a second
+  // restart never spawns against a child that is still exiting.
+  const run = async () => {
+    await stopServer();
+    await spawnServer();
+  };
+  const next = restartChain.then(run, run);
+  restartChain = next.catch(() => undefined);
+  return next;
 }
+
+let restartChain: Promise<void> = Promise.resolve();

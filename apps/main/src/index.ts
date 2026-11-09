@@ -80,6 +80,9 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // Timers, alarms and countdowns are evaluated in this window; Chromium's
+      // background throttling would run them up to a minute late when hidden.
+      backgroundThrottling: false,
       // For the Discord widget's <webview> ONLY — every attach is validated by
       // registerWebviewGuards() (discord.com src, preload/node stripped).
       webviewTag: true,

@@ -1,5 +1,14 @@
 import { EventEmitter } from 'events';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import fs from 'fs';
+import path from 'path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const tmpDir = await vi.hoisted(async () => {
+  const fsMod = await import('fs');
+  const osMod = await import('os');
+  const pathMod = await import('path');
+  return fsMod.mkdtempSync(pathMod.join(osMod.tmpdir(), 'nishboard-test-'));
+});
 
 class FakeChild extends EventEmitter {
   stdout = null;
@@ -24,12 +33,16 @@ const spawnMock = vi.fn(() => {
 });
 
 vi.mock('child_process', () => ({ spawn: spawnMock, execSync: vi.fn(() => '') }));
-vi.mock('electron', () => ({ app: { getAppPath: () => '/app', getPath: () => '/tmp/nishboard-test' } }));
+vi.mock('electron', () => ({ app: { getAppPath: () => '/app', getPath: () => tmpDir } }));
 vi.mock('../credentials', () => ({ readCredentials: () => ({}) }));
 vi.mock('../tokenKey', () => ({ loadTokenKey: () => Promise.resolve(null) }));
 vi.mock('../apiToken', () => ({ apiToken: () => 'test-token' }));
 
 describe('restartServer', () => {
+  afterEach(() => {
+    fs.rmSync(path.join(tmpDir, 'logs'), { recursive: true, force: true });
+  });
+
   beforeEach(() => {
     children.length = 0;
     spawnMock.mockClear();

@@ -625,6 +625,10 @@ const INJECTED_ENV_KEYS = new Set<string>([
   'BUILTINS_JSON',
 ]);
 
+/** Anything that looks like a secret (e.g. SPOTIFY_CLIENT_SECRET from a dev
+ *  .env, or a secret added later) is dropped by default. */
+const SECRET_ENV_PATTERN = /(SECRET|TOKEN|PASSWORD|PASSWD|API_?KEY|PRIVATE_?KEY|CREDENTIAL)/;
+
 /** Pure: the CLI child's env — the server's env minus Nishboard's injected
  *  credentials/runtime flags, keeping PATH, HOME/USERPROFILE, APPDATA, TEMP,
  *  SystemRoot, proxy vars, etc. CLAUDE_CODE_OAUTH_TOKEN is the one credential
@@ -633,7 +637,10 @@ export function buildChildEnv(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {};
   for (const [key, value] of Object.entries(source)) {
     if (value === undefined) continue;
-    if (key !== 'CLAUDE_CODE_OAUTH_TOKEN' && INJECTED_ENV_KEYS.has(key.toUpperCase())) continue;
+    if (key !== 'CLAUDE_CODE_OAUTH_TOKEN') {
+      const upper = key.toUpperCase();
+      if (INJECTED_ENV_KEYS.has(upper) || SECRET_ENV_PATTERN.test(upper)) continue;
+    }
     env[key] = value;
   }
   return env;
