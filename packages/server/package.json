@@ -13,7 +13,7 @@
     "@dash/shared": "workspace:*",
     "@fastify/cors": "^10.0.1",
     "dotenv": "^16.4.7",
-    "fastify": "^5.12.7",
+    "fastify": "^5.12.8",
     "systeminformation": "^5.33.19"
   },
   "devDependencies": {
