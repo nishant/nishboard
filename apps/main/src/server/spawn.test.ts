@@ -89,7 +89,9 @@ describe('crash restart backoff', () => {
   });
 
   it('respawns after 1s, 2s, 4s, 8s, 16s, then gives up', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+    // No shouldAdvanceTime: real elapsed ms would leak into the fake clock and fire
+    // a backoff timer during advanceTimersByTimeAsync(delay - 1) on a slow runner.
+    vi.useFakeTimers();
     const err = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     try {
       const { spawnServer } = await import('./spawn');
