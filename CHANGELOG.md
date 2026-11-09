@@ -4,7 +4,7 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
-## [PR #TBD] fix: audit wave 1 — high-severity fixes
+## [PR #190] fix: audit wave 1 — high-severity fixes
 **Branch:** `audit-1108` → `master`
 **Date:** 2026-11-09
 
