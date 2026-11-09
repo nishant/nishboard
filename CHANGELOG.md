@@ -4,6 +4,14 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #191] docs: audit follow-ups in ROADMAP and CLAUDE.md
+**Branch:** docs/audit-1108-followups → master
+**Date:** 2026-11-09
+
+### Changed
+- ROADMAP.md: the 2026-11-08 audit's open medium, low and nit findings, grouped by area (deferred under the overnight usage cut).
+- CLAUDE.md: the Timer/Countdown rows name `TimerEvaluator`, and a new gotcha covers the main window's `backgroundThrottling: false` and the `SYNCED_STORES` cross-window rule.
+
 ## [PR #190] fix: audit wave 1 — high-severity fixes
 **Branch:** `audit-1108` → `master`
 **Date:** 2026-11-09
