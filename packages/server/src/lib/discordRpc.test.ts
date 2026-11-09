@@ -5,8 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DiscordRpcClient,
   RPC_OP,
+  DiscordUnavailableError,
   RpcFrameDecoder,
   encodeRpcFrame,
+  isAuthRejection,
   mapChannelKind,
   mapMessage,
   mapVoiceMember,
@@ -14,6 +16,7 @@ import {
   rpcAvatarUrl,
   rpcDisplayName,
 } from './discordRpc';
+import { HttpError } from './http';
 import type { RpcFrame } from './discordRpc';
 
 // ── Framing ───────────────────────────────────────────────────────────────────
@@ -299,6 +302,20 @@ describe('DiscordRpcClient over a fake pipe', () => {
     await vi.waitFor(() => expect(closed).toBe(1));
     expect(client.isReady).toBe(false);
     await expect(client.connect()).rejects.toThrow(/not running/);
+  });
+
+  it('isAuthRejection: only a Discord ERROR response counts, not timeouts or a closed pipe', async () => {
+    pipe = await startFakePipe((p) => (
+      p.cmd === 'SELECT_TEXT_CHANNEL'
+        ? { cmd: p.cmd, nonce: p.nonce, evt: 'ERROR', data: { code: 4009, message: 'Invalid token' } }
+        : undefined
+    ));
+    const client = new DiscordRpcClient({ paths: [pipe.path] });
+    const rejected = await client.selectTextChannel('1').catch((e: unknown) => e);
+    expect(isAuthRejection(rejected)).toBe(true);
+    expect(isAuthRejection(new HttpError(504, 'Discord RPC AUTHENTICATE timed out'))).toBe(false);
+    expect(isAuthRejection(new DiscordUnavailableError('connection closed'))).toBe(false);
+    expect(isAuthRejection(new Error('boom'))).toBe(false);
   });
 
   it('throws DiscordUnavailableError when no pipe candidate is reachable', async () => {

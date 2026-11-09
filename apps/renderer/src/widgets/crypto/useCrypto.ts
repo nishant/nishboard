@@ -13,6 +13,8 @@ export function useCrypto(enabled = true, interval?: number | false) {
     queryKey: ['crypto', watchlist],
     queryFn: () => apiClient.get<CryptoData>(`/api/crypto?ids=${watchlist.join(',')}`),
     refetchInterval: interval ?? gated,
+    // An explicit interval means the alerts evaluator: keep polling while hidden.
+    refetchIntervalInBackground: interval !== undefined,
     staleTime: 4 * 60 * 1000,
     enabled: enabled && watchlist.length > 0,
   });

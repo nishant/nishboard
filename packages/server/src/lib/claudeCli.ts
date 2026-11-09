@@ -25,6 +25,7 @@ import type {
   ClaudeStatusData,
   ClaudeStreamEvent,
 } from '@dash/shared';
+import { CREDENTIAL_KEYS } from '@dash/shared';
 
 const execFileAsync = promisify(execFile);
 
@@ -171,6 +172,39 @@ export function createLineSplitter(onLine: (line: string) => void): { push(chunk
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
+}
+
+const TOOL_INPUT_MAX = 4000;
+
+/** The full, unabridged tool input for the permission card (command, path, URL, pattern), capped with a marker. */
+export function toolFullInput(name: string, input: unknown): string {
+  const inp = asRecord(input) ?? {};
+  const str = (v: unknown): string => (typeof v === 'string' ? v : '');
+  let full = '';
+  switch (name) {
+    case 'Bash':
+    case 'PowerShell':
+      full = str(inp.command);
+      break;
+    case 'Write':
+    case 'Edit':
+    case 'Read':
+    case 'NotebookEdit':
+      full = str(inp.file_path) || str(inp.notebook_path);
+      break;
+    case 'Glob':
+    case 'Grep':
+      full = str(inp.pattern);
+      break;
+    case 'WebFetch':
+    case 'WebSearch':
+      full = str(inp.url) || str(inp.query);
+      break;
+    default:
+      full = Object.keys(inp).length > 0 ? JSON.stringify(inp, null, 2) : '';
+  }
+  return full.length > TOOL_INPUT_MAX ? `${full.slice(0, TOOL_INPUT_MAX)}
+...truncated` : full;
 }
 
 /**
@@ -429,8 +463,10 @@ export interface SpawnClaudeChatOpts {
 }
 
 /** Read-shaped tools that never prompt in ask mode — approving every Read
- *  would make the mode unusable. Deliberately excludes Bash/Task/Write/Edit. */
-export const ASK_MODE_ALLOWED_TOOLS = 'Read Glob Grep WebFetch WebSearch';
+ *  would make the mode unusable. Deliberately excludes Bash/Task/Write/Edit and
+ *  the network tools (WebFetch/WebSearch): they are an exfiltration channel for
+ *  anything Read can see, so they raise a permission card. */
+export const ASK_MODE_ALLOWED_TOOLS = 'Read Glob Grep';
 
 /** Pure: CLI argv for one chat turn (prompt travels via stdin, never argv).
  *  NOTES: --verbose is MANDATORY with -p + stream-json output (the CLI errors
@@ -540,7 +576,7 @@ export function buildPromptRequest(toolName: string, input: Record<string, unkno
   if (toolName === 'ExitPlanMode' && typeof input.plan === 'string') {
     return { kind: 'plan', plan: input.plan };
   }
-  return { kind: 'tool', toolName, detail: description ?? toolDetail(toolName, input) };
+  return { kind: 'tool', toolName, detail: description ?? toolDetail(toolName, input), input: toolFullInput(toolName, input) };
 }
 
 /** Pure: the stdin line answering a control request. For AskUserQuestion,
@@ -574,6 +610,40 @@ export function buildControlResponseLine(
     type: 'control_response',
     response: { subtype: 'success', request_id: requestId, response: inner },
   }) + '\n';
+}
+
+/** Env vars Nishboard's own main process injects into the server. They must
+ *  never reach the CLI child (and every tool call it runs). */
+const INJECTED_ENV_KEYS = new Set<string>([
+  ...CREDENTIAL_KEYS,
+  'ANTHROPIC_API_KEY', // LOAD-BEARING: would bill API credits instead of Max
+  'NODE_ENV',
+  'ELECTRON_RUN_AS_NODE',
+  'SERVER_PORT',
+  'DASH_API_TOKEN',
+  'DASH_TOKEN_KEY',
+  'BUILTINS_JSON',
+]);
+
+/** Anything that looks like a secret (e.g. SPOTIFY_CLIENT_SECRET from a dev
+ *  .env, or a secret added later) is dropped by default. */
+const SECRET_ENV_PATTERN = /(SECRET|TOKEN|PASSWORD|PASSWD|API_?KEY|PRIVATE_?KEY|CREDENTIAL)/;
+
+/** Pure: the CLI child's env — the server's env minus Nishboard's injected
+ *  credentials/runtime flags, keeping PATH, HOME/USERPROFILE, APPDATA, TEMP,
+ *  SystemRoot, proxy vars, etc. CLAUDE_CODE_OAUTH_TOKEN is the one credential
+ *  kept (the CLI's no-interactive-login fallback). Exported for tests. */
+export function buildChildEnv(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(source)) {
+    if (value === undefined) continue;
+    if (key !== 'CLAUDE_CODE_OAUTH_TOKEN') {
+      const upper = key.toUpperCase();
+      if (INJECTED_ENV_KEYS.has(upper) || SECRET_ENV_PATTERN.test(upper)) continue;
+    }
+    env[key] = value;
+  }
+  return env;
 }
 
 const STDERR_CAP = 16 * 1024;
@@ -661,8 +731,7 @@ export function spawnClaudeChat(opts: SpawnClaudeChatOpts): ClaudeChatHandle {
     // silently bills API credits instead of the claude.ai Max subscription.
     // CLAUDE_CODE_OAUTH_TOKEN (if configured in Settings) passes through via
     // the spread as the no-interactive-login fallback.
-    const env: NodeJS.ProcessEnv = { ...process.env };
-    delete env.ANTHROPIC_API_KEY;
+    const env = buildChildEnv(process.env);
     // Lets the model ask multiple-choice questions (rendered as prompt cards).
     env.CLAUDE_CODE_ENABLE_ASK_USER_QUESTION_TOOL = '1';
 

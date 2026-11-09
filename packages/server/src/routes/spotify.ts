@@ -154,6 +154,21 @@ async function spotifyJson<T>(method: string, endpoint: string, label: string): 
   return (await res.json()) as T;
 }
 
+/** Transport command: PUT/POST that must succeed. Spotify answers 204 on
+ *  success; a 404 (no active device), 403, 401 or 429 is surfaced instead of
+ *  being reported to the renderer as success. */
+async function spotifyCommand(method: string, endpoint: string, label: string): Promise<void> {
+  const res = await spotifyRequest(method, endpoint);
+  if (!res.ok) {
+    const text = (await res.text().catch(() => '')).slice(0, 300);
+    if (res.status === 404) {
+      throw new HttpError(404, 'No Spotify device found — open Spotify on your phone or desktop, then try again.');
+    }
+    throw new UpstreamError(res.status, `${label} ${res.status}: ${text}`);
+  }
+  await res.body?.cancel();
+}
+
 /** Returns the id of the active device, or the first available one, or null.
  *  An "available but inactive" device (Spotify open in the background) can be
  *  woken up by targeting playback at its id. */
@@ -330,38 +345,44 @@ export const spotifyRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send(data);
   });
 
-  // Transport controls — errors propagate to the central handler (502).
+  // Transport controls — a non-2xx from Spotify is thrown by spotifyCommand
+  // (network/token errors throw from spotifyRequest) and reaches the central handler.
   // POST /api/spotify/play
   fastify.post('/play', async (_req, reply) => {
-    await spotifyRequest('PUT', '/me/player/play');
+    const res = await startPlayback({});
+    if (res.status === 404) {
+      throw new HttpError(404, 'No Spotify device found — open Spotify on your phone or desktop, then try again.');
+    }
+    if (!res.ok) throw new UpstreamError(res.status, `Spotify play ${res.status}: ${(await res.text().catch(() => '')).slice(0, 300)}`);
+    await res.body?.cancel();
     nowPlayingCache.clear();
     return reply.code(204).send();
   });
 
   // POST /api/spotify/pause
   fastify.post('/pause', async (_req, reply) => {
-    await spotifyRequest('PUT', '/me/player/pause');
+    await spotifyCommand('PUT', '/me/player/pause', 'Spotify pause');
     nowPlayingCache.clear();
     return reply.code(204).send();
   });
 
   // POST /api/spotify/next
   fastify.post('/next', async (_req, reply) => {
-    await spotifyRequest('POST', '/me/player/next');
+    await spotifyCommand('POST', '/me/player/next', 'Spotify next');
     nowPlayingCache.clear();
     return reply.code(204).send();
   });
 
   // POST /api/spotify/previous
   fastify.post('/previous', async (_req, reply) => {
-    await spotifyRequest('POST', '/me/player/previous');
+    await spotifyCommand('POST', '/me/player/previous', 'Spotify previous');
     nowPlayingCache.clear();
     return reply.code(204).send();
   });
 
   // POST /api/spotify/seek  { positionMs: number }
   fastify.post<{ Body: { positionMs: number } }>('/seek', async (req, reply) => {
-    await spotifyRequest('PUT', `/me/player/seek?position_ms=${Math.round(req.body.positionMs)}`);
+    await spotifyCommand('PUT', `/me/player/seek?position_ms=${Math.round(req.body.positionMs)}`, 'Spotify seek');
     nowPlayingCache.clear();
     return reply.code(204).send();
   });
@@ -369,21 +390,21 @@ export const spotifyRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /api/spotify/volume  { volumePercent: number }
   fastify.post<{ Body: { volumePercent: number } }>('/volume', async (req, reply) => {
     const vol = Math.min(100, Math.max(0, Math.round(req.body.volumePercent)));
-    await spotifyRequest('PUT', `/me/player/volume?volume_percent=${vol}`);
+    await spotifyCommand('PUT', `/me/player/volume?volume_percent=${vol}`, 'Spotify volume');
     nowPlayingCache.clear();
     return reply.code(204).send();
   });
 
   // POST /api/spotify/shuffle  { state: boolean }
   fastify.post<{ Body: { state: boolean } }>('/shuffle', async (req, reply) => {
-    await spotifyRequest('PUT', `/me/player/shuffle?state=${req.body.state}`);
+    await spotifyCommand('PUT', `/me/player/shuffle?state=${req.body.state}`, 'Spotify shuffle');
     nowPlayingCache.clear();
     return reply.code(204).send();
   });
 
   // POST /api/spotify/repeat  { state: 'off' | 'track' | 'context' }
   fastify.post<{ Body: { state: 'off' | 'track' | 'context' } }>('/repeat', async (req, reply) => {
-    await spotifyRequest('PUT', `/me/player/repeat?state=${req.body.state}`);
+    await spotifyCommand('PUT', `/me/player/repeat?state=${req.body.state}`, 'Spotify repeat');
     nowPlayingCache.clear();
     return reply.code(204).send();
   });

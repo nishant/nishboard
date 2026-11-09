@@ -45,7 +45,17 @@ describe('buildRows', () => {
     expect(rows.slice(1).map((r) => r.group)).toEqual(['Layouts', 'Widgets', 'Timers']);
   });
 
-  it('non-empty query: rows are grouped in the fixed group order', () => {
+  it('non-empty query: the best-scoring action is row 0, even from a later group', () => {
+    const rows = buildRows('about', actions, []);
+    expect(rows[0].id).toBe('app:about');
+    const mixed: PaletteAction[] = [
+      { id: 'layout:p', title: 'Apply preset: System', group: 'Layouts', keywords: 'layout grid', run: run('l') },
+      { id: 'spotify:play', title: 'Spotify: Play', group: 'Media', run: run('s') },
+    ];
+    expect(buildRows('play', mixed, [])[0].id).toBe('spotify:play');
+  });
+
+  it('non-empty query: groups stay contiguous', () => {
     const rows = buildRows('widget', actions, []);
     const groups = rows.map((r) => r.group);
     expect(groups).toContain('Layouts');

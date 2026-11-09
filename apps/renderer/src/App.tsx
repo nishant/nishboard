@@ -6,6 +6,7 @@ import { DiscordHost } from './widgets/discord/DiscordHost';
 import { onThemeChange, Toaster } from '@nish/ui';
 import { CommandPalette } from './components/CommandPalette';
 import { AlertsEvaluator } from './components/AlertsEvaluator';
+import { TimerEvaluator } from './components/TimerEvaluator';
 import { WeatherAlertNotifier } from './components/WeatherAlertNotifier';
 import { TwitchLiveNotifier } from './components/TwitchLiveNotifier';
 import { useThemeStore } from './store/themeStore';
@@ -15,7 +16,37 @@ import { usePopoutStore } from './store/popoutStore';
 import { buildCustomVars } from './lib/colorUtils';
 import { applyAppTheme, syncNativeTheme } from './lib/appTheme';
 import { isThemeId } from './themes';
+import { useTasksStore } from './store/tasksStore';
+import { useNotesStore } from './store/notesStore';
+import { useTimersStore } from './store/timersStore';
+import { useCountdownStore } from './store/countdownStore';
+import { useWorldClockStore } from './store/worldClockStore';
+import { useAlertsStore } from './store/alertsStore';
+import { useCryptoStore } from './store/cryptoStore';
+import { useHardwareStore } from './store/hardwareStore';
+import { useNetmonStore } from './store/netmonStore';
+import { useLauncherUiStore } from './store/launcherUiStore';
+import { useInboxUiStore } from './store/inboxUiStore';
 import { initAutoExport } from './lib/autoExport';
+
+/** Persisted stores kept in step across windows, by persist key. Left out on
+ *  purpose: layout/widget-ui (grid re-derives heights on rehydrate) and the
+ *  Claude/Discord UI stores (a popout may hold live stream state). */
+const SYNCED_STORES: Record<string, { persist: { rehydrate: () => Promise<void> | void } } | undefined> = {
+  'dashboard-theme': useThemeStore,
+  'dashboard-app-settings': useAppSettingsStore,
+  'dashboard-tasks': useTasksStore,
+  'dashboard-notes': useNotesStore,
+  'dashboard-timers': useTimersStore,
+  'dashboard-countdown': useCountdownStore,
+  'dashboard-worldclock': useWorldClockStore,
+  'dashboard-alerts': useAlertsStore,
+  'crypto-watchlist': useCryptoStore,
+  'hardware-config': useHardwareStore,
+  'dashboard-netmon': useNetmonStore,
+  'dashboard-launcher-ui': useLauncherUiStore,
+  'dashboard-inbox-ui': useInboxUiStore,
+};
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -118,11 +149,12 @@ export function ThemeManager() {
     [],
   );
 
-  // Popouts are separate windows on the same origin: pick up a theme changed in
-  // another window instead of keeping the one they opened with.
+  // Popouts are separate windows on the same origin: pick up a store changed in
+  // another window instead of keeping the snapshot it opened with (persist
+  // writes the whole snapshot, so a stale window would otherwise clobber it).
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.key === 'dashboard-theme') void useThemeStore.persist.rehydrate();
+      if (e.key) void SYNCED_STORES[e.key]?.persist.rehydrate();
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
@@ -139,6 +171,7 @@ export function App() {
       <PopoutSync />
       <ServerRestartListener />
       <AlertsEvaluator />
+      <TimerEvaluator />
       <WeatherAlertNotifier />
       <TwitchLiveNotifier />
       <div className="app-shell h-screen w-screen bg-th-bg overflow-hidden flex flex-col">

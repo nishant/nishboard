@@ -245,6 +245,16 @@ export class DiscordNotConnectedError extends HttpError {
   }
 }
 
+/** True only when Discord answered an RPC command with an ERROR frame (mapped
+ *  to HttpError 502 in onFrame). Timeouts (504) and a closed pipe
+ *  (DiscordUnavailableError 503) are transient and must not clear the grant.
+ *  Exported for tests. */
+export function isAuthRejection(err: unknown): boolean {
+  return err instanceof HttpError
+    && !(err instanceof DiscordUnavailableError)
+    && err.statusCode === 502;
+}
+
 // ── Token persistence (~/.dash/discord_rpc_tokens.json) ──────────────────────
 
 async function refreshDiscordToken(refreshToken: string): Promise<StoredUserTokens> {
@@ -604,7 +614,8 @@ export class DiscordRpcClient {
     }
     try {
       return await this.finishAuthenticate(accessToken);
-    } catch {
+    } catch (err) {
+      if (!isAuthRejection(err)) throw err; // timeout / pipe closed: keep the grant
       // Token minted for a different client id, or access revoked in Discord's
       // settings — the stored grant is dead. Clear so status flips to Connect.
       this.tokens.clear();

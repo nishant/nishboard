@@ -43,6 +43,8 @@ export function useHardwareQuery(enabled = true, interval?: number | false) {
     queryKey: ['hardware'],
     queryFn: () => apiClient.get<HardwareData>('/api/hardware'),
     refetchInterval: interval ?? gated,
+    // An explicit interval means the alerts evaluator: keep polling while hidden.
+    refetchIntervalInBackground: interval !== undefined,
     staleTime: 900,
     // system_profiler (graphics) can take 3-5s on cold start — retry generously
     retry: 8,

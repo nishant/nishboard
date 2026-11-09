@@ -39,19 +39,33 @@ function DeviceIcon({ type }: { type: string }) {
 }
 
 // Infinite scroll sentinel hook
-function useIntersectionCallback(cb: () => void, deps: unknown[]) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = ref.current;
+// Returns a callback ref: the observer is rebuilt whenever the sentinel node
+// is mounted/replaced, and always calls the latest cb.
+function useIntersectionCallback(cb: () => void, canLoadMore: boolean) {
+  const cbRef = useRef(cb);
+  cbRef.current = cb;
+  const visibleRef = useRef(false);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const ref = useCallback((el: HTMLDivElement | null) => {
+    observerRef.current?.disconnect();
+    observerRef.current = null;
+    visibleRef.current = false;
     if (!el) return;
     const observer = new IntersectionObserver(
-      (entries) => { if (entries[0].isIntersecting) cb(); },
+      (entries) => {
+        visibleRef.current = entries[0].isIntersecting;
+        if (visibleRef.current) cbRef.current();
+      },
       { threshold: 0.1 },
     );
     observer.observe(el);
-    return () => observer.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
+    observerRef.current = observer;
+  }, []);
+  // The observer only fires on a threshold crossing. If the sentinel is still
+  // on screen after a page lands (a tall panel), ask for the next page.
+  useEffect(() => {
+    if (canLoadMore && visibleRef.current) cbRef.current();
+  }, [canLoadMore]);
   return ref;
 }
 
@@ -408,13 +422,13 @@ function PlaylistPanel({
     if (playlists.hasNextPage && !playlists.isFetchingNextPage) {
       void playlists.fetchNextPage();
     }
-  }, [playlists.hasNextPage, playlists.isFetchingNextPage]);
+  }, !!playlists.hasNextPage && !playlists.isFetchingNextPage);
 
   const trackSentinel = useIntersectionCallback(() => {
     if (tracks.hasNextPage && !tracks.isFetchingNextPage) {
       void tracks.fetchNextPage();
     }
-  }, [tracks.hasNextPage, tracks.isFetchingNextPage]);
+  }, !!tracks.hasNextPage && !tracks.isFetchingNextPage);
 
   const allPlaylists = playlists.data?.pages.flatMap((p) => p.items) ?? [];
   const allTracks = tracks.data?.pages.flatMap((p) => p.items) ?? [];

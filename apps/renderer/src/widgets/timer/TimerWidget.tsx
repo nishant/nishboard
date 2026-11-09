@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Play, Pause, RotateCcw, X, Plus, Bell } from 'lucide-react';
 import { useTimersStore } from '../../store/timersStore';
 import { useAppSettingsStore } from '../../store/settingsStore';
-import { fireAlert } from '../../lib/alerts';
 import { fmtDuration, relTimeUntil, hourFormat } from '../../lib/time';
 import { Card, EmptyState, IconButton, TabPanel, Tabs, cn, Input } from '@nish/ui';
 
@@ -47,26 +46,10 @@ export function TimerWidget() {
   const [aLabel, setALabel] = useState('');
   const [aTime, setATime] = useState('');
 
-  // Single interval: fire alerts (side effects out of render) + force display refresh.
+  // Display refresh only: firing lives in the app-level TimerEvaluator.
   const [, setNow] = useState(Date.now());
   useEffect(() => {
-    const id = setInterval(() => {
-      const st = useTimersStore.getState();
-      const now = Date.now();
-      st.timers.forEach((t) => {
-        if (t.running && t.endsAt != null && now >= t.endsAt) {
-          st.finishTimer(t.id);
-          fireAlert('Timer done', t.label || 'Your timer finished');
-        }
-      });
-      st.alarms.forEach((a) => {
-        if (!a.done && now >= a.at) {
-          st.markAlarmDone(a.id);
-          fireAlert('Alarm', a.label || 'Alarm');
-        }
-      });
-      setNow(now);
-    }, 500);
+    const id = setInterval(() => setNow(Date.now()), 500);
     return () => clearInterval(id);
   }, []);
 

@@ -92,8 +92,8 @@ export interface ClaudeQuestionItem {
 
 /** What the CLI is waiting on — discriminates the in-widget prompt card. */
 export type ClaudePromptRequest =
-  /** Permission for one tool call (`detail` = human summary, e.g. filename). */
-  | { kind: 'tool'; toolName: string; detail: string }
+  /** Permission for one tool call (`detail` = human summary, e.g. filename; `input` = the full command/path/URL, capped, may end in a truncation marker). */
+  | { kind: 'tool'; toolName: string; detail: string; input?: string }
   /** AskUserQuestion — render the questions/options as buttons. */
   | { kind: 'question'; questions: ClaudeQuestionItem[] }
   /** ExitPlanMode — `plan` is markdown; Approve / Keep planning. */

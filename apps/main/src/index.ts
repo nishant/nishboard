@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, session, globalShortcut, screen } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, session, globalShortcut, screen } from 'electron';
 import path from 'path';
 import { spawnServer, stopServer } from './server/spawn';
 import { registerIpcHandlers } from './ipc';
@@ -80,6 +80,9 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // Timers, alarms and countdowns are evaluated in this window; Chromium's
+      // background throttling would run them up to a minute late when hidden.
+      backgroundThrottling: false,
       // For the Discord widget's <webview> ONLY — every attach is validated by
       // registerWebviewGuards() (discord.com src, preload/node stripped).
       webviewTag: true,
@@ -189,7 +192,12 @@ if (!gotLock) {
     }
     registerApiTokenIpc(ipcMain);
     await loadCredentials();
-    await Promise.all([spawnServer(), isDev ? Promise.resolve() : migrateFileOriginStorage()]);
+    // A slow or failed server start must not block the UI: widgets handle an
+    // unreachable server and the tray offers "Restart server".
+    const serverReady = spawnServer().catch((err: unknown) => {
+      console.error('[server] failed to start', err);
+    });
+    await Promise.all([serverReady, isDev ? Promise.resolve() : migrateFileOriginStorage()]);
     registerIpcHandlers(ipcMain, { onPrefsChanged: syncGlobalHotkey });
     createWindow();
     startingUp = false;
@@ -197,6 +205,11 @@ if (!gotLock) {
     syncGlobalHotkey();
     watchDisplays(() => BrowserWindow.getAllWindows());
     startAutoUpdates(() => BrowserWindow.getAllWindows());
+  }).catch((err: unknown) => {
+    // Never leave a windowless process holding the single-instance lock.
+    console.error('[startup] failed', err);
+    dialog.showErrorBox('Nishboard failed to start', err instanceof Error ? err.message : String(err));
+    app.quit();
   });
 
   app.on('window-all-closed', () => {
