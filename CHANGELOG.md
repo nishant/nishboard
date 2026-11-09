@@ -4,6 +4,28 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #TBD] fix: audit wave 1 — high-severity fixes
+**Branch:** `audit-1108` → `master`
+**Date:** 2026-11-09
+
+### Fixed
+- **NISHBOARD-001:** a failed or slow server start no longer leaves a windowless process. `spawnServer()` errors are caught and logged, so IPC, the window, tray, hotkey and updates still start, and a final `.catch` on `whenReady()` shows an error box and quits.
+- **NISHBOARD-002:** server restart race. Each child's exit handler ignores events from children that are no longer tracked, `stopServer()` resolves on exit (SIGKILL after 3s) and `restartServer()` awaits it, and the previous log stream is closed before a new one opens. New `spawn.test.ts`.
+- **NISHBOARD-003:** the main window and popouts now rehydrate the theme, settings, tasks, notes, timers, countdown, world clock and alerts stores on cross-window `storage` events.
+- **NISHBOARD-004:** the alert evaluator's queries set `refetchIntervalInBackground`, so alerts keep polling while the window is hidden (stocks, crypto, hardware hooks). Widgets still pause when hidden.
+- **NISHBOARD-005:** the command palette orders groups by best match for a non-empty query, so Enter runs the top-scoring row.
+- **NISHBOARD-006:** the Claude permission card shows the full command, path, URL or pattern (wrapped, scrollable, capped at 4000 characters with a `...truncated` marker) via the new `input` field and `toolFullInput`.
+- **NISHBOARD-007:** Spotify playlist infinite scroll keeps working after navigating back (the observer is rebuilt when the sentinel node changes).
+- **NISHBOARD-008:** timers, alarms and countdowns fire from one app-level `TimerEvaluator` (main window only), so collapsed or unpinned tiles still ring and popouts cannot double-fire. A stale backlog is summarised as one "Missed alerts" alert.
+- **NISHBOARD-009:** Ask mode no longer pre-allows `WebFetch` and `WebSearch`; they raise a permission card (`Read Glob Grep` only).
+- **NISHBOARD-010:** the Claude CLI child env drops credentials and Nishboard-injected variables (`buildChildEnv`), keeping `CLAUDE_CODE_OAUTH_TOKEN`, PATH and system variables.
+- **NISHBOARD-011:** a transient failure during Discord AUTHENTICATE (timeout, closed pipe) no longer clears the stored grant; only a Discord rejection does.
+- **NISHBOARD-012:** Spotify transport routes (`pause`, `next`, `previous`, `seek`, `volume`, `shuffle`, `repeat`) now report upstream failures (404 as "No Spotify device found"), and `/play` wakes an inactive device.
+
+### Notes
+- A timers rehydrate triggered by another window also runs the stale-item sweep (items older than 30s settle silently).
+- Not done: a per-child server log stream, the same env filter for PowerShell/osascript spawns, and disabling Allow on truncated permission input.
+
 ## [PR #188] chore: move to @nish/ui subpath imports and Switch onCheckedChange
 **Branch:** `chore/ui-3-prep` → `master`
 **Date:** 2026-11-07

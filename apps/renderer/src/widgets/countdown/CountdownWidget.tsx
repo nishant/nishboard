@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { X, Plus } from 'lucide-react';
 import { useCountdownStore } from '../../store/countdownStore';
 import { useAppSettingsStore } from '../../store/settingsStore';
-import { fireAlert } from '../../lib/alerts';
 import { fmtRemaining, hourFormat } from '../../lib/time';
 import { Card, EmptyState, IconButton, cn, Input } from '@nish/ui';
 
@@ -20,17 +19,8 @@ export function CountdownWidget() {
   const [, setNow] = useState(Date.now());
 
   useEffect(() => {
-    const id = setInterval(() => {
-      const st = useCountdownStore.getState();
-      const now = Date.now();
-      st.events.forEach((e) => {
-        if (!e.notified && now >= e.at) {
-          st.markNotified(e.id);
-          fireAlert('Countdown', e.label || 'Event reached');
-        }
-      });
-      setNow(now);
-    }, 1000);
+    // Display refresh only: firing lives in the app-level TimerEvaluator.
+    const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
 

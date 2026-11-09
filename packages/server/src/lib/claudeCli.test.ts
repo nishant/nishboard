@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   ASK_MODE_ALLOWED_TOOLS,
+  buildChildEnv,
   buildChatArgs,
   buildControlResponseLine,
   buildPromptRequest,
+  toolFullInput,
   buildUserMessageLine,
   classifyCliError,
   extractControlCancel,
@@ -346,11 +348,20 @@ describe('control protocol pure functions (wire shapes captured from CLI 2.1.207
 
   it('buildPromptRequest: tool card prefers the CLI description, falls back to toolDetail', () => {
     expect(buildPromptRequest('Write', { file_path: '/a/b/c.txt' }, 'c.txt')).toEqual({
-      kind: 'tool', toolName: 'Write', detail: 'c.txt',
+      kind: 'tool', toolName: 'Write', detail: 'c.txt', input: '/a/b/c.txt',
     });
     expect(buildPromptRequest('Bash', { command: 'npm test' }, null)).toEqual({
-      kind: 'tool', toolName: 'Bash', detail: 'npm test',
+      kind: 'tool', toolName: 'Bash', detail: 'npm test', input: 'npm test',
     });
+  });
+
+  it('toolFullInput: keeps the whole command and caps very long input', () => {
+    const long = 'x'.repeat(5000);
+    const out = toolFullInput('Bash', { command: long });
+    expect(out.startsWith('xxx')).toBe(true);
+    expect(out).toContain('...truncated');
+    expect(out.length).toBeLessThan(4200);
+    expect(toolFullInput('Bash', { command: 'a\nb' })).toBe('a\nb');
   });
 
   it('buildPromptRequest: AskUserQuestion → question card; malformed questions degrade to tool card', () => {
@@ -371,6 +382,7 @@ describe('control protocol pure functions (wire shapes captured from CLI 2.1.207
     });
     expect(buildPromptRequest('AskUserQuestion', { questions: [42] }, null)).toEqual({
       kind: 'tool', toolName: 'AskUserQuestion', detail: '',
+      input: JSON.stringify({ questions: [42] }, null, 2),
     });
   });
 
@@ -442,5 +454,38 @@ describe('extractInitMeta', () => {
   it('missing skills/commands arrays degrade to empty/false, not throw', () => {
     const meta = extractInitMeta({ type: 'system', subtype: 'init', model: 7, slash_commands: ['a', 42] });
     expect(meta).toEqual({ model: null, slashCommands: [{ name: 'a', isSkill: false }] });
+  });
+});
+
+describe('ASK_MODE_ALLOWED_TOOLS', () => {
+  it('pre-allows reads only, never network tools', () => {
+    expect(ASK_MODE_ALLOWED_TOOLS.split(' ')).toEqual(['Read', 'Glob', 'Grep']);
+  });
+});
+
+describe('buildChildEnv', () => {
+  it('drops injected credentials and runtime flags, keeps what the CLI needs', () => {
+    const env = buildChildEnv({
+      PATH: '/bin',
+      USERPROFILE: '/home/x',
+      APPDATA: '/home/x/AppData',
+      HTTPS_PROXY: 'http://proxy',
+      CLAUDE_CODE_OAUTH_TOKEN: 'tok',
+      ANTHROPIC_API_KEY: 'sk',
+      NODE_ENV: 'production',
+      ELECTRON_RUN_AS_NODE: '1',
+      SERVER_PORT: '7432',
+      DASH_API_TOKEN: 'a',
+      INBOX_PASSWORD: 'pw',
+      ALPACA_API_SECRET: 's',
+      GITHUB_TOKEN: 'g',
+    });
+    expect(env).toEqual({
+      PATH: '/bin',
+      USERPROFILE: '/home/x',
+      APPDATA: '/home/x/AppData',
+      HTTPS_PROXY: 'http://proxy',
+      CLAUDE_CODE_OAUTH_TOKEN: 'tok',
+    });
   });
 });

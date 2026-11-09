@@ -213,15 +213,21 @@ export function buildRows(query: string, actions: PaletteAction[], recents: stri
       ...rest.map((a) => toItem(a, a.group)),
     ].slice(0, LIST_MAX);
   } else {
-    flat = actions
+    const scored = actions
       .map((a) => ({ a, score: fuzzyScore(q, `${a.title} ${a.keywords ?? ''}`) }))
       .filter((x) => x.score >= 0)
       .sort((x, y) => y.score - x.score)
-      .map((x) => x.a)
-      .slice(0, LIST_MAX)
-      // Stable: rows keep their score order inside each group, groups follow GROUP_ORDER.
-      .sort((x, y) => groupRank(x.group) - groupRank(y.group))
-      .map((a) => toItem(a, a.group));
+      .slice(0, LIST_MAX);
+    // Groups ordered by their best score so row 0 (Enter) is the best match;
+    // rows keep their score order inside each group (stable sort).
+    const best = new Map<string, number>();
+    for (const x of scored) best.set(x.a.group, Math.max(best.get(x.a.group) ?? -Infinity, x.score));
+    flat = scored
+      .sort(
+        (x, y) =>
+          (best.get(y.a.group) ?? 0) - (best.get(x.a.group) ?? 0) || groupRank(x.a.group) - groupRank(y.a.group),
+      )
+      .map((x) => toItem(x.a, x.a.group));
   }
   rows.push(...flat);
   return rows;

@@ -508,10 +508,15 @@ function PromptCard({ part, live }: { part: ClaudePromptPart; live: boolean }) {
       <p className="flex items-center gap-1.5 text-2xs text-th-hi min-w-0">
         <ShieldQuestion size={12} className="shrink-0 text-th-accent" />
         <span className="font-medium shrink-0">{part.request.toolName}</span>
-        {part.request.detail && (
-          <span className="truncate font-mono text-th-hi3">· {part.request.detail}</span>
+        {part.request.detail && part.request.detail !== part.request.input && (
+          <span className="min-w-0 break-words text-th-hi3">· {part.request.detail}</span>
         )}
       </p>
+      {(part.request.input ?? part.request.detail) && (
+        <pre className="mt-1 max-h-40 overflow-y-auto whitespace-pre-wrap break-all rounded bg-th-surface/50 p-1.5 font-mono text-2xs text-th-hi2">
+          {part.request.input ?? part.request.detail}
+        </pre>
+      )}
       <div className="mt-1.5 flex gap-1.5">
         <CardButton primary disabled={busy} onClick={() => respond({ behavior: 'allow' })}>Allow</CardButton>
         <CardButton disabled={busy} onClick={() => respond({ behavior: 'deny' })}>Deny</CardButton>

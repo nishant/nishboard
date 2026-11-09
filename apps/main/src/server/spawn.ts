@@ -58,6 +58,9 @@ function closeLogStream(): void {
 }
 
 let serverProcess: ChildProcess | null = null;
+// Children we killed on purpose; their late 'exit' event must not look like a crash.
+const stoppedChildren = new WeakSet<ChildProcess>();
+const KILL_GRACE_MS = 3000;
 // Distinguishes our own kill (quit, credential-save restart) from a crash, so the
 // exit handler only auto-respawns on the latter.
 let intentionalStop = false;
@@ -112,7 +115,7 @@ function startChild(tokenKey: string | null): void {
   // process.execPath in Electron is the Electron binary, not Node.js.
   // Setting ELECTRON_RUN_AS_NODE=1 makes the Electron binary behave as a
   // plain Node.js runner — the correct way to spawn Node scripts from Electron.
-  serverProcess = spawn(process.execPath, [serverEntry], {
+  const child = spawn(process.execPath, [serverEntry], {
     env: {
       ...process.env,
       ELECTRON_RUN_AS_NODE: '1',
@@ -125,19 +128,23 @@ function startChild(tokenKey: string | null): void {
     },
     stdio: 'pipe',
   });
+  serverProcess = child;
+  closeLogStream(); // never leak the previous child's stream
   openLogStream();
   teeToLog(`\n--- server spawned ${new Date().toISOString()} ---\n`);
-  serverProcess.stdout?.pipe(process.stdout);
-  serverProcess.stderr?.pipe(process.stderr);
-  serverProcess.stdout?.on('data', teeToLog);
-  serverProcess.stderr?.on('data', teeToLog);
-  serverProcess.on('error', (err) => console.error('[server] spawn error:', err));
+  child.stdout?.pipe(process.stdout);
+  child.stderr?.pipe(process.stderr);
+  child.stdout?.on('data', teeToLog);
+  child.stderr?.on('data', teeToLog);
+  child.on('error', (err) => console.error('[server] spawn error:', err));
 
   const startedAt = Date.now();
-  serverProcess.on('exit', (code, signal) => {
+  child.on('exit', (code, signal) => {
+    // A stale child (killed by a restart) must not clobber the new child's state.
+    if (serverProcess !== child) return;
     serverProcess = null;
     closeLogStream();
-    if (intentionalStop) return;
+    if (intentionalStop || stoppedChildren.has(child)) return;
     // A crash after a healthy stretch is a fresh incident, not a crash loop.
     if (Date.now() - startedAt > HEALTHY_RESET_MS) restartAttempts = 0;
     if (restartAttempts >= MAX_RESTART_ATTEMPTS) {
@@ -172,20 +179,33 @@ export async function spawnServer(): Promise<void> {
   console.log(`[server] ready on :${port}`);
 }
 
-export function stopServer(): void {
+/** Kill the server child. The promise resolves once it has exited (SIGKILL after
+ *  a short grace), so a restart never overlaps the old child still holding the port. */
+export function stopServer(): Promise<void> {
   intentionalStop = true;
   if (restartTimer) {
     clearTimeout(restartTimer);
     restartTimer = null;
   }
-  serverProcess?.kill();
+  const child = serverProcess;
   serverProcess = null;
+  if (!child) return Promise.resolve();
+  stoppedChildren.add(child);
+  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    const force = setTimeout(() => child.kill('SIGKILL'), KILL_GRACE_MS);
+    child.once('exit', () => {
+      clearTimeout(force);
+      resolve();
+    });
+    child.kill();
+  });
 }
 
 /** Save new credentials and restart the server child process with updated env vars.
  *  No-op in dev (server is managed externally by concurrently). */
 export async function restartServer(): Promise<void> {
   if (isDev) return;
-  stopServer();
+  await stopServer();
   await spawnServer();
 }

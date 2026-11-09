@@ -39,20 +39,23 @@ function DeviceIcon({ type }: { type: string }) {
 }
 
 // Infinite scroll sentinel hook
-function useIntersectionCallback(cb: () => void, deps: unknown[]) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = ref.current;
+// Returns a callback ref: the observer is rebuilt whenever the sentinel node
+// is mounted/replaced, and always calls the latest cb.
+function useIntersectionCallback(cb: () => void) {
+  const cbRef = useRef(cb);
+  cbRef.current = cb;
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  return useCallback((el: HTMLDivElement | null) => {
+    observerRef.current?.disconnect();
+    observerRef.current = null;
     if (!el) return;
     const observer = new IntersectionObserver(
-      (entries) => { if (entries[0].isIntersecting) cb(); },
+      (entries) => { if (entries[0].isIntersecting) cbRef.current(); },
       { threshold: 0.1 },
     );
     observer.observe(el);
-    return () => observer.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
-  return ref;
+    observerRef.current = observer;
+  }, []);
 }
 
 // ── Scrolling text marquee ────────────────────────────────────────────────────
@@ -408,13 +411,13 @@ function PlaylistPanel({
     if (playlists.hasNextPage && !playlists.isFetchingNextPage) {
       void playlists.fetchNextPage();
     }
-  }, [playlists.hasNextPage, playlists.isFetchingNextPage]);
+  });
 
   const trackSentinel = useIntersectionCallback(() => {
     if (tracks.hasNextPage && !tracks.isFetchingNextPage) {
       void tracks.fetchNextPage();
     }
-  }, [tracks.hasNextPage, tracks.isFetchingNextPage]);
+  });
 
   const allPlaylists = playlists.data?.pages.flatMap((p) => p.items) ?? [];
   const allTracks = tracks.data?.pages.flatMap((p) => p.items) ?? [];

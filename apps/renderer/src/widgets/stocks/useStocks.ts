@@ -27,6 +27,8 @@ export function useTradingWatchlist(enabled = true, interval?: number | false) {
     queryKey: ['stocks', 'watchlist'],
     queryFn: () => apiClient.get<TradingWatchlistData>('/api/stocks/watchlist'),
     refetchInterval: interval ?? gated,
+    // An explicit interval means the alerts evaluator: keep polling while hidden.
+    refetchIntervalInBackground: interval !== undefined,
     staleTime: 60_000,
     enabled,
   });
@@ -49,6 +51,8 @@ export function useStocks(enabled = true, interval?: number | false) {
     queryKey: ['stocks', watchlist],
     queryFn: () => apiClient.get<StocksData>(`/api/stocks?symbols=${watchlist.join(',')}`),
     refetchInterval: interval ?? gated,
+    // An explicit interval means the alerts evaluator: keep polling while hidden.
+    refetchIntervalInBackground: interval !== undefined,
     staleTime: 4 * 60 * 1000,
     enabled: enabled && watchlist.length > 0,
   });
