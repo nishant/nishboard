@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { StockQuote, StocksData, TradingWatchlistData } from '@dash/shared';
+import type { MarketCalendarData, StockQuote, StocksData, TradingWatchlistData } from '@dash/shared';
 import { StocksWidget } from './StocksWidget';
 import { useOverlayStore } from '../../store/overlayStore';
 
@@ -16,11 +16,12 @@ function quote(ticker: string): StockQuote {
   };
 }
 
-function renderWidget(watchlist: TradingWatchlistData, stocks?: StocksData) {
+function renderWidget(watchlist: TradingWatchlistData, stocks?: StocksData, calendar?: MarketCalendarData) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false, staleTime: Infinity } },
   });
   queryClient.setQueryData(['stocks', 'watchlist'], watchlist);
+  if (calendar) queryClient.setQueryData(['stocks-calendar'], calendar);
   if (stocks && watchlist.connected) {
     queryClient.setQueryData(['stocks', watchlist.items.map((i) => i.ticker)], stocks);
   }
@@ -75,5 +76,24 @@ describe('StocksWidget trading watchlist', () => {
     expect(screen.getByTitle(/top pick score 74\.9/i)).toBeTruthy();
     expect(screen.getAllByTitle(/top pick score/i)).toHaveLength(1);
     expect(screen.getAllByLabelText('Open position')).toHaveLength(1);
+  });
+});
+
+describe('StocksWidget market badge', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('says Market Closed with the loss tone on a holiday weekday at 11:00 ET', () => {
+    // Tuesday 11:00 EST: the clock heuristic says open, the calendar says closed.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-10T16:00:00Z'));
+    const { container } = renderWidget(
+      { connected: true, scannedAt: null, updatedAt: '2026-11-10T16:00:00Z', items: [] },
+      undefined,
+      { isOpen: false, nextOpen: '2026-11-11T14:30:00Z', nextClose: null, source: 'alpaca' },
+    );
+    const badge = screen.getByText(/Market Closed/);
+    expect(badge.textContent).toMatch(/opens in/);
+    expect(screen.queryByText(/Market Open/)).toBeNull();
+    expect(container.querySelector('[class*="th-ok"]')).toBeNull();
   });
 });

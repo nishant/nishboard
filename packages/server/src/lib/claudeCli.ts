@@ -101,25 +101,86 @@ export async function locateClaude(): Promise<string | null> {
 }
 
 /**
- * Spawn-shape helper. Node ≥18.17 throws EINVAL when spawning a `.cmd`
- * without a shell — for a `.cmd` we spawn cmd.exe with ['/c', fullPath,
- * ...args]. Injection-safe by construction: no user data ever lands in argv
- * (the prompt travels via stdin), so cmd.exe only ever sees our literals.
+ * Quote one argument for cmd.exe: wrap it in double quotes per the MS C
+ * runtime rules, then caret-escape every cmd metacharacter (including the
+ * quotes themselves) so cmd.exe never sees `& | < > % ^ !` unescaped. The
+ * caret form is what cross-spawn uses; it also survives cmd's `/s` quote
+ * stripping. Exported for tests.
  */
-function spawnCli(fullPath: string, cliArgs: string[], opts: { cwd: string; env: NodeJS.ProcessEnv }): ChildProcess {
+export function quoteCmdArg(arg: string): string {
+  const quoted = '"' + arg.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, '$1$1') + '"';
+  return quoted.replace(/([()\][%!^"`<>&|;, *?])/g, '^$1');
+}
+
+/** Exported for tests: the single command line passed to `cmd.exe /d /s /c`. */
+export function buildCmdLine(fullPath: string, args: string[]): string {
+  return '"' + [fullPath, ...args].map(quoteCmdArg).join(' ') + '"';
+}
+
+/** Windows-only: the real JS entry that an npm `claude.cmd` shim runs, or null. */
+async function resolveNpmShimEntry(fullPath: string): Promise<string | null> {
+  const cliJs = path.join(path.dirname(fullPath), 'node_modules', '@anthropic-ai', 'claude-code', 'cli.js');
+  try {
+    await access(cliJs, fsConstants.R_OK);
+    return cliJs;
+  } catch {
+    return null;
+  }
+}
+
+interface SpawnShape {
+  command: string;
+  args: string[];
+  env?: NodeJS.ProcessEnv;
+  verbatim: boolean;
+}
+
+/**
+ * Spawn-shape helper. Node >=18.17 throws EINVAL when spawning a `.cmd`
+ * without a shell. Preferred: skip cmd.exe and run the shim's own cli.js with
+ * process.execPath (under Electron's bundled Node that needs
+ * ELECTRON_RUN_AS_NODE; harmless under plain node). Fallback: cmd.exe with
+ * every argument quoted and caret-escaped (buildCmdLine) — settings paths such
+ * as `R&D` or `50%` reach argv (--add-dir, workspace, --resume id), so they
+ * must never be passed raw.
+ */
+async function resolveSpawnShape(fullPath: string, cliArgs: string[], env?: NodeJS.ProcessEnv): Promise<SpawnShape> {
   if (process.platform === 'win32' && fullPath.toLowerCase().endsWith('.cmd')) {
     // Windows-only (.cmd shim from an npm install)
-    return spawn('cmd.exe', ['/c', fullPath, ...cliArgs], { ...opts, windowsHide: true });
+    const cliJs = await resolveNpmShimEntry(fullPath);
+    if (cliJs) {
+      return {
+        command: process.execPath,
+        args: [cliJs, ...cliArgs],
+        env: { ...env, ELECTRON_RUN_AS_NODE: '1' },
+        verbatim: false,
+      };
+    }
+    return { command: 'cmd.exe', args: ['/d', '/s', '/c', buildCmdLine(fullPath, cliArgs)], env, verbatim: true };
   }
   // .exe or macOS binary — spawn directly.
-  return spawn(fullPath, cliArgs, { ...opts, windowsHide: true });
+  return { command: fullPath, args: cliArgs, env, verbatim: false };
+}
+
+async function spawnCli(fullPath: string, cliArgs: string[], opts: { cwd: string; env: NodeJS.ProcessEnv }): Promise<ChildProcess> {
+  const shape = await resolveSpawnShape(fullPath, cliArgs, opts.env);
+  return spawn(shape.command, shape.args, {
+    cwd: opts.cwd,
+    env: shape.env,
+    windowsHide: true,
+    windowsVerbatimArguments: shape.verbatim || undefined,
+  });
 }
 
 async function probeVersion(fullPath: string): Promise<string> {
-  const isCmd = process.platform === 'win32' && fullPath.toLowerCase().endsWith('.cmd');
-  const { stdout } = isCmd
-    ? await execFileAsync('cmd.exe', ['/c', fullPath, '--version'], { encoding: 'utf8', timeout: 15_000, windowsHide: true })
-    : await execFileAsync(fullPath, ['--version'], { encoding: 'utf8', timeout: 15_000, windowsHide: true });
+  const shape = await resolveSpawnShape(fullPath, ['--version']);
+  const { stdout } = await execFileAsync(shape.command, shape.args, {
+    encoding: 'utf8',
+    timeout: 15_000,
+    windowsHide: true,
+    env: shape.env ? { ...process.env, ...shape.env } : undefined,
+    windowsVerbatimArguments: shape.verbatim || undefined,
+  });
   return stdout.trim();
 }
 
@@ -707,139 +768,146 @@ export function spawnClaudeChat(opts: SpawnClaudeChatOpts): ClaudeChatHandle {
   };
 
   void (async () => {
-    const cliPath = await locateClaude();
-    if (!cliPath) {
-      emit({ type: 'error', message: 'Claude Code CLI not found — install it from claude.com/claude-code.' });
-      exitOnce();
-      return;
-    }
-
-    // Default cwd = ~/.dash so the CLI's per-project session history lands in
-    // the same stable home-dir spot the dashboard already uses; the user can
-    // point it elsewhere via Settings → Claude → Workspace.
-    const cwd = opts.workspaceDir ?? path.join(os.homedir(), '.dash');
-    await mkdir(cwd, { recursive: true }).catch(() => {});
-
-    if (killed) {
-      exitOnce();
-      return;
-    }
-
-    const args = buildChatArgs(opts);
-
-    // LOAD-BEARING: delete ANTHROPIC_API_KEY. If it leaks through, the CLI
-    // silently bills API credits instead of the claude.ai Max subscription.
-    // CLAUDE_CODE_OAUTH_TOKEN (if configured in Settings) passes through via
-    // the spread as the no-interactive-login fallback.
-    const env = buildChildEnv(process.env);
-    // Lets the model ask multiple-choice questions (rendered as prompt cards).
-    env.CLAUDE_CODE_ENABLE_ASK_USER_QUESTION_TOOL = '1';
-
-    child = spawnCli(cliPath, args, { cwd, env });
-
-    const writeLine = (line: string): void => {
-      // EPIPE after child death is swallowed by the stdin 'error' handler.
-      child?.stdin?.write(line);
-    };
-
-    let stderr = '';
-    const splitter = createLineSplitter((line) => {
-      const trimmed = line.trim();
-      if (trimmed.startsWith('{')) {
-        let raw: unknown = null;
-        try {
-          raw = JSON.parse(trimmed);
-        } catch { /* not JSON — parseStreamJsonLine skips it too */ }
-        // Init frames carry the slash-command/skill list — snapshot it for
-        // /api/claude/meta (autocomplete) before the client-event mapping,
-        // which deliberately drops those fields.
-        captureInitMeta(raw);
-        // Control channel: permission checks / question prompts / plan approval.
-        const control = extractControlRequest(raw);
-        if (control) {
-          const timer = setTimeout(() => {
-            if (!pending.delete(control.requestId)) return;
-            writeLine(buildControlResponseLine(control.requestId, control, {
-              behavior: 'deny',
-              message: 'Timed out waiting for approval in the dashboard.',
-            }));
-            emit({ type: 'permission-resolved', requestId: control.requestId, behavior: 'deny', reason: 'timeout' });
-          }, PROMPT_TIMEOUT_MS);
-          pending.set(control.requestId, { toolName: control.toolName, input: control.input, timer });
-          emit({
-            type: 'permission-request',
-            requestId: control.requestId,
-            request: buildPromptRequest(control.toolName, control.input, control.description),
-          });
-          return;
-        }
-        const cancelled = extractControlCancel(raw);
-        if (cancelled) {
-          const entry = pending.get(cancelled);
-          if (entry) {
-            clearTimeout(entry.timer);
-            pending.delete(cancelled);
-            emit({ type: 'permission-resolved', requestId: cancelled, behavior: 'deny', reason: 'cancelled' });
-          }
-          return;
-        }
+    try {
+      const cliPath = await locateClaude();
+      if (!cliPath) {
+        emit({ type: 'error', message: 'Claude Code CLI not found — install it from claude.com/claude-code.' });
+        exitOnce();
+        return;
       }
-      for (const event of parseStreamJsonLine(line)) {
-        if (event.type === 'done') {
-          sawDone = true;
-          // stdin is the control channel, held open all turn — closing it after
-          // the result frame is what lets the CLI exit (verified on 2.1.207).
-          child?.stdin?.end();
-          graceTimer = setTimeout(killChild, EXIT_GRACE_MS);
-          // With stream-json INPUT, `--resume <unknown id>` doesn't emit an
-          // error frame — it prints "No conversation found…" on stderr and
-          // ends with an is_error result. Convert that to an error event so
-          // the route's retry-without-resume kicks in (wiped ~/.claude
-          // history, different machine, bogus persisted id).
-          if (event.isError && isSessionNotFoundError(stderr)) {
-            emit({ type: 'error', message: classifyCliError(stderr) });
-            continue;
+
+      // Default cwd = ~/.dash so the CLI's per-project session history lands in
+      // the same stable home-dir spot the dashboard already uses; the user can
+      // point it elsewhere via Settings → Claude → Workspace.
+      const cwd = opts.workspaceDir ?? path.join(os.homedir(), '.dash');
+      await mkdir(cwd, { recursive: true }).catch(() => {});
+
+      if (killed) {
+        exitOnce();
+        return;
+      }
+
+      const args = buildChatArgs(opts);
+
+      // LOAD-BEARING: delete ANTHROPIC_API_KEY. If it leaks through, the CLI
+      // silently bills API credits instead of the claude.ai Max subscription.
+      // CLAUDE_CODE_OAUTH_TOKEN (if configured in Settings) passes through via
+      // the spread as the no-interactive-login fallback.
+      const env = buildChildEnv(process.env);
+      // Lets the model ask multiple-choice questions (rendered as prompt cards).
+      env.CLAUDE_CODE_ENABLE_ASK_USER_QUESTION_TOOL = '1';
+
+      child = await spawnCli(cliPath, args, { cwd, env });
+
+      const writeLine = (line: string): void => {
+        // EPIPE after child death is swallowed by the stdin 'error' handler.
+        child?.stdin?.write(line);
+      };
+
+      let stderr = '';
+      const splitter = createLineSplitter((line) => {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('{')) {
+          let raw: unknown = null;
+          try {
+            raw = JSON.parse(trimmed);
+          } catch { /* not JSON — parseStreamJsonLine skips it too */ }
+          // Init frames carry the slash-command/skill list — snapshot it for
+          // /api/claude/meta (autocomplete) before the client-event mapping,
+          // which deliberately drops those fields.
+          captureInitMeta(raw);
+          // Control channel: permission checks / question prompts / plan approval.
+          const control = extractControlRequest(raw);
+          if (control) {
+            const timer = setTimeout(() => {
+              if (!pending.delete(control.requestId)) return;
+              writeLine(buildControlResponseLine(control.requestId, control, {
+                behavior: 'deny',
+                message: 'Timed out waiting for approval in the dashboard.',
+              }));
+              emit({ type: 'permission-resolved', requestId: control.requestId, behavior: 'deny', reason: 'timeout' });
+            }, PROMPT_TIMEOUT_MS);
+            pending.set(control.requestId, { toolName: control.toolName, input: control.input, timer });
+            emit({
+              type: 'permission-request',
+              requestId: control.requestId,
+              request: buildPromptRequest(control.toolName, control.input, control.description),
+            });
+            return;
+          }
+          const cancelled = extractControlCancel(raw);
+          if (cancelled) {
+            const entry = pending.get(cancelled);
+            if (entry) {
+              clearTimeout(entry.timer);
+              pending.delete(cancelled);
+              emit({ type: 'permission-resolved', requestId: cancelled, behavior: 'deny', reason: 'cancelled' });
+            }
+            return;
           }
         }
-        emit(event);
-      }
-    });
+        for (const event of parseStreamJsonLine(line)) {
+          if (event.type === 'done') {
+            sawDone = true;
+            // stdin is the control channel, held open all turn — closing it after
+            // the result frame is what lets the CLI exit (verified on 2.1.207).
+            child?.stdin?.end();
+            graceTimer = setTimeout(killChild, EXIT_GRACE_MS);
+            // With stream-json INPUT, `--resume <unknown id>` doesn't emit an
+            // error frame — it prints "No conversation found…" on stderr and
+            // ends with an is_error result. Convert that to an error event so
+            // the route's retry-without-resume kicks in (wiped ~/.claude
+            // history, different machine, bogus persisted id).
+            if (event.isError && isSessionNotFoundError(stderr)) {
+              emit({ type: 'error', message: classifyCliError(stderr) });
+              continue;
+            }
+          }
+          emit(event);
+        }
+      });
 
-    child.on('error', (err: NodeJS.ErrnoException) => {
-      // Spawn failure (ENOENT after uninstall, EPERM, …) — drop the discovery
-      // cache so the next request re-probes a fresh install location.
-      resetCliCache();
-      emit({ type: 'error', message: `Failed to start Claude CLI: ${err.code ?? err.message}` });
+      child.on('error', (err: NodeJS.ErrnoException) => {
+        // Spawn failure (ENOENT after uninstall, EPERM, …) — drop the discovery
+        // cache so the next request re-probes a fresh install location.
+        resetCliCache();
+        emit({ type: 'error', message: `Failed to start Claude CLI: ${err.code ?? err.message}` });
+        exitOnce();
+      });
+
+      child.stdout?.setEncoding('utf8');
+      child.stdout?.on('data', (chunk: string) => splitter.push(chunk));
+      child.stderr?.setEncoding('utf8');
+      child.stderr?.on('data', (chunk: string) => {
+        if (stderr.length < STDERR_CAP) stderr += chunk;
+      });
+
+      child.on('close', (code) => {
+        splitter.flush();
+        clearPending();
+        if (graceTimer) clearTimeout(graceTimer);
+        if (!sawDone && !killed) {
+          // Non-zero exit (or clean exit with no result) and no result frame —
+          // surface stderr as the error.
+          const message = code === 0
+            ? 'Claude CLI exited without producing a result'
+            : classifyCliError(stderr);
+          emit({ type: 'error', message });
+        }
+        exitOnce();
+      });
+
+      // The message goes via stdin (never argv) as a stream-json line. stdin
+      // stays OPEN — it doubles as the control channel for prompt responses;
+      // the done-frame handler above closes it once the turn finishes.
+      child.stdin?.on('error', () => {}); // EPIPE if the child dies instantly
+      child.stdin?.write(buildUserMessageLine(opts.message));
+    } catch (err) {
+      // spawn() validates synchronously (e.g. a NUL byte in cwd or an arg) —
+      // surface it as an error frame instead of an unhandled rejection.
+      emit({ type: 'error', message: `Failed to start Claude CLI: ${(err as NodeJS.ErrnoException).code ?? 'unknown error'}` });
       exitOnce();
-    });
-
-    child.stdout?.setEncoding('utf8');
-    child.stdout?.on('data', (chunk: string) => splitter.push(chunk));
-    child.stderr?.setEncoding('utf8');
-    child.stderr?.on('data', (chunk: string) => {
-      if (stderr.length < STDERR_CAP) stderr += chunk;
-    });
-
-    child.on('close', (code) => {
-      splitter.flush();
-      clearPending();
-      if (graceTimer) clearTimeout(graceTimer);
-      if (!sawDone && !killed) {
-        // Non-zero exit (or clean exit with no result) and no result frame —
-        // surface stderr as the error.
-        const message = code === 0
-          ? 'Claude CLI exited without producing a result'
-          : classifyCliError(stderr);
-        emit({ type: 'error', message });
-      }
-      exitOnce();
-    });
-
-    // The message goes via stdin (never argv) as a stream-json line. stdin
-    // stays OPEN — it doubles as the control channel for prompt responses;
-    // the done-frame handler above closes it once the turn finishes.
-    child.stdin?.on('error', () => {}); // EPIPE if the child dies instantly
-    child.stdin?.write(buildUserMessageLine(opts.message));
+    }
   })();
 
   return {

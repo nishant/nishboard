@@ -26,14 +26,17 @@ jobs:
           node-version: 24
           cache: pnpm
 
+      - run: node scripts/check-electron-version.mjs
+
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm typecheck
 
       - run: pnpm lint
 
-      - run: pnpm test
-
-      # Full build (shared → server bundle → renderer → main). No .env in CI, so
-      # the server bundle simply bakes no _BUILTIN keys — that's fine for a check.
+      # Full build (shared → server bundle → renderer → main) BEFORE the tests:
+      # buildChunks.test.ts inspects the renderer's dist/index.html. No .env in
+      # CI, so the server bundle bakes no _BUILTIN keys — fine for a check.
       - run: pnpm build
+
+      - run: pnpm test

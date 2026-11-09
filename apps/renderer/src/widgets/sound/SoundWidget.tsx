@@ -34,6 +34,7 @@ function VolumeSlider({
       type="range"
       min={0}
       max={100}
+      aria-label="Master volume"
       disabled={disabled}
       {...sliderProps}
       className="w-full h-1 rounded-full appearance-none cursor-pointer
@@ -89,6 +90,7 @@ function SessionRow({ session, onCommit }: { session: AudioSession; onCommit: (p
         type="range"
         min={0}
         max={100}
+        aria-label={`${session.name} volume`}
         {...sliderProps}
         className="flex-1 h-1 rounded-full appearance-none cursor-pointer bg-th-overlay accent-th-accent"
       />

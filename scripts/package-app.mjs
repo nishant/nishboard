@@ -7,8 +7,9 @@
 // reports 0.1.0 in Settings → About, which breaks the update check's
 // "newer version available" comparison.
 //
-// CI does NOT use this — release.yml checks out the fresh tag and calls
-// `bump-version.mjs set` directly.
+// release.yml's build job runs this too (via `pnpm package`) and passes the
+// release version in NISHBOARD_VERSION, so a re-run of an older release never
+// picks up a newer tag. Without it, the latest v* tag is used.
 import { execFileSync, spawnSync } from 'child_process';
 import fs from 'fs';
 
@@ -38,7 +39,7 @@ function latestTagVersion() {
   }
 }
 
-const version = latestTagVersion();
+const version = process.env.NISHBOARD_VERSION || latestTagVersion();
 if (!version) {
   console.warn('[package] no v* tag found — building with placeholder versions');
 }
@@ -47,7 +48,7 @@ if (!version) {
 const snapshots = new Map(FILES.map((f) => [f, fs.readFileSync(f, 'utf8')]));
 
 if (version) {
-  console.log(`[package] stamping version ${version} (latest tag)`);
+  console.log(`[package] stamping version ${version} ${process.env.NISHBOARD_VERSION ? '(NISHBOARD_VERSION)' : '(latest tag)'}`);
   execFileSync('node', ['scripts/bump-version.mjs', 'set', version], { stdio: 'inherit' });
 }
 

@@ -69,6 +69,11 @@ function step(rule: AlertRule, cond: boolean | undefined, detail: string, now: n
   }
 }
 
+/** A finite price above zero. The server sends 0 for a quote it could not get. */
+function isRealPrice(p: number): boolean {
+  return Number.isFinite(p) && p > 0;
+}
+
 export function evaluateStockRules(rules: AlertRule[], data: StocksData, now: number): void {
   // Runtime guard: the evaluator lives at the App root — a malformed payload
   // must degrade to "not evaluable", never crash the shell.
@@ -76,7 +81,10 @@ export function evaluateStockRules(rules: AlertRule[], data: StocksData, now: nu
   for (const rule of rules) {
     if (rule.kind !== 'stock-price' || !rule.enabled) continue;
     const q = equities.find((e) => e.ticker === rule.symbol.toUpperCase());
-    const cond = q ? (rule.dir === 'above' ? q.lastPrice > rule.threshold : q.lastPrice < rule.threshold) : undefined;
+    // The server fills a missing quote with 0: that is "no data", not a $0 price.
+    const cond = q && isRealPrice(q.lastPrice)
+      ? (rule.dir === 'above' ? q.lastPrice > rule.threshold : q.lastPrice < rule.threshold)
+      : undefined;
     step(rule, cond, q ? `${q.ticker} is $${q.lastPrice.toFixed(2)}` : '', now);
   }
 }
@@ -87,7 +95,7 @@ export function evaluateCryptoRules(rules: AlertRule[], data: CryptoData, now: n
     if (!rule.enabled) continue;
     if (rule.kind === 'crypto-price') {
       const c = coins.find((x) => x.id === rule.coinId);
-      const cond = c
+      const cond = c && isRealPrice(c.priceUsd)
         ? (rule.dir === 'above' ? c.priceUsd > rule.thresholdUsd : c.priceUsd < rule.thresholdUsd)
         : undefined;
       step(rule, cond, c ? `${c.name} is $${c.priceUsd.toLocaleString('en-US')}` : '', now);

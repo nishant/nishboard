@@ -39,13 +39,19 @@ export function useTwitchLogout() {
   });
 }
 
-export function useTwitchFollowed(enabled: boolean) {
-  const interval = useGatedInterval(60_000);
+export const TWITCH_FOLLOWED_POLL_MS = 60_000;
+
+/** `intervalOverride` replaces the visibility-gated poll (the live notifier keeps
+ *  polling while the window is hidden). */
+export function useTwitchFollowed(enabled: boolean, intervalOverride?: number | false) {
+  const gated = useGatedInterval(TWITCH_FOLLOWED_POLL_MS);
+  const interval = intervalOverride ?? gated;
   return useQuery<TwitchSearchPage>({
     queryKey: ['twitch-followed'],
     queryFn: () => apiClient.get<TwitchSearchPage>('/api/twitch/followed'),
     enabled,
     refetchInterval: enabled ? interval : false,
+    refetchIntervalInBackground: intervalOverride !== undefined,
     staleTime: 55_000,
     retry: 1,
   });

@@ -14,8 +14,8 @@ name: Release
 #   "[skip release]" in subject or body          → no release
 #
 # TAG-ONLY: master is branch-protected, so CI never commits version bumps.
-# The latest v* tag is the version source of truth; the build job injects the
-# version into its workspace's package.json files right before packaging.
+# The latest v* tag is the version source of truth; the build job passes it to
+# package-app.mjs (NISHBOARD_VERSION), which stamps the package.json files.
 #
 # NOTE ON KEYS: CI has no .env, so these builds contain NO baked-in _BUILTIN API
 # keys. Installed builds work by entering keys once in Settings → Developer.
@@ -35,8 +35,10 @@ concurrency:
   group: release
   cancel-in-progress: false
 
+# Read-only by default: the gate and build jobs run dependency install scripts.
+# Jobs that need to write (tag, release, upload, publish) grant it themselves.
 permissions:
-  contents: write # push the version commit + tag, create the release
+  contents: read
 
 jobs:
   # Release gate: `version` (which creates the tag) depends on this job, so a
@@ -46,6 +48,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         # version comes from packageManager in the root package.json
@@ -55,19 +59,24 @@ jobs:
           node-version: 24
           cache: pnpm
 
+      - run: node scripts/check-electron-version.mjs
+
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm typecheck
 
       - run: pnpm lint
 
-      - run: pnpm test
-
+      # Build before test: buildChunks.test.ts inspects the renderer's dist.
       - run: pnpm build
+
+      - run: pnpm test
 
   version:
     needs: gate
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the tag (the checkout below keeps its token)
     outputs:
       released: ${{ steps.bump.outputs.released }}
       tag: ${{ steps.bump.outputs.tag }}
@@ -125,6 +134,8 @@ jobs:
     needs: version
     if: needs.version.outputs.released == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the draft release
     steps:
       - name: Create draft release
         env:
@@ -144,10 +155,13 @@ jobs:
           - os: windows-latest # x64 NSIS → Nishboard-Setup-x.y.z.exe + blockmap + latest.yml
             upload: release/*.exe release/*.exe.blockmap release/latest.yml
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write # gh release upload (the token only reaches that step)
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ needs.version.outputs.tag }}
+          persist-credentials: false
 
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         # version comes from packageManager in the root package.json
@@ -159,20 +173,18 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # Inject the release version into THIS workspace's package.json files
-      # (uncommitted) — electron-builder names artifacts from root, and
-      # app.getVersion() reads apps/main. The repo files stay at their
-      # placeholder version; the tag is the source of truth.
-      - name: Set version from tag
+      # pnpm package = turbo build + scripts/package-app.mjs, which stamps
+      # NISHBOARD_VERSION into the root and apps/main package.json files
+      # (uncommitted; the tag is the source of truth: electron-builder names
+      # artifacts from root, app.getVersion() reads apps/main), runs
+      # electron-builder with CSC_IDENTITY_AUTO_DISCOVERY=false (unsigned builds
+      # — macOS users right-click → Open past Gatekeeper), then restores them.
+      - name: Package
         shell: bash
-        run: node scripts/bump-version.mjs set "${TAG#v}"
+        run: |
+          NISHBOARD_VERSION="${TAG#v}" pnpm package
         env:
           TAG: ${{ needs.version.outputs.tag }}
-
-      # pnpm package = turbo build + electron-builder with
-      # CSC_IDENTITY_AUTO_DISCOVERY=false already set (unsigned builds — macOS
-      # users right-click → Open past Gatekeeper; signing needs paid certs).
-      - run: pnpm package
 
       # Upload to the draft release. Globs that match nothing are skipped (an
       # optional blockmap or latest-mac.yml may not exist), but at least one
@@ -210,6 +222,8 @@ jobs:
     needs: [version, build]
     if: needs.version.outputs.released == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # upload SHA256SUMS and publish the draft
     steps:
       - name: Checksum and publish
         env:

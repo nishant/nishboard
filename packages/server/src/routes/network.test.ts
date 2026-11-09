@@ -1,8 +1,36 @@
-import { describe, expect, it } from 'vitest';
-import { computeStats, isValidHost, parseMacPing, parseWinPing } from './network';
+import { describe, expect, it, vi } from 'vitest';
 
-// Pure-function coverage only — pingOnce/Sampler spawn real child processes
-// and are deliberately never exercised here.
+// ping is mocked: the Sampler cases below never spawn a real child process.
+vi.mock('child_process', () => ({
+  execFile: (_cmd: string, _args: string[], _opts: unknown, cb: (e: Error | null, r: { stdout: string }) => void) =>
+    cb(null, { stdout: 'time=6ms time=6.0 ms' }),
+}));
+
+import { computeStats, isValidHost, parseMacPing, parseWinPing, Sampler } from './network';
+
+describe('Sampler (per-host buffers)', () => {
+  it('accumulates samples when both targets are the same host (deduped)', async () => {
+    const s = new Sampler();
+    const hosts = [...new Set(['1.1.1.1', '1.1.1.1'])];
+    s.touch(hosts); // primes one tick
+    await vi.waitFor(() => expect(s.read(hosts)[0].samples).toBe(1));
+    await s.tick();
+    s.touch(hosts); // a repeat request must not reset the buffer
+    expect(s.read(hosts)).toHaveLength(1);
+    expect(s.read(hosts)[0].samples).toBe(2);
+    s.stop();
+  });
+
+  it('keeps the other host history when one target is edited', async () => {
+    const s = new Sampler();
+    s.touch(['1.1.1.1', '8.8.8.8']);
+    await vi.waitFor(() => expect(s.read(['1.1.1.1'])[0].samples).toBe(1));
+    s.touch(['1.1.1.1', '9.9.9.9']);
+    expect(s.read(['1.1.1.1'])[0].samples).toBe(1);
+    expect(s.read(['9.9.9.9'])[0].samples).toBe(0);
+    s.stop();
+  });
+});
 
 describe('computeStats (30-sample ring buffer math)', () => {
   it('empty buffer → all nulls, zero loss, zero samples', () => {

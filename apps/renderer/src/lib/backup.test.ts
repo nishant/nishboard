@@ -70,3 +70,46 @@ describe('buildBackupPayload', () => {
     expect(localStorage.getItem('dashboard-theme')).toBe(JSON.stringify({ state: { theme: 'slate' }, version: 0 }));
   });
 });
+
+describe('backup coverage', () => {
+  it('includes the crypto watchlist, which is not dashboard-* prefixed', async () => {
+    localStorage.setItem('crypto-watchlist', JSON.stringify({ state: { ids: ['bitcoin'] }, version: 0 }));
+    expect(buildBackupPayload().data['crypto-watchlist']).toEqual({ state: { ids: ['bitcoin'] }, version: 0 });
+    localStorage.clear();
+    await importSettings(backupFile({ app: 'nishboard', version: 1, data: { 'crypto-watchlist': { a: 1 } } }));
+    expect(localStorage.getItem('crypto-watchlist')).toBe(JSON.stringify({ a: 1 }));
+  });
+
+  it('excludes the Claude transcript and palette recents from export and import', async () => {
+    localStorage.setItem('dashboard-claude', JSON.stringify({ state: { messages: ['secret'] } }));
+    localStorage.setItem('dashboard-palette-recents', JSON.stringify(['a']));
+    localStorage.setItem('dashboard-theme', '{}');
+    const payload = buildBackupPayload();
+    expect('dashboard-claude' in payload.data).toBe(false);
+    expect('dashboard-palette-recents' in payload.data).toBe(false);
+    expect('dashboard-theme' in payload.data).toBe(true);
+
+    localStorage.clear();
+    await importSettings(
+      backupFile({ app: 'nishboard', version: 1, data: { 'dashboard-claude': { x: 1 }, 'dashboard-palette-recents': ['b'] } }),
+    );
+    expect(localStorage.getItem('dashboard-claude')).toBeNull();
+    expect(localStorage.getItem('dashboard-palette-recents')).toBeNull();
+  });
+
+  it('covers every persisted store name except the excluded ones', () => {
+    // Hard-coded from `git grep -n "name: '" -- apps/renderer/src/store` (persist
+    // names only). Add a new persisted store here; the test then proves backup
+    // covers it, or that it is deliberately excluded.
+    const persistNames = [
+      'dashboard-alerts', 'dashboard-claude', 'dashboard-countdown', 'crypto-watchlist',
+      'dashboard-discord-ui', 'hardware-config', 'dashboard-inbox-ui', 'dashboard-launcher-ui',
+      'dashboard-layout', 'dashboard-netmon', 'dashboard-notes', 'dashboard-app-settings',
+      'dashboard-tasks', 'dashboard-theme', 'dashboard-timers', 'dashboard-widget-ui',
+      'dashboard-worldclock',
+    ];
+    for (const name of persistNames) localStorage.setItem(name, '{}');
+    const keys = Object.keys(buildBackupPayload().data);
+    expect(persistNames.filter((n) => !keys.includes(n))).toEqual(['dashboard-claude']);
+  });
+});

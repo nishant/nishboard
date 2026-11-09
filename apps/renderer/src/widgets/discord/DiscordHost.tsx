@@ -128,6 +128,9 @@ export function DiscordHost() {
 
   // Screen-share picker — subscribed for the host's whole life (main
   // auto-denies getDisplayMedia when nobody is watching).
+  // Re-subscribes when this window regains the Discord tile (hasTile): main
+  // keeps ONE subscriber, so a closed popout leaves it stale until reclaimed.
+  const hasTile = hostRect !== null;
   useEffect(() => {
     const api = window.electron?.discord;
     if (!api || !active) return;
@@ -137,7 +140,7 @@ export function DiscordHost() {
       unsub();
       void api.setScreenShareWatch(false);
     };
-  }, [active]);
+  }, [active, hasTile]);
 
   // Local picker auto-dismiss, matching main's authoritative 60s deny.
   useEffect(() => {

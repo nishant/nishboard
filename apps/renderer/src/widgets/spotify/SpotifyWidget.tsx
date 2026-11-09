@@ -151,6 +151,14 @@ function ProgressBar({
 }) {
   const [localMs, setLocalMs] = useState(progressMs);
   const dragging = useRef(false);
+  const dirty = useRef(false);
+
+  // Always clear both flags on commit so the sync effect and 1s tick resume.
+  const commitSeek = (ms: number) => {
+    dragging.current = false;
+    dirty.current = false;
+    onSeek(ms);
+  };
 
   useEffect(() => {
     if (!dragging.current) setLocalMs(progressMs);
@@ -186,11 +194,12 @@ function ProgressBar({
         <input
           type="range" min={0} max={durationMs} value={localMs}
           aria-label="Seek"
-          onChange={(e) => { dragging.current = true; setLocalMs(Number(e.target.value)); }}
-          onPointerUp={(e) => {
-            dragging.current = false;
-            onSeek(Number((e.target as HTMLInputElement).value));
-          }}
+          onPointerDown={() => { dragging.current = true; }}
+          onChange={(e) => { dirty.current = true; setLocalMs(Number(e.currentTarget.value)); }}
+          onPointerUp={(e) => commitSeek(Number(e.currentTarget.value))}
+          onPointerCancel={() => { dragging.current = false; dirty.current = false; }}
+          onKeyUp={(e) => { if (dirty.current) commitSeek(Number(e.currentTarget.value)); }}
+          onBlur={(e) => { if (dirty.current) commitSeek(Number(e.currentTarget.value)); }}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
         />
         <div className="w-full h-full rounded-full bg-th-overlay">
@@ -249,7 +258,7 @@ function VolumeSlider({
       <input
         type="range" min={0} max={100}
         {...sliderProps}
-        aria-label="Volume"
+        aria-label="Spotify volume"
         className={cn(sliderW, 'h-1 rounded-full appearance-none cursor-pointer bg-th-overlay accent-th-accent')}
       />
     </div>
@@ -948,9 +957,21 @@ export function SpotifyWidget() {
         ref={setContainerEl}
         className="h-full flex flex-col overflow-hidden"
       >
+        {nowPlaying.isError && track && !showPlaylists && (
+          <p className="text-th-warn text-3xs px-3 pb-1" role="status">
+            Can&apos;t reach Spotify — showing the last known track
+          </p>
+        )}
         <div className="flex-1 min-h-0 flex flex-col">
           {showPlaylists ? (
             <PlaylistPanel onBack={() => setShowPlaylists(false)} />
+          ) : nowPlaying.isError && !track ? (
+            <ErrorState
+              compact
+              message={(nowPlaying.error as Error).message}
+              onRetry={() => void nowPlaying.refetch()}
+              retrying={nowPlaying.isRefetching}
+            />
           ) : hasTrack ? (
             <NowPlayingView
               data={track!}

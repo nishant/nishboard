@@ -3,7 +3,12 @@ import type { WeatherData, WeatherAlert, AirQualityData } from '@dash/shared';
 import { fetchJson, HttpError } from '../lib/http';
 import { TtlCache } from '../lib/TtlCache';
 
-const TTL_MS = 15 * 60 * 1000;
+// Forecast TTL sits a margin under the renderer poll (useWeather.ts: 15 min), so
+// a poll that lands a few hundred ms early is not served the previous payload.
+const TTL_MS = 14 * 60 * 1000;
+// NWS alerts are safety-relevant: their own, shorter cache (3 min), independent
+// of the 14 min forecast TTL. The renderer polls every 15 min (useWeather.ts).
+const ALERTS_TTL_MS = 3 * 60 * 1000;
 const GEO_TTL_MS = 60 * 60 * 1000;
 
 // ── Geolocation ───────────────────────────────────────────────────────────────
@@ -65,7 +70,17 @@ async function getGeoFromZip(zip: string): Promise<Geo> {
 
 // ── Weather fetch ─────────────────────────────────────────────────────────────
 
-const weatherCache = new TtlCache<string, WeatherData>(TTL_MS);
+const weatherCache = new TtlCache<string, { data: WeatherData; lat: number; lon: number }>(TTL_MS);
+const alertsCache = new TtlCache<string, WeatherAlert[]>(ALERTS_TTL_MS);
+
+async function getAlertsCached(locKey: string, lat: number, lon: number): Promise<WeatherAlert[]> {
+  const k = locKey;
+  const hit = alertsCache.get(k);
+  if (hit) return hit;
+  const alerts = await fetchAlerts(lat, lon);
+  alertsCache.set(k, alerts);
+  return alerts;
+}
 
 type TempUnit = 'f' | 'c';
 type WindUnit = 'mph' | 'kmh';
@@ -243,7 +258,10 @@ export const weatherRoutes: FastifyPluginAsync = async (fastify) => {
       const key = `${zip || 'auto'}:${temp}:${wind}`;
 
       const cached = weatherCache.get(key);
-      if (cached) return reply.send(cached);
+      if (cached) {
+        // Forecast is still fresh; alerts refresh on their own shorter TTL.
+        return reply.send({ ...cached.data, alerts: await getAlertsCached(zip || 'auto', cached.lat, cached.lon) });
+      }
 
       // 1) Resolve a location. Distinguish geolocation failures (422 — the user can act on
       //    them) from downstream forecast failures (502 — transient upstream).
@@ -267,12 +285,12 @@ export const weatherRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const [data, alerts, airQuality] = await Promise.all([
           fetchWeather(geo, temp, wind),
-          fetchAlerts(geo.lat, geo.lon),
+          getAlertsCached(zip || 'auto', geo.lat, geo.lon),
           fetchAirQuality(geo.lat, geo.lon),
         ]);
         data.alerts = alerts;
         data.airQuality = airQuality;
-        weatherCache.set(key, data);
+        weatherCache.set(key, { data, lat: geo.lat, lon: geo.lon });
         return reply.send(data);
       } catch {
         throw new HttpError(502, 'Weather service is unavailable, try again shortly.');

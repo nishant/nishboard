@@ -5,11 +5,18 @@ import { describe, expect, it } from 'vitest';
 
 // Guards the manualChunks split in vite.config.ts: markdown must stay a lazy chunk
 // (loaded by the Claude/Notes widgets), never modulepreloaded from index.html.
-// Only runs when a build exists (after `pnpm build`); skipped on a fresh checkout.
+// Runs after `pnpm build`; skipped on a fresh local checkout, but under CI a
+// missing dist is a failure (CI builds before it tests).
 const distDir = path.resolve(import.meta.dirname, '../dist');
 const indexHtml = path.join(distDir, 'index.html');
 
-describe.skipIf(!existsSync(indexHtml))('built index.html', () => {
+const inCi = !!process.env.CI;
+
+describe.skipIf(!inCi && !existsSync(indexHtml))('built index.html', () => {
+  it.runIf(inCi)('has a build to check (CI builds before testing)', () => {
+    expect(existsSync(indexHtml)).toBe(true);
+  });
+
   it('does not modulepreload a chunk containing markdown libraries', () => {
     const html = readFileSync(indexHtml, 'utf8');
     const hrefs = [...html.matchAll(/<link[^>]*rel="modulepreload"[^>]*>/g)]

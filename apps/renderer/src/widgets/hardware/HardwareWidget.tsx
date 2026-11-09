@@ -205,22 +205,26 @@ const DiskCard = memo(function DiskCard({ disks, diskUsage, history, view }: {
   history: HardwareHistory;
   view: ViewMode;
 }) {
-  const d = disks[0] ?? { readMBs: 0, writeMBs: 0 };
+  // Windows has no fsStats counters, so the server sends disks: [] there; hide
+  // the I/O row rather than show a fake 0 MB/s.
+  const d = disks[0] ?? null;
 
   return (
     <Card variant="inset" padding="sm">
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center gap-1.5">
           <HardDrive size={12} className="text-th-chart-7" />
-          <span className="text-xs text-th-hi2 font-medium">Disk I/O</span>
+          <span className="text-xs text-th-hi2 font-medium">{d ? 'Disk I/O' : 'Disks'}</span>
         </div>
-        <div className="flex gap-3 text-3xs tabular-nums">
-          <span className="text-th-emerald">R {fmt(d.readMBs)} MB/s</span>
-          <span className="text-th-amber">W {fmt(d.writeMBs)} MB/s</span>
-        </div>
+        {d && (
+          <div className="flex gap-3 text-3xs tabular-nums">
+            <span className="text-th-emerald">R {fmt(d.readMBs)} MB/s</span>
+            <span className="text-th-amber">W {fmt(d.writeMBs)} MB/s</span>
+          </div>
+        )}
       </div>
 
-      {view === 'sparks' && (
+      {d && view === 'sparks' && (
         <div className="space-y-1">
           <Spark data={history.diskRead} tone="chart-2" label="Disk read history" />
           <Spark data={history.diskWrite} tone="chart-7" label="Disk write history" />

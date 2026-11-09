@@ -113,20 +113,31 @@ async function attachDurations(videos: YoutubeVideo[]): Promise<YoutubeVideo[]> 
 
   const durations = new Map<string, number>();
   const liveById = new Map<string, boolean>();
+  let loggedFailure = false; // log a failed durations call once per list
   if (apiKey) {
     for (let i = 0; i < videos.length; i += 50) {
       const ids = videos.slice(i, i + 50).map((v) => v.videoId);
-      const d = await fetchJson<{
-        items?: { id: string; contentDetails?: { duration?: string }; snippet?: { liveBroadcastContent?: string } }[];
-      }>(
-        // part=snippet adds the live flag at no extra quota (1 unit per call).
-        `${BASE}/videos?part=contentDetails,snippet&id=${ids.join(',')}&key=${apiKey}`,
-        undefined,
-        { label: 'YouTube durations' },
-      );
-      for (const item of d.items ?? []) {
-        durations.set(item.id, parseIso8601Duration(item.contentDetails?.duration ?? ''));
-        liveById.set(item.id, item.snippet?.liveBroadcastContent === 'live');
+      // Best-effort: the list (often already paid for, e.g. a 100-unit search)
+      // is returned even when this enrichment call fails; durations stay 0 and
+      // isShort falls back to the '#shorts' title check below.
+      try {
+        const d = await fetchJson<{
+          items?: { id: string; contentDetails?: { duration?: string }; snippet?: { liveBroadcastContent?: string } }[];
+        }>(
+          // part=snippet adds the live flag at no extra quota (1 unit per call).
+          `${BASE}/videos?part=contentDetails,snippet&id=${ids.join(',')}&key=${apiKey}`,
+          undefined,
+          { label: 'YouTube durations' },
+        );
+        for (const item of d.items ?? []) {
+          durations.set(item.id, parseIso8601Duration(item.contentDetails?.duration ?? ''));
+          liveById.set(item.id, item.snippet?.liveBroadcastContent === 'live');
+        }
+      } catch (err) {
+        if (!loggedFailure) {
+          loggedFailure = true;
+          console.warn('[youtube] durations lookup failed; continuing without durations:', err instanceof Error ? err.message : err);
+        }
       }
     }
   }
@@ -657,8 +668,11 @@ export const youtubeRoutes: FastifyPluginAsync = async (fastify) => {
             return page;
           },
           (err: unknown) => {
-            // No answer (network, timeout) or a YouTube 5xx was never charged:
-            // give the search back. A 4xx (bad request, quota, key) keeps it spent.
+            // Only the search.list call itself can reject here (duration
+            // enrichment is best-effort and never throws). A 5xx or a network
+            // failure is treated as not charged and refunded; a timeout may
+            // still have been charged, so this can under-count. A 4xx (bad
+            // request, quota, key) keeps it spent.
             if (!(err instanceof UpstreamError) || err.status >= 500) store.refundSearch();
             throw err;
           },

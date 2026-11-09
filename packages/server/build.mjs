@@ -2,37 +2,29 @@ import * as esbuild from 'esbuild';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { parse } from 'dotenv';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Parse root .env without pulling in dotenv as a build-time dep.
-// Split on /\r?\n/, NOT '\n': with CRLF line endings every line keeps a
-// trailing \r, and `(.*)$` can't cross it (\r is a JS regex line terminator) —
-// so a CRLF .env silently baked ZERO keys and the packaged app lost every
-// credential (dev never noticed; dotenv handles CRLF).
+// Parse root .env with dotenv's own parser, so the packaged app sees exactly
+// what dev sees (quotes stripped, inline comments removed, `export KEY=` and
+// CRLF handled). A hand-rolled parser once baked ZERO keys from a CRLF .env.
 const envFile = path.join(__dirname, '../../.env');
-const envVars = {};
-if (fs.existsSync(envFile)) {
-  for (const line of fs.readFileSync(envFile, 'utf8').split(/\r?\n/)) {
-    const m = line.match(/^([^#=\s][^=]*)=(.*)$/);
-    if (m) envVars[m[1].trim()] = m[2].trim();
-  }
-}
+const envVars = fs.existsSync(envFile) ? parse(fs.readFileSync(envFile)) : {};
 
 // Keys baked in at package time from .env, injected as ONE static define:
 // esbuild replaces the literal `process.env.BUILTINS_JSON` reference in
 // lib/env.ts with a JSON string of this map. (Per-key `<KEY>_BUILTIN` defines
 // can't work — cred() accesses process.env dynamically, and define only
 // rewrites static member expressions.) Values land in the compiled bundle
-// only — never in source or git.
+// only — never in source or git. Trading-capable keys (ALPACA_*) are NOT
+// baked: they come from Settings → Developer (safeStorage) only.
 const BUILTIN_KEYS = [
   'SPOTIFY_CLIENT_ID',
   'SPOTIFY_REDIRECT_URI',
   'YOUTUBE_API_KEY',
   'YOUTUBE_CLIENT_ID',
   'YOUTUBE_CLIENT_SECRET',
-  'ALPACA_API_KEY',
-  'ALPACA_API_SECRET',
   'TWITCH_CLIENT_ID',
   'TWITCH_CLIENT_SECRET',
   'DISCORD_CLIENT_ID',

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { QueryClient } from '@tanstack/react-query';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '../../lib/alerts';
 import { apiClient } from '../../lib/apiClient';
@@ -95,6 +96,35 @@ export function useDevices(enabled: boolean) {
   });
 }
 
+const NOW_PLAYING_KEY = ['spotify-now-playing'] as const;
+/** Spotify's player endpoint often still reports the pre-change state for a
+ *  moment, so the settle refetch waits instead of overwriting the optimistic value. */
+export const SETTLE_DELAY_MS = 750;
+
+export interface OptimisticContext { previous: TrackData | undefined }
+
+/** Cancel any in-flight poll (so it cannot land after the optimistic write),
+ *  snapshot the cache for rollback, then apply the patch. */
+export async function optimisticNowPlaying(
+  qc: QueryClient,
+  patch: Partial<TrackData>,
+): Promise<OptimisticContext> {
+  await qc.cancelQueries({ queryKey: NOW_PLAYING_KEY });
+  const previous = qc.getQueryData<TrackData>(NOW_PLAYING_KEY);
+  qc.setQueryData<TrackData>(NOW_PLAYING_KEY, (old) => (old ? { ...old, ...patch } : old));
+  return { previous };
+}
+
+/** Put the snapshot back (only if there was one). */
+export function rollbackNowPlaying(qc: QueryClient, ctx: OptimisticContext | undefined): void {
+  if (ctx?.previous !== undefined) qc.setQueryData<TrackData>(NOW_PLAYING_KEY, ctx.previous);
+}
+
+/** Delayed settle invalidation; returns the timer id. */
+export function settleNowPlaying(qc: QueryClient): ReturnType<typeof setTimeout> {
+  return setTimeout(() => { void qc.invalidateQueries({ queryKey: NOW_PLAYING_KEY }); }, SETTLE_DELAY_MS);
+}
+
 // ── Playback mutations ────────────────────────────────────────────────────────
 
 /** Shared onError for transport commands: roll back the optimistic now-playing
@@ -102,7 +132,8 @@ export function useDevices(enabled: boolean) {
  *  "No Spotify device found". */
 function useTransportError() {
   const qc = useQueryClient();
-  return (err: unknown) => {
+  return (err: unknown, _vars?: unknown, ctx?: OptimisticContext) => {
+    rollbackNowPlaying(qc, ctx);
     void qc.invalidateQueries({ queryKey: ['spotify-now-playing'] });
     toast('Spotify', err instanceof Error ? err.message : 'Command failed', 'error');
   };
@@ -114,12 +145,8 @@ export function usePlay() {
   return useMutation({
     onError,
     mutationFn: () => apiClient.post('/api/spotify/play'),
-    onMutate: () => {
-      qc.setQueryData<TrackData>(['spotify-now-playing'], (old) =>
-        old ? { ...old, isPlaying: true } : old,
-      );
-    },
-    onSettled: () => qc.invalidateQueries({ queryKey: ['spotify-now-playing'] }),
+    onMutate: async () => optimisticNowPlaying(qc, { isPlaying: true }),
+    onSettled: () => { settleNowPlaying(qc); },
   });
 }
 
@@ -129,12 +156,8 @@ export function usePause() {
   return useMutation({
     onError,
     mutationFn: () => apiClient.post('/api/spotify/pause'),
-    onMutate: () => {
-      qc.setQueryData<TrackData>(['spotify-now-playing'], (old) =>
-        old ? { ...old, isPlaying: false } : old,
-      );
-    },
-    onSettled: () => qc.invalidateQueries({ queryKey: ['spotify-now-playing'] }),
+    onMutate: async () => optimisticNowPlaying(qc, { isPlaying: false }),
+    onSettled: () => { settleNowPlaying(qc); },
   });
 }
 
@@ -164,12 +187,8 @@ export function useSeek() {
   return useMutation({
     onError,
     mutationFn: (positionMs: number) => apiClient.post('/api/spotify/seek', { positionMs }),
-    onMutate: (positionMs) => {
-      qc.setQueryData<TrackData>(['spotify-now-playing'], (old) =>
-        old ? { ...old, progressMs: positionMs } : old,
-      );
-    },
-    onSettled: () => qc.invalidateQueries({ queryKey: ['spotify-now-playing'] }),
+    onMutate: async (positionMs) => optimisticNowPlaying(qc, { progressMs: positionMs }),
+    onSettled: () => { settleNowPlaying(qc); },
   });
 }
 
@@ -180,11 +199,7 @@ export function useSpotifyVolume() {
     onError,
     mutationFn: (volumePercent: number) =>
       apiClient.post('/api/spotify/volume', { volumePercent }),
-    onMutate: (volumePercent) => {
-      qc.setQueryData<TrackData>(['spotify-now-playing'], (old) =>
-        old ? { ...old, volumePercent } : old,
-      );
-    },
+    onMutate: async (volumePercent) => optimisticNowPlaying(qc, { volumePercent }),
     // No onSettled invalidation — Spotify API takes a moment to reflect volume changes,
     // so immediately refetching would overwrite the optimistic update with a stale value.
     // The 3-second polling via useNowPlaying handles eventual sync.
@@ -197,12 +212,8 @@ export function useShuffle() {
   return useMutation({
     onError,
     mutationFn: (state: boolean) => apiClient.post('/api/spotify/shuffle', { state }),
-    onMutate: (state) => {
-      qc.setQueryData<TrackData>(['spotify-now-playing'], (old) =>
-        old ? { ...old, shuffleState: state } : old,
-      );
-    },
-    onSettled: () => qc.invalidateQueries({ queryKey: ['spotify-now-playing'] }),
+    onMutate: async (state) => optimisticNowPlaying(qc, { shuffleState: state }),
+    onSettled: () => { settleNowPlaying(qc); },
   });
 }
 
@@ -213,12 +224,8 @@ export function useRepeat() {
     onError,
     mutationFn: (state: 'off' | 'track' | 'context') =>
       apiClient.post('/api/spotify/repeat', { state }),
-    onMutate: (state) => {
-      qc.setQueryData<TrackData>(['spotify-now-playing'], (old) =>
-        old ? { ...old, repeatState: state } : old,
-      );
-    },
-    onSettled: () => qc.invalidateQueries({ queryKey: ['spotify-now-playing'] }),
+    onMutate: async (state) => optimisticNowPlaying(qc, { repeatState: state }),
+    onSettled: () => { settleNowPlaying(qc); },
   });
 }
 

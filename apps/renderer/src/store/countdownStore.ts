@@ -34,6 +34,8 @@ export const useCountdownStore = create<CountdownState>()(
       name: 'dashboard-countdown',
       onRehydrateStorage: () => (state) => {
         if (!state) return;
+        // Main window only (see timersStore): popouts must not sweep or notify.
+        if (new URLSearchParams(location.search).has('widget')) return;
         // Settle events that passed while the app was closed so the widget tick
         // doesn't fire a notification burst on launch (same sweep as timersStore).
         const cutoff = Date.now() - STALE_ALERT_GRACE_MS;
@@ -44,6 +46,9 @@ export const useCountdownStore = create<CountdownState>()(
           return { ...e, notified: true };
         });
         if (missed > 0) {
+          // Persist the settled events so the notice does not repeat every launch.
+          const { events } = state;
+          queueMicrotask(() => useCountdownStore.setState({ events }));
           window.electron?.notify?.(
             'Nishboard',
             `${missed} countdown${missed === 1 ? '' : 's'} passed while the app was closed`,

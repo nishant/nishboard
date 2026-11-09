@@ -5,6 +5,7 @@ import type { Layout } from 'react-grid-layout';
 import { useLayoutStore, collapsedRowsFor } from '../store/layoutStore';
 import { useDiscordStore } from '../store/discordStore';
 import { useAppSettingsStore } from '../store/settingsStore';
+import { useDiscordUiStore } from '../store/discordUiStore';
 import { usePopoutStore } from '../store/popoutStore';
 import { useWidgetUiStore } from '../store/widgetUiStore';
 import { WidgetShell } from './WidgetShell';
@@ -14,14 +15,18 @@ import { WIDGET_REGISTRY } from '../widgets/registry';
 import { useElementSize } from '../hooks/useElementSize';
 import type { WidgetId } from '../lib/layouts';
 import { HeaderAction } from './HeaderAction';
+import { WidgetBoundary } from './ErrorState';
 import { Button, EmptyState, cn } from '@nish/ui';
 
 const GridLayout = WidthProvider(ReactGridLayout);
 
 /** Rightmost header action on EVERY widget: float it in its own window.
  *  Hidden in the plain browser (no Electron popout API). */
-function PopoutAction({ id }: { id: WidgetId }) {
+export function PopoutAction({ id }: { id: WidgetId }) {
+  const discordMode = useDiscordUiStore((s) => s.mode);
   if (!window.electron?.popout) return null;
+  // One live Discord guest per run: a popout would start a second webview in the same partition.
+  if (id === 'discord' && discordMode === 'embed') return null;
   return (
     <HeaderAction title="Pop out" onClick={() => window.electron!.popout.open(id)}>
       <ExternalLink size={12} />
@@ -202,12 +207,19 @@ export function DashboardGrid() {
               }}
               actions={
                 <>
-                  {Actions && <Actions />}
-                  <PopoutAction id={id} />
+                  {/* A popped tile's real widget lives in the popout: its Actions would poll and edit the wrong window. */}
+                  {!isPopped && Actions && <Actions />}
+                  {!isPopped && <PopoutAction id={id} />}
                 </>
               }
             >
-              {isPopped ? <PoppedPlaceholder id={id} /> : <Component />}
+              {isPopped ? (
+                <PoppedPlaceholder id={id} />
+              ) : (
+                <WidgetBoundary id={id}>
+                  <Component />
+                </WidgetBoundary>
+              )}
             </WidgetShell>
           </div>
         );

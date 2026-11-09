@@ -322,4 +322,44 @@ describe('DiscordRpcClient over a fake pipe', () => {
     const client = new DiscordRpcClient({ paths: [testPipePath()] });
     await expect(client.connect()).rejects.toThrow(/not running/);
   });
+
+  it('drops null and non-object frames and throwing listeners without crashing', async () => {
+    pipe = await startFakePipe(() => undefined);
+    const client = new DiscordRpcClient({ paths: [pipe.path] });
+    await client.connect();
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const seen: string[] = [];
+    client.onDispatch(() => {
+      throw new Error('listener boom');
+    });
+    client.onDispatch((evt) => seen.push(evt));
+    pipe.dispatch(null);
+    pipe.dispatch(42);
+    pipe.dispatch('text');
+    pipe.dispatch({ cmd: 'DISPATCH', evt: 'SPEAKING_START', data: null, nonce: null });
+    await vi.waitFor(() => expect(seen).toEqual(['SPEAKING_START']));
+    expect(client.isReady).toBe(true);
+    expect(errSpy).toHaveBeenCalled();
+    errSpy.mockRestore();
+  });
+
+  it('drops null and non-object frames and survives throwing listeners', async () => {
+    pipe = await startFakePipe(() => undefined);
+    const client = new DiscordRpcClient({ paths: [pipe.path] });
+    await client.connect();
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const seen: string[] = [];
+    client.onDispatch(() => {
+      throw new Error('listener boom');
+    });
+    client.onDispatch((evt) => seen.push(evt));
+    pipe.dispatch(null);
+    pipe.dispatch(42);
+    pipe.dispatch('text');
+    pipe.dispatch({ cmd: 'DISPATCH', evt: 'SPEAKING_START', data: null, nonce: null });
+    await vi.waitFor(() => expect(seen).toEqual(['SPEAKING_START']));
+    expect(client.isReady).toBe(true);
+    expect(errSpy).toHaveBeenCalled();
+    errSpy.mockRestore();
+  });
 });

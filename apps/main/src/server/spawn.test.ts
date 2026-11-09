@@ -32,8 +32,8 @@ const spawnMock = vi.fn(() => {
   return c;
 });
 
-vi.mock('child_process', () => ({ spawn: spawnMock, execSync: vi.fn(() => '') }));
-vi.mock('electron', () => ({ app: { getAppPath: () => '/app', getPath: () => tmpDir } }));
+vi.mock('child_process', () => ({ spawn: spawnMock, execSync: vi.fn(() => ''), execFileSync: vi.fn(() => '') }));
+vi.mock('electron', () => ({ app: { isPackaged: false, getAppPath: () => '/app', getPath: () => tmpDir, getAppMetrics: () => [] } }));
 vi.mock('../credentials', () => ({ readCredentials: () => ({}) }));
 vi.mock('../tokenKey', () => ({ loadTokenKey: () => Promise.resolve(null) }));
 vi.mock('../apiToken', () => ({ apiToken: () => 'test-token' }));
@@ -70,6 +70,48 @@ describe('restartServer', () => {
       await stopServer();
       expect(second.kill).toHaveBeenCalled();
     } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('crash restart backoff', () => {
+  afterEach(() => {
+    fs.rmSync(path.join(tmpDir, 'logs'), { recursive: true, force: true });
+  });
+
+  beforeEach(() => {
+    children.length = 0;
+    spawnMock.mockClear();
+    vi.resetModules();
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: true })));
+  });
+
+  it('respawns after 1s, 2s, 4s, 8s, 16s, then gives up', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const err = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const { spawnServer } = await import('./spawn');
+      await spawnServer();
+      expect(spawnMock).toHaveBeenCalledTimes(1);
+
+      let expected = 1;
+      for (const delay of [1000, 2000, 4000, 8000, 16000]) {
+        children[expected - 1].emit('exit', 1, null); // crash
+        await vi.advanceTimersByTimeAsync(delay - 1);
+        expect(spawnMock).toHaveBeenCalledTimes(expected); // not yet
+        await vi.advanceTimersByTimeAsync(1);
+        expected += 1;
+        expect(spawnMock).toHaveBeenCalledTimes(expected);
+      }
+
+      // Sixth crash: the attempt budget is spent, so no further respawn.
+      children[expected - 1].emit('exit', 1, null);
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(spawnMock).toHaveBeenCalledTimes(expected);
+    } finally {
+      err.mockRestore();
       vi.useRealTimers();
     }
   });

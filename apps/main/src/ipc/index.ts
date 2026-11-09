@@ -19,6 +19,7 @@ import { openClaudeLogin } from '../claudeLogin';
 import { readPrefs, writePrefs } from '../prefs';
 import { openPopout, closePopout, openPopoutIds, isTransparentPopout } from '../popout';
 import { setWindowTheme } from '../windowTheme';
+import { isAllowedExternalUrl, isAuthUrl, isValidPopoutId } from './guards';
 import type { CredentialKey, AppPrefsData } from '@dash/shared';
 
 export function registerIpcHandlers(
@@ -55,36 +56,33 @@ export function registerIpcHandlers(
     }
   });
 
-  ipcMain.on('app:open-external', (_event, url: string) => {
-    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+  ipcMain.on('app:open-external', (_event, url: unknown) => {
+    if (isAllowedExternalUrl(url)) shell.openExternal(url);
   });
 
-  ipcMain.on('spotify:open-auth', (_event, url: string) => {
-    // The auth URL is always built by our own /auth-url route — anything else
-    // reaching this channel is not a legitimate Spotify OAuth flow.
-    if (url.startsWith('https://accounts.spotify.com/')) shell.openExternal(url);
+  // The auth URL is always built by our own /auth-url route; anything else
+  // reaching these channels is not a legitimate OAuth flow (guards.ts).
+  ipcMain.on('spotify:open-auth', (_event, url: unknown) => {
+    if (isAuthUrl('spotify', url)) shell.openExternal(url);
   });
 
-  ipcMain.on('twitch:open-auth', (_event, url: string) => {
-    // Same guard pattern: only Twitch's identity host is a legitimate target.
-    if (url.startsWith('https://id.twitch.tv/')) shell.openExternal(url);
+  ipcMain.on('twitch:open-auth', (_event, url: unknown) => {
+    if (isAuthUrl('twitch', url)) shell.openExternal(url);
   });
 
-  ipcMain.on('youtube:open-auth', (_event, url: string) => {
-    if (typeof url !== 'string') return;
-    if (url.startsWith('https://accounts.google.com/')) shell.openExternal(url);
+  ipcMain.on('youtube:open-auth', (_event, url: unknown) => {
+    if (isAuthUrl('youtube', url)) shell.openExternal(url);
   });
 
-  ipcMain.on('google:open-auth', (_event, url: string) => {
-    // Generic Google OAuth opener (Calendar, …) — same accounts.google.com guard.
-    if (typeof url !== 'string') return;
-    if (url.startsWith('https://accounts.google.com/')) shell.openExternal(url);
+  ipcMain.on('google:open-auth', (_event, url: unknown) => {
+    // Generic Google OAuth opener (Calendar, ...), same accounts.google.com guard.
+    if (isAuthUrl('google', url)) shell.openExternal(url);
   });
 
   // ── Pop-out widget windows ──────────────────────────────────────────────────
-  ipcMain.on('popout:open', (_event, widgetId: string) => {
+  ipcMain.on('popout:open', (_event, widgetId: unknown) => {
     // Ids are renderer WidgetIds (lowercase slugs) — reject anything else.
-    if (typeof widgetId === 'string' && /^[a-z]{2,20}$/.test(widgetId)) openPopout(widgetId);
+    if (isValidPopoutId(widgetId)) openPopout(widgetId);
   });
   ipcMain.on('popout:close', (_event, widgetId: string) => {
     if (typeof widgetId === 'string') closePopout(widgetId);

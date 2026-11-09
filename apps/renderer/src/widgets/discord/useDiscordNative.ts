@@ -72,13 +72,24 @@ export function useDiscordVoiceSettings(enabled: boolean) {
   });
 }
 
+const STATUS_KEY = ['discord-status'] as const;
+const RECONNECT_INITIAL_MS = 1_000;
+const RECONNECT_MAX_MS = 30_000;
+
+/** Next reconnect delay: doubles, capped at 30s (1s, 2s, 4s ... 30s). Exported for tests. */
+export function nextBackoffMs(current: number): number {
+  return Math.min(current * 2, RECONNECT_MAX_MS);
+}
+
 /**
  * The live SSE feed (GET /api/discord/stream): voice roster + speaking rings,
  * message create/update/delete for `channelId`, notifications, and state
  * transitions. Viewing a different channel re-opens the stream (the effect
- * key includes channelId; the server follows the newest subscriber).
- * The server ENDS the stream when the pipe drops (Discord quit) — that
- * resolves the fetch, and we refetch status so the widget flips panels.
+ * key includes channelId; the server routes each stream its own channel).
+ * When the stream settles without being cancelled (server restart, network
+ * blip, Discord quit) the status is refetched and the stream reopens with
+ * backoff while the pipe is `running && connected`. A 'state' frame updates
+ * the status query at once so the widget flips panels.
  */
 export function useDiscordStream(opts: {
   enabled: boolean;
@@ -93,19 +104,66 @@ export function useDiscordStream(opts: {
 
   useEffect(() => {
     if (!enabled) return;
-    const controller = new AbortController();
     let cancelled = false;
-    const finish = (): void => {
+    let controller: AbortController | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let backoff = RECONNECT_INITIAL_MS;
+
+    const scheduleReconnect = (): void => {
       if (cancelled) return;
-      void queryClient.invalidateQueries({ queryKey: ['discord-status'] });
+      const delay = backoff;
+      backoff = nextBackoffMs(backoff);
+      timer = setTimeout(() => {
+        timer = null;
+        void reconnect();
+      }, delay);
     };
-    void getEventStream<DiscordStreamEvent>(
-      `/api/discord/stream${channelId !== null ? `?channelId=${encodeURIComponent(channelId)}` : ''}`,
-      { signal: controller.signal, onEvent: (e) => onEventRef.current(e) },
-    ).then(finish, finish);
+
+    const open = (): void => {
+      const ctl = new AbortController();
+      controller = ctl;
+      const settle = (): void => {
+        if (cancelled || controller !== ctl) return;
+        void queryClient.invalidateQueries({ queryKey: STATUS_KEY });
+        scheduleReconnect();
+      };
+      void getEventStream<DiscordStreamEvent>(
+        `/api/discord/stream${channelId !== null ? `?channelId=${encodeURIComponent(channelId)}` : ''}`,
+        {
+          signal: ctl.signal,
+          onEvent: (e) => {
+            backoff = RECONNECT_INITIAL_MS;
+            if (e.type === 'state') {
+              queryClient.setQueryData<DiscordStatusData>(STATUS_KEY, (prev) =>
+                prev ? { ...prev, running: e.running, connected: e.connected } : prev,
+              );
+            }
+            onEventRef.current(e);
+          },
+        },
+      ).then(settle, settle);
+    };
+
+    const reconnect = async (): Promise<void> => {
+      try {
+        const status = await apiClient.get<DiscordStatusData>('/api/discord/status');
+        if (cancelled) return;
+        queryClient.setQueryData(STATUS_KEY, status);
+        if (status.running && status.connected) {
+          open();
+          return;
+        }
+      } catch {
+        // server still restarting - fall through to the next attempt
+      }
+      scheduleReconnect();
+    };
+
+    open();
     return () => {
       cancelled = true;
-      controller.abort();
+      if (timer !== null) clearTimeout(timer);
+      controller?.abort();
     };
   }, [enabled, channelId, queryClient]);
 }

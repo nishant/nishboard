@@ -63,13 +63,20 @@ describe('buildRows', () => {
     expect(groups.indexOf('Layouts')).toBeLessThan(groups.indexOf('Widgets'));
   });
 
-  it('parameterised query that parses puts the preview row first and records a recent when run', () => {
+  it('parameterised query that parses puts the preview row first and runs without recording a recent', () => {
     const rows = buildRows('timer 25m tea', actions, []);
     expect(rows[0].label).toBe('Start 25m tea timer');
     expect(rows[0].group).toBe('Command');
     rows[0].onSelect?.();
     expect(ran).toEqual(['timer:run']);
-    expect(JSON.parse(localStorage.getItem('dashboard-palette-recents') ?? '[]')).toEqual(['timer:fill']);
+    // The id would be the dead fill row's: never push it.
+    expect(JSON.parse(localStorage.getItem('dashboard-palette-recents') ?? '[]')).toEqual([]);
+  });
+
+  it('Recent skips fill rows, even from older stored recents', () => {
+    const rows = buildRows('', actions, ['timer:fill', 'app:about']);
+    expect(rows.filter((r) => r.group === 'Recent').map((r) => r.id)).toEqual(['app:about']);
+    expect(rows.find((r) => r.id === 'timer:fill')?.group).toBe('Timers');
   });
 
   it('unparsable args give a hint row that does nothing', () => {

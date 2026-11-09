@@ -1,13 +1,25 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Layout } from 'react-grid-layout';
-import { DEFAULT_LAYOUT, PRESETS, autoFillLayout, applyConstraints, generateLayout, ALL_WIDGET_IDS, WIDGET_CONSTRAINTS } from '../lib/layouts';
+import { DEFAULT_LAYOUT, PRESETS, autoFillLayout, applyConstraints, generateLayout, isWidgetId, ALL_WIDGET_IDS, WIDGET_CONSTRAINTS } from '../lib/layouts';
 import type { WidgetId } from '../lib/layouts';
+import { useAppSettingsStore } from './settingsStore';
+import { useWidgetUiStore } from './widgetUiStore';
 
 /** WidgetShell header height in px: px-3 py-2 (16px vertical) + ~13px text + 1px
  *  border ≈ 34. Used to compute how few grid rows a collapsed (title-bar-only)
  *  widget needs. */
 export const TITLEBAR_PX = 34;
+
+/** WidgetShell header height on touch screens (`pointer-coarse:min-h-11`): the
+ *  header grows to fit 44px action hit areas. */
+export const COARSE_TITLEBAR_PX = 44;
+
+function headerPx(): number {
+  return typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches
+    ? COARSE_TITLEBAR_PX
+    : TITLEBAR_PX;
+}
 
 /** Default grid-row height to restore a collapsed widget to when no prior height
  *  was captured (defensive — savedHeights should normally hold the real value). */
@@ -18,8 +30,70 @@ const DEFAULT_EXPAND_H = 6;
  *  (many rows) → needs a couple rows; rowHeight large (few rows) → a single row.
  *  Exported for tests. */
 export function collapsedRowsFor(rowHeight: number, gap: number): number {
-  return Math.max(1, Math.ceil((TITLEBAR_PX + gap) / (rowHeight + gap)));
+  return Math.max(1, Math.ceil((headerPx() + gap) / (rowHeight + gap)));
 }
+
+/** Rows a collapsed tile is locked at when the live rowHeight is unknown (a layout
+ *  replaced from inside the store). DashboardGrid patches the exact h on its next
+ *  render; setWidgetCollapsed keeps this in step with the last real value. */
+let lastCollapsedRows = 2;
+
+/** The widgets that may actually appear: `ids` minus the ones disabled in
+ *  Settings. A disabled widget given a layout slot would leave a hole, and as an
+ *  accordion neighbour would be gifted rows nobody can see. */
+function effectiveVisible(ids: WidgetId[]): WidgetId[] {
+  const disabled = useAppSettingsStore.getState().disabledWidgets;
+  return ids.filter((id) => !disabled.includes(id));
+}
+
+function collapsedIdSet(): Set<string> {
+  const flags = useWidgetUiStore.getState().collapsed;
+  return new Set(Object.keys(flags).filter((id) => flags[id as WidgetId]));
+}
+
+/** Make a replaced layout agree with the collapsed flags (widgetUiStore is the
+ *  source of truth): collapsed tiles are locked tiny with their expanded h in
+ *  savedHeights; every other tile loses any stale lock. Every wholesale layout
+ *  replacement goes through here. `keepSaved` (rehydrate) trusts an existing
+ *  savedHeights entry over the item's h, which is already the collapsed one. */
+export function normalizeCollapse(
+  layout: Layout[],
+  collapsedIds: ReadonlySet<string>,
+  prevSaved: Partial<Record<WidgetId, number>> = {},
+  keepSaved = false,
+): { layout: Layout[]; savedHeights: Partial<Record<WidgetId, number>> } {
+  const savedHeights: Partial<Record<WidgetId, number>> = {};
+  const out = layout.map((item) => {
+    const id = item.i as WidgetId;
+    const locked = item.isResizable === false;
+    if (collapsedIds.has(item.i)) {
+      const saved = keepSaved || locked ? (prevSaved[id] ?? (locked ? undefined : item.h)) : item.h;
+      if (saved !== undefined) savedHeights[id] = saved;
+      const h = lastCollapsedRows;
+      return { ...item, h, minH: h, maxH: h, isResizable: false };
+    }
+    if (!locked && item.maxH === undefined) return item;
+    const { maxH: _drop, ...rest } = item;
+    void _drop;
+    return { ...rest, minH: WIDGET_CONSTRAINTS[id]?.minH ?? rest.minH, isResizable: true };
+  });
+  return { layout: out, savedHeights };
+}
+
+/** A copy of the layout for saving: collapsed tiles go back to their pre-collapse
+ *  h with no lock, so applying the layout later never brings back a stuck sliver. */
+function unlockedSnapshot(layout: Layout[], savedHeights: Partial<Record<WidgetId, number>>): Layout[] {
+  return layout.map((item) => {
+    const saved = savedHeights[item.i as WidgetId];
+    if (saved === undefined && item.isResizable !== false) return { ...item };
+    const { maxH: _drop, isResizable: _lock, ...rest } = item;
+    void _drop;
+    void _lock;
+    return { ...rest, h: saved ?? rest.h, minH: WIDGET_CONSTRAINTS[item.i as WidgetId]?.minH ?? rest.minH };
+  });
+}
+
+const INITIAL_VISIBLE: WidgetId[] = [...(DEFAULT_LAYOUT.visibleWidgets ?? ALL_WIDGET_IDS)];
 
 /** Find the visible, non-collapsed widgets sitting DIRECTLY below `item`
  *  (`y === item.y + item.h`) that together tile its exact x-span. These are the
@@ -125,11 +199,13 @@ interface LayoutState {
 export const useLayoutStore = create<LayoutState>()(
   persist(
     (set) => ({
-      layout: autoFillLayout(DEFAULT_LAYOUT.layout),
+      // A fresh install IS the Default preset: its visible widgets and the layout
+      // generated for exactly those (not all 21 squeezed in below it).
+      layout: generateLayout(DEFAULT_LAYOUT.name, INITIAL_VISIBLE) ?? autoFillLayout(DEFAULT_LAYOUT.layout),
       activePreset: DEFAULT_LAYOUT.name,
       pinnedPresets: [],
       pinnedCustomLayouts: [],
-      visibleWidgets: [...ALL_WIDGET_IDS],
+      visibleWidgets: INITIAL_VISIBLE,
       savedCustomLayouts: [],
       activeCustomLayoutId: null,
       savedHeights: {},
@@ -152,7 +228,7 @@ export const useLayoutStore = create<LayoutState>()(
             // else on the grid moves and rowHeight stays constant. This is also
             // what lets the later expand take the same rows back in place.
             const giftNeighbors =
-              delta > 0 ? exactNeighborsBelow(s.layout, s.visibleWidgets, item, s.savedHeights) : null;
+              delta > 0 ? exactNeighborsBelow(s.layout, effectiveVisible(s.visibleWidgets), item, s.savedHeights) : null;
             const giftIds = new Set((giftNeighbors ?? []).map((n) => n.i));
             const layout = s.layout.map((it) => {
               if (it.i === id)
@@ -160,9 +236,11 @@ export const useLayoutStore = create<LayoutState>()(
               if (giftIds.has(it.i)) return { ...it, y: it.y - delta, h: it.h + delta };
               return it;
             });
+            lastCollapsedRows = collapsedH;
             return {
               layout,
-              savedHeights: { ...s.savedHeights, [id]: item.h },
+              // Keep an existing entry: the item may already be locked at its tiny h.
+              savedHeights: { ...s.savedHeights, [id]: s.savedHeights[id] ?? item.h },
               // Collapsing is a user edit — the layout no longer matches the preset.
               activePreset: null,
               activeCustomLayoutId: null,
@@ -177,7 +255,7 @@ export const useLayoutStore = create<LayoutState>()(
           // which may be stale). Otherwise fall back to the plain restore and let
           // RGL's vertical compaction push everything below down.
           const neighbors =
-            delta > 0 ? exactNeighborsBelow(s.layout, s.visibleWidgets, item, s.savedHeights) : null;
+            delta > 0 ? exactNeighborsBelow(s.layout, effectiveVisible(s.visibleWidgets), item, s.savedHeights) : null;
           const stealNeighbors =
             neighbors &&
             neighbors.every(
@@ -209,9 +287,15 @@ export const useLayoutStore = create<LayoutState>()(
         const preset = PRESETS.find((p) => p.name === name);
         if (!preset) return;
         set((s) => {
-          const newVisible = preset.visibleWidgets ?? s.visibleWidgets;
+          const newVisible = effectiveVisible(preset.visibleWidgets ?? s.visibleWidgets);
+          const next = normalizeCollapse(
+            generateLayout(name, newVisible) ?? autoFillLayout(preset.layout),
+            collapsedIdSet(),
+            s.savedHeights,
+          );
           return {
-            layout: generateLayout(name, newVisible) ?? autoFillLayout(preset.layout),
+            layout: next.layout,
+            savedHeights: next.savedHeights,
             visibleWidgets: newVisible,
             activePreset: name,
             activeCustomLayoutId: null,
@@ -220,13 +304,21 @@ export const useLayoutStore = create<LayoutState>()(
       },
 
       resetToDefault: () =>
-        set((s) => ({
-          layout:
-            generateLayout(DEFAULT_LAYOUT.name, s.visibleWidgets) ??
-            autoFillLayout(DEFAULT_LAYOUT.layout),
-          activePreset: DEFAULT_LAYOUT.name,
-          activeCustomLayoutId: null,
-        })),
+        set((s) => {
+          const visible = effectiveVisible(s.visibleWidgets);
+          const next = normalizeCollapse(
+            generateLayout(DEFAULT_LAYOUT.name, visible) ?? autoFillLayout(DEFAULT_LAYOUT.layout),
+            collapsedIdSet(),
+            s.savedHeights,
+          );
+          return {
+            layout: next.layout,
+            savedHeights: next.savedHeights,
+            visibleWidgets: visible,
+            activePreset: DEFAULT_LAYOUT.name,
+            activeCustomLayoutId: null,
+          };
+        }),
 
       pinPreset: (name) =>
         set((s) => ({
@@ -251,11 +343,19 @@ export const useLayoutStore = create<LayoutState>()(
       showWidget: (id) =>
         set((s) => {
           if (s.visibleWidgets.includes(id)) return s;
-          const newVisible = [...s.visibleWidgets, id];
+          const newVisible = effectiveVisible([...s.visibleWidgets, id]);
+          if (!newVisible.includes(id)) return s; // disabled in Settings
           if (s.activePreset) {
             const generated = generateLayout(s.activePreset, newVisible);
-            if (generated)
-              return { visibleWidgets: newVisible, layout: generated, activeCustomLayoutId: null };
+            if (generated) {
+              const next = normalizeCollapse(generated, collapsedIdSet(), s.savedHeights);
+              return {
+                visibleWidgets: newVisible,
+                layout: next.layout,
+                savedHeights: next.savedHeights,
+                activeCustomLayoutId: null,
+              };
+            }
           }
           // No active preset — ensure the widget has a grid slot (BSP generation may have
           // excluded it from layout when it was hidden, so it would never appear otherwise).
@@ -271,9 +371,16 @@ export const useLayoutStore = create<LayoutState>()(
         set((s) => {
           const newVisible = s.visibleWidgets.filter((w) => w !== id);
           if (s.activePreset) {
-            const generated = generateLayout(s.activePreset, newVisible);
-            if (generated)
-              return { visibleWidgets: newVisible, layout: generated, activeCustomLayoutId: null };
+            const generated = generateLayout(s.activePreset, effectiveVisible(newVisible));
+            if (generated) {
+              const next = normalizeCollapse(generated, collapsedIdSet(), s.savedHeights);
+              return {
+                visibleWidgets: newVisible,
+                layout: next.layout,
+                savedHeights: next.savedHeights,
+                activeCustomLayoutId: null,
+              };
+            }
           }
           return { visibleWidgets: newVisible, activeCustomLayoutId: null };
         }),
@@ -288,7 +395,7 @@ export const useLayoutStore = create<LayoutState>()(
                 id,
                 name,
                 // Snapshot deep copies so later edits don't mutate the saved entry.
-                layout: s.layout.map((item) => ({ ...item })),
+                layout: unlockedSnapshot(s.layout, s.savedHeights),
                 visibleWidgets: [...s.visibleWidgets],
               },
             ],
@@ -309,7 +416,7 @@ export const useLayoutStore = create<LayoutState>()(
         set((s) => ({
           savedCustomLayouts: s.savedCustomLayouts.map((l) =>
             l.id === id
-              ? { ...l, layout: s.layout.map((item) => ({ ...item })), visibleWidgets: [...s.visibleWidgets] }
+              ? { ...l, layout: unlockedSnapshot(s.layout, s.savedHeights), visibleWidgets: [...s.visibleWidgets] }
               : l,
           ),
           activeCustomLayoutId: id,
@@ -319,9 +426,15 @@ export const useLayoutStore = create<LayoutState>()(
         set((s) => {
           const found = s.savedCustomLayouts.find((l) => l.id === id);
           if (!found) return s;
+          const next = normalizeCollapse(
+            autoFillLayout(found.layout.map((item) => ({ ...item }))),
+            collapsedIdSet(),
+            s.savedHeights,
+          );
           return {
-            layout: autoFillLayout(found.layout.map((item) => ({ ...item }))),
-            visibleWidgets: [...found.visibleWidgets],
+            layout: next.layout,
+            savedHeights: next.savedHeights,
+            visibleWidgets: effectiveVisible(found.visibleWidgets),
             activePreset: null,
             activeCustomLayoutId: id,
           };
@@ -329,42 +442,58 @@ export const useLayoutStore = create<LayoutState>()(
     }),
     {
       name: 'dashboard-layout',
+      // Bump with a real migrate when the persisted shape changes.
+      version: 1,
+      migrate: (persisted) => persisted as LayoutState,
       onRehydrateStorage: () => (state) => {
-        if (state) {
-          if (!state.savedHeights) state.savedHeights = {};
-          // Re-clamp mins to current WIDGET_CONSTRAINTS so layouts saved with older
-          // (larger) minH/minW pick up the new, smaller floors instead of staying stuck.
-          state.layout = applyConstraints(autoFillLayout(state.layout));
-          // applyConstraints resets minH to the widget's floor, which would UNLOCK a
-          // persisted collapsed item (its minH was pinned to its tiny collapsed h).
-          // Re-lock every item still recorded in savedHeights so collapsed widgets
-          // survive reload collapsed. The exact collapsed h gets re-derived from the
-          // live viewport rowHeight by DashboardGrid once it mounts.
-          state.layout = state.layout.map((item) => {
-            const id = item.i as WidgetId;
-            if (state.savedHeights[id] === undefined) return item;
-            return { ...item, minH: item.h, maxH: item.h, isResizable: false };
-          });
-          // Back-fill visibleWidgets for stored states that predate this field
-          if (!state.visibleWidgets || state.visibleWidgets.length === 0) {
-            state.visibleWidgets = [...ALL_WIDGET_IDS];
-          }
-          // Back-fill custom-layout fields for stored states that predate them, and
-          // re-clamp each saved layout's mins too.
-          if (!state.savedCustomLayouts) state.savedCustomLayouts = [];
-          else state.savedCustomLayouts = state.savedCustomLayouts.map((l) => ({
-            ...l,
-            layout: applyConstraints(l.layout),
-          }));
-          if (state.activeCustomLayoutId === undefined) state.activeCustomLayoutId = null;
-          // Back-fill for stored states that predate pinned custom layouts, and
-          // prune ids whose layout no longer exists (defensive).
-          if (!state.pinnedCustomLayouts) state.pinnedCustomLayouts = [];
-          else {
-            const ids = new Set(state.savedCustomLayouts.map((l) => l.id));
-            state.pinnedCustomLayouts = state.pinnedCustomLayouts.filter((id) => ids.has(id));
-          }
+        if (!state) return;
+        // Persisted data can hold ids this build does not know (removed or renamed
+        // widget, backup from a newer build) or a wrong shape: DashboardGrid would
+        // throw on WIDGET_REGISTRY[id]. Coerce and filter everything first.
+        const defaultVisible: WidgetId[] = [...(DEFAULT_LAYOUT.visibleWidgets ?? ALL_WIDGET_IDS)];
+        const ids = (v: unknown): WidgetId[] => (Array.isArray(v) ? v.filter(isWidgetId) : []);
+        const items = (v: unknown): Layout[] =>
+          Array.isArray(v) ? v.filter((it) => it && typeof it === 'object' && isWidgetId((it as Layout).i)) : [];
+
+        const rawHeights = state.savedHeights && typeof state.savedHeights === 'object' ? state.savedHeights : {};
+        const savedHeights: Partial<Record<WidgetId, number>> = {};
+        for (const [k, v] of Object.entries(rawHeights)) {
+          if (isWidgetId(k) && typeof v === 'number') savedHeights[k] = v;
         }
+
+        // Back-fill only a MISSING field (stores that predate it); an empty array is
+        // a real choice (the user unpinned everything).
+        state.visibleWidgets =
+          state.visibleWidgets === undefined ? [...ALL_WIDGET_IDS] : ids(state.visibleWidgets);
+
+        const rawLayout = Array.isArray(state.layout)
+          ? items(state.layout)
+          : (generateLayout(DEFAULT_LAYOUT.name, defaultVisible) ?? DEFAULT_LAYOUT.layout);
+        // Re-clamp mins to current WIDGET_CONSTRAINTS so layouts saved with older
+        // (larger) minH/minW pick up the new, smaller floors instead of staying stuck.
+        const clamped = applyConstraints(autoFillLayout(rawLayout));
+        // applyConstraints resets minH, which would UNLOCK a persisted collapsed
+        // item; re-lock every id the widget-UI store says is collapsed. The exact
+        // collapsed h gets re-derived from the live rowHeight by DashboardGrid.
+        const normalized = normalizeCollapse(clamped, collapsedIdSet(), savedHeights, true);
+        state.layout = normalized.layout;
+        state.savedHeights = normalized.savedHeights;
+
+        // Back-fill custom-layout fields for stored states that predate them, and
+        // re-clamp each saved layout's mins too.
+        state.savedCustomLayouts = (Array.isArray(state.savedCustomLayouts) ? state.savedCustomLayouts : [])
+          .filter((l) => l && typeof l === 'object' && typeof l.id === 'string')
+          .map((l) => ({
+            ...l,
+            layout: applyConstraints(items(l.layout)),
+            visibleWidgets: ids(l.visibleWidgets),
+          }));
+        if (state.activeCustomLayoutId === undefined) state.activeCustomLayoutId = null;
+        // Prune pinned ids whose layout no longer exists (defensive).
+        const savedIds = new Set(state.savedCustomLayouts.map((l) => l.id));
+        state.pinnedCustomLayouts = (Array.isArray(state.pinnedCustomLayouts) ? state.pinnedCustomLayouts : []).filter(
+          (id) => savedIds.has(id),
+        );
       },
     }
   )

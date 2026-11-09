@@ -14,17 +14,27 @@ export function useYoutubeBrowse(category: string, enabled: boolean) {
   });
 }
 
-export function useYoutubeSearch(query: string, pageToken?: string) {
-  return useQuery<YoutubeSearchPage>({
-    queryKey: ['youtube-search', query, pageToken],
+/** Query options for a YouTube search. Every search can spend a unit of the 90/day
+ *  budget shared with streams.nish.software, so nothing refetches it by itself:
+ *  no retry, never stale, no refetch on mount. Fresh results are the explicit
+ *  Refresh (`useYoutubeSearchRefresh`). Exported for tests. */
+export function youtubeSearchOptions(query: string, pageToken?: string) {
+  return {
+    queryKey: ['youtube-search', query, pageToken] as const,
     queryFn: () => {
       const params = new URLSearchParams({ q: query });
       if (pageToken) params.set('pageToken', pageToken);
       return apiClient.get<YoutubeSearchPage>(`/api/youtube/search?${params.toString()}`);
     },
     enabled: query.length > 0,
-    staleTime: 5 * 60 * 1000, // cache results 5 min
-  });
+    retry: false,
+    staleTime: Infinity,
+    refetchOnMount: false,
+  };
+}
+
+export function useYoutubeSearch(query: string, pageToken?: string) {
+  return useQuery<YoutubeSearchPage>(youtubeSearchOptions(query, pageToken));
 }
 
 /** Fresh first-page results for a search (spends one search, `refresh=1`),

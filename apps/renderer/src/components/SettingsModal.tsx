@@ -34,6 +34,7 @@ function CredentialRow({
   isSet,
   edit,
   onEdit,
+  disabled = false,
 }: {
   label: string;
   hint?: string;
@@ -41,6 +42,8 @@ function CredentialRow({
   isSet: boolean;
   edit: CredentialEdit | undefined;
   onEdit: (e: CredentialEdit | undefined) => void;
+  /** True while a save is restarting the server: edits would race it. */
+  disabled?: boolean;
 }) {
   const [visible, setVisible] = useState(false);
   const inputId = useId();
@@ -72,14 +75,15 @@ function CredentialRow({
               placeholder={isSet ? 'New value…' : '—'}
               autoFocus={isSet}
               spellCheck={false}
+              disabled={disabled}
               aria-describedby={hint ? `${inputId}-hint` : undefined}
               className="flex-1 font-mono"
             />
-            <IconButton label={visible ? 'Hide value' : 'Show value'} size="sm" active={visible} onClick={() => setVisible((v) => !v)}>
+            <IconButton label={visible ? 'Hide value' : 'Show value'} size="sm" active={visible} disabled={disabled} onClick={() => setVisible((v) => !v)}>
               {visible ? <EyeOff size={13} /> : <Eye size={13} />}
             </IconButton>
             {isSet && (
-              <IconButton label="Keep the saved value" size="sm" onClick={() => onEdit(undefined)}>
+              <IconButton label="Keep the saved value" size="sm" disabled={disabled} onClick={() => onEdit(undefined)}>
                 <X size={13} />
               </IconButton>
             )}
@@ -87,7 +91,7 @@ function CredentialRow({
         ) : pendingClear ? (
           <div className="flex-1 flex items-center gap-2">
             <Badge tone="warn">Will be removed on save</Badge>
-            <Button variant="link" size="xs" onClick={() => onEdit(undefined)}>
+            <Button variant="link" size="xs" disabled={disabled} onClick={() => onEdit(undefined)}>
               Undo
             </Button>
           </div>
@@ -96,10 +100,10 @@ function CredentialRow({
             <span className="text-th-hi text-2xs font-mono tracking-widest">••••••••</span>
             <span className="text-th-hi3 text-3xs">saved</span>
             <div className="ml-auto flex items-center gap-1">
-              <Button size="xs" variant="subtle" onClick={() => onEdit({ mode: 'set', value: '' })}>
+              <Button size="xs" variant="subtle" disabled={disabled} onClick={() => onEdit({ mode: 'set', value: '' })}>
                 Replace
               </Button>
-              <Button size="xs" variant="ghost" onClick={() => onEdit({ mode: 'clear' })} className="hover:text-th-loss hover:bg-th-loss-soft">
+              <Button size="xs" variant="ghost" disabled={disabled} onClick={() => onEdit({ mode: 'clear' })} className="hover:text-th-loss hover:bg-th-loss-soft">
                 Clear
               </Button>
             </div>
@@ -714,7 +718,9 @@ function AppSettingsPanel() {
           <p role="alert" className="text-th-loss text-3xs leading-relaxed">{importError}</p>
         )}
         <p className="text-th-hi3 text-3xs leading-relaxed">
-          Layout, theme &amp; preferences (not API keys). Import replaces local settings and reloads — handy for syncing two machines.
+          Includes layout, theme, app settings, hardware config, the crypto watchlist, notes, tasks, timers, alert rules and widget
+          preferences. Not included: API keys, Claude chats and command-palette history. Import merges: it overwrites the
+          settings in the file, keeps everything else on this device, and reloads — handy for syncing two machines.
         </p>
         <AutoExportRow />
       </div>
@@ -773,6 +779,8 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   // Pending changes keyed by credential; absent = untouched.
   const [edits, setEdits] = useState<Partial<Record<CredentialKey, CredentialEdit>>>({});
   const [builtinKeys, setBuiltinKeys] = useState<string[]>([]);
+  // The builtin-key list comes from the server; false = it could not be reached.
+  const [builtinKnown, setBuiltinKnown] = useState(true);
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [loading, setLoading] = useState(true);
   const [encryptionAvailable, setEncryptionAvailable] = useState(true);
@@ -782,21 +790,26 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     const electron = window.electron;
     if (!electron) { setLoading(false); return; } // defensive: no bridge outside Electron
     let cancelled = false; // don't setState after Escape unmounts the modal mid-load
-    Promise.all([
+    // allSettled: stored-key status comes from main over IPC and must still fill
+    // when the server is down (the usual reason to open this tab).
+    void Promise.allSettled([
       electron.credentials.getStatus(),
       apiClient.get<{ keys: string[] }>('/api/credentials/builtin'),
-      electron.credentials.encryptionAvailable().catch(() => true),
+      electron.credentials.encryptionAvailable(),
     ]).then(([storedStatus, builtin, encAvailable]) => {
       if (cancelled) return;
-      setStatus(storedStatus);
-      setBuiltinKeys(builtin.keys);
-      setEncryptionAvailable(encAvailable);
+      if (storedStatus.status === 'fulfilled') setStatus(storedStatus.value);
+      if (builtin.status === 'fulfilled') setBuiltinKeys(builtin.value.keys);
+      else setBuiltinKnown(false);
+      setEncryptionAvailable(encAvailable.status === 'fulfilled' ? encAvailable.value : true);
       setLoading(false);
-    }).catch(() => {
-      if (!cancelled) setLoading(false);
     });
     return () => { cancelled = true; };
   }, []);
+
+  // The 2s/3s "Saved"/"Failed" resets must not fire after the modal closes.
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (resetTimer.current) clearTimeout(resetTimer.current); }, []);
 
   // Escape, backdrop click and focus trapping come from @nish/ui's Modal.
 
@@ -812,7 +825,8 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   const hasChanges = Object.keys(payload).length > 0;
 
   async function handleSave() {
-    if (!window.electron || !hasChanges) return;
+    if (!window.electron || !hasChanges || saveState === 'saving') return;
+    if (resetTimer.current) clearTimeout(resetTimer.current);
     setSaveState('saving');
     try {
       // Resolves only after the Fastify child has restarted with the new env.
@@ -825,15 +839,22 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         }
         return next;
       });
-      setEdits({});
+      // Only the keys that were saved: the inputs are locked while saving, so
+      // this is every edit today, but never discard one that was not sent.
+      setEdits((prev) => {
+        const next = { ...prev };
+        for (const key of Object.keys(payload) as CredentialKey[]) delete next[key];
+        return next;
+      });
       // Widgets were getting connection-refused during the restart — refetch
       // everything now instead of leaving them in error until their next poll.
-      await queryClient.invalidateQueries();
+      // Not 'youtube-search': refetching it can spend a search unit from the shared daily budget.
+      await queryClient.invalidateQueries({ predicate: (q) => q.queryKey[0] !== 'youtube-search' });
       setSaveState('saved');
-      setTimeout(() => setSaveState('idle'), 2000);
+      resetTimer.current = setTimeout(() => setSaveState('idle'), 2000);
     } catch {
       setSaveState('error');
-      setTimeout(() => setSaveState('idle'), 3000);
+      resetTimer.current = setTimeout(() => setSaveState('idle'), 3000);
     }
   }
 
@@ -844,7 +865,8 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
       else next[key] = edit;
       return next;
     });
-    if (saveState !== 'idle') setSaveState('idle');
+    // Never while 'saving': that would clear the restart message and re-enable Save.
+    if (saveState === 'saved' || saveState === 'error') setSaveState('idle');
   }
 
   const footer =
@@ -892,6 +914,11 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             <SkeletonLines lines={4} />
           ) : (
             <>
+              {!builtinKnown && (
+                <p role="status" className="text-th-hi3 text-3xs leading-relaxed">
+                  Server unreachable: pre-configured keys unknown.
+                </p>
+              )}
               {SERVICES.map((service) => {
                 const defs = CREDENTIAL_DEFS.filter((d) => d.service === service);
                 return (
@@ -910,6 +937,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                           isSet={status[def.key] === true}
                           edit={edits[def.key]}
                           onEdit={(e) => setEdit(def.key, e)}
+                          disabled={saveState === 'saving'}
                         />
                       )
                     )}

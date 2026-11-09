@@ -41,6 +41,43 @@ describe('apiClient bearer token', () => {
   });
 });
 
+/** A fetch that never answers; rejects with the signal's reason when aborted. */
+function stubHangingFetch(): void {
+  vi.stubGlobal('fetch', vi.fn((_url: string, init?: RequestInit) => new Promise((_resolve, reject) => {
+    init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+  })));
+}
+
+describe('apiClient timeout and abort', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  // AbortSignal.timeout runs on a native timer that fake timers cannot advance,
+  // so these use a real, short timeoutMs.
+  it('gives up on a hung GET with "Timed out: <path>"', async () => {
+    stubHangingFetch();
+    await expect(apiClient.get('/api/hardware', { timeoutMs: 20 })).rejects.toThrow('Timed out: /api/hardware');
+  });
+
+  it('honours a per-call timeoutMs on POST', async () => {
+    stubHangingFetch();
+    await expect(apiClient.post('/api/discord/connect', undefined, { timeoutMs: 20 })).rejects.toThrow(
+      'Timed out: /api/discord/connect',
+    );
+  });
+
+  it('a caller abort rejects with the abort, not a timeout', async () => {
+    stubHangingFetch();
+    const ctl = new AbortController();
+    const p = apiClient.get('/api/weather', { signal: ctl.signal });
+    ctl.abort();
+    const err = await p.catch((e: unknown) => e);
+    expect(err).toBeDefined();
+    expect(String((err as Error).message)).not.toContain('Timed out');
+  });
+});
+
 describe('resolveApiBase', () => {
   it('is the local server unless overridden', () => {
     expect(resolveApiBase(undefined)).toBe('http://127.0.0.1:7432');

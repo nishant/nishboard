@@ -39,6 +39,8 @@ const MESSAGE_EVENTS = ['MESSAGE_CREATE', 'MESSAGE_UPDATE', 'MESSAGE_DELETE'];
 interface SseClient {
   raw: ServerResponse;
   ended: boolean;
+  /** The text channel this stream's window is viewing (null = none). */
+  channelId: string | null;
 }
 
 const sseClients = new Set<SseClient>();
@@ -48,8 +50,13 @@ let voiceChannelId: string | null = null;
 let voiceChannelName: string | null = null;
 let voiceGuildId: string | null = null;
 let roster = new Map<string, ReturnType<typeof mapVoiceMember>>();
-// The text channel the widget is viewing (MESSAGE_* subscription target).
-let textChannelId: string | null = null;
+// Text channels with live MESSAGE_* subscriptions: reference-counted by the
+// open streams' channelIds (subscribe on the first, unsubscribe on the last).
+const subscribedTextChannels = new Set<string>();
+// Voice channel the VOICE_*/SPEAKING_* subs currently target. Separate from
+// voiceChannelId (the displayed one) and set synchronously, before any await.
+let subscribedVoiceChannel: string | null = null;
+let adoptGen = 0;
 // Global subs (VOICE_CHANNEL_SELECT + NOTIFICATION_CREATE) — once per pipe
 // session; reset when the pipe closes.
 let globalSubsActive = false;
@@ -77,25 +84,39 @@ function broadcast(event: DiscordStreamEvent): void {
   for (const client of sseClients) sendTo(client, event);
 }
 
-/** Switch the MESSAGE_* subscription to a new channel (null = none). Sub/unsub
- *  failures are non-fatal — a dropped pipe resets everything anyway. */
-function adoptTextChannel(rpc: DiscordRpcClient, channelId: string | null): void {
-  if (textChannelId === channelId) return;
-  const prev = textChannelId;
-  textChannelId = channelId;
-  if (prev) {
-    for (const evt of MESSAGE_EVENTS) void rpc.unsubscribe(evt, { channel_id: prev }).catch(() => undefined);
+function sendToChannel(channelId: string, event: DiscordStreamEvent): void {
+  for (const client of sseClients) {
+    if (client.channelId === channelId) sendTo(client, event);
   }
-  if (channelId) {
-    for (const evt of MESSAGE_EVENTS) void rpc.subscribe(evt, { channel_id: channelId }).catch(() => undefined);
+}
+
+/** Reconcile MESSAGE_* subscriptions with the channels the open streams view:
+ *  one subscription per channel while at least one stream wants it. Sub/unsub
+ *  failures are non-fatal — a dropped pipe resets everything anyway. */
+function syncTextSubs(rpc: DiscordRpcClient): void {
+  const wanted = new Set<string>();
+  for (const client of sseClients) {
+    if (!client.ended && client.channelId) wanted.add(client.channelId);
+  }
+  for (const id of [...subscribedTextChannels]) {
+    if (wanted.has(id)) continue;
+    subscribedTextChannels.delete(id);
+    for (const evt of MESSAGE_EVENTS) void rpc.unsubscribe(evt, { channel_id: id }).catch(() => undefined);
+  }
+  for (const id of wanted) {
+    if (subscribedTextChannels.has(id)) continue;
+    subscribedTextChannels.add(id);
+    for (const evt of MESSAGE_EVENTS) void rpc.subscribe(evt, { channel_id: id }).catch(() => undefined);
   }
 }
 
 /** Move the voice subscriptions + roster to a new VC (null = left voice) and
- *  broadcast the fresh roster. */
+ *  broadcast the fresh roster. Concurrent calls: the newest wins. */
 async function adoptVoiceChannel(rpc: DiscordRpcClient, channelId: string | null): Promise<void> {
-  const prev = voiceChannelId;
+  const gen = ++adoptGen;
+  const prev = subscribedVoiceChannel;
   if (prev && prev !== channelId) {
+    subscribedVoiceChannel = null;
     for (const evt of VOICE_EVENTS) void rpc.unsubscribe(evt, { channel_id: prev }).catch(() => undefined);
   }
   if (!channelId) {
@@ -106,10 +127,12 @@ async function adoptVoiceChannel(rpc: DiscordRpcClient, channelId: string | null
     broadcast({ type: 'voice-roster', voice: currentVoice() });
     return;
   }
-  const chan = await rpc.getChannel(channelId);
-  if (prev !== channelId) {
+  if (subscribedVoiceChannel !== channelId) {
+    subscribedVoiceChannel = channelId;
     for (const evt of VOICE_EVENTS) void rpc.subscribe(evt, { channel_id: channelId }).catch(() => undefined);
   }
+  const chan = await rpc.getChannel(channelId);
+  if (gen !== adoptGen) return; // a newer adopt superseded this one
   voiceChannelId = channelId;
   voiceChannelName = chan.name ?? null;
   voiceGuildId = chan.guild_id ?? null;
@@ -132,16 +155,25 @@ function ensureGlobalSubs(rpc: DiscordRpcClient): void {
   void rpc.subscribe('NOTIFICATION_CREATE').catch(() => undefined);
 }
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null;
+}
+
+function str(v: unknown): string | undefined {
+  return typeof v === 'string' ? v : undefined;
+}
+
 function handleDispatch(rpc: DiscordRpcClient, evt: string, data: unknown): void {
+  if (!isRecord(data)) return;
   switch (evt) {
     case 'VOICE_CHANNEL_SELECT': {
       // The user joined/left/moved voice (from the widget OR the real client).
-      const d = data as { channel_id?: string | null };
-      void adoptVoiceChannel(rpc, d.channel_id ?? null).catch(() => undefined);
+      void adoptVoiceChannel(rpc, str(data.channel_id) ?? null).catch(() => undefined);
       break;
     }
     case 'VOICE_STATE_CREATE':
     case 'VOICE_STATE_UPDATE': {
+      // Narrowed to a record above; mapVoiceMember reads its fields defensively.
       const m = mapVoiceMember(data as RpcVoiceState);
       if (!m.userId) break;
       const existing = roster.get(m.userId);
@@ -150,44 +182,44 @@ function handleDispatch(rpc: DiscordRpcClient, evt: string, data: unknown): void
       break;
     }
     case 'VOICE_STATE_DELETE': {
-      const id = (data as RpcVoiceState).user?.id;
+      const id = isRecord(data.user) ? str(data.user.id) : undefined;
       if (id && roster.delete(id)) broadcast({ type: 'voice-roster', voice: currentVoice() });
       break;
     }
     case 'SPEAKING_START':
     case 'SPEAKING_STOP': {
-      const d = data as { user_id?: string };
-      if (!d.user_id) break;
+      const userId = str(data.user_id);
+      if (!userId) break;
       const speaking = evt === 'SPEAKING_START';
-      const member = roster.get(d.user_id);
+      const member = roster.get(userId);
       if (member) member.speaking = speaking;
-      broadcast({ type: 'speaking', userId: d.user_id, speaking });
+      broadcast({ type: 'speaking', userId, speaking });
       break;
     }
     case 'MESSAGE_CREATE':
     case 'MESSAGE_UPDATE': {
-      const d = data as { channel_id?: string; message?: RpcMessage };
-      if (!d.channel_id || d.channel_id !== textChannelId || !d.message) break;
-      broadcast({
+      const channelId = str(data.channel_id);
+      if (!channelId || !isRecord(data.message)) break;
+      sendToChannel(channelId, {
         type: 'message',
         action: evt === 'MESSAGE_CREATE' ? 'create' : 'update',
-        message: mapMessage(d.message, d.channel_id),
+        message: mapMessage(data.message as unknown as RpcMessage, channelId),
       });
       break;
     }
     case 'MESSAGE_DELETE': {
-      const d = data as { channel_id?: string; message?: { id?: string } };
-      if (!d.channel_id || d.channel_id !== textChannelId || !d.message?.id) break;
-      broadcast({ type: 'message-delete', channelId: d.channel_id, messageId: d.message.id });
+      const channelId = str(data.channel_id);
+      const messageId = isRecord(data.message) ? str(data.message.id) : undefined;
+      if (!channelId || !messageId) break;
+      sendToChannel(channelId, { type: 'message-delete', channelId, messageId });
       break;
     }
     case 'NOTIFICATION_CREATE': {
-      const d = data as { channel_id?: string; title?: string; body?: string };
       broadcast({
         type: 'notification',
-        channelId: d.channel_id ?? '',
-        title: d.title ?? '',
-        body: d.body ?? '',
+        channelId: str(data.channel_id) ?? '',
+        title: str(data.title) ?? '',
+        body: str(data.body) ?? '',
       });
       break;
     }
@@ -208,7 +240,9 @@ function wireHub(rpc: DiscordRpcClient): void {
     voiceChannelName = null;
     voiceGuildId = null;
     roster = new Map();
-    textChannelId = null;
+    subscribedTextChannels.clear();
+    subscribedVoiceChannel = null;
+    adoptGen++;
     for (const client of sseClients) {
       sendTo(client, { type: 'state', running: false, connected: false });
       client.ended = true;
@@ -400,7 +434,7 @@ export const discordRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/discord/stream?channelId=… — hijacked SSE of DiscordStreamEvent
   // frames: voice roster, speaking, messages (for channelId), notifications.
   // Viewing a different text channel = the client opens a NEW stream (closing
-  // the old one); the hub's MESSAGE_* subscription follows last-writer-wins.
+  // the old one); each stream only receives its own channel's message frames.
   fastify.get<{ Querystring: { channelId?: string } }>(
     '/stream',
     {
@@ -433,12 +467,28 @@ export const discordRoutes: FastifyPluginAsync = async (fastify) => {
       }
       raw.writeHead(200, headers);
 
-      const client: SseClient = { raw, ended: false };
+      const client: SseClient = { raw, ended: false, channelId: req.query.channelId ?? null };
       sseClients.add(client);
+
+      // Reap on the RESPONSE stream's 'close', NEVER req.raw: an
+      // http.IncomingMessage fires 'close' the moment its request side is
+      // done, long before the SSE response finishes (see routes/claude.ts and
+      // the CLAUDE.md gotcha — keying off req.raw silently killed streams).
+      // Registered BEFORE any await so a client that aborts while the roster
+      // is being primed is still removed. The `ended` guard skips the close
+      // our own raw.end() triggers.
+      raw.on('close', () => {
+        client.ended = true;
+        sseClients.delete(client);
+        // Last viewer of a channel gone -> drop that channel's message
+        // subscription (voice subs stay so a reopened stream re-primes fast).
+        syncTextSubs(rpc);
+      });
+
       sendTo(client, { type: 'state', running: true, connected: true });
 
       ensureGlobalSubs(rpc);
-      adoptTextChannel(rpc, req.query.channelId ?? null);
+      syncTextSubs(rpc);
 
       // Prime the voice roster. When the hub already tracks a VC just replay
       // it to this client; otherwise ask the client where the user is.
@@ -447,28 +497,17 @@ export const discordRoutes: FastifyPluginAsync = async (fastify) => {
       } else {
         try {
           const chan = await rpc.getSelectedVoiceChannel();
+          if (client.ended || raw.destroyed) return;
           await adoptVoiceChannel(rpc, chan?.id ?? null);
+          if (client.ended || raw.destroyed) return;
           // adoptVoiceChannel broadcast to everyone EXCEPT it may have run
-          // before this client could observe a null→null no-op — send the
+          // before this client could observe a null->null no-op - send the
           // current state explicitly so the widget always gets one roster.
           sendTo(client, { type: 'voice-roster', voice: currentVoice() });
         } catch {
           sendTo(client, { type: 'voice-roster', voice: currentVoice() });
         }
       }
-
-      // Reap on the RESPONSE stream's 'close', NEVER req.raw: an
-      // http.IncomingMessage fires 'close' the moment its request side is
-      // done, long before the SSE response finishes (see routes/claude.ts and
-      // the CLAUDE.md gotcha — keying off req.raw silently killed streams).
-      // The `ended` guard skips the close our own raw.end() triggers.
-      raw.on('close', () => {
-        client.ended = true;
-        sseClients.delete(client);
-        // Last viewer gone → stop the message subscription (hygiene; voice
-        // subs stay so a reopened stream re-primes instantly).
-        if (sseClients.size === 0) adoptTextChannel(rpc, null);
-      });
     },
   );
 };

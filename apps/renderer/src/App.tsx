@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/reac
 import { Titlebar } from './components/Titlebar';
 import { DashboardGrid } from './components/DashboardGrid';
 import { DiscordHost } from './widgets/discord/DiscordHost';
-import { onThemeChange, Toaster } from '@nish/ui';
+import { AppErrorBoundary, ErrorState as NishErrorState, onThemeChange, Toaster } from '@nish/ui';
 import { CommandPalette } from './components/CommandPalette';
 import { AlertsEvaluator } from './components/AlertsEvaluator';
 import { TimerEvaluator } from './components/TimerEvaluator';
@@ -175,7 +175,17 @@ export function App() {
       <WeatherAlertNotifier />
       <TwitchLiveNotifier />
       <div className="app-shell h-screen w-screen bg-th-bg overflow-hidden flex flex-col">
-        <Titlebar />
+        {/* Own boundary: a Titlebar throw must not take Close/Settings and the grid with it. */}
+        <AppErrorBoundary
+          onError={(error, info) => console.error('[titlebar] render failed', error, info.componentStack)}
+          fallback={({ reset }) => (
+            <div className="app-region-drag shrink-0 border-b border-th-line bg-th-surface">
+              <NishErrorState compact message="Titlebar failed" onRetry={reset} />
+            </div>
+          )}
+        >
+          <Titlebar />
+        </AppErrorBoundary>
         <div className="flex-1 min-h-0">
           <DashboardGrid />
         </div>

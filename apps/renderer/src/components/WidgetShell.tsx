@@ -18,9 +18,11 @@ export function WidgetShell({ title, children, actions, className, collapsed = f
   // chevron is FIRST so its position is stable across widgets.
   const actionRow = (onToggleCollapse || actions) && (
     <div
-      // Hover-revealed action row — stays visible while any action has focus.
-      // min-h-5.5 (22px) keeps the header at TITLEBAR_PX with 20px (2xs) actions.
-      className="ml-auto flex min-h-5.5 items-center gap-0.5 opacity-0 group-hover/wsh:opacity-100 focus-within:opacity-100 transition-opacity"
+      // Hover-revealed action row — stays visible while any action has focus, and
+      // always on a touch screen (no hover there). min-h-5.5 (22px) keeps the header
+      // at TITLEBAR_PX with 20px (2xs) actions; on coarse pointers each action gets a
+      // 44px hit area (HeaderAction) so the gap widens to a 44px pitch.
+      className="ml-auto flex min-h-5.5 items-center gap-0.5 opacity-0 group-hover/wsh:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100 pointer-coarse:gap-6 transition-opacity"
       style={{ cursor: 'default' }}
       onMouseDown={(e) => e.stopPropagation()}
     >
@@ -35,7 +37,7 @@ export function WidgetShell({ title, children, actions, className, collapsed = f
 
   return (
     <div className={cn('h-full flex flex-col rounded-lg border border-th-line bg-th-surface overflow-hidden', className)}>
-      <div className="widget-drag-handle group/wsh flex items-center gap-2 px-3 py-2 border-b border-th-line cursor-grab active:cursor-grabbing select-none shrink-0">
+      <div className="widget-drag-handle group/wsh flex items-center gap-2 px-3 py-2 pointer-coarse:py-0 pointer-coarse:min-h-11 border-b border-th-line cursor-grab active:cursor-grabbing select-none shrink-0">
         <GripHorizontal className="w-3.5 h-3.5 text-th-hi3" />
         <span className="text-xs font-medium text-th-hi3 uppercase tracking-widest">{title}</span>
         {actionRow}

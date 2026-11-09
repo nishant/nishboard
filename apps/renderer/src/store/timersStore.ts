@@ -96,6 +96,9 @@ export const useTimersStore = create<TimersState>()(
       name: 'dashboard-timers',
       onRehydrateStorage: () => (state) => {
         if (!state) return;
+        // Main window only: a popout rehydrates this store too (paletteActions is
+        // imported everywhere) and would send a false "elapsed while closed" notice.
+        if (new URLSearchParams(location.search).has('widget')) return;
         // Settle alarms/timers that elapsed while the app was closed, so the
         // widget's tick doesn't fire a chime+toast burst for the whole backlog
         // on launch. Anything inside the grace window still fires normally.
@@ -112,6 +115,11 @@ export const useTimersStore = create<TimersState>()(
           return { ...t, running: false, endsAt: null, remainingMs: 0 };
         });
         if (missed > 0) {
+          // Persist the settled items (assigning to state alone never reaches
+          // localStorage, so the notice would repeat every launch). Deferred: the
+          // store const is still being initialised while this callback runs.
+          const { alarms, timers } = state;
+          queueMicrotask(() => useTimersStore.setState({ alarms, timers }));
           window.electron?.notify?.(
             'Nishboard',
             `${missed} timer${missed === 1 ? '/alarm' : 's/alarms'} elapsed while the app was closed`,

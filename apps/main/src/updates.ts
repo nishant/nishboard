@@ -166,6 +166,10 @@ const CHECK_EVERY_MS = 6 * 60 * 60 * 1000;
 const LOG_MAX_BYTES = 1024 * 1024;
 
 let status: UpdateStatusData = { state: 'idle', version: null, percent: null, message: null };
+// Set once an update has fully downloaded. From then on later checks (offline
+// after sleep, a GitHub 5xx) must not hide the Restart action: the installer is
+// already on disk and applies on quit anyway.
+let downloadedVersion: string | null = null;
 let installing = false;
 let started = false;
 const notifiedVersions = new Set<string>();
@@ -180,7 +184,7 @@ export function getUpdateStatus(): UpdateStatusData {
 }
 
 export function installUpdate(): void {
-  if (status.state !== 'downloaded') return;
+  if (downloadedVersion === null) return;
   installing = true;
   autoUpdater.quitAndInstall(false, true);
 }
@@ -228,15 +232,20 @@ export function startAutoUpdates(getWindows: () => BrowserWindow[]): void {
     }
   };
 
-  autoUpdater.on('checking-for-update', () =>
-    set({ state: 'checking', version: null, percent: null, message: null }));
-  autoUpdater.on('update-not-available', () =>
-    set({ state: 'idle', version: null, percent: null, message: null }));
+  autoUpdater.on('checking-for-update', () => {
+    if (downloadedVersion !== null) return;
+    set({ state: 'checking', version: null, percent: null, message: null });
+  });
+  autoUpdater.on('update-not-available', () => {
+    if (downloadedVersion !== null) return;
+    set({ state: 'idle', version: null, percent: null, message: null });
+  });
   autoUpdater.on('update-available', (info) =>
     set({ state: 'downloading', version: info.version, percent: 0, message: null }));
   autoUpdater.on('download-progress', (p) =>
     set({ state: 'downloading', version: status.version, percent: Math.round(p.percent), message: null }));
   autoUpdater.on('update-downloaded', (info) => {
+    downloadedVersion = info.version;
     set({ state: 'downloaded', version: info.version, percent: null, message: null });
     if (!notifiedVersions.has(info.version) && Notification.isSupported()) {
       notifiedVersions.add(info.version);
@@ -248,8 +257,13 @@ export function startAutoUpdates(getWindows: () => BrowserWindow[]): void {
       n.show();
     }
   });
-  autoUpdater.on('error', (err) =>
-    set({ state: 'error', version: null, percent: null, message: (err?.message ?? String(err)).slice(0, 200) }));
+  autoUpdater.on('error', (err) => {
+    if (downloadedVersion !== null) {
+      console.warn('[updates] check failed after download (keeping downloaded state):', err?.message ?? err);
+      return;
+    }
+    set({ state: 'error', version: null, percent: null, message: (err?.message ?? String(err)).slice(0, 200) });
+  });
 
   const check = (): void => {
     autoUpdater.checkForUpdates().catch(() => undefined); // failures also arrive via the 'error' event

@@ -3,14 +3,14 @@ import { readFileSync, writeFileSync, existsSync } from 'fs';
 import path from 'path';
 import { readWindowTheme } from './windowTheme';
 import { clampToScreen } from './windowBounds';
-import { APP_ORIGIN, appUrl } from './appProtocol';
+import { appUrl } from './appProtocol';
+import { isAllowedNavigation, isDev } from './env';
 
 // Pop-out widget windows: each widget can float in its own small frameless
 // window loading the same renderer bundle with ?widget=<id> (the renderer
 // entry branches to PopoutShell). Window bounds persist per widget in
 // userData/popouts.json (prefs.ts pattern) so a popout reopens where it lived.
 
-const isDev = process.env.NODE_ENV === 'development';
 
 interface StoredBounds { x: number; y: number; width: number; height: number }
 type PopoutBoundsFile = Partial<Record<string, StoredBounds>>;
@@ -120,11 +120,10 @@ export function openPopout(id: string): void {
   // Popouts host the same third-party embeds as the main window — same guards.
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (event, url) => {
-    const allowed = isDev ? url.startsWith('http://localhost:5173') : url.startsWith(`${APP_ORIGIN}/`);
-    if (!allowed) event.preventDefault();
+    if (!isAllowedNavigation(url, isDev())) event.preventDefault();
   });
 
-  if (isDev) {
+  if (isDev()) {
     void win.loadURL(`http://localhost:5173/?widget=${encodeURIComponent(id)}`);
   } else {
     void win.loadURL(appUrl({ widget: id }));

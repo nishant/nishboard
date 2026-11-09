@@ -349,4 +349,59 @@ describe('GET /api/discord/stream', () => {
     expect(res.status).toBeGreaterThanOrEqual(400);
     expect(res.headers.get('content-type')).toContain('application/json');
   });
+
+  it('routes message frames only to the stream viewing that channel (two windows)', async () => {
+    const server = await listen();
+    app = server.app;
+    const a = await openStream(server.url, '?channelId=111111');
+    const b = await openStream(server.url, '?channelId=222222');
+    await vi.waitFor(() => {
+      expect(a.events.some((e) => e.type === 'voice-roster')).toBe(true);
+      expect(b.events.some((e) => e.type === 'voice-roster')).toBe(true);
+    });
+    const msg = (channel: string, id: string) => ({
+      channel_id: channel,
+      message: { id, content: id, author: { id: 'u2', username: 'f' }, timestamp: '2026-07-14T12:00:00Z' },
+    });
+    fake.emitDispatch('MESSAGE_CREATE', msg('111111', 'ma'));
+    fake.emitDispatch('MESSAGE_CREATE', msg('222222', 'mb'));
+    fake.emitDispatch('MESSAGE_DELETE', { channel_id: '222222', message: { id: 'mb' } });
+    await vi.waitFor(() => expect(b.events.some((e) => e.type === 'message-delete')).toBe(true));
+    const ids = (evs: DiscordStreamEvent[]): string[] =>
+      evs.flatMap((e) => (e.type === 'message' ? [e.message.id] : []));
+    expect(ids(a.events)).toEqual(['ma']);
+    expect(ids(b.events)).toEqual(['mb']);
+    expect(a.events.some((e) => e.type === 'message-delete')).toBe(false);
+
+    // Closing one window drops only its channel's subscription.
+    a.controller.abort();
+    await a.done;
+    await vi.waitFor(() => {
+      const unsubbed = fake.unsubscribe.mock.calls.map((c) => c[1]?.channel_id);
+      expect(unsubbed).toContain('111111');
+      expect(unsubbed).not.toContain('222222');
+    });
+    b.controller.abort();
+    await b.done;
+  });
+
+  it('removes a client that closes while the voice roster is being primed', async () => {
+    let release: (c: RpcChannel | null) => void = () => undefined;
+    fake.getSelectedVoiceChannel.mockImplementation(
+      () => new Promise<RpcChannel | null>((resolve) => { release = resolve; }),
+    );
+    const server = await listen();
+    app = server.app;
+    const stream = await openStream(server.url, '?channelId=111111');
+    await vi.waitFor(() => expect(fake.getSelectedVoiceChannel).toHaveBeenCalled());
+    stream.controller.abort();
+    await stream.done;
+    // The close was handled even though priming never finished.
+    await vi.waitFor(() => {
+      expect(fake.unsubscribe.mock.calls.map((c) => c[0])).toContain('MESSAGE_CREATE');
+    });
+    release(null);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(fake.subscribe.mock.calls.filter((c) => c[0] === 'MESSAGE_CREATE')).toHaveLength(1);
+  });
 });

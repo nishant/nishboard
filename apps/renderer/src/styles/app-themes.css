@@ -8,6 +8,7 @@
   --nish-overlay: #3c1a2f;
   --nish-line: #351629;
   --nish-line-strong: #634256;
+  --nish-line-control: #7c5e6f;
   --nish-hi: #ffe4f2;
   --nish-hi2: #f9a8d4;
   --nish-hi3: #d878af;
@@ -57,6 +58,7 @@
   --nish-overlay: #1e3628;
   --nish-line: #1a3023;
   --nish-line-strong: #445e4e;
+  --nish-line-control: #5e7768;
   --nish-hi: #dcfce7;
   --nish-hi2: #86efac;
   --nish-hi3: #4a986e;
@@ -106,6 +108,7 @@
   --nish-overlay: #422616;
   --nish-line: #3b2113;
   --nish-line-strong: #684e3c;
+  --nish-line-control: #806857;
   --nish-hi: #ffedd5;
   --nish-hi2: #fdba74;
   --nish-hi3: #c88246;
@@ -155,6 +158,7 @@
   --nish-overlay: #3e3a5a;
   --nish-line: #3e3a5a;
   --nish-line-strong: #636078;
+  --nish-line-control: #7f7d8f;
   --nish-hi: #f8f8f2;
   --nish-hi2: #bd93f9;
   --nish-hi3: #969cb8;
@@ -204,6 +208,7 @@
   --nish-overlay: #445068;
   --nish-line: #3e4960;
   --nish-line-strong: #667084;
+  --nish-line-control: #848b9b;
   --nish-hi: #eceff4;
   --nish-hi2: #d8dee9;
   --nish-hi3: #a2a9b9;
@@ -253,6 +258,7 @@
   --nish-overlay: #d3cdbb;
   --nish-line: #d3cdbb;
   --nish-line-strong: #aaafa3;
+  --nish-line-control: #637a78;
   --nish-hi: #073642;
   --nish-hi2: #48636b;
   --nish-hi3: #44636c;
@@ -302,6 +308,7 @@
   --nish-overlay: #40181e;
   --nish-line: #39151a;
   --nish-line-strong: #664045;
+  --nish-line-control: #7e5d60;
   --nish-hi: #fee2e2;
   --nish-hi2: #fca5a5;
   --nish-hi3: #c86e6e;
@@ -351,6 +358,7 @@
   --nish-overlay: #261e3e;
   --nish-line: #211a37;
   --nish-line-strong: #4e4865;
+  --nish-line-control: #69657d;
   --nish-hi: #f0f0ff;
   --nish-hi2: #67e8f9;
   --nish-hi3: #6e82b4;
@@ -400,6 +408,7 @@
   --nish-overlay: #dcd2be;
   --nish-line: #dcd2be;
   --nish-line-strong: #bcb29e;
+  --nish-line-control: #847967;
   --nish-hi: #3c3020;
   --nish-hi2: #6e5c40;
   --nish-hi3: #706047;
@@ -449,6 +458,7 @@
   --nish-overlay: #c8def4;
   --nish-line: #c8def4;
   --nish-line-strong: #a2b8d0;
+  --nish-line-control: #7389a3;
   --nish-hi: #0c2240;
   --nish-hi2: #335582;
   --nish-hi3: #4e6d96;

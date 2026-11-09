@@ -3,7 +3,8 @@ import type { NewsData, NewsItem } from '@dash/shared';
 import { fetchText } from '../lib/http';
 import { TtlCache } from '../lib/TtlCache';
 
-const TTL_MS = 10 * 60 * 1000;
+// A margin under the renderer poll (useNews.ts: 10 min) so an early poll is not a cache hit.
+const TTL_MS = 9 * 60 * 1000;
 const cache = new TtlCache<string, NewsData>(TTL_MS);
 
 // Safe codepoint → string: fromCodePoint handles astral chars (emoji) that

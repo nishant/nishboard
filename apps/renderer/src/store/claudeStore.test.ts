@@ -154,15 +154,17 @@ describe('claudeStore v2 additions', () => {
     expect(second.useClaudeStore.getState().chatEffort).toBe('xhigh');
   });
 
-  it('newChat clears the transcript but keeps mode/model/effort', async () => {
+  it('newChat clears the transcript, resets the mode to ask and keeps model/effort', async () => {
     const { useClaudeStore } = await loadStore();
     const s = useClaudeStore.getState();
     s.setChatMode('auto');
+    s.setChatModel('opus');
     s.addUser('hello');
     s.newChat();
     expect(useClaudeStore.getState().messages).toEqual([]);
     expect(useClaudeStore.getState().sessionId).toBeNull();
-    expect(useClaudeStore.getState().chatMode).toBe('auto');
+    expect(useClaudeStore.getState().chatMode).toBe('ask');
+    expect(useClaudeStore.getState().chatModel).toBe('opus');
   });
 });
 
@@ -210,5 +212,80 @@ describe('claudeStore v3 — prompt parts + mode migration', () => {
     localStorage.clear();
     const fresh = await loadStore();
     expect(fresh.useClaudeStore.getState().chatMode).toBe('ask');
+  });
+});
+
+describe('claudeStore persistence (NISHBOARD-038, 048)', () => {
+  const saved = () => JSON.parse(localStorage.getItem('dashboard-claude')!).state;
+
+  it('persists the last 50 messages without thinking parts and with tool details cut', async () => {
+    const { useClaudeStore } = await loadStore();
+    const s = useClaudeStore.getState();
+    for (let i = 0; i < 60; i++) s.addUser(`m${i}`);
+    s.beginAssistant();
+    s.appendThinking('secret reasoning');
+    s.appendDelta('answer');
+    s.addToolPart('t1', 'Bash', 'x'.repeat(5_000));
+    const msgs = saved().messages;
+    expect(msgs).toHaveLength(50);
+    const last = msgs.at(-1);
+    expect(last.parts.some((p: { kind: string }) => p.kind === 'thinking')).toBe(false);
+    const tool = last.parts.find((p: { kind: string }) => p.kind === 'tool');
+    expect(tool.detail).toHaveLength(2_000);
+    expect(useClaudeStore.getState().messages).toHaveLength(61);
+  });
+
+  it('persists Auto as ask', async () => {
+    const { useClaudeStore } = await loadStore();
+    useClaudeStore.getState().setChatMode('auto');
+    expect(saved().chatMode).toBe('ask');
+    useClaudeStore.getState().setChatMode('plan');
+    expect(saved().chatMode).toBe('plan');
+  });
+
+  it('does not write while streaming; setStreaming(false) persists the turn', async () => {
+    const { useClaudeStore } = await loadStore();
+    const s = useClaudeStore.getState();
+    s.addUser('hi');
+    s.setStreaming(true);
+    s.beginAssistant();
+    s.appendDelta('partial');
+    expect(saved().messages).toHaveLength(1);
+    s.setStreaming(false);
+    expect(saved().messages).toHaveLength(2);
+  });
+
+  it('on a quota error trims to the last 10 messages and retries once', async () => {
+    const { useClaudeStore } = await loadStore();
+    const real = Storage.prototype.setItem;
+    let calls = 0;
+    const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, k: string, v: string) {
+      calls++;
+      if (calls === 1) throw new DOMException('full', 'QuotaExceededError');
+      real.call(this, k, v);
+    });
+    const s = useClaudeStore.getState();
+    for (let i = 0; i < 30; i++) s.addUser(`m${i}`);
+    spy.mockRestore();
+    expect(saved().messages.length).toBeLessThanOrEqual(30);
+    expect(calls).toBeGreaterThan(1);
+  });
+
+  it('migrates a persisted Auto mode to ask', async () => {
+    localStorage.setItem('dashboard-claude', JSON.stringify({ state: { messages: [], chatMode: 'auto' }, version: 3 }));
+    const { useClaudeStore } = await loadStore();
+    expect(useClaudeStore.getState().chatMode).toBe('ask');
+  });
+
+  it('dropUnsentTurn removes the trailing user bubble and its empty reply', async () => {
+    const { useClaudeStore } = await loadStore();
+    const s = useClaudeStore.getState();
+    s.addUser('keep');
+    s.beginAssistant();
+    s.appendDelta('ok');
+    s.addUser('lost');
+    s.beginAssistant();
+    s.dropUnsentTurn();
+    expect(useClaudeStore.getState().messages).toHaveLength(2);
   });
 });

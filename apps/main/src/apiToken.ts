@@ -5,8 +5,8 @@ import path from 'path';
 import type { IpcMain, IpcMainEvent } from 'electron';
 import type { IpcChannels } from '@dash/shared';
 import { APP_ORIGIN } from './appProtocol';
+import { isDev } from './env';
 
-const isDev = process.env.NODE_ENV === 'development';
 const DEV_ORIGIN = 'http://localhost:5173';
 
 let token: string | null = null;
@@ -37,7 +37,7 @@ function devToken(): string {
  *  build, handed to the server as env DASH_API_TOKEN (server/spawn.ts) and to
  *  the renderer over IPC (preload.ts). A web page in a browser has neither. */
 export function apiToken(): string {
-  token ??= isDev ? devToken() : randomBytes(32).toString('base64url');
+  token ??= isDev() ? devToken() : randomBytes(32).toString('base64url');
   return token;
 }
 
@@ -53,7 +53,7 @@ function trustedSender(event: IpcMainEvent): boolean {
     // scheme such as app:, whatever Chromium registered.
     const url = new URL(frame.url);
     const origin = `${url.protocol}//${url.host}`;
-    return origin === APP_ORIGIN || (isDev && origin === DEV_ORIGIN);
+    return origin === APP_ORIGIN || (isDev() && origin === DEV_ORIGIN);
   } catch {
     return false;
   }

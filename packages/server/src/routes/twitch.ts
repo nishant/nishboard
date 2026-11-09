@@ -165,24 +165,34 @@ async function fetchFollowedLive(token: string, userId: string): Promise<TwitchS
   const cached = followedCache.get('followed');
   if (cached) return cached;
 
-  const url = new URL(`${HELIX}/streams/followed`);
-  url.searchParams.set('user_id', userId);
-  url.searchParams.set('first', '20');
-  const data = await fetchJson<{
-    data: Array<{
-      user_id: string;
-      user_login: string;
-      user_name: string;
-      title: string;
-      game_name: string;
-      thumbnail_url: string;
-      started_at: string;
-    }>;
-  }>(
-    url.toString(),
-    { headers: { 'Client-Id': cred('TWITCH_CLIENT_ID'), Authorization: `Bearer ${token}` } },
-    { label: 'Twitch followed' },
-  );
+  // first=100 (Helix max) and follow pagination.cursor for up to 3 pages, so
+  // /followed-all's live flags and the Live tab are not capped at 20 streams.
+  type FollowedStream = {
+    user_id: string;
+    user_login: string;
+    user_name: string;
+    title: string;
+    game_name: string;
+    thumbnail_url: string;
+    started_at: string;
+  };
+  const streams: FollowedStream[] = [];
+  let after: string | undefined;
+  for (let pageNo = 0; pageNo < 3; pageNo++) {
+    const url = new URL(`${HELIX}/streams/followed`);
+    url.searchParams.set('user_id', userId);
+    url.searchParams.set('first', '100');
+    if (after) url.searchParams.set('after', after);
+    const res = await fetchJson<{ data: FollowedStream[]; pagination?: { cursor?: string } }>(
+      url.toString(),
+      { headers: { 'Client-Id': cred('TWITCH_CLIENT_ID'), Authorization: `Bearer ${token}` } },
+      { label: 'Twitch followed' },
+    );
+    streams.push(...res.data);
+    after = res.pagination?.cursor;
+    if (!after) break;
+  }
+  const data = { data: streams };
 
   const page: TwitchSearchPage = {
     nextCursor: null,
