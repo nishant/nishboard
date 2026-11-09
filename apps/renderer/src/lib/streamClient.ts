@@ -6,6 +6,17 @@ import { apiUrl, authHeaders } from './apiClient';
  * these hand frames to the caller as they arrive.
  */
 
+/** Non-2xx response; `status` lets callers react (e.g. retry a 409). */
+export class StreamHttpError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = 'StreamHttpError';
+  }
+}
+
 async function consumeEventStream<T>(
   res: Response,
   path: string,
@@ -20,7 +31,7 @@ async function consumeEventStream<T>(
     } catch {
       // no JSON body
     }
-    throw new Error(message);
+    throw new StreamHttpError(message, res.status);
   }
   if (!res.body) throw new Error(`API ${res.status}: ${path} returned no stream body`);
 

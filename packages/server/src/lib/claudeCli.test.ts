@@ -1,5 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { spawnSync } from 'child_process';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
+import os from 'os';
+import path from 'path';
+import type { ClaudeStreamEvent } from '@dash/shared';
 import {
+  buildCmdLine,
+  ensureEnvPreload,
+  resolveSpawnShape,
+  quoteCmdArg,
+  resetCliCache,
+  spawnClaudeChat,
   ASK_MODE_ALLOWED_TOOLS,
   buildChildEnv,
   buildChatArgs,
@@ -487,5 +498,94 @@ describe('buildChildEnv', () => {
       HTTPS_PROXY: 'http://proxy',
       CLAUDE_CODE_OAUTH_TOKEN: 'tok',
     });
+  });
+});
+
+describe('quoteCmdArg / buildCmdLine (cmd.exe fallback for a .cmd shim)', () => {
+  it('caret-escapes cmd metacharacters so an "&" stays inside one argument', () => {
+    expect(quoteCmdArg('C:\\R&D')).toBe('^"C:\\R^&D^"');
+    expect(quoteCmdArg('50%')).toBe('^"50^%^"');
+    expect(quoteCmdArg('a|b<c>d^e!')).toBe('^"a^|b^<c^>d^^e^!^"');
+  });
+
+  it('wraps the whole command line in one pair of quotes for /s', () => {
+    const line = buildCmdLine('C:\\bin\\claude.cmd', ['--add-dir', 'C:\\R&D']);
+    expect(line.startsWith('"')).toBe(true);
+    expect(line.endsWith('"')).toBe(true);
+    expect(line).toContain('^&');
+    expect(line).not.toMatch(/[^^]&/);
+  });
+
+  it.runIf(process.platform === 'win32')('cmd.exe passes an "&" path through as exactly one argv element (Windows-only)', () => {
+    const script = 'console.log(JSON.stringify(process.argv.slice(1)))';
+    const tricky = ['C:\\Users\\x\\R&D', '50% ^x', 'a "quoted" b', 'trailing\\'];
+    const res = spawnSync('cmd.exe', ['/d', '/s', '/c', buildCmdLine(process.execPath, ['-e', script, ...tricky])], {
+      encoding: 'utf8',
+      windowsVerbatimArguments: true,
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+    });
+    expect(JSON.parse(res.stdout.trim())).toEqual(tricky);
+  });
+});
+
+describe('ELECTRON_RUN_AS_NODE preload (npm shim path)', () => {
+  it('the CLI process sees no ELECTRON_RUN_AS_NODE, so its tool subprocesses cannot inherit it', async () => {
+    const preload = await ensureEnvPreload();
+    const res = spawnSync(
+      process.execPath,
+      ['--require', preload, '-e', 'console.log(JSON.stringify(process.env.ELECTRON_RUN_AS_NODE ?? null))'],
+      { encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } },
+    );
+    expect(JSON.parse(res.stdout.trim())).toBeNull();
+  });
+
+  it.runIf(process.platform === 'win32')('shim spawn shape loads the preload before cli.js (Windows-only)', async () => {
+    const d = mkdtempSync(path.join(os.tmpdir(), 'fake-shim-'));
+    try {
+      const cliDir = path.join(d, 'node_modules', '@anthropic-ai', 'claude-code');
+      mkdirSync(cliDir, { recursive: true });
+      writeFileSync(path.join(cliDir, 'cli.js'), '');
+      const shape = await resolveSpawnShape(path.join(d, 'claude.cmd'), ['-p']);
+      expect(shape.args.slice(0, 2)).toEqual(['--require', await ensureEnvPreload()]);
+      expect(shape.args[2]).toBe(path.join(cliDir, 'cli.js'));
+    } finally {
+      rmSync(d, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('spawnClaudeChat — spawn failure', () => {
+  let dir = '';
+  let savedPath: string | undefined;
+
+  afterEach(() => {
+    if (savedPath !== undefined) process.env.PATH = savedPath;
+    resetCliCache();
+    if (dir) rmSync(dir, { recursive: true, force: true });
+    dir = '';
+  });
+
+  it('a NUL byte in workspaceDir yields an error frame and onExit instead of an unhandled rejection', async () => {
+    // A stand-in `claude` on PATH so discovery succeeds (CI has no real CLI).
+    dir = mkdtempSync(path.join(os.tmpdir(), 'fake-claude-'));
+    const file = path.join(dir, process.platform === 'win32' ? 'claude.cmd' : 'claude');
+    writeFileSync(file, process.platform === 'win32' ? '@echo off\r\n' : '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+    savedPath = process.env.PATH;
+    process.env.PATH = `${dir}${path.delimiter}${savedPath ?? ''}`;
+    resetCliCache();
+
+    const events: ClaudeStreamEvent[] = [];
+    await new Promise<void>((resolve) => {
+      spawnClaudeChat({
+        message: 'hi',
+        mode: 'ask',
+        workspaceDir: 'bad\u0000dir',
+        onEvent: (e) => events.push(e),
+        onExit: resolve,
+      });
+    });
+    expect(events).toHaveLength(1);
+    expect(events[0].type).toBe('error');
+    expect(events[0]).toMatchObject({ message: expect.stringContaining('Failed to start Claude CLI') });
   });
 });

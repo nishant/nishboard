@@ -41,6 +41,14 @@ const usageCache = new TtlCache<'usage', ClaudeUsageData>(60_000);
 // Single-flight: one streaming chat at a time. The CLI child is heavyweight
 // and the widget UI only ever has one in-flight turn.
 let activeChat: ClaudeChatHandle | null = null;
+// A finished turn's CLI child can linger up to a few seconds (session writes)
+// after its `done` frame. The slot is released at `done` so a quick follow-up
+// is not 409'd; a new chat kills whatever is still lingering.
+let lingeringChat: ClaudeChatHandle | null = null;
+
+/** No control chars, '%' or quotes: these paths reach the CLI's argv (and, for
+ *  an npm shim on Windows, cmd.exe). */
+const SAFE_PATH_PATTERN = '^[^\\u0000-\\u001f%"]+$';
 
 // reply.hijack() bypasses @fastify/cors entirely, so the SSE response sets
 // Access-Control-Allow-Origin itself, only ever echoing an origin from
@@ -127,17 +135,22 @@ export const claudeRoutes: FastifyPluginAsync = async (fastify) => {
             // Alias ('opus') or full id ('claude-opus-4-8') — CLI validates the rest.
             model: { type: 'string', pattern: '^[a-z][a-z0-9.-]{1,49}$' },
             effort: { type: 'string', enum: ['low', 'medium', 'high', 'xhigh', 'max'] },
-            workspaceDir: { type: 'string', minLength: 1, maxLength: 500 },
+            workspaceDir: { type: 'string', minLength: 1, maxLength: 500, pattern: SAFE_PATH_PATTERN },
             additionalDirs: {
               type: 'array',
               maxItems: 10,
-              items: { type: 'string', minLength: 1, maxLength: 500 },
+              items: { type: 'string', minLength: 1, maxLength: 500, pattern: SAFE_PATH_PATTERN },
             },
           },
         },
       },
     },
     async (req, reply) => {
+      // A previous turn that already sent `done` may still be winding down.
+      if (lingeringChat) {
+        lingeringChat.kill();
+        lingeringChat = null;
+      }
       if (activeChat) throw new HttpError(409, 'A Claude response is already streaming');
 
       const { message, sessionId, model, effort } = req.body;
@@ -163,17 +176,21 @@ export const claudeRoutes: FastifyPluginAsync = async (fastify) => {
       raw.writeHead(200, headers);
 
       let ended = false;
+      let retriedWithoutResume = false;
+      let current: ClaudeChatHandle | null = null;
       const send = (event: ClaudeStreamEvent): void => {
         if (ended) return;
         raw.write(`data: ${JSON.stringify(event)}\n\n`);
         if (event.type === 'done' || event.type === 'error') {
           ended = true;
           raw.end();
+          // Release the single-flight slot now; the child may still be exiting.
+          if (current && activeChat === current) {
+            lingeringChat = current;
+            activeChat = null;
+          }
         }
       };
-
-      let retriedWithoutResume = false;
-      let current: { kill(): void } | null = null;
 
       const start = (resumeId: string | undefined): void => {
         // A retry supersedes the failed first child — its late onExit must not
@@ -207,7 +224,8 @@ export const claudeRoutes: FastifyPluginAsync = async (fastify) => {
           },
           onExit: () => {
             if (superseded) return;
-            activeChat = null;
+            if (activeChat === handle) activeChat = null;
+            if (lingeringChat === handle) lingeringChat = null;
             if (!ended) {
               // Child gone without a done/error frame (killed on disconnect).
               ended = true;

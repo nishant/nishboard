@@ -8,12 +8,15 @@ import { PsHost, buildBootstrap } from '../lib/psHost';
 
 const execFileAsync = promisify(execFile);
 const cache = new SimpleCache<SoundData>();
-const TTL_MS = 5_000;
+// A margin under the renderer poll (useSound.ts: 5 s) so an early poll is not a cache hit.
+const TTL_MS = 4_000;
 
 // execFile (no shell) so arguments are passed verbatim — request-supplied
 // values like device names can never be interpreted as shell syntax.
+// macOS-only callers (osascript / SwitchAudioSource): a hung binary must reject
+// so the shared inFlight promise clears and the next poll retries.
 async function run(cmd: string, args: string[]): Promise<string> {
-  const { stdout } = await execFileAsync(cmd, args, { encoding: 'utf8' });
+  const { stdout } = await execFileAsync(cmd, args, { encoding: 'utf8', timeout: 5_000, killSignal: 'SIGKILL' });
   return stdout.trim();
 }
 

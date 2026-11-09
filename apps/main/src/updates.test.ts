@@ -2,12 +2,29 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ReleaseAsset } from './updates';
 import { compareSemver, normalize, pickAsset } from './updates';
 
-vi.mock('electron-updater', () => ({
-  autoUpdater: {
-    on: vi.fn(),
-    checkForUpdates: vi.fn(() => Promise.resolve(null)),
-    quitAndInstall: vi.fn(),
+const updater = vi.hoisted(() => ({
+  on: vi.fn(),
+  checkForUpdates: vi.fn(() => Promise.resolve(null)),
+  quitAndInstall: vi.fn(),
+}));
+const electronState = vi.hoisted(() => ({ isPackaged: false }));
+
+vi.mock('electron-updater', () => ({ autoUpdater: updater }));
+vi.mock('electron', () => ({
+  app: {
+    get isPackaged() {
+      return electronState.isPackaged;
+    },
+    getVersion: () => '0.0.0-test',
+    getPath: () => process.env.TEMP ?? process.env.TMPDIR ?? '/tmp',
   },
+  BrowserWindow: class {},
+  Notification: class {
+    static isSupported(): boolean {
+      return false;
+    }
+  },
+  safeStorage: {},
 }));
 
 describe('compareSemver', () => {
@@ -108,5 +125,64 @@ describe('pickAsset', () => {
   it('other platforms get null', () => {
     setPlatform('linux', 'x64');
     expect(pickAsset([asset('a.dmg'), asset('b.exe')])).toBeNull();
+  });
+});
+
+describe('auto-update status after a download', () => {
+  type Handler = (arg?: unknown) => void;
+  const realPlatform = process.platform;
+
+  async function start(): Promise<{
+    mod: typeof import('./updates');
+    fire: (event: string, arg?: unknown) => void;
+    sent: unknown[];
+  }> {
+    vi.resetModules();
+    updater.on.mockClear();
+    updater.quitAndInstall.mockClear();
+    electronState.isPackaged = true;
+    Object.defineProperty(process, 'platform', { value: 'win32' });
+    const mod = await import('./updates');
+    const sent: unknown[] = [];
+    const win = { isDestroyed: () => false, webContents: { send: (_c: string, s: unknown) => sent.push(s) } };
+    mod.startAutoUpdates(() => [win as never]);
+    const fire = (event: string, arg?: unknown): void => {
+      for (const [name, handler] of updater.on.mock.calls as Array<[string, Handler]>) {
+        if (name === event) handler(arg);
+      }
+    };
+    return { mod, fire, sent };
+  }
+
+  afterEach(() => {
+    electronState.isPackaged = false;
+    Object.defineProperty(process, 'platform', { value: realPlatform });
+    vi.restoreAllMocks();
+  });
+
+  it('stays downloaded through a later check, a no-update result and an error', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { mod, fire } = await start();
+    fire('update-downloaded', { version: '9.9.9' });
+    expect(mod.getUpdateStatus()).toMatchObject({ state: 'downloaded', version: '9.9.9' });
+
+    fire('checking-for-update');
+    expect(mod.getUpdateStatus().state).toBe('downloaded');
+    fire('update-not-available');
+    expect(mod.getUpdateStatus().state).toBe('downloaded');
+    fire('error', new Error('offline'));
+    expect(mod.getUpdateStatus()).toMatchObject({ state: 'downloaded', version: '9.9.9' });
+
+    mod.installUpdate();
+    expect(updater.quitAndInstall).toHaveBeenCalledWith(false, true);
+    expect(mod.isInstallingUpdate()).toBe(true);
+  });
+
+  it('reports an error before any download, and installUpdate does nothing then', async () => {
+    const { mod, fire } = await start();
+    fire('error', new Error('boom'));
+    expect(mod.getUpdateStatus()).toMatchObject({ state: 'error', version: null });
+    mod.installUpdate();
+    expect(updater.quitAndInstall).not.toHaveBeenCalled();
   });
 });

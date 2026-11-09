@@ -463,7 +463,11 @@ export class DiscordRpcClient {
       return;
     }
     if (frame.op !== RPC_OP.FRAME) return;
-    const payload = frame.payload as RpcPayload;
+    const p: unknown = frame.payload;
+    // Wire data is untrusted: a zero-length FRAME or a JSON `null` body must
+    // not throw inside the socket 'data' handler.
+    if (typeof p !== 'object' || p === null) return;
+    const payload = p as Record<string, unknown>;
 
     if (payload.cmd === 'DISPATCH') {
       if (payload.evt === 'READY') {
@@ -471,8 +475,15 @@ export class DiscordRpcClient {
         this.readyWaiter?.resolve();
         return;
       }
-      if (typeof payload.evt === 'string') {
-        for (const fn of this.dispatchListeners) fn(payload.evt, payload.data);
+      const evt = payload.evt;
+      if (typeof evt === 'string') {
+        for (const fn of this.dispatchListeners) {
+          try {
+            fn(evt, payload.data);
+          } catch (err: unknown) {
+            console.error('Discord RPC dispatch listener failed', err);
+          }
+        }
       }
       return;
     }
@@ -485,10 +496,14 @@ export class DiscordRpcClient {
     this.pending.delete(nonce);
     clearTimeout(req.timer);
     if (payload.evt === 'ERROR') {
-      const data = payload.data as { code?: number; message?: string } | undefined;
-      req.reject(new HttpError(502, `Discord RPC error ${data?.code ?? '?'}: ${data?.message ?? 'unknown'}`));
+      const data = payload.data;
+      const errData = typeof data === 'object' && data !== null ? (data as Record<string, unknown>) : {};
+      const code = typeof errData.code === 'number' ? errData.code : '?';
+      const message = typeof errData.message === 'string' ? errData.message : 'unknown';
+      req.reject(new HttpError(502, `Discord RPC error ${code}: ${message}`));
     } else {
-      req.resolve(payload);
+      // The wire shape was checked above; callers read fields defensively.
+      req.resolve(payload as unknown as RpcPayload);
     }
   }
 

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, session, globalShortcut, screen } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, session, globalShortcut, screen, powerMonitor } from 'electron';
 import path from 'path';
 import { spawnServer, stopServer } from './server/spawn';
 import { registerIpcHandlers } from './ipc';
@@ -10,11 +10,12 @@ import { initDiscordSession, registerWebviewGuards } from './discord';
 import { loadCredentials } from './credentials';
 import { startAutoUpdates, isInstallingUpdate } from './updates';
 import { clampToDisplays, readMainBounds, trackMainBounds, watchDisplays } from './windowBounds';
-import { APP_ORIGIN, appUrl, handleAppProtocol, registerAppScheme } from './appProtocol';
+import { appUrl, handleAppProtocol, registerAppScheme } from './appProtocol';
+import { isAllowedNavigation, isDev } from './env';
+import { installDefaultPermissionHandlers } from './permissions';
 import { migrateFileOriginStorage } from './storageMigration';
 import { registerApiTokenIpc } from './apiToken';
 
-const isDev = process.env.NODE_ENV === 'development';
 
 // Before 'ready': the packaged renderer is served from app://nishboard, not
 // file:// (appProtocol.ts says why).
@@ -96,8 +97,7 @@ function createWindow(): void {
   // CSP strip below) — never let them open windows or navigate the top frame.
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    const allowed = isDev ? url.startsWith('http://localhost:5173') : url.startsWith(`${APP_ORIGIN}/`);
-    if (!allowed) event.preventDefault();
+    if (!isAllowedNavigation(url, isDev())) event.preventDefault();
   });
 
   // DevTools on Cmd+Option+I (mac) / Ctrl+Alt+I (win), any build — scoped to this
@@ -110,7 +110,7 @@ function createWindow(): void {
     }
   });
 
-  if (isDev) {
+  if (isDev()) {
     mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
@@ -127,6 +127,22 @@ function createWindow(): void {
       mainWindow?.hide();
     }
   });
+
+  // Windows only: a system shutdown, restart or logoff closes windows without
+  // firing 'before-quit', so the close-to-tray intercept above would hide the
+  // window and Windows would report "Nishboard is preventing shutdown".
+  if (process.platform === 'win32') {
+    // Let the close through as soon as Windows asks whether the session may end.
+    mainWindow.on('query-session-end', () => {
+      quitting = true;
+    });
+    // The session is ending for real: stop the server child, which before-quit
+    // would otherwise have done.
+    mainWindow.on('session-end', () => {
+      quitting = true;
+      void stopServer();
+    });
+  }
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -181,15 +197,24 @@ if (!gotLock) {
       },
     );
 
+    // Deny-by-default permissions for the default session (permissions.ts).
+    installDefaultPermissionHandlers(session.defaultSession);
+
     // Discord widget plumbing — partition session + <webview> attach guards must
     // exist before any window can host the webview.
     initDiscordSession();
     registerWebviewGuards();
 
-    if (!isDev) {
+    if (!isDev()) {
       // __dirname = app/dist/ → one level up reaches app/ → renderer/dist
       handleAppProtocol(path.join(__dirname, '../renderer/dist'));
     }
+    // macOS/Linux: a system shutdown or restart does not fire 'before-quit', so
+    // without this the server child would outlive the app.
+    powerMonitor.on('shutdown', () => {
+      quitting = true;
+      void stopServer();
+    });
     registerApiTokenIpc(ipcMain);
     await loadCredentials();
     // A slow or failed server start must not block the UI: widgets handle an
@@ -197,7 +222,7 @@ if (!gotLock) {
     const serverReady = spawnServer().catch((err: unknown) => {
       console.error('[server] failed to start', err);
     });
-    await Promise.all([serverReady, isDev ? Promise.resolve() : migrateFileOriginStorage()]);
+    await Promise.all([serverReady, isDev() ? Promise.resolve() : migrateFileOriginStorage()]);
     registerIpcHandlers(ipcMain, { onPrefsChanged: syncGlobalHotkey });
     createWindow();
     startingUp = false;

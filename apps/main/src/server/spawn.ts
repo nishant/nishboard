@@ -1,10 +1,11 @@
-import { ChildProcess, spawn, execSync } from 'child_process';
+import { ChildProcess, spawn, execSync, execFileSync } from 'child_process';
 import { app } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { readCredentials } from '../credentials';
 import { loadTokenKey } from '../tokenKey';
 import { apiToken } from '../apiToken';
+import { isDev } from '../env';
 
 // ── Server log tee ────────────────────────────────────────────────────────────
 // Child stdout/stderr also land in userData/logs/server.log so "why is a
@@ -70,7 +71,6 @@ let restartTimer: NodeJS.Timeout | null = null;
 const MAX_RESTART_ATTEMPTS = 5;
 const HEALTHY_RESET_MS = 60_000;
 
-const isDev = process.env.NODE_ENV === 'development';
 const port = Number(process.env.SERVER_PORT ?? 7432);
 
 /** Kill any leftover process holding our port from a previous (possibly crashed) run. */
@@ -82,8 +82,17 @@ function killStaleOnPort(p: number): void {
       const match = out.match(new RegExp(String.raw`^\s*TCP\s+\S+:${p}\s+\S+\s+LISTENING\s+(\d+)\s*$`, 'm'));
       if (match) execSync(`taskkill /PID ${match[1]} /F`, { stdio: 'ignore' });
     } else {
-      const pids = execSync(`lsof -ti tcp:${p}`, { encoding: 'utf8' }).trim();
-      if (pids) execSync(`kill -9 ${pids}`, { stdio: 'ignore' });
+      // LISTEN only: without it lsof also lists clients, and our own Chromium
+      // helper and main hold keep-alive sockets to this port.
+      const out = execFileSync('lsof', ['-nP', '-t', `-iTCP:${p}`, '-sTCP:LISTEN'], { encoding: 'utf8' });
+      const ours = new Set([String(process.pid), ...app.getAppMetrics().map((m) => String(m.pid))]);
+      for (const pid of out.split(/\s+/).filter((x) => x && !ours.has(x))) {
+        try {
+          process.kill(Number(pid), 'SIGKILL');
+        } catch {
+          // already gone
+        }
+      }
     }
   } catch {
     // Nothing on the port, or command unavailable — safe to continue
@@ -163,7 +172,7 @@ function startChild(tokenKey: string | null): void {
 }
 
 export async function spawnServer(): Promise<void> {
-  if (!isDev) {
+  if (!isDev()) {
     // Production only: clear any leftover process on our port before spawning ours.
     // In dev the server is managed externally by `concurrently` (tsx watch); killing
     // the port here would take down the live dev server on every Electron restart
@@ -205,7 +214,7 @@ export function stopServer(): Promise<void> {
 /** Save new credentials and restart the server child process with updated env vars.
  *  No-op in dev (server is managed externally by concurrently). */
 export function restartServer(): Promise<void> {
-  if (isDev) return Promise.resolve();
+  if (isDev()) return Promise.resolve();
   // Serialized: overlapping callers (credentials save + tray) queue, so a second
   // restart never spawns against a child that is still exiting.
   const run = async () => {

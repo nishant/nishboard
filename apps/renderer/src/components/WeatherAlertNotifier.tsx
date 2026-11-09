@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { useWeather, useActiveWeatherZip } from '../widgets/weather/useWeather';
+import { useWeather, useActiveWeatherZip, WEATHER_POLL_MS } from '../widgets/weather/useWeather';
+import { useAlertGatedInterval } from '../hooks/useGatedInterval';
 import { useAppSettingsStore } from '../store/settingsStore';
 import { fireAlert } from '../lib/alerts';
 
@@ -26,7 +27,9 @@ function alertKey(a: { id?: string; event: string; headline: string }): string {
 export function WeatherAlertNotifier() {
   const mode = useAppSettingsStore((s) => s.weatherAlertNotify);
   const zip = useActiveWeatherZip();
-  const { data } = useWeather(mode !== 'off');
+  // Same base as the widget, but a hidden window slows the poll instead of stopping it.
+  const interval = useAlertGatedInterval(WEATHER_POLL_MS);
+  const { data } = useWeather(mode !== 'off', interval);
 
   useEffect(() => {
     if (mode === 'off' || !data) return;

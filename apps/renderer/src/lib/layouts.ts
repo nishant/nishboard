@@ -47,6 +47,14 @@ export interface WidgetCategory {
   widgets: WidgetId[];
 }
 
+const WIDGET_ID_SET: ReadonlySet<string> = new Set(ALL_WIDGET_IDS);
+
+/** True for an id this build knows. Persisted data (old builds, imported
+ *  backups, hand edits) can carry ids that no longer exist. */
+export function isWidgetId(id: unknown): id is WidgetId {
+  return typeof id === 'string' && WIDGET_ID_SET.has(id);
+}
+
 /** Fixed, ordered partition of ALL_WIDGET_IDS for the Widgets menu, the
  *  layout editor's pin list, and Settings → Widgets. Every widget id must
  *  appear in EXACTLY one category — enforced by a unit test, so adding a

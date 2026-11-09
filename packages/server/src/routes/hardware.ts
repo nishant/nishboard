@@ -1,8 +1,13 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { HardwareData, CpuData, GpuData, DiskIo, DiskUsage, NetworkIo, ProcessListData, ProcessItemData } from '@dash/shared';
+import type { HardwareData, CpuData, GpuData, DiskIo, DiskUsage, ProcessListData, ProcessItemData } from '@dash/shared';
 import si from 'systeminformation';
 import os from 'os';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import { SimpleCache } from '../cache/SimpleCache';
+import { getNetThroughput } from '../lib/netThroughput';
+
+const execFileAsync = promisify(execFile);
 
 const cache = new SimpleCache<HardwareData>();
 // 900ms TTL — renderer polls every 1s, prevents duplicate work if two requests land close together
@@ -11,9 +16,13 @@ const TTL_MS = 900;
 // Slow-changing subsystems don't need re-querying every second:
 // - fsSize (disk usage) shells out per mount and moves on the order of minutes
 // - battery percent moves on the order of minutes
-// - graphics on macOS shells out to system_profiler AND reports no live GPU
-//   utilization anyway; on Windows nvidia-smi carries live utilization, so it
-//   must stay on the 1s path there
+// - graphics: si.graphics() is expensive (Windows: 8 PowerShell spawns plus a
+//   synchronous nvidia-smi inside systeminformation) and the controller list is
+//   static, so it is cached (10 min on Windows/Linux, 10s on macOS where it
+//   shells out to system_profiler and reports no live utilization anyway).
+//   Windows-only: live GPU utilization/VRAM/temp/clock come from a separate
+//   async nvidia-smi query, see getNvidiaLive().
+// - cpuTemperature and swap (si.mem fields) change slowly: cached 30s
 const fsSizeCache = new SimpleCache<si.Systeminformation.FsSizeData[]>();
 // Boxed: SimpleCache uses null for "miss", and a failed battery query is a
 // legitimate cached value — without the box it would re-query every second.
@@ -22,6 +31,10 @@ const graphicsCache = new SimpleCache<si.Systeminformation.GraphicsData>();
 const FS_SIZE_TTL = 60_000;
 const BATTERY_TTL = 30_000;
 const GRAPHICS_TTL_DARWIN = 10_000;
+const GRAPHICS_TTL_STATIC = 10 * 60_000; // Windows/Linux: static controller info
+const SLOW_TTL = 30_000; // cpuTemperature + swap
+const NVIDIA_MIN_INTERVAL_MS = 2_000;
+const NVIDIA_FAIL_BACKOFF_MS = 60_000; // nvidia-smi missing/failing: don't respawn every 2s
 
 async function getFsSize(): Promise<si.Systeminformation.FsSizeData[]> {
   const cached = fsSizeCache.get();
@@ -39,15 +52,135 @@ async function getBattery(): Promise<si.Systeminformation.BatteryData | null> {
   return value;
 }
 
-async function getGraphics(): Promise<si.Systeminformation.GraphicsData> {
-  if (process.platform !== 'darwin') {
-    return si.graphics().catch(() => ({ controllers: [], displays: [] }));
+export interface NvidiaLive {
+  utilizationGpu: number;
+  memoryUsed: number;
+  memoryTotal: number;
+  temperatureGpu: number;
+  clockCore: number;
+}
+
+/** Exported for tests. Parses the first line of
+ *  `nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu,clocks.gr --format=csv,noheader,nounits`
+ *  (percent, MiB, MiB, deg C, MHz). Null when the line is unusable. */
+export function parseNvidiaSmi(stdout: string): NvidiaLive | null {
+  const line = stdout.split(/\r?\n/).find((l) => l.trim().length > 0);
+  if (!line) return null;
+  const n = line.split(',').map((x) => Number(x.trim()));
+  if (n.length < 5) return null;
+  const [utilizationGpu, memoryUsed, memoryTotal, temperatureGpu, clockCore] = n;
+  // "[N/A]" fields become NaN: treat the whole sample as unusable.
+  if ([utilizationGpu, memoryUsed, memoryTotal, temperatureGpu, clockCore].some((v) => !Number.isFinite(v))) return null;
+  return { utilizationGpu, memoryUsed, memoryTotal, temperatureGpu, clockCore };
+}
+
+// Windows-only: live NVIDIA stats. Async execFile (never execSync on the event
+// loop), single-flight, at most one spawn per NVIDIA_MIN_INTERVAL_MS. On failure
+// the last good sample (or null, i.e. the cached si values) is kept.
+let nvidiaLive: NvidiaLive | null = null;
+let nvidiaCheckedAt = 0;
+let nvidiaBackoffUntil = 0;
+let nvidiaInFlight: Promise<void> | null = null;
+
+async function getNvidiaLive(): Promise<NvidiaLive | null> {
+  const now = Date.now();
+  if (nvidiaInFlight) {
+    await nvidiaInFlight;
+    return nvidiaLive;
   }
-  const cached = graphicsCache.get();
-  if (cached) return cached;
-  const data = await si.graphics().catch(() => ({ controllers: [], displays: [] }));
-  graphicsCache.set(data, GRAPHICS_TTL_DARWIN);
+  if (now < nvidiaBackoffUntil || now - nvidiaCheckedAt < NVIDIA_MIN_INTERVAL_MS) return nvidiaLive;
+  nvidiaCheckedAt = now;
+  nvidiaInFlight = (async () => {
+    try {
+      const { stdout } = await execFileAsync(
+        'nvidia-smi',
+        [
+          '--query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu,clocks.gr',
+          '--format=csv,noheader,nounits',
+        ],
+        { timeout: 3000, windowsHide: true },
+      );
+      const parsed = parseNvidiaSmi(String(stdout));
+      if (parsed) nvidiaLive = parsed;
+    } catch {
+      nvidiaBackoffUntil = Date.now() + NVIDIA_FAIL_BACKOFF_MS;
+    }
+  })().finally(() => {
+    nvidiaInFlight = null;
+  });
+  await nvidiaInFlight;
+  return nvidiaLive;
+}
+
+/** Exported for tests. Overlays live nvidia-smi values on the NVIDIA controller. */
+export function applyNvidiaLive(
+  controllers: si.Systeminformation.GraphicsControllerData[],
+  live: NvidiaLive | null,
+): si.Systeminformation.GraphicsControllerData[] {
+  if (!live) return controllers;
+  const idx = controllers.findIndex((c) => /nvidia/i.test(`${c.vendor ?? ''} ${c.model ?? ''}`));
+  if (idx < 0) return controllers;
+  const out = [...controllers];
+  out[idx] = {
+    ...out[idx],
+    utilizationGpu: live.utilizationGpu,
+    memoryUsed: live.memoryUsed,
+    memoryTotal: live.memoryTotal,
+    temperatureGpu: live.temperatureGpu,
+    clockCore: live.clockCore,
+  };
+  return out;
+}
+
+async function getGraphics(): Promise<si.Systeminformation.GraphicsData> {
+  let data = graphicsCache.get();
+  if (!data) {
+    data = await si.graphics().catch(() => ({ controllers: [], displays: [] }));
+    // macOS-only short TTL (no live data there); 10 min elsewhere (static info).
+    graphicsCache.set(data, process.platform === 'darwin' ? GRAPHICS_TTL_DARWIN : GRAPHICS_TTL_STATIC);
+  }
+  if (process.platform === 'win32') {
+    // Windows-only: layer live nvidia-smi values over the cached controller list.
+    const live = await getNvidiaLive();
+    return { ...data, controllers: applyNvidiaLive(data.controllers ?? [], live) };
+  }
   return data;
+}
+
+const cpuTempCache = new SimpleCache<{ value: si.Systeminformation.CpuTemperatureData | null }>();
+async function getCpuTemp(): Promise<si.Systeminformation.CpuTemperatureData | null> {
+  const cached = cpuTempCache.get();
+  if (cached) return cached.value;
+  const value = await si.cpuTemperature().catch(() => null);
+  cpuTempCache.set({ value }, SLOW_TTL);
+  return value;
+}
+
+const swapCache = new SimpleCache<{ swapused: number; swaptotal: number }>();
+interface MemSample {
+  total: number;
+  active: number;
+  used: number;
+  swapused: number;
+  swaptotal: number;
+}
+async function getMem(): Promise<MemSample> {
+  if (process.platform === 'win32') {
+    // Windows-only: si.mem() costs a PowerShell call (Win32_PageFileUsage), so
+    // total/used come live from `os` and only swap comes from si.mem(), cached 30s.
+    let swap = swapCache.get();
+    if (!swap) {
+      const m = await si.mem().catch(() => null);
+      swap = { swapused: m?.swapused ?? 0, swaptotal: m?.swaptotal ?? 0 };
+      swapCache.set(swap, SLOW_TTL);
+    }
+    const total = os.totalmem();
+    const used = total - os.freemem();
+    return { total, active: used, used, ...swap };
+  }
+  // macOS/Linux: si.mem() is a cheap sysctl/proc read and `active` needs it.
+  const m = await si.mem();
+  return { total: m.total, active: m.active, used: m.used, swapused: m.swapused, swaptotal: m.swaptotal };
 }
 
 // CPU brand/core count/speed never changes at runtime — fetch once
@@ -96,14 +229,6 @@ function isUsefulFs(fs: si.Systeminformation.FsSizeData): boolean {
   return true;
 }
 
-const LOOPBACK_IFACES = new Set(['lo', 'lo0', 'Loopback Pseudo-Interface 1']);
-
-function isRealIface(iface: string): boolean {
-  if (LOOPBACK_IFACES.has(iface)) return false;
-  if (iface.toLowerCase().startsWith('loopback')) return false;
-  return true;
-}
-
 async function buildHardwareData(): Promise<HardwareData> {
   const [
     cpuStatic,
@@ -113,17 +238,17 @@ async function buildHardwareData(): Promise<HardwareData> {
     mem,
     fsStats,
     fsSize,
-    netStats,
+    network,
     batteryInfo,
   ] = await Promise.all([
     getStaticCpu(),
     si.currentLoad(),
-    si.cpuTemperature().catch(() => null),
+    getCpuTemp(),
     getGraphics(),
-    si.mem(),
+    getMem(),
     si.fsStats().catch(() => null),
     getFsSize(),
-    si.networkStats().catch(() => [] as si.Systeminformation.NetworkStatsData[]),
+    getNetThroughput(),
     getBattery(),
   ]);
 
@@ -153,13 +278,17 @@ async function buildHardwareData(): Promise<HardwareData> {
   };
 
   // ── Disk I/O (aggregate via fsStats — bytes/sec) ─────────────────────
-  const disks: DiskIo[] = [
-    {
-      name: 'Total',
-      readMBs: fsStats ? parseFloat(((fsStats.rx_sec ?? 0) / 1024 / 1024).toFixed(2)) : 0,
-      writeMBs: fsStats ? parseFloat(((fsStats.wx_sec ?? 0) / 1024 / 1024).toFixed(2)) : 0,
-    },
-  ];
+  // Windows-only: si.fsStats() always resolves null there, so send no entry
+  // (the widget hides the I/O row) instead of a fake 0 MB/s.
+  const disks: DiskIo[] = fsStats
+    ? [
+        {
+          name: 'Total',
+          readMBs: parseFloat(((fsStats.rx_sec ?? 0) / 1024 / 1024).toFixed(2)),
+          writeMBs: parseFloat(((fsStats.wx_sec ?? 0) / 1024 / 1024).toFixed(2)),
+        },
+      ]
+    : [];
 
   // ── Disk usage (per mount) ────────────────────────────────────────────
   const diskUsage: DiskUsage[] = (fsSize as si.Systeminformation.FsSizeData[])
@@ -173,17 +302,7 @@ async function buildHardwareData(): Promise<HardwareData> {
     .slice(0, 6); // cap at 6 entries
 
   // ── Network ───────────────────────────────────────────────────────────
-  // Sort most-active first so primary interface leads; never filter by traffic
-  // so the card stays visible even when idle.
-  const network: NetworkIo[] = (netStats as si.Systeminformation.NetworkStatsData[])
-    .filter((n) => isRealIface(n.iface) && n.operstate !== 'down')
-    .sort((a, b) => (b.rx_sec + b.tx_sec) - (a.rx_sec + a.tx_sec))
-    .slice(0, 3)
-    .map((n) => ({
-      iface: n.iface,
-      uploadMbps: parseFloat(((n.tx_sec ?? 0) * 8 / 1_000_000).toFixed(2)),
-      downloadMbps: parseFloat(((n.rx_sec ?? 0) * 8 / 1_000_000).toFixed(2)),
-    }));
+  // Filtered, sorted and mapped in lib/netThroughput (shared with the Net Monitor).
 
   // ── Battery ───────────────────────────────────────────────────────────
   let battery: HardwareData['battery'] = null;
@@ -254,6 +373,23 @@ async function buildProcessList(): Promise<ProcessListData> {
 }
 
 export const hardwareRoutes: FastifyPluginAsync = async (fastify) => {
+  // Windows-only: keep ONE persistent PowerShell for systeminformation's
+  // remaining Windows calls instead of a fresh powershell.exe per call.
+  if (process.platform === 'win32') {
+    try {
+      si.powerShellStart();
+      fastify.addHook('onClose', async () => {
+        try {
+          si.powerShellRelease();
+        } catch {
+          /* already released */
+        }
+      });
+    } catch {
+      /* fall back to non-persistent mode */
+    }
+  }
+
   fastify.get<{ Reply: HardwareData | { error: string } }>('/', async (_req, reply) => {
     const cached = cache.get();
     if (cached) return reply.send(cached);

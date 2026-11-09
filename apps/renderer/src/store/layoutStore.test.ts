@@ -303,3 +303,148 @@ describe('accordion space exchange', () => {
     expect(byId.spotify).toMatchObject({ y: 2, h: 14 }); // hidden — must not be raided
   });
 });
+
+describe('fresh install', () => {
+  it('starts as the Default preset: its visible widgets and the layout generated for them', async () => {
+    const { useLayoutStore } = await loadStore();
+    const { DEFAULT_LAYOUT, generateLayout } = await import('../lib/layouts');
+    const s = useLayoutStore.getState();
+    expect(s.activePreset).toBe(DEFAULT_LAYOUT.name);
+    expect(s.visibleWidgets).toEqual(DEFAULT_LAYOUT.visibleWidgets);
+    const shown = s.layout.filter((it) => s.visibleWidgets.includes(it.i as never));
+    const expected = generateLayout(DEFAULT_LAYOUT.name, DEFAULT_LAYOUT.visibleWidgets!)!;
+    expect(shown.map((it) => [it.i, it.x, it.y, it.w, it.h])).toEqual(
+      expected.map((it) => [it.i, it.x, it.y, it.w, it.h]),
+    );
+  });
+
+  it('keeps an empty visibleWidgets (everything unpinned) across a reload', async () => {
+    localStorage.setItem('dashboard-layout', JSON.stringify({ state: { layout: [], visibleWidgets: [] }, version: 1 }));
+    const { useLayoutStore } = await loadStore();
+    expect(useLayoutStore.getState().visibleWidgets).toEqual([]);
+  });
+});
+
+describe('disabled widgets', () => {
+  it('applyPreset leaves a disabled widget out of visibleWidgets and the layout', async () => {
+    const { useLayoutStore } = await loadStore();
+    const { useAppSettingsStore } = await import('./settingsStore');
+    useAppSettingsStore.setState({ disabledWidgets: ['stocks'] });
+    useLayoutStore.getState().applyPreset('Default');
+    const s = useLayoutStore.getState();
+    expect(s.visibleWidgets).not.toContain('stocks');
+    expect(s.layout.some((it) => it.i === 'stocks')).toBe(false);
+  });
+
+  it('showWidget ignores a disabled widget', async () => {
+    const { useLayoutStore } = await loadStore();
+    const { useAppSettingsStore } = await import('./settingsStore');
+    useAppSettingsStore.setState({ disabledWidgets: ['tasks'] });
+    useLayoutStore.getState().showWidget('tasks');
+    expect(useLayoutStore.getState().visibleWidgets).not.toContain('tasks');
+  });
+});
+
+describe('collapse state survives layout replacement', () => {
+  async function collapseWeather() {
+    const { useLayoutStore } = await loadStore();
+    const { useWidgetUiStore } = await import('./widgetUiStore');
+    useLayoutStore.getState().syncLayout([{ i: 'weather', x: 0, y: 0, w: 6, h: 8, minW: 4, minH: 2 }]);
+    useWidgetUiStore.getState().setCollapsed('weather', true);
+    useLayoutStore.getState().setWidgetCollapsed('weather', true, 30, 8);
+    return { useLayoutStore, useWidgetUiStore };
+  }
+
+  it('a layout saved while collapsed stores the pre-collapse h, and applies unlocked once expanded', async () => {
+    const { useLayoutStore, useWidgetUiStore } = await collapseWeather();
+    useLayoutStore.getState().saveCustomLayout('Mine');
+    const saved = useLayoutStore.getState().savedCustomLayouts[0];
+    const savedItem = saved.layout.find((it) => it.i === 'weather');
+    expect(savedItem?.h).toBe(8);
+    expect(savedItem?.isResizable).toBeUndefined();
+    expect(savedItem?.maxH).toBeUndefined();
+
+    useLayoutStore.getState().setWidgetCollapsed('weather', false, 30, 8);
+    useWidgetUiStore.getState().setCollapsed('weather', false);
+    useLayoutStore.getState().applyCustomLayout(saved.id);
+    const item = useLayoutStore.getState().layout.find((it) => it.i === 'weather');
+    expect(item?.h).toBe(8);
+    expect(item?.isResizable).not.toBe(false);
+    expect(useLayoutStore.getState().savedHeights.weather).toBeUndefined();
+  });
+
+  it('applying a preset while a widget is collapsed keeps it locked and remembers the NEW expanded h', async () => {
+    const { useLayoutStore } = await collapseWeather();
+    const { generateLayout } = await import('../lib/layouts');
+    useLayoutStore.getState().applyPreset('Default');
+    const s = useLayoutStore.getState();
+    expect(s.layout.find((it) => it.i === 'weather')?.isResizable).toBe(false);
+    const fresh = generateLayout('Default', s.visibleWidgets)!.find((it) => it.i === 'weather');
+    expect(s.savedHeights.weather).toBe(fresh?.h);
+  });
+
+  it('collapsing an already-locked item keeps its savedHeights entry', async () => {
+    const { useLayoutStore } = await collapseWeather();
+    useLayoutStore.getState().setWidgetCollapsed('weather', true, 30, 8);
+    expect(useLayoutStore.getState().savedHeights.weather).toBe(8);
+  });
+});
+
+describe('rehydrate validation', () => {
+  it('drops ids this build does not know from layout, visibleWidgets, saved layouts and savedHeights', async () => {
+    const item = (i: string) => ({ i, x: 0, y: 0, w: 6, h: 6 });
+    localStorage.setItem(
+      'dashboard-layout',
+      JSON.stringify({
+        state: {
+          layout: [item('weather'), item('ghost')],
+          visibleWidgets: ['weather', 'ghost'],
+          savedHeights: { ghost: 4 },
+          savedCustomLayouts: [
+            { id: 'a', name: 'A', layout: [item('ghost'), item('stocks')], visibleWidgets: ['ghost', 'stocks'] },
+          ],
+        },
+        version: 1,
+      }),
+    );
+    const { useLayoutStore } = await loadStore();
+    const s = useLayoutStore.getState();
+    expect(s.layout.some((it) => it.i === 'ghost')).toBe(false);
+    expect(s.layout.some((it) => it.i === 'weather')).toBe(true);
+    expect(s.visibleWidgets).toEqual(['weather']);
+    expect(s.savedHeights).toEqual({});
+    expect(s.savedCustomLayouts[0].layout.map((it) => it.i)).toEqual(['stocks']);
+    expect(s.savedCustomLayouts[0].visibleWidgets).toEqual(['stocks']);
+  });
+
+  it('survives a layout that is not an array', async () => {
+    localStorage.setItem(
+      'dashboard-layout',
+      JSON.stringify({ state: { layout: 'oops', visibleWidgets: ['weather'] }, version: 1 }),
+    );
+    const { useLayoutStore } = await loadStore();
+    expect(Array.isArray(useLayoutStore.getState().layout)).toBe(true);
+    expect(useLayoutStore.getState().layout.length).toBeGreaterThan(0);
+  });
+
+  it('re-locks only widgets the widget-UI store says are collapsed', async () => {
+    const item = (i: string, h: number) => ({ i, x: 0, y: 0, w: 6, h, minH: h, maxH: h, isResizable: false });
+    localStorage.setItem('dashboard-widget-ui', JSON.stringify({ state: { collapsed: { weather: true } }, version: 0 }));
+    localStorage.setItem(
+      'dashboard-layout',
+      JSON.stringify({
+        state: {
+          layout: [item('weather', 2), item('stocks', 2)],
+          visibleWidgets: ['weather', 'stocks'],
+          savedHeights: { weather: 8, stocks: 7 },
+        },
+        version: 1,
+      }),
+    );
+    const { useLayoutStore } = await loadStore();
+    const s = useLayoutStore.getState();
+    expect(s.savedHeights).toEqual({ weather: 8 });
+    expect(s.layout.find((it) => it.i === 'weather')?.isResizable).toBe(false);
+    expect(s.layout.find((it) => it.i === 'stocks')?.isResizable).toBe(true);
+  });
+});

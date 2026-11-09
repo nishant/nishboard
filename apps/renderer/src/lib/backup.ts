@@ -1,20 +1,33 @@
 // Settings backup — export/import the renderer's localStorage preferences as one
-// JSON file. Covers layout, theme, app settings, hardware config, and
-// any widget store keyed `dashboard-*`. Secrets are NOT here (API keys live in the
-// main process via safeStorage), so they're never written to the file.
+// JSON file. Covers layout, theme, app settings, hardware config, the crypto
+// watchlist, and any widget store keyed `dashboard-*`, except EXCLUDED_KEYS.
+// Secrets are NOT here (API keys live in the main process via safeStorage), so
+// they're never written to the file. Import merges: it writes the keys in the
+// file and leaves every other local key alone.
 
 const KNOWN_KEYS = [
   'dashboard-layout',
   'dashboard-theme',
   'dashboard-app-settings',
   'hardware-config',
+  'crypto-watchlist', // not dashboard-* prefixed, so the prefix sweep misses it
 ];
+
+/** Never written to a backup or restored from one: the Claude transcript (prompts,
+ *  file paths, commands, a CLI session id) must not reach the file or the
+ *  cloud-synced auto-export folder, and palette recents are per-machine. */
+const EXCLUDED_KEYS = ['dashboard-claude', 'dashboard-palette-recents'];
+
+function isBackupKey(k: string): boolean {
+  if (EXCLUDED_KEYS.includes(k)) return false;
+  return KNOWN_KEYS.includes(k) || k.startsWith('dashboard-');
+}
 
 function backupKeys(): string[] {
   const keys = new Set(KNOWN_KEYS);
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
-    if (k && k.startsWith('dashboard-')) keys.add(k); // catches future widget stores
+    if (k && isBackupKey(k)) keys.add(k); // catches future widget stores
   }
   return [...keys];
 }
@@ -75,7 +88,7 @@ export async function importSettings(file: File): Promise<void> {
   for (const [k, v] of Object.entries(data)) {
     // Only restore our own keys — a crafted file must not be able to write
     // arbitrary localStorage entries.
-    if (!KNOWN_KEYS.includes(k) && !k.startsWith('dashboard-')) continue;
+    if (!isBackupKey(k)) continue;
     localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v));
   }
 }

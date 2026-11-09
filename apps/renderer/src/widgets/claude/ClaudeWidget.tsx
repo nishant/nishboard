@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   Check, ChevronRight, ClipboardCheck, Copy, Loader2, PieChart, Plus, SendHorizontal,
   ShieldQuestion, SlidersHorizontal, Square, Terminal, X,
@@ -14,7 +14,7 @@ import {
   respondToClaudePrompt, promptSummary, openClaudeCliLogin,
 } from './useClaude';
 import { HeaderAction } from '../../components/HeaderAction';
-import { Badge, Button, EmptyState, ErrorState, IconButton, Label, Meter, Popover, Segmented, SkeletonLines, Textarea, cn, toneFor, useNow } from '@nish/ui';
+import { Badge, Button, ConfirmDialog, EmptyState, ErrorState, IconButton, Label, Meter, Popover, Segmented, SkeletonLines, Textarea, cn, toneFor, useNow } from '@nish/ui';
 import { num } from '@nish/ui/format';
 
 /** WidgetShell header actions: New chat always; Stop only mid-stream. */
@@ -100,7 +100,23 @@ function MdLink({ href, children, ...rest }: React.AnchorHTMLAttributes<HTMLAnch
 
 // Module-level so ReactMarkdown's props stay referentially stable across renders.
 const MD_PLUGINS = [remarkGfm];
-const MD_COMPONENTS = { a: MdLink };
+// Images never load: a remote <img> in model output is a zero-click exfiltration
+// channel, so they render as click-to-open links instead.
+const MD_COMPONENTS = {
+  a: MdLink,
+  img: ({ alt, src }: React.ImgHTMLAttributes<HTMLImageElement>) => (
+    <MdLink href={typeof src === 'string' ? src : undefined}>{alt || String(src ?? '')}</MdLink>
+  ),
+};
+
+/** Memoized so finished text parts are not re-parsed on every streamed token. */
+const MarkdownPart = memo(function MarkdownPart({ text }: { text: string }) {
+  return (
+    <ReactMarkdown remarkPlugins={MD_PLUGINS} components={MD_COMPONENTS}>
+      {text}
+    </ReactMarkdown>
+  );
+});
 
 // ── Small popover scaffold ────────────────────────────────────────────────────
 
@@ -489,7 +505,7 @@ function PromptCard({ part, live }: { part: ClaudePromptPart; live: boolean }) {
           <ClipboardCheck size={12} className="text-th-accent" /> Claude proposed a plan
         </p>
         <div className="md-render max-h-48 overflow-y-auto text-2xs text-th-hi2 leading-relaxed pr-1">
-          <ReactMarkdown remarkPlugins={MD_PLUGINS} components={MD_COMPONENTS}>{part.request.plan}</ReactMarkdown>
+          <MarkdownPart text={part.request.plan} />
         </div>
         <div className="mt-1.5 flex gap-1.5">
           <CardButton primary disabled={busy} onClick={() => respond({ behavior: 'allow' }, 'Plan approved')}>
@@ -551,7 +567,7 @@ function ThinkingBlock({ text }: { text: string }) {
   );
 }
 
-function MessageBubble({ msg, streaming }: { msg: ClaudeChatMessage; streaming: boolean }) {
+const MessageBubble = memo(function MessageBubble({ msg, streaming }: { msg: ClaudeChatMessage; streaming: boolean }) {
   const [copied, setCopied] = useState(false);
   if (msg.role === 'user') {
     return (
@@ -582,7 +598,7 @@ function MessageBubble({ msg, streaming }: { msg: ClaudeChatMessage; streaming: 
           part.text ? <ThinkingBlock key={i} text={part.text} /> : null
         ) : part.text ? (
           <div key={i} className="md-render break-words">
-            <ReactMarkdown remarkPlugins={MD_PLUGINS} components={MD_COMPONENTS}>{part.text}</ReactMarkdown>
+            <MarkdownPart text={part.text} />
           </div>
         ) : null,
       )}
@@ -606,7 +622,7 @@ function MessageBubble({ msg, streaming }: { msg: ClaudeChatMessage; streaming: 
       )}
     </div>
   );
-}
+});
 
 // ── Composer footer ───────────────────────────────────────────────────────────
 
@@ -617,22 +633,45 @@ const MODES = [
   { value: 'plan', label: 'Plan', tip: 'Research + a plan — approve it before changes' },
 ] as const;
 
+// Module-level: the Auto confirmation is asked once per app run, not per mount.
+let autoConfirmed = false;
+
 function ModeSwitch() {
   const chatMode = useClaudeStore((s) => s.chatMode);
   const setChatMode = useClaudeStore((s) => s.setChatMode);
+  const [confirmAuto, setConfirmAuto] = useState(false);
   return (
-    <Segmented
-      label="Mode"
-      size="xs"
-      value={chatMode}
-      onChange={setChatMode}
-      options={MODES.map((m) => ({
-        value: m.value,
-        label: m.label,
-        tip: `${m.tip} (shift+tab cycles)`,
-        tone: 'tone' in m ? m.tone : undefined,
-      }))}
-    />
+    <>
+      <Segmented
+        label="Mode"
+        size="xs"
+        value={chatMode}
+        onChange={(mode) => {
+          if (mode === 'auto' && !autoConfirmed) setConfirmAuto(true);
+          else setChatMode(mode);
+        }}
+        options={MODES.map((m) => ({
+          value: m.value,
+          label: m.label,
+          tip: m.value === 'auto' ? m.tip : `${m.tip} (shift+tab toggles Ask/Plan)`,
+          tone: 'tone' in m ? m.tone : undefined,
+        }))}
+      />
+      {confirmAuto && (
+        <ConfirmDialog
+          title="Switch to Auto mode?"
+          body="Claude will run tools, edit files and run commands without asking you first."
+          confirmLabel="Use Auto"
+          tone="danger"
+          onConfirm={() => {
+            autoConfirmed = true;
+            setConfirmAuto(false);
+            setChatMode('auto');
+          }}
+          onCancel={() => setConfirmAuto(false)}
+        />
+      )}
+    </>
   );
 }
 
@@ -695,8 +734,8 @@ export function ClaudeWidget() {
   };
 
   const cycleMode = (): void => {
-    const order = ['ask', 'auto', 'plan'] as const;
-    setChatMode(order[(order.indexOf(chatMode) + 1) % order.length]);
+    // Auto is deliberately outside the cycle (a stray shift+tab must never reach it).
+    setChatMode(chatMode === 'ask' ? 'plan' : 'ask');
   };
 
   const onComposerKeyDown = (e: React.KeyboardEvent): void => {
@@ -728,7 +767,7 @@ export function ClaudeWidget() {
       return;
     }
     if (e.key === 'Tab' && e.shiftKey) {
-      // Claude Code parity: shift+tab cycles chat → auto → plan.
+      // Claude Code parity: shift+tab toggles ask ↔ plan.
       e.preventDefault();
       cycleMode();
       return;
@@ -767,6 +806,8 @@ export function ClaudeWidget() {
       onKeyDown={(e) => {
         // Esc anywhere in the widget interrupts (composer has its own handler
         // with slash-menu priority; this catches focus-elsewhere cases).
+        // Ignore Esc from portaled popovers (React bubbles through portals).
+        if (!e.currentTarget.contains(e.target as Node)) return;
         if (e.key === 'Escape' && isStreaming && !slashQuery) stop();
       }}
     >
@@ -782,7 +823,7 @@ export function ClaudeWidget() {
             className="h-full"
             icon={<span className="text-th-accent text-lg">✻</span>}
             title="Ask Claude anything"
-            detail="/ for commands & skills · shift+tab cycles mode"
+            detail="/ for commands & skills · shift+tab toggles ask/plan"
           />
         ) : (
           messages.map((msg) => (
@@ -794,6 +835,15 @@ export function ClaudeWidget() {
           ))
         )}
       </div>
+
+      {chatMode === 'auto' && (
+        <div
+          role="status"
+          className="shrink-0 mx-2 mb-1 rounded-md bg-th-warn-soft px-2 py-1 text-3xs text-th-warn"
+        >
+          Auto mode: Claude runs tools without asking
+        </div>
+      )}
 
       {/* Input row */}
       <div className="relative shrink-0 px-2 pb-1 pt-1.5 flex items-end gap-1.5">

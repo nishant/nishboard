@@ -115,6 +115,18 @@ describe('stock-price rules (edge-triggered state machine)', () => {
     expect(fired).not.toHaveBeenCalled();
   });
 
+  it('treats the 0 placeholder price as no data — no transition either way', () => {
+    const below = stockRule({ id: 'b', dir: 'below', threshold: 100 });
+    evaluateStockRules([below], stocks(quote('AAPL', 150)), at(0)); // seed armed
+    evaluateStockRules([below], stocks(quote('AAPL', 0)), at(MIN)); // placeholder: not a crossing
+    expect(fired).not.toHaveBeenCalled();
+    const above = stockRule({ id: 'a' });
+    evaluateStockRules([above], stocks(quote('AAPL', 250)), at(2 * MIN)); // seed held
+    evaluateStockRules([above], stocks(quote('AAPL', 0)), at(3 * MIN)); // must not re-arm
+    evaluateStockRules([above], stocks(quote('AAPL', 260)), at(4 * MIN)); // so no fire on return
+    expect(fired).not.toHaveBeenCalled();
+  });
+
   it('a rule whose first evaluable sample is true after a missing spell seeds silently', () => {
     const rule = stockRule();
     evaluateStockRules([rule], stocks(quote('MSFT', 100)), at(0)); // not evaluable → no state

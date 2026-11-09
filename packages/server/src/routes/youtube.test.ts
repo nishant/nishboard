@@ -119,6 +119,35 @@ describe('GET /api/youtube/search budget and staleness', () => {
     expect(left()).toBe(full - 1);
   });
 
+  it('keeps and caches a paid search when the durations call fails (no refund)', async () => {
+    const full = left();
+    const fetchFn = stubFetch([
+      ['/youtube/v3/search', () => jsonRes({
+        items: [{
+          id: { videoId: 'vidx' },
+          snippet: {
+            title: 'Clip #shorts',
+            channelTitle: 'Chan',
+            channelId: 'UCabc',
+            thumbnails: { medium: { url: 'https://img/x.jpg' } },
+            publishedAt: '2026-01-01T00:00:00Z',
+          },
+        }],
+      })],
+      ['/youtube/v3/videos', () => jsonRes({ error: 'unavailable' }, 503)],
+    ]);
+    const res = await search('q=nodur');
+    expect(res.statusCode).toBe(200);
+    expect(res.json<YoutubeSearchPage>().items[0]).toMatchObject({ videoId: 'vidx', durationSeconds: 0, isShort: true });
+    expect(left()).toBe(full - 1); // the paid search is not refunded
+
+    const calls = fetchFn.mock.calls.length;
+    const again = await search('q=nodur');
+    expect(again.statusCode).toBe(200);
+    expect(again.json<YoutubeSearchPage>().cachedAt).not.toBeNull(); // cached
+    expect(fetchFn.mock.calls.length).toBe(calls);
+  });
+
   it('shares one upstream call between identical concurrent searches', async () => {
     const fetchFn = stubYoutube();
     const full = left();

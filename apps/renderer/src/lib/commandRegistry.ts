@@ -14,9 +14,10 @@ export interface PaletteAction {
   group: string;
   /** Extra match text (e.g. aliases) — searched but not displayed. */
   keywords?: string;
-  /** When set, selecting the action prefills the palette input with this text
-   *  and keeps it open instead of running — discoverability rows for the
-   *  parameterized commands below. `run` is ignored. */
+  /** Marks a discoverability row for a parameterized command (below): it shows
+   *  the syntax as a hint and selecting it only closes the palette, `run` is
+   *  ignored. A real prefill needs a controlled query from @nish/ui (ROADMAP).
+   *  Fill rows are never pushed to recents. */
   fill?: string;
   run: () => void;
 }
@@ -155,7 +156,8 @@ function toItem(action: PaletteAction, group: string): CommandItem {
     keywords: action.keywords ? action.keywords.split(/\s+/).filter(Boolean) : undefined,
   };
   if (action.fill !== undefined) {
-    // Discoverability row: shows the syntax; the ui palette's query is not controllable.
+    // Discoverability row: shows the syntax and does nothing on select (the @nish/ui
+    // palette closes first and its query is not controllable, so no prefill yet).
     const cmd = paramCommands.find((c) => c.id === action.id);
     return { ...base, hint: cmd ? syntaxOf(cmd) : action.fill.trim(), onSelect: () => undefined };
   }
@@ -185,7 +187,7 @@ export function buildRows(query: string, actions: PaletteAction[], recents: stri
         label: parsed.preview,
         group: 'Command',
         onSelect: () => {
-          pushRecent(cmd.id);
+          // No pushRecent: cmd.id is the id of the non-runnable fill row.
           parsed.run();
         },
       });
@@ -201,7 +203,7 @@ export function buildRows(query: string, actions: PaletteAction[], recents: stri
     const byId = new Map(actions.map((a) => [a.id, a]));
     const recentActions = recents
       .map((id) => byId.get(id))
-      .filter((a): a is PaletteAction => !!a);
+      .filter((a): a is PaletteAction => !!a && a.fill === undefined); // fill rows cannot run
     const recentIds = new Set(recentActions.map((a) => a.id));
     const rest = actions
       .filter((a) => !recentIds.has(a.id))

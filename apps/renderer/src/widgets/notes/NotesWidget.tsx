@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { ComponentPropsWithoutRef, KeyboardEvent } from 'react';
 import { Eye, Pencil, Plus, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -7,6 +8,23 @@ import { Button, IconButton, cn, useScrollEdges } from '@nish/ui';
 
 // Module-level so the plugin array stays referentially stable across renders.
 const MD_PLUGINS = [remarkGfm];
+
+/** Markdown links: http(s) opens in the OS browser; anything else (relative
+ *  paths would navigate the whole app window) is a no-op. */
+function NoteLink({ href, children }: ComponentPropsWithoutRef<'a'>) {
+  return (
+    <a
+      href={href}
+      onClick={(e) => {
+        e.preventDefault();
+        if (href && /^https?:\/\//i.test(href)) window.electron?.openExternal?.(href);
+      }}
+    >
+      {children}
+    </a>
+  );
+}
+const MD_COMPONENTS = { a: NoteLink };
 
 /** Inline rename input — mounted in place of the tab label while renaming. */
 function RenameInput({ initial, onCommit }: { initial: string; onCommit: (title: string) => void }) {
@@ -46,44 +64,67 @@ export function NotesWidget() {
 
   const active = notes.find((n) => n.id === activeId) ?? notes[0];
 
+  // Roving-tabindex keyboard model: arrows/Home/End move selection and focus.
+  const onTablistKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (!(e.target instanceof HTMLElement) || e.target.getAttribute('role') !== 'tab') return;
+    const i = notes.findIndex((n) => n.id === active.id);
+    let next = -1;
+    if (e.key === 'ArrowRight') next = (i + 1) % notes.length;
+    else if (e.key === 'ArrowLeft') next = (i - 1 + notes.length) % notes.length;
+    else if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = notes.length - 1;
+    if (next < 0) return;
+    e.preventDefault();
+    const id = notes[next].id;
+    setActive(id);
+    requestAnimationFrame(() => {
+      tabsRef.current?.querySelector<HTMLElement>(`[role="tab"][data-note-id="${id}"]`)?.focus();
+    });
+  };
+
   return (
     <div className="h-full flex flex-col">
       {/* Tab strip + preview toggle */}
       <div className="flex items-center gap-1 px-2 pt-2 shrink-0">
-        <div ref={tabsRef} role="tablist" aria-label="Notes" className="flex-1 min-w-0 flex items-center gap-0.5 overflow-x-auto scrollbar-none nish-scroll-fade">
+        <div ref={tabsRef} role="tablist" aria-label="Notes" onKeyDown={onTablistKeyDown} className="flex-1 min-w-0 flex items-center gap-0.5 overflow-x-auto scrollbar-none nish-scroll-fade">
           {notes.map((n) => {
             const isActive = n.id === active.id;
             return (
               <div
                 key={n.id}
-                role="tab"
-                aria-selected={isActive}
-                tabIndex={isActive ? 0 : -1}
-                onClick={() => setActive(n.id)}
-                onDoubleClick={() => setRenamingId(n.id)}
-                onKeyDown={(e) => {
-                  if (e.target !== e.currentTarget) return;
-                  if (e.key === 'F2' || (e.key === 'Enter' && isActive)) { e.preventDefault(); setRenamingId(n.id); }
-                  else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActive(n.id); }
-                }}
                 className={cn(
-                  'group/tab flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-md text-3xs cursor-pointer select-none shrink-0 transition-colors',
+                  'group/tab flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-md text-3xs select-none shrink-0 transition-colors',
                   isActive ? 'bg-th-elevated text-th-hi' : 'text-th-hi3 hover:text-th-hi2 hover:bg-th-elevated',
                 )}
-                title={isActive ? 'Double-click (or F2) to rename' : n.title}
               >
-                {renamingId === n.id ? (
-                  <RenameInput
-                    initial={n.title}
-                    onCommit={(title) => { renameNote(n.id, title); setRenamingId(null); }}
-                  />
-                ) : (
-                  <span className="max-w-24 truncate">{n.title}</span>
-                )}
+                <div
+                  role="tab"
+                  data-note-id={n.id}
+                  aria-selected={isActive}
+                  tabIndex={isActive ? 0 : -1}
+                  onClick={() => setActive(n.id)}
+                  onDoubleClick={() => setRenamingId(n.id)}
+                  onKeyDown={(e) => {
+                    if (e.target !== e.currentTarget) return;
+                    if (e.key === 'F2' || (e.key === 'Enter' && isActive)) { e.preventDefault(); setRenamingId(n.id); }
+                    else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActive(n.id); }
+                  }}
+                  className="cursor-pointer"
+                  title={isActive ? 'Double-click (or F2) to rename' : n.title}
+                >
+                  {renamingId === n.id ? (
+                    <RenameInput
+                      initial={n.title}
+                      onCommit={(title) => { renameNote(n.id, title); setRenamingId(null); }}
+                    />
+                  ) : (
+                    <span className="max-w-24 truncate">{n.title}</span>
+                  )}
+                </div>
                 {isActive && renamingId !== n.id && (
                   <IconButton
                     label={confirmingId === n.id ? 'Click again to delete' : 'Delete note'}
-                    size="xs"
+                    size="2xs"
                     tone="danger"
                     active={confirmingId === n.id}
                     onClick={(e) => {
@@ -91,7 +132,6 @@ export function NotesWidget() {
                       if (confirmingId === n.id) { removeNote(n.id); setConfirmingId(null); }
                       else setConfirmingId(n.id);
                     }}
-                    className="size-4 rounded"
                   >
                     <X size={10} />
                   </IconButton>
@@ -120,7 +160,7 @@ export function NotesWidget() {
         {rendered ? (
           <div className="md-render h-full overflow-y-auto text-th-hi2 text-xs leading-relaxed">
             {active.content.trim()
-              ? <ReactMarkdown remarkPlugins={MD_PLUGINS}>{active.content}</ReactMarkdown>
+              ? <ReactMarkdown remarkPlugins={MD_PLUGINS} components={MD_COMPONENTS}>{active.content}</ReactMarkdown>
               : <span className="text-th-hi3">Nothing to preview</span>}
           </div>
         ) : (

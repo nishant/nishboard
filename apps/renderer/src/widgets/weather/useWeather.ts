@@ -12,11 +12,15 @@ export function useActiveWeatherZip(): string {
   return (zips[Math.min(idx, zips.length - 1)] ?? '').trim();
 }
 
-export function useWeather(enabled = true) {
+/** `interval` overrides the visibility-gated poll: the weather-alert notifier passes
+ *  an alert-gated one so severe alerts still arrive while the window is hidden. */
+export const WEATHER_POLL_MS = 15 * 60 * 1000;
+
+export function useWeather(enabled = true, intervalOverride?: number | false) {
   const zip = useActiveWeatherZip();
   const tempUnit = useAppSettingsStore((s) => s.tempUnit);
   const windUnit = useAppSettingsStore((s) => s.windUnit);
-  const interval = useGatedInterval(15 * 60 * 1000);
+  const gated = useGatedInterval(WEATHER_POLL_MS);
   return useQuery<WeatherData>({
     // Key includes ZIP + units so changing either in Settings refetches the right data
     // (the server caches per zip:temp:wind combination too).
@@ -27,7 +31,9 @@ export function useWeather(enabled = true) {
       return apiClient.get<WeatherData>(`/api/weather?${params}`);
     },
     enabled,
-    refetchInterval: interval,
+    refetchInterval: intervalOverride ?? gated,
+    // An explicit interval means the alert notifier: keep polling while hidden.
+    refetchIntervalInBackground: intervalOverride !== undefined,
     staleTime: 15 * 60 * 1000,
   });
 }

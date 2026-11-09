@@ -43,4 +43,15 @@ describe('writeScript', () => {
     expect(copied).toBe(3);
     expect(data).toEqual({ kept: 'old', 'dashboard-notes': notes, 'nish-theme': 'mocha' });
   });
+
+  it('with fillOnly keeps keys already on app:// and writes only the missing ones', () => {
+    const { localStorage, data } = fakeStorage({ kept: 'changed in a session' });
+    const entries: Array<[string, string]> = [
+      ['kept', 'old'],
+      ['missing', 'from file'],
+    ];
+    const written: unknown = vm.runInNewContext(writeScript(entries, { fillOnly: true }), { localStorage });
+    expect(written).toBe(1);
+    expect(data).toEqual({ kept: 'changed in a session', missing: 'from file' });
+  });
 });

@@ -13,7 +13,7 @@ vi.mock('../lib/claudeCli', () => ({
 }));
 
 import { claudeRoutes } from './claude';
-import { spawnClaudeChat } from '../lib/claudeCli';
+import { isSessionNotFoundError, spawnClaudeChat } from '../lib/claudeCli';
 
 const mockSpawn = vi.mocked(spawnClaudeChat);
 
@@ -117,12 +117,111 @@ describe('POST /api/claude/chat — request lifecycle', () => {
       signal: controller.signal,
     }).catch(() => undefined); // abort rejects the fetch — swallow it
 
-    await new Promise((r) => setTimeout(r, 60));
+    await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalled());
     controller.abort();
     await inflight;
-    await new Promise((r) => setTimeout(r, 80));
+    await vi.waitFor(() => expect(killed).toBe(true));
+  });
+});
 
-    expect(killed).toBe(true);
+const doneFrame = { type: 'done', isError: false, durationMs: 1, outputTokens: null, contextTokens: null } as const;
+
+async function postControl(url: string): Promise<number> {
+  const res = await fetch(`${url}/api/claude/control`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requestId: 'r1', response: { behavior: 'allow' } }),
+  });
+  return res.status;
+}
+
+describe('POST /api/claude/chat — resume retry and single-flight release', () => {
+  let app: FastifyInstance | null = null;
+
+  afterEach(async () => {
+    await app?.close();
+    app = null;
+    vi.clearAllMocks();
+  });
+
+  it('retries once without --resume when the session is unknown; the first child\'s late exit keeps the slot', async () => {
+    const opts: SpawnClaudeChatOpts[] = [];
+    const respond = [vi.fn(() => false), vi.fn(() => true)];
+    mockSpawn.mockImplementation((o: SpawnClaudeChatOpts) => {
+      opts.push(o);
+      return { kill: vi.fn(), respondControl: respond[opts.length - 1] };
+    });
+    vi.mocked(isSessionNotFoundError).mockReturnValueOnce(true);
+
+    const server = await listen();
+    app = server.app;
+    const resPromise = fetch(`${server.url}/api/claude/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'hi', sessionId: 'sess-resume-1' }),
+    });
+
+    await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalledTimes(1));
+    expect(opts[0].sessionId).toBe('sess-resume-1');
+    opts[0].onEvent({ type: 'error', message: 'No conversation found with session ID' });
+
+    // The retry spawned synchronously, as a fresh chat.
+    expect(mockSpawn).toHaveBeenCalledTimes(2);
+    expect(opts[1].sessionId).toBeUndefined();
+
+    // The superseded first child exits late: it must not free the slot.
+    opts[0].onExit();
+    expect(await postControl(server.url)).toBe(204);
+    expect(respond[1]).toHaveBeenCalled();
+    expect(respond[0]).not.toHaveBeenCalled();
+
+    opts[1].onEvent({ type: 'init', sessionId: 'fresh-session', model: 'm' });
+    opts[1].onEvent(doneFrame);
+    opts[1].onExit();
+    const body = await (await resPromise).text();
+    expect(body).toContain('"type":"init"');
+    expect(body).toContain('"type":"done"');
+    expect(body).not.toContain('"type":"error"');
+    expect(mockSpawn).toHaveBeenCalledTimes(2);
+  });
+
+  it('releases the slot at the done frame and kills the lingering child when a new chat arrives', async () => {
+    const opts: SpawnClaudeChatOpts[] = [];
+    const kills = [vi.fn(), vi.fn()];
+    mockSpawn.mockImplementation((o: SpawnClaudeChatOpts) => {
+      opts.push(o);
+      return { kill: kills[opts.length - 1], respondControl: () => true };
+    });
+
+    const server = await listen();
+    app = server.app;
+    const post = (): Promise<Response> =>
+      fetch(`${server.url}/api/claude/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: 'hi' }),
+      });
+
+    const first = post();
+    await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalledTimes(1));
+    opts[0].onEvent({ type: 'init', sessionId: 's1', model: 'm' });
+    opts[0].onEvent(doneFrame);
+    expect((await first).status).toBe(200);
+    // The child is still exiting (no onExit yet), but the slot is already free.
+    expect(await postControl(server.url)).toBe(409);
+
+    const second = post();
+    await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalledTimes(2));
+    expect(kills[0]).toHaveBeenCalled();
+    opts[1].onEvent({ type: 'init', sessionId: 's2', model: 'm' });
+    expect((await second).status).toBe(200);
+
+    // The old child's exit arrives late and must not release the new chat.
+    opts[0].onExit();
+    expect(await postControl(server.url)).toBe(204);
+
+    opts[1].onEvent(doneFrame);
+    opts[1].onExit();
   });
 });
 
@@ -144,7 +243,7 @@ describe('POST /api/claude/control + chat body extensions', () => {
       body: JSON.stringify({ message: 'hi', ...extra }),
       signal: controller.signal,
     }).catch(() => undefined);
-    await new Promise((r) => setTimeout(r, 50));
+    await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalled());
     return { controller, inflight };
   }
 
@@ -203,7 +302,8 @@ describe('POST /api/claude/control + chat body extensions', () => {
     expect(opts.additionalDirs?.[0].includes('~')).toBe(false);
     controller.abort();
     await inflight;
-    await new Promise((r) => setTimeout(r, 30)); // let the route clear activeChat
+    // The route clears activeChat once the killed child's onExit fires.
+    await vi.waitFor(async () => expect(await postControl(server.url)).toBe(409));
 
     const bad = await fetch(`${server.url}/api/claude/chat`, {
       method: 'POST',
@@ -211,5 +311,21 @@ describe('POST /api/claude/control + chat body extensions', () => {
       body: JSON.stringify({ message: 'hi', workspaceDir: 'relative/path' }),
     });
     expect(bad.status).toBe(400);
+
+    // Control characters, '%' and quotes are rejected by the schema.
+    for (const workspaceDir of ['/tmp/bad\u0000dir', '/tmp/50%', '/tmp/a"b']) {
+      const res = await fetch(`${server.url}/api/claude/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: 'hi', workspaceDir }),
+      });
+      expect(res.status).toBe(400);
+    }
+    const dirs = await fetch(`${server.url}/api/claude/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'hi', additionalDirs: ['/ok', '/bad%PATH%'] }),
+    });
+    expect(dirs.status).toBe(400);
   });
 });

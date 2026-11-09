@@ -1,9 +1,9 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { NetworkMonitorData, PingHostStats, NetworkIo } from '@dash/shared';
+import type { NetworkMonitorData, PingHostStats } from '@dash/shared';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import si from 'systeminformation';
 import { HttpError } from '../lib/http';
+import { getNetThroughput } from '../lib/netThroughput';
 
 const execFileAsync = promisify(execFile);
 
@@ -107,21 +107,33 @@ export function computeStats(buffer: ReadonlyArray<number | null>): Omit<PingHos
 
 // ── Sampler ───────────────────────────────────────────────────────────────
 // Module-level background sampler — pings run on a 5s tick, NOT per request,
-// so four widget polls a second cost zero extra child processes. Lazy
+// so four widget polls a second add no extra pings (the interface throughput
+// read is separate: lib/netThroughput.ts, shared and cached for 1s). Lazy
 // lifecycle: the first GET starts it; each tick self-stops (and clears the
-// buffers) once no request has landed for IDLE_STOP_MS.
+// buffers) once no request has landed for IDLE_STOP_MS. Buffers are kept PER
+// HOST, so editing one target keeps the other host's history; a host nobody has
+// asked for within IDLE_STOP_MS is dropped on the next tick.
 
-class Sampler {
-  private buffers = new Map<string, Array<number | null>>();
+interface HostBuf {
+  buf: Array<number | null>;
+  lastSeen: number;
+}
+
+/** Exported for tests. */
+export class Sampler {
+  private hosts = new Map<string, HostBuf>();
   private timer: NodeJS.Timeout | null = null;
   private lastRequestAt = 0;
   private ticking = false;
 
-  /** Bump the keep-alive clock, swap buffers on a host-set change, start the tick. */
+  /** Bump the keep-alive clock, register any new hosts, start the tick. */
   touch(hosts: string[]): void {
-    this.lastRequestAt = Date.now();
-    if ([...this.buffers.keys()].join(',') !== hosts.join(',')) {
-      this.buffers = new Map(hosts.map((h) => [h, []]));
+    const now = Date.now();
+    this.lastRequestAt = now;
+    for (const h of hosts) {
+      const entry = this.hosts.get(h);
+      if (entry) entry.lastSeen = now;
+      else this.hosts.set(h, { buf: [], lastSeen: now });
     }
     if (!this.timer) {
       this.timer = setInterval(() => void this.tick(), TICK_MS);
@@ -131,31 +143,38 @@ class Sampler {
   }
 
   read(hosts: string[]): PingHostStats[] {
-    return hosts.map((h) => ({ host: h, ...computeStats(this.buffers.get(h) ?? []) }));
+    return hosts.map((h) => ({ host: h, ...computeStats(this.hosts.get(h)?.buf ?? []) }));
   }
 
-  private stop(): void {
+  /** Stop the timer and clear all history. */
+  stop(): void {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
-    this.buffers = new Map();
+    this.hosts = new Map();
   }
 
-  private async tick(): Promise<void> {
-    if (Date.now() - this.lastRequestAt > IDLE_STOP_MS) {
+  /** One sampling round (public so tests can drive it). */
+  async tick(): Promise<void> {
+    const now = Date.now();
+    if (now - this.lastRequestAt > IDLE_STOP_MS) {
       this.stop();
       return;
+    }
+    // Drop hosts no request has named recently.
+    for (const [h, e] of this.hosts) {
+      if (now - e.lastSeen > IDLE_STOP_MS) this.hosts.delete(h);
     }
     if (this.ticking) return; // a slow ping batch must never overlap the next tick
     this.ticking = true;
     try {
-      const hosts = [...this.buffers.keys()];
+      const hosts = [...this.hosts.keys()];
       const results = await Promise.allSettled(hosts.map((h) => pingOnce(h)));
       hosts.forEach((h, i) => {
+        const entry = this.hosts.get(h);
+        if (!entry) return; // dropped mid-tick — discard the stale result
         const r = results[i];
-        const buf = this.buffers.get(h);
-        if (!buf) return; // host set swapped mid-tick — drop the stale result
-        buf.push(r.status === 'fulfilled' ? r.value : null);
-        if (buf.length > WINDOW) buf.shift();
+        entry.buf.push(r.status === 'fulfilled' ? r.value : null);
+        if (entry.buf.length > WINDOW) entry.buf.shift();
       });
     } finally {
       this.ticking = false;
@@ -165,42 +184,18 @@ class Sampler {
 
 const sampler = new Sampler();
 
-// ── Interface throughput ──────────────────────────────────────────────────
-// Same filter + Mbps math as hardware.ts's network section (bytes/s × 8 / 1e6).
-
-const LOOPBACK_IFACES = new Set(['lo', 'lo0', 'Loopback Pseudo-Interface 1']);
-
-function isRealIface(iface: string): boolean {
-  if (LOOPBACK_IFACES.has(iface)) return false;
-  if (iface.toLowerCase().startsWith('loopback')) return false;
-  return true;
-}
-
-async function getIfaces(): Promise<NetworkIo[]> {
-  const netStats = await si
-    .networkStats()
-    .catch(() => [] as si.Systeminformation.NetworkStatsData[]);
-  return netStats
-    .filter((n) => isRealIface(n.iface) && n.operstate !== 'down')
-    .sort((a, b) => (b.rx_sec + b.tx_sec) - (a.rx_sec + a.tx_sec))
-    .slice(0, 3)
-    .map((n) => ({
-      iface: n.iface,
-      uploadMbps: parseFloat((((n.tx_sec ?? 0) * 8) / 1_000_000).toFixed(2)),
-      downloadMbps: parseFloat((((n.rx_sec ?? 0) * 8) / 1_000_000).toFixed(2)),
-    }));
-}
-
 // ── Route ─────────────────────────────────────────────────────────────────
 
 export const networkRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Querystring: { hosts?: string }; Reply: NetworkMonitorData | { error: string } }>(
     '/',
     async (req, reply) => {
-      const hosts = (req.query.hosts ?? DEFAULT_HOSTS.join(','))
+      const parsed = (req.query.hosts ?? DEFAULT_HOSTS.join(','))
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean);
+      // Two identical targets are one host: dedupe so the sampler tracks it once.
+      const hosts = [...new Set(parsed)];
       if (hosts.length === 0) throw new HttpError(400, 'No hosts provided');
       if (hosts.length > MAX_HOSTS) throw new HttpError(400, `At most ${MAX_HOSTS} hosts`);
       // Validate BEFORE anything reaches the sampler (→ ping argv).
@@ -210,7 +205,7 @@ export const networkRoutes: FastifyPluginAsync = async (fastify) => {
 
       sampler.touch(hosts);
 
-      const ifaces = await getIfaces();
+      const ifaces = await getNetThroughput();
       const totals = {
         upMbps: round1(ifaces.reduce((s, n) => s + n.uploadMbps, 0)),
         downMbps: round1(ifaces.reduce((s, n) => s + n.downloadMbps, 0)),

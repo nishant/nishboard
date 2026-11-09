@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist } from 'zustand/middleware';
+import type { StateStorage } from 'zustand/middleware';
 import type { ClaudeChatMode, ClaudeEffort, ClaudePromptRequest } from '@dash/shared';
 
 /** A run of assistant text (streamed from `delta` frames). */
@@ -97,6 +98,9 @@ interface ClaudeState {
   setChatModel: (model: string | null) => void;
   setChatEffort: (effort: ClaudeEffort | null) => void;
   newChat: () => void;
+  /** Remove the trailing user message and its still-empty assistant reply
+   *  (a send that never reached the server). */
+  dropUnsentTurn: () => void;
 }
 
 /** Mutate the trailing assistant message via `fn`, returning a new messages array
@@ -109,6 +113,55 @@ function patchLastAssistant(
   if (!last || last.role !== 'assistant') return messages;
   return [...messages.slice(0, -1), fn(last)];
 }
+
+
+/** Persisted history cap and the tighter cap used after a quota error. */
+export const PERSIST_MAX_MESSAGES = 50;
+export const PERSIST_QUOTA_MAX_MESSAGES = 10;
+export const PERSIST_MAX_TOOL_DETAIL = 2_000;
+
+/** The slice of the transcript that is written to localStorage: the last `max`
+ *  messages, without `thinking` parts, with long tool details cut. */
+export function trimForPersist(messages: ClaudeChatMessage[], max = PERSIST_MAX_MESSAGES): ClaudeChatMessage[] {
+  return messages.slice(-max).map((m) => ({
+    ...m,
+    parts: m.parts
+      .filter((p) => p.kind !== 'thinking')
+      .map((p) =>
+        p.kind === 'tool' && p.detail.length > PERSIST_MAX_TOOL_DETAIL
+          ? { ...p, detail: p.detail.slice(0, PERSIST_MAX_TOOL_DETAIL) }
+          : p,
+      ),
+  }));
+}
+
+/** Mirrors the store's isStreaming so the storage wrapper can skip writes
+ *  mid-turn without touching the (not yet initialised) store at module init. */
+let streamingNow = false;
+
+/** localStorage wrapper: no writes while a turn streams (the write triggered by
+ *  setStreaming(false) at done/error/stop persists the finished turn), and on a
+ *  quota error trim to the last 10 messages and retry once. */
+export const claudeStorage: StateStorage = {
+  getItem: (name) => localStorage.getItem(name),
+  removeItem: (name) => localStorage.removeItem(name),
+  setItem: (name, value) => {
+    if (streamingNow) return;
+    try {
+      localStorage.setItem(name, value);
+    } catch {
+      try {
+        const parsed = JSON.parse(value) as { state?: { messages?: ClaudeChatMessage[] } };
+        if (parsed.state && Array.isArray(parsed.state.messages)) {
+          parsed.state.messages = trimForPersist(parsed.state.messages, PERSIST_QUOTA_MAX_MESSAGES);
+        }
+        localStorage.setItem(name, JSON.stringify(parsed));
+      } catch {
+        // still over quota: drop this write rather than break the stream
+      }
+    }
+  },
+};
 
 export const useClaudeStore = create<ClaudeState>()(
   persist(
@@ -220,22 +273,36 @@ export const useClaudeStore = create<ClaudeState>()(
           })),
         })),
       setSession: (sessionId, model) => set({ sessionId, model }),
-      setStreaming: (isStreaming) => set({ isStreaming }),
+      setStreaming: (isStreaming) => {
+        streamingNow = isStreaming;
+        set({ isStreaming });
+      },
       setChatMode: (chatMode) => set({ chatMode }),
       setChatModel: (chatModel) => set({ chatModel }),
       setChatEffort: (chatEffort) => set({ chatEffort }),
-      newChat: () => set({ messages: [], sessionId: null }),
+      newChat: () => set({ messages: [], sessionId: null, chatMode: 'ask' }),
+      dropUnsentTurn: () =>
+        set((s) => {
+          const msgs = [...s.messages];
+          const last = msgs[msgs.length - 1];
+          if (last && last.role === 'assistant' && last.parts.length === 0) msgs.pop();
+          const prev = msgs[msgs.length - 1];
+          if (prev && prev.role === 'user') msgs.pop();
+          return { messages: msgs };
+        }),
     }),
     {
       name: 'dashboard-claude',
-      version: 3,
+      version: 4,
+      storage: createJSONStorage(() => claudeStorage),
       // NEVER persist isStreaming — a reload mid-stream would resurrect a
       // permanently-disabled input with no stream behind it.
       partialize: (s) => ({
-        messages: s.messages,
+        messages: trimForPersist(s.messages),
         sessionId: s.sessionId,
         model: s.model,
-        chatMode: s.chatMode,
+        // Auto (bypass permissions) never survives a restart.
+        chatMode: s.chatMode === 'auto' ? 'ask' : s.chatMode,
         chatModel: s.chatModel,
         chatEffort: s.chatEffort,
         lastContextTokens: s.lastContextTokens,
@@ -252,6 +319,9 @@ export const useClaudeStore = create<ClaudeState>()(
           });
         }
         if (version < 3 && state.chatMode === 'chat') {
+          state.chatMode = 'ask';
+        }
+        if (version < 4 && state.chatMode === 'auto') {
           state.chatMode = 'ask';
         }
         return state as unknown as ClaudeState;

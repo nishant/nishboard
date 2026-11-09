@@ -10,7 +10,7 @@ import type {
   ClaudeUsageData,
 } from '@dash/shared';
 import { apiClient } from '../../lib/apiClient';
-import { postEventStream } from '../../lib/streamClient';
+import { StreamHttpError, postEventStream } from '../../lib/streamClient';
 import { useGatedInterval } from '../../hooks/useGatedInterval';
 import { useClaudeStore } from '../../store/claudeStore';
 import { useAppSettingsStore } from '../../store/settingsStore';
@@ -135,6 +135,42 @@ export async function openClaudeCliLogin(): Promise<void> {
   }
 }
 
+/** The server's single-flight 409 lingers briefly after a turn ends or is
+ *  stopped; retry with backoff before giving up. */
+export const CLAUDE_409_BACKOFF_MS = [300, 600, 1_200, 2_400];
+
+function sleepAbortable(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal.aborted) return resolve();
+    const t = setTimeout(done, ms);
+    function done(): void {
+      clearTimeout(t);
+      signal.removeEventListener('abort', done);
+      resolve();
+    }
+    signal.addEventListener('abort', done);
+  });
+}
+
+/** postEventStream that retries HTTP 409 (previous turn still winding down). */
+export async function postChatWithRetry(
+  body: ClaudeChatRequestBody,
+  opts: { signal: AbortSignal; onEvent: (e: ClaudeStreamEvent) => void },
+  delays: number[] = CLAUDE_409_BACKOFF_MS,
+): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await postEventStream<ClaudeStreamEvent>('/api/claude/chat', body, opts);
+      return;
+    } catch (err: unknown) {
+      const retryable = err instanceof StreamHttpError && err.status === 409 && !opts.signal.aborted;
+      if (!retryable || attempt >= delays.length) throw err;
+      await sleepAbortable(delays[attempt], opts.signal);
+      if (opts.signal.aborted) throw err;
+    }
+  }
+}
+
 export function useSendClaudeMessage(): { send: (text: string) => void; stop: () => void } {
   const send = (text: string): void => {
     const trimmed = text.trim();
@@ -161,7 +197,7 @@ export function useSendClaudeMessage(): { send: (text: string) => void; stop: ()
       additionalDirs: settings.claudeAdditionalDirs.length > 0 ? settings.claudeAdditionalDirs : undefined,
     };
 
-    void postEventStream<ClaudeStreamEvent>('/api/claude/chat', body, {
+    void postChatWithRetry(body, {
       signal: controller.signal,
       onEvent: (event) => {
         const s = useClaudeStore.getState();
@@ -195,6 +231,11 @@ export function useSendClaudeMessage(): { send: (text: string) => void; stop: ()
             break;
           case 'done':
             s.finishAssistant(event.durationMs, event.outputTokens, event.contextTokens);
+            if (event.isError) {
+              const msg = 'Claude ended the turn with an error';
+              toast('Claude', msg, 'error');
+              s.appendError(msg);
+            }
             s.setStreaming(false);
             break;
           case 'error':
@@ -211,7 +252,10 @@ export function useSendClaudeMessage(): { send: (text: string) => void; stop: ()
       if (controller.signal.aborted) return;
       const message = err instanceof Error ? err.message : String(err);
       toast('Claude', message, 'error');
-      s.appendError(message);
+      // A 409 that outlasted every retry: the message never reached the CLI,
+      // so don't leave an orphan bubble in the transcript.
+      if (err instanceof StreamHttpError && err.status === 409) s.dropUnsentTurn();
+      else s.appendError(message);
     });
   };
 

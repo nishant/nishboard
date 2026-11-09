@@ -1,5 +1,7 @@
 # Dashboard App — Project Specification
 
+> **Historical.** This is the original design spec, kept for history. CLAUDE.md's widget table and CHANGELOG.md are authoritative; where they disagree with this file, they win.
+
 ## Overview
 
 A personal ambient desktop dashboard built with Electron + React, designed to run all day on a secondary monitor. Displays live system data, market data, media controls, and environmental info in a single always-on window.
@@ -102,12 +104,12 @@ dashboard/
 - **API:** Open-Meteo (free, no key required)
 - **Data:** Current temp, feels like, humidity, wind speed, UV index, precipitation chance, hourly forecast (next 12h), daily forecast (next 5 days)
 - **Poll interval:** 15 minutes
-- **Location:** Hardcoded to Austin, TX (lat: 30.2672, lon: -97.7431)
+- **Location:** IP geolocation (ip-api) or a ZIP the user enters (zippopotam.us)
 - **Cache TTL:** 15 minutes
 
 ### 2. Spotify Now Playing
 - **API:** Spotify Web API
-- **Auth:** OAuth 2.0 PKCE flow; tokens persisted as plain JSON at `~/.dash/spotify_tokens.json` (home dir, survives reinstalls — NOT safeStorage; see CLAUDE.md → Secrets & Credentials)
+- **Auth:** OAuth 2.0 PKCE flow; tokens persisted AES-256-GCM encrypted at `~/.dash/spotify_tokens.json` (home dir, survives reinstalls — NOT safeStorage; see CLAUDE.md → Secrets & Credentials)
 - **Data:** Track name, artist, album art, duration, progress, shuffle/repeat state
 - **Controls:** Play/pause, skip forward/back, seek, volume, shuffle toggle
 - **Poll interval:** 3 seconds (REST polling, not WebSocket)
@@ -129,7 +131,7 @@ dashboard/
   - CPU: overall %, per-core %, clock speed, temperature
   - GPU: usage %, VRAM used/total, temperature (NVIDIA via nvidia-smi)
   - RAM: used, total, % used
-  - Disk: read/write MB/s per drive
+  - Disk: usage per drive (the server sends one aggregate I/O figure, which is 0 on Windows; the I/O row is hidden)
   - Network: upload/download Mbps per adapter
 - **Poll interval:** 1 second
 - **Display:** Current value + 60-second sparkline per metric
@@ -189,17 +191,10 @@ Secrets loaded by Fastify server only. Renderer never sees them.
 
 ## IPC Channels (Electron Main ↔ Renderer)
 
-| Channel | Direction | Purpose |
-|---|---|---|
-| `app:minimize` | R → M | Minimize window |
-| `app:close` | R → M | Quit app |
-| `app:notify` | R → M | Show a native desktop notification |
-| `app:open-external` | R → M | Open an http(s) URL in the default browser |
-| `spotify:open-auth` | R → M | Open the Spotify OAuth URL in the browser |
-| `spotify:token-store` | M → R | Notify token saved |
-| `credentials:get-all` | R → M | Read stored API keys (safeStorage) |
-| `credentials:save-all` | R → M | Save API keys + restart the server |
-| `credentials:encryption-available` | R → M | Whether safeStorage has an OS keychain |
+The channel list is the `IpcChannels` union in `packages/shared/src/types/ipc.ts`; it is the only source (this table used to duplicate it and went stale). Notes on two that are easy to misread:
+
+- `app:close` closes the sender window; close-to-tray applies, so it does not quit the app.
+- Stored API keys never reach the renderer: only `credentials:get-status` booleans do (there is no `credentials:get-all`).
 
 ---
 
@@ -257,7 +252,6 @@ pnpm package
 - Also added beyond the original phase-2 list: Notes, Tasks, World Clock, Timer/Alarm, Countdown widgets, and per-ticker Stocks detail (intraday/daily chart + headlines).
 
 ### Still not built
-- **Google Calendar integration** — the Calendar widget is a pure-JS month grid, not synced calendar events.
 - **Generic per-widget config UI** — partially covered today (Widgets menu toggles tiles, Hardware has its own config panel; the Stocks watchlist is edited in trading, not here), but no unified config framework.
 
-> **Note:** the Widgets sections above still describe the original five widgets and some early assumptions (e.g. Stocks via WebSocket, weather hardcoded to Austin) that have since changed — this file needs a fuller behavior refresh; CLAUDE.md's Widgets table + the CHANGELOG are the current source of truth.
+> **Note:** the Widgets sections above still describe the original five widgets and some early assumptions (e.g. Stocks via WebSocket) that have since changed; CLAUDE.md's Widgets table + the CHANGELOG are the current source of truth. Google Calendar sync now ships (see the Calendar row there).

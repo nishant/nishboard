@@ -261,12 +261,15 @@ export function StocksWidget() {
 
   // Holiday-aware countdown from the Alpaca calendar; the Intl heuristic above
   // stays as the fallback (and drives the pre/after-hours dot color either way).
-  let badge = sessionLabel[session];
+  // The calendar wins over the clock: on a holiday or after an early close the
+  // Intl heuristic still says 'open' during weekday hours.
+  const effSession: MarketSession = calendar && !calendar.isOpen && session === 'open' ? 'closed' : session;
+  let badge = sessionLabel[effSession];
   if (calendar) {
     if (calendar.isOpen && calendar.nextClose) {
       badge = `Market Open · closes ${relTimeUntil(new Date(calendar.nextClose).getTime(), now)}`;
     } else if (!calendar.isOpen && calendar.nextOpen) {
-      const state = session === 'closed' ? 'Market Closed' : sessionLabel[session];
+      const state = effSession === 'closed' ? 'Market Closed' : sessionLabel[effSession];
       badge = `${state} · opens ${relTimeUntil(new Date(calendar.nextOpen).getTime(), now)}`;
     }
   }
@@ -280,7 +283,7 @@ export function StocksWidget() {
           className="text-3xs flex items-center gap-1.5 text-th-hi3"
           title="Prices refresh every 5 minutes"
         >
-          <StatusDot tone={sessionTone[session]} size="xs" />
+          <StatusDot tone={sessionTone[effSession]} size="xs" />
           {badge}
         </span>
       </div>

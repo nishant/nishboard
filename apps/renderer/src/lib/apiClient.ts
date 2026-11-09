@@ -38,21 +38,47 @@ async function errorMessage(res: Response, path: string): Promise<string> {
   return `API ${res.status}: ${path}`;
 }
 
-async function get<T>(path: string): Promise<T> {
-  const res = await fetch(apiUrl(path), { headers: authHeaders() });
-  if (!res.ok) throw new Error(await errorMessage(res, path));
-  return res.json() as Promise<T>;
+export interface RequestOpts {
+  /** Caller abort (e.g. TanStack's query signal). */
+  signal?: AbortSignal;
+  /** Give up after this long. Default 15s: one hung server call must not freeze a polled query. */
+  timeoutMs?: number;
 }
 
-async function post<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetch(apiUrl(path), {
-    method: 'POST',
-    headers: body !== undefined ? { ...authHeaders(), 'Content-Type': 'application/json' } : authHeaders(),
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) throw new Error(await errorMessage(res, path));
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+const DEFAULT_TIMEOUT_MS = 15_000;
+
+async function request<T>(path: string, init: RequestInit, opts: RequestOpts | undefined, allowEmpty: boolean): Promise<T> {
+  const signals = [opts?.signal, AbortSignal.timeout(opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS)].filter(
+    (s): s is AbortSignal => s !== undefined,
+  );
+  const signal = AbortSignal.any(signals);
+  try {
+    const res = await fetch(apiUrl(path), { ...init, signal });
+    if (!res.ok) throw new Error(await errorMessage(res, path));
+    if (allowEmpty && res.status === 204) return undefined as T;
+    return (await res.json()) as T;
+  } catch (e) {
+    // A caller abort keeps its own error; only our timer becomes "Timed out".
+    if (!opts?.signal?.aborted && signal.aborted) throw new Error(`Timed out: ${path}`);
+    throw e;
+  }
+}
+
+function get<T>(path: string, opts?: RequestOpts): Promise<T> {
+  return request<T>(path, { headers: authHeaders() }, opts, false);
+}
+
+function post<T>(path: string, body?: unknown, opts?: RequestOpts): Promise<T> {
+  return request<T>(
+    path,
+    {
+      method: 'POST',
+      headers: body !== undefined ? { ...authHeaders(), 'Content-Type': 'application/json' } : authHeaders(),
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    },
+    opts,
+    true,
+  );
 }
 
 export const apiClient = { get, post };
