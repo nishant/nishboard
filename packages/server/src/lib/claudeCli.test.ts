@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { spawnSync } from 'child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import os from 'os';
 import path from 'path';
 import type { ClaudeStreamEvent } from '@dash/shared';
 import {
   buildCmdLine,
+  ensureEnvPreload,
+  resolveSpawnShape,
   quoteCmdArg,
   resetCliCache,
   spawnClaudeChat,
@@ -523,6 +525,32 @@ describe('quoteCmdArg / buildCmdLine (cmd.exe fallback for a .cmd shim)', () => 
       env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
     });
     expect(JSON.parse(res.stdout.trim())).toEqual(tricky);
+  });
+});
+
+describe('ELECTRON_RUN_AS_NODE preload (npm shim path)', () => {
+  it('the CLI process sees no ELECTRON_RUN_AS_NODE, so its tool subprocesses cannot inherit it', async () => {
+    const preload = await ensureEnvPreload();
+    const res = spawnSync(
+      process.execPath,
+      ['--require', preload, '-e', 'console.log(JSON.stringify(process.env.ELECTRON_RUN_AS_NODE ?? null))'],
+      { encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } },
+    );
+    expect(JSON.parse(res.stdout.trim())).toBeNull();
+  });
+
+  it.runIf(process.platform === 'win32')('shim spawn shape loads the preload before cli.js (Windows-only)', async () => {
+    const d = mkdtempSync(path.join(os.tmpdir(), 'fake-shim-'));
+    try {
+      const cliDir = path.join(d, 'node_modules', '@anthropic-ai', 'claude-code');
+      mkdirSync(cliDir, { recursive: true });
+      writeFileSync(path.join(cliDir, 'cli.js'), '');
+      const shape = await resolveSpawnShape(path.join(d, 'claude.cmd'), ['-p']);
+      expect(shape.args.slice(0, 2)).toEqual(['--require', await ensureEnvPreload()]);
+      expect(shape.args[2]).toBe(path.join(cliDir, 'cli.js'));
+    } finally {
+      rmSync(d, { recursive: true, force: true });
+    }
   });
 });
 

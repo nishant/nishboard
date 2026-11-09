@@ -128,6 +128,23 @@ async function resolveNpmShimEntry(fullPath: string): Promise<string | null> {
   }
 }
 
+/** Exported for tests. Preload that strips ELECTRON_RUN_AS_NODE from the CLI's own env. */
+export const ENV_PRELOAD_SOURCE = 'delete process.env.ELECTRON_RUN_AS_NODE;\n';
+
+/** Exported for tests. Writes (idempotently) and returns the preload file path. */
+export async function ensureEnvPreload(): Promise<string> {
+  const dir = path.join(os.tmpdir(), 'nishboard-claude');
+  const file = path.join(dir, 'strip-electron-run-as-node.cjs');
+  try {
+    if ((await readFile(file, 'utf8')) === ENV_PRELOAD_SOURCE) return file;
+  } catch {
+    // missing — write below
+  }
+  await mkdir(dir, { recursive: true });
+  await writeFile(file, ENV_PRELOAD_SOURCE);
+  return file;
+}
+
 interface SpawnShape {
   command: string;
   args: string[];
@@ -144,14 +161,19 @@ interface SpawnShape {
  * as `R&D` or `50%` reach argv (--add-dir, workspace, --resume id), so they
  * must never be passed raw.
  */
-async function resolveSpawnShape(fullPath: string, cliArgs: string[], env?: NodeJS.ProcessEnv): Promise<SpawnShape> {
+/** Exported for tests. */
+export async function resolveSpawnShape(fullPath: string, cliArgs: string[], env?: NodeJS.ProcessEnv): Promise<SpawnShape> {
   if (process.platform === 'win32' && fullPath.toLowerCase().endsWith('.cmd')) {
     // Windows-only (.cmd shim from an npm install)
     const cliJs = await resolveNpmShimEntry(fullPath);
     if (cliJs) {
+      // ELECTRON_RUN_AS_NODE is needed only to start the CLI's own process; the
+      // preload removes it from that process's env before cli.js runs, so the CLI's
+      // tool subprocesses (Bash etc.) never inherit it.
+      const preload = await ensureEnvPreload();
       return {
         command: process.execPath,
-        args: [cliJs, ...cliArgs],
+        args: ['--require', preload, cliJs, ...cliArgs],
         env: { ...env, ELECTRON_RUN_AS_NODE: '1' },
         verbatim: false,
       };
