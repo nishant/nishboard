@@ -90,7 +90,8 @@ describe('YoutubeSearchCache', () => {
     expect(c.searchesLeft()).toBe(DAILY_SEARCH_LIMIT);
   });
 
-  it('allows 90 searches a day, then resets at midnight Pacific', () => {
+  it('allows DAILY_SEARCH_LIMIT (55) searches a day, then resets at midnight Pacific', () => {
+    expect(DAILY_SEARCH_LIMIT).toBe(55);
     const c = new YoutubeSearchCache(file);
     // 2026-06-02 06:00 UTC = 2026-06-01 23:00 PDT; 07:00 UTC is midnight PDT (08:00 UTC in winter).
     const before = Date.parse('2026-06-02T06:00:00Z');

@@ -183,7 +183,7 @@ function clearUserCaches(): void {
   LIKED_CACHE.clear();
 }
 
-// Each search costs 100 of the 10,000/day quota units, shared with another app.
+// Each search costs 100 of the 10,000/day quota units, shared with streams.nish.software; the budget is 55 a day (DAILY_SEARCH_LIMIT).
 // Saved results (2h Live now, 24h All videos) and the daily search count live in
 // ~/.dash/youtube_search_cache.json so a restart neither re-spends searches nor
 // resets the budget. Created lazily so tests can inject their own.
