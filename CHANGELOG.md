@@ -4,7 +4,7 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
-## [PR #TBD] fix: lower the YouTube search budget to 55 a day and drop fold.yml's serve override
+## [PR #200] fix: lower the YouTube search budget to 55 a day and drop fold.yml's serve override
 **Branch:** audit-xr → master
 **Date:** 2026-11-10
 
