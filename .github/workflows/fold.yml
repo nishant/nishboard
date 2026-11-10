@@ -23,5 +23,4 @@ jobs:
     uses: nishant/ui/.github/workflows/fold-check.yml@master
     with:
       install: 'corepack enable && pnpm install --frozen-lockfile'
-      serve: 'node scripts/fold-serve.mjs'
       node-version: '24'

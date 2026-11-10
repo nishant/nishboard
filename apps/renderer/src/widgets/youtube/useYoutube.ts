@@ -14,7 +14,7 @@ export function useYoutubeBrowse(category: string, enabled: boolean) {
   });
 }
 
-/** Query options for a YouTube search. Every search can spend a unit of the 90/day
+/** Query options for a YouTube search. Every search can spend a unit of the 55/day
  *  budget shared with streams.nish.software, so nothing refetches it by itself:
  *  no retry, never stale, no refetch on mount. Fresh results are the explicit
  *  Refresh (`useYoutubeSearchRefresh`). Exported for tests. */

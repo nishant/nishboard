@@ -4,6 +4,16 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #200] fix: lower the YouTube search budget to 55 a day and drop fold.yml's serve override
+**Branch:** audit-xr → master
+**Date:** 2026-11-10
+
+### Fixed
+- `packages/server/src/lib/youtubeSearchCache.ts`: DAILY_SEARCH_LIMIT 90 -> 55. nishboard's 90 plus streams' 30 searches came to 12,000 units against the shared 10,000-unit key before any list call, so a heavy day ran both apps into quotaExceeded until midnight Pacific; 55 + 30 = 8,500 leaves about 1,500 for list and info calls (XR-043).
+- `.github/workflows/fold.yml`: dropped the `serve:` override, which repeated the `fold:serve` script that fold-check runs by default (XR-044).
+
+---
+
 ## [PR #195] fix: deflake the crash-restart backoff test and guard the server log stream
 **Branch:** fix/spawn-test-flake → master
 **Date:** 2026-11-09

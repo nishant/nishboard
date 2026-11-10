@@ -11,8 +11,8 @@ export const LIVE_TTL_MS = 2 * HOUR;
 export const ALL_TTL_MS = 24 * HOUR;
 /** The most saved searches kept; the oldest are dropped first. */
 export const MAX_ENTRIES = 500;
-/** Each search costs 100 of the 10,000 daily units (shared with another app); stay under the real limit. */
-export const DAILY_SEARCH_LIMIT = 90;
+/** Each search costs 100 of the 10,000 daily units. The key is shared with streams.nish.software (30 a day there), and list/info calls (1-3 units each) spend from the same pool: 55 + 30 searches = 8,500 units, leaving about 1,500 for those. */
+export const DAILY_SEARCH_LIMIT = 55;
 
 export const ttlFor = (live: boolean): number => (live ? LIVE_TTL_MS : ALL_TTL_MS);
 
@@ -128,7 +128,7 @@ export class YoutubeSearchCache {
     return true;
   }
 
-  /** Writes the file now (every change does: at most ~90 searches a day, and the
+  /** Writes the file now (every change does: at most ~55 searches a day, and the
    *  server is killed outright on quit or a credential save, so a delayed write
    *  would be lost). A failure is logged once; the in-memory copy keeps serving. */
   flush(): void {
