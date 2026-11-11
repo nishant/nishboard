@@ -3,6 +3,8 @@ import { AppWindow, Cable, Home, LogOut, RotateCw, Unplug } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { EmptyState } from '@nish/ui';
 import { HeaderAction } from '../../components/HeaderAction';
+import { useLayoutStore } from '../../store/layoutStore';
+import { useWidgetUiStore } from '../../store/widgetUiStore';
 import { useDiscordStore } from '../../store/discordStore';
 import { useDiscordUiStore } from '../../store/discordUiStore';
 import { DiscordNative } from './DiscordNative';
@@ -77,7 +79,23 @@ export function DiscordWidget() {
     const unsubscribe = useDiscordStore.subscribe((state, prev) => {
       if (state.interacting !== prev.interacting) burst();
     });
+    // Programmatic layout changes (presets, saved layouts, a tile above
+    // collapsing, palette toggles) move the tile with a CSS transform that
+    // no observer sees and that is not a drag/resize gesture.
+    const unsubLayout = useLayoutStore.subscribe((state, prev) => {
+      if (state.layout !== prev.layout || state.visibleWidgets !== prev.visibleWidgets) burst();
+    });
+    const unsubUi = useWidgetUiStore.subscribe((state, prev) => {
+      if (state.collapsed !== prev.collapsed) burst();
+    });
+    const gridItem = el.closest('.react-grid-item');
+    gridItem?.addEventListener('transitionrun', burst);
+    gridItem?.addEventListener('transitionend', burst);
     return () => {
+      gridItem?.removeEventListener('transitionrun', burst);
+      gridItem?.removeEventListener('transitionend', burst);
+      unsubLayout();
+      unsubUi();
       cancelAnimationFrame(raf);
       ro.disconnect();
       window.removeEventListener('resize', burst);
