@@ -124,6 +124,18 @@ export function credsChanged(baseline: CredsSnapshot, current: CredsSnapshot): b
 
 interface ActiveLogin {
   timer: NodeJS.Timeout;
+  startedAt: number;
+}
+
+const REOPEN_AFTER_MS = 5_000;
+
+/** True when a click on 'Log in' should replace the watch in progress instead of
+ *  reporting 'already-open'. macOS-only: only Windows notices the user closing
+ *  the window (pidAlive), so on macOS a closed Terminal window or a cancelled
+ *  browser login would otherwise block re-opening for the full 5 minutes.
+ *  Exported for tests. */
+export function shouldReopenLogin(platform: NodeJS.Platform, startedAt: number, now: number): boolean {
+  return platform === 'darwin' && now - startedAt > REOPEN_AFTER_MS;
 }
 let active: ActiveLogin | null = null;
 let opening = false;
@@ -176,7 +188,11 @@ function broadcastLoginFinished(): void {
  *  flow is still being watched ('already-open'). Rejects when no terminal
  *  could be spawned. */
 export async function openClaudeLogin(): Promise<ClaudeLoginOpenResult> {
-  if (active || opening) return 'already-open';
+  if (opening) return 'already-open';
+  if (active) {
+    if (!shouldReopenLogin(process.platform, active.startedAt, Date.now())) return 'already-open';
+    stopWatch(); // macOS-only: the old flow is stale — open a fresh login
+  }
   opening = true;
   try {
     const baseline = await readCredsSnapshot();
@@ -245,7 +261,7 @@ export async function openClaudeLogin(): Promise<ClaudeLoginOpenResult> {
         }
       })();
     }, POLL_MS);
-    active = { timer };
+    active = { timer, startedAt: Date.now() };
     return 'opened';
   } finally {
     opening = false;

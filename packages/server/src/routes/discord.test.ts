@@ -3,6 +3,8 @@ import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
 import type { DiscordStreamEvent, DiscordUserData } from '@dash/shared';
 import type { DiscordRpcClient, RpcChannel } from '../lib/discordRpc';
+import { DiscordNotConnectedError } from '../lib/discordRpc';
+import { HttpError } from '../lib/http';
 
 // Mock ONLY the singleton accessor — the pure mapping helpers the route uses
 // stay real. The fake client is swapped per test via the hoisted holder.
@@ -129,12 +131,37 @@ describe('GET /api/discord/status', () => {
 
 describe('POST /api/discord/connect', () => {
   it('falls back to the interactive AUTHORIZE when silent auth fails', async () => {
-    fake.authenticate.mockRejectedValueOnce(new Error('no tokens'));
+    fake.authenticate.mockRejectedValueOnce(new DiscordNotConnectedError());
     app = await buildApp();
     const res = await app.inject({ method: 'POST', url: '/api/discord/connect' });
     expect(res.statusCode).toBe(200);
     expect(fake.authorizeInteractive).toHaveBeenCalledOnce();
     expect(res.json().user).toEqual(USER);
+  });
+
+  it('does not pop the consent modal for a transient authenticate error', async () => {
+    fake.authenticate.mockRejectedValueOnce(new HttpError(504, 'timeout'));
+    app = await buildApp();
+    const res = await app.inject({ method: 'POST', url: '/api/discord/connect' });
+    expect(res.statusCode).toBe(504);
+    expect(fake.authorizeInteractive).not.toHaveBeenCalled();
+  });
+
+  it('single-flights AUTHORIZE across concurrent /connect calls', async () => {
+    fake.authenticate.mockRejectedValue(new DiscordNotConnectedError());
+    let release: (u: DiscordUserData) => void = () => undefined;
+    fake.authorizeInteractive.mockImplementationOnce(
+      () => new Promise<DiscordUserData>((resolve) => { release = resolve; }),
+    );
+    app = await buildApp();
+    const a = app.inject({ method: 'POST', url: '/api/discord/connect' });
+    const b = app.inject({ method: 'POST', url: '/api/discord/connect' });
+    await vi.waitFor(() => expect(fake.authorizeInteractive).toHaveBeenCalled());
+    release(USER);
+    const [ra, rb] = await Promise.all([a, b]);
+    expect(ra.statusCode).toBe(200);
+    expect(rb.statusCode).toBe(200);
+    expect(fake.authorizeInteractive).toHaveBeenCalledOnce();
   });
 });
 

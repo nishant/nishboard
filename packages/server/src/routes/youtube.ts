@@ -58,6 +58,12 @@ const userTokens = new UserTokenStore('youtube_tokens.json', refreshYoutubeToken
 interface PendingAuth { state: string; expiresAt: number; }
 let pendingAuth: PendingAuth | null = null;
 
+function stateMatches(expected: string, given: string): boolean {
+  const a = Buffer.from(expected);
+  const b = Buffer.from(given);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -256,11 +262,12 @@ export const youtubeRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.type('text/html')
           .send(`<html><body><h2>Google auth denied: ${escapeHtml(error)}</h2><p>You can close this tab.</p></body></html>`);
       }
-      if (!code || !state || !pendingAuth || pendingAuth.state !== state || Date.now() > pendingAuth.expiresAt) {
-        pendingAuth = null;
+      if (pendingAuth && Date.now() > pendingAuth.expiresAt) pendingAuth = null;
+      if (!code || !state || !pendingAuth || !stateMatches(pendingAuth.state, state)) {
         return reply.code(400).type('text/html')
           .send('<html><body><h2>Invalid or expired auth request.</h2><p>Try connecting again.</p></body></html>');
       }
+      pendingAuth = null; // consume before the exchange so a replay cannot reuse it
       try {
         const data = await fetchJson<{ access_token: string; refresh_token?: string; expires_in: number }>(
           GOOGLE_TOKEN,
@@ -285,7 +292,6 @@ export const youtubeRoutes: FastifyPluginAsync = async (fastify) => {
           refresh_token: data.refresh_token,
           expires_at: Date.now() + data.expires_in * 1000,
         });
-        pendingAuth = null;
         clearUserCaches();
         return reply.type('text/html')
           .send('<html><body><h2>Connected to YouTube!</h2><p>You can close this tab.</p></body></html>');
@@ -585,7 +591,7 @@ export const youtubeRoutes: FastifyPluginAsync = async (fastify) => {
     if (!apiKey) throw new HttpError(503, 'YOUTUBE_API_KEY not configured');
 
     const category = req.query.category ?? 'trending';
-    if (!(category in BROWSE_CATEGORIES)) throw new HttpError(400, 'Unknown category');
+    if (!Object.hasOwn(BROWSE_CATEGORIES, category)) throw new HttpError(400, 'Unknown category');
 
     const cached = BROWSE_CACHE.get(category);
     if (cached) return reply.send(cached);
@@ -619,7 +625,7 @@ export const youtubeRoutes: FastifyPluginAsync = async (fastify) => {
       items: await attachDurations((data.items ?? []).map((item): YoutubeVideo => ({
         videoId: item.id,
         title: decodeHTMLEntities(item.snippet.title),
-        channelTitle: item.snippet.channelTitle,
+        channelTitle: decodeHTMLEntities(item.snippet.channelTitle),
         channelId: item.snippet.channelId,
         thumbnailUrl: item.snippet.thumbnails.medium?.url ?? item.snippet.thumbnails.default?.url ?? '',
         publishedAt: item.snippet.publishedAt,
@@ -717,7 +723,7 @@ async function fetchSearchPage(apiKey: string, q: string, live: boolean, pageTok
     items: await attachDurations((data.items ?? []).map((item): YoutubeVideo => ({
       videoId: item.id.videoId,
       title: decodeHTMLEntities(item.snippet.title),
-      channelTitle: item.snippet.channelTitle,
+      channelTitle: decodeHTMLEntities(item.snippet.channelTitle),
       channelId: item.snippet.channelId,
       thumbnailUrl: item.snippet.thumbnails.medium?.url ?? item.snippet.thumbnails.default?.url ?? '',
       publishedAt: item.snippet.publishedAt,
@@ -731,10 +737,18 @@ async function fetchSearchPage(apiKey: string, q: string, live: boolean, pageTok
 
 // YouTube API returns HTML-encoded titles (&amp; etc)
 function decodeHTMLEntities(str: string): string {
-  return str
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
+  // Single pass so '&amp;lt;' decodes to '&lt;', never to '<'.
+  return str.replace(/&(amp|lt|gt|quot|#39|#(\d+));/g, (m: string, name: string, num: string | undefined) => {
+    if (num !== undefined) {
+      const cp = Number(num);
+      return cp >= 0 && cp <= 0x10ffff && !(cp >= 0xd800 && cp <= 0xdfff) ? String.fromCodePoint(cp) : m;
+    }
+    switch (name) {
+      case 'amp': return '&';
+      case 'lt': return '<';
+      case 'gt': return '>';
+      case 'quot': return '"';
+      default: return "'";
+    }
+  });
 }

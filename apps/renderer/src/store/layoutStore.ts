@@ -247,7 +247,7 @@ export const useLayoutStore = create<LayoutState>()(
             };
           }
 
-          const restoredH = s.savedHeights[id] ?? constraints.minH ?? DEFAULT_EXPAND_H;
+          const restoredH = s.savedHeights[id] ?? Math.max(constraints.minH, DEFAULT_EXPAND_H);
           const delta = restoredH - item.h;
           // Accordion steal: take the rows back from the widgets directly below,
           // but only if every one of them can spare `delta` rows while staying at

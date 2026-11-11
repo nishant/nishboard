@@ -160,7 +160,12 @@ describe('claudeStore v2 additions', () => {
     s.setChatMode('auto');
     s.setChatModel('opus');
     s.addUser('hello');
+    s.setSession('abc', 'sonnet');
+    s.beginAssistant();
+    s.finishAssistant(10, 5, 1234);
     s.newChat();
+    expect(useClaudeStore.getState().model).toBeNull();
+    expect(useClaudeStore.getState().lastContextTokens).toBeNull();
     expect(useClaudeStore.getState().messages).toEqual([]);
     expect(useClaudeStore.getState().sessionId).toBeNull();
     expect(useClaudeStore.getState().chatMode).toBe('ask');
@@ -287,5 +292,29 @@ describe('claudeStore persistence (NISHBOARD-038, 048)', () => {
     s.beginAssistant();
     s.dropUnsentTurn();
     expect(useClaudeStore.getState().messages).toHaveLength(2);
+  });
+});
+
+describe('claudeStore migrate (NISHBOARD-141)', () => {
+  it('drops malformed persisted messages instead of crashing the widget', async () => {
+    localStorage.setItem(
+      'dashboard-claude',
+      JSON.stringify({
+        state: {
+          messages: [
+            { id: 'a', role: 'user', at: 1 },
+            { id: 'b', role: 'user', at: 2, parts: [{ kind: 'text', text: 'ok' }, { kind: 'bogus' }] },
+            'junk',
+          ],
+          chatEffort: 'nope',
+        },
+        version: 4,
+      }),
+    );
+    const { useClaudeStore } = await loadStore();
+    const st = useClaudeStore.getState();
+    expect(st.messages).toHaveLength(1);
+    expect(st.messages[0].parts).toEqual([{ kind: 'text', text: 'ok' }]);
+    expect(st.chatEffort).toBeNull();
   });
 });

@@ -38,25 +38,35 @@ async function consumeEventStream<T>(
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buf = '';
+  // Parse inside the try, deliver outside it: an exception thrown by the
+  // caller's handler is a handler bug, not a malformed frame, and must surface.
+  const handle = (raw: string): void => {
+    const frame = raw.trim();
+    if (!frame.startsWith('data: ')) return;
+    let ev: T;
+    try {
+      ev = JSON.parse(frame.slice('data: '.length)) as T;
+    } catch {
+      return; // malformed frame — skip
+    }
+    onEvent(ev);
+  };
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
-    // Frames can split anywhere across network chunks — buffer on '\n\n'.
+    // Frames can split anywhere across network chunks — buffer on a blank line.
     buf += decoder.decode(value, { stream: true });
     let idx = buf.indexOf('\n\n');
     while (idx !== -1) {
-      const frame = buf.slice(0, idx).trim();
+      const frame = buf.slice(0, idx);
       buf = buf.slice(idx + 2);
-      if (frame.startsWith('data: ')) {
-        try {
-          onEvent(JSON.parse(frame.slice('data: '.length)) as T);
-        } catch {
-          // malformed frame — skip
-        }
-      }
+      handle(frame);
       idx = buf.indexOf('\n\n');
     }
   }
+  // Flush the decoder and a last frame that had no trailing blank line.
+  buf += decoder.decode();
+  handle(buf);
 }
 
 /** POST JSON and consume the response as an event stream (Claude chat). */

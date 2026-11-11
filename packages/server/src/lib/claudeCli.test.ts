@@ -17,6 +17,7 @@ import {
   buildControlResponseLine,
   buildPromptRequest,
   toolFullInput,
+  toolInputWithFlag,
   buildUserMessageLine,
   classifyCliError,
   extractControlCancel,
@@ -373,6 +374,15 @@ describe('control protocol pure functions (wire shapes captured from CLI 2.1.207
     expect(out).toContain('...truncated');
     expect(out.length).toBeLessThan(4200);
     expect(toolFullInput('Bash', { command: 'a\nb' })).toBe('a\nb');
+  });
+
+  it('buildPromptRequest sets truncated only when the input was cut', () => {
+    expect(toolInputWithFlag('Bash', { command: 'x'.repeat(5000) }).truncated).toBe(true);
+    expect(toolInputWithFlag('Bash', { command: 'ls' })).toEqual({ text: 'ls', truncated: false });
+    const big = buildPromptRequest('Bash', { command: 'x'.repeat(5000) }, null);
+    expect(big).toMatchObject({ kind: 'tool', truncated: true });
+    const small = buildPromptRequest('Bash', { command: 'ls' }, null);
+    expect(small).not.toHaveProperty('truncated');
   });
 
   it('buildPromptRequest: AskUserQuestion → question card; malformed questions degrade to tool card', () => {

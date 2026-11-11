@@ -49,10 +49,11 @@ describe('toWatchlistData', () => {
 });
 
 describe('toDisconnected', () => {
-  it('maps 401 to unauthorized; 403/404/5xx to error; JSON junk to error; network to unreachable', () => {
+  it('maps 401 to unauthorized; 403/404 to error; 5xx to unreachable; JSON junk to error; network to unreachable', () => {
     expect(toDisconnected(new UpstreamError(401, 'x'))).toMatchObject({ reason: 'unauthorized' });
     expect(toDisconnected(new UpstreamError(403, 'x'))).toMatchObject({ reason: 'error', message: 'Trading answered 403.' });
     expect(toDisconnected(new UpstreamError(404, 'x'))).toMatchObject({ reason: 'error', message: expect.stringContaining('too old') });
+    expect(toDisconnected(new UpstreamError(503, 'x'))).toMatchObject({ reason: 'unreachable' });
     expect(toDisconnected(new SyntaxError('bad json'))).toMatchObject({ reason: 'error' });
     expect(toDisconnected(new TypeError('fetch failed'))).toMatchObject({ reason: 'unreachable' });
   });
@@ -101,6 +102,41 @@ describe('fetchTradingWatchlist', () => {
     const data = await fetchTradingWatchlist();
     expect(data).toMatchObject({ connected: false, reason: 'unauthorized' });
     expect(JSON.stringify(data)).not.toContain('otar_secret');
+  });
+
+  it('maps a Caddy 502 to unreachable', async () => {
+    process.env.TRADING_API_TOKEN = 'otar_test';
+    stubFetch([['/api/watchlist/summary', () => textRes('bad gateway', 502)]]);
+    expect(await fetchTradingWatchlist()).toMatchObject({
+      connected: false,
+      reason: 'unreachable',
+      message: expect.stringContaining('(502)'),
+    });
+  });
+
+  it('never sends the token to a disallowed host', async () => {
+    process.env.TRADING_API_TOKEN = 'otar_test';
+    for (const url of ['https://evil.example.com', 'http://trading.nish.software', 'https://nish.software.evil.com', 'http://100.128.0.1', 'https://[::1']) {
+      const fn = stubFetch([]);
+      process.env.TRADING_API_URL = url;
+      expect(await fetchTradingWatchlist()).toEqual({
+        connected: false,
+        reason: 'error',
+        message: 'TRADING_API_URL host is not allowed',
+      });
+      expect(fn).not.toHaveBeenCalled();
+    }
+  });
+
+  it('allows the default, loopback and tailnet hosts', async () => {
+    process.env.TRADING_API_TOKEN = 'otar_test';
+    for (const url of [undefined, 'http://127.0.0.1:7433', 'http://100.101.1.2', 'https://box.tail1234.ts.net']) {
+      if (url) process.env.TRADING_API_URL = url;
+      else delete process.env.TRADING_API_URL;
+      const fn = stubFetch([['/api/watchlist/summary', () => jsonRes({ symbols: [] })]]);
+      expect(await fetchTradingWatchlist()).toMatchObject({ connected: true });
+      expect(fn).toHaveBeenCalledTimes(1);
+    }
   });
 
   it('maps a network failure to unreachable', async () => {

@@ -67,6 +67,10 @@ export function useHardware() {
 
   const query = useHardwareQuery();
 
+  // Clear the battery signal when the widget goes away, so a stale `true` can't
+  // keep lowPower 'auto' slowing every widget after AC is back.
+  useEffect(() => () => usePowerStore.getState().setOnBattery(false), []);
+
   useEffect(() => {
     if (!query.data) return;
     const d = query.data;

@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { Cpu, Thermometer, HardDrive, Wifi, Battery, BatteryCharging, BarChart2, Activity, Settings, ListTree } from 'lucide-react';
 import { useHardware, useProcesses, type HardwareHistory } from './useHardware';
-import { useHardwareStore, type HardwareSection } from '../../store/hardwareStore';
+import { useHardwareStore, HARDWARE_SECTIONS, type HardwareSection } from '../../store/hardwareStore';
 import { useHardwareUiStore } from '../../store/hardwareUiStore';
 import type { HardwareViewMode, ProcessSort } from '../../store/hardwareUiStore';
 import { ErrorState } from '../../components/ErrorState';
@@ -343,7 +343,7 @@ function ConfigPanel({
   visible: Record<HardwareSection, boolean>;
   setVisible: (s: HardwareSection, v: boolean) => void;
 }) {
-  const sections = Object.keys(SECTION_LABELS) as HardwareSection[];
+  const sections = HARDWARE_SECTIONS;
   return (
     <Card variant="inset" padding="sm" className="border-th-line">
       <Label className="block text-3xs mb-2 tracking-wide">Visible sections</Label>

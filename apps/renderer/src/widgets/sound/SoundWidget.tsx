@@ -127,6 +127,8 @@ export function SoundWidget() {
         <div className="flex items-center justify-between">
           <button
             onClick={() => setMute.mutate(!muted)}
+            aria-pressed={muted}
+            aria-label={muted ? 'Unmute' : 'Mute'}
             className={cn(
               'flex items-center gap-1.5 text-xs font-medium transition-colors',
               muted ? 'text-th-loss' : 'text-th-hi',

@@ -72,6 +72,10 @@ export function toDisconnected(err: unknown): TradingWatchlistData {
     if (err.status === 404) {
       return { connected: false, reason: 'error', message: 'Trading is too old for this — it has no /api/watchlist/summary yet.' };
     }
+    if (err.status >= 500) {
+      // Caddy answers 502/503/504 when the trading process is stopped.
+      return { connected: false, reason: 'unreachable', message: `Trading is not answering (${err.status}). Check that trading is running.` };
+    }
     return { connected: false, reason: 'error', message: `Trading answered ${err.status}.` };
   }
   if (err instanceof SyntaxError) {
@@ -90,6 +94,30 @@ export function tradingBaseUrl(): string {
   return (cred('TRADING_API_URL').trim() || DEFAULT_BASE_URL).replace(/\/+$/, '');
 }
 
+/** Exported for tests. The bearer token only goes to nish.software, *.ts.net
+ *  (https), or loopback / tailnet (100.64.0.0/10) hosts (http or https). */
+export function isAllowedTradingUrl(raw: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return false;
+  }
+  const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (url.protocol === 'https:') {
+    if (host === 'nish.software' || host.endsWith('.nish.software') || host.endsWith('.ts.net')) return true;
+  } else if (url.protocol !== 'http:') {
+    return false;
+  }
+  if (host === '127.0.0.1' || host === 'localhost' || host === '::1') return true;
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  if (m) {
+    const [a, b] = [Number(m[1]), Number(m[2])];
+    return a === 100 && b >= 64 && b <= 127;
+  }
+  return false;
+}
+
 /** Fetch trading's watchlist summary. Never throws. */
 export async function fetchTradingWatchlist(): Promise<TradingWatchlistData> {
   const token = cred('TRADING_API_TOKEN').trim();
@@ -103,6 +131,9 @@ export async function fetchTradingWatchlist(): Promise<TradingWatchlistData> {
   const base = tradingBaseUrl();
   if (!/^https?:\/\//i.test(base)) {
     return { connected: false, reason: 'error', message: 'TRADING_API_URL must start with http:// or https://.' };
+  }
+  if (!isAllowedTradingUrl(base)) {
+    return { connected: false, reason: 'error', message: 'TRADING_API_URL host is not allowed' };
   }
   try {
     const body = await fetchJson<SummaryBody | null>(

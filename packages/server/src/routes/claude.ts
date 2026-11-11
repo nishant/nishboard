@@ -129,7 +129,12 @@ export const claudeRoutes: FastifyPluginAsync = async (fastify) => {
           additionalProperties: false,
           properties: {
             message: { type: 'string', minLength: 1, maxLength: 50_000 },
-            sessionId: { type: 'string', pattern: '^[A-Za-z0-9-]{8,64}$' },
+            // A UUID only: a dash-leading value would reach argv next to --resume
+            // and be parsed as a flag (NISHBOARD-216).
+            sessionId: {
+              type: 'string',
+              pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+            },
             // 'chat' is the pre-v3 no-tools mode — coerced to 'ask' below.
             mode: { type: 'string', enum: ['chat', 'ask', 'auto', 'plan'] },
             // Alias ('opus') or full id ('claude-opus-4-8') — CLI validates the rest.

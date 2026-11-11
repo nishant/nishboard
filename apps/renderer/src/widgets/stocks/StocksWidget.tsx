@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { TrendingUp, TrendingDown, ArrowLeft, ExternalLink, Star, Briefcase, Unplug } from 'lucide-react';
 import { useStocks, useStockDetail, useMarketCalendar, useTradingWatchlist } from './useStocks';
@@ -238,11 +238,26 @@ export function StocksWidget() {
   const session = useMarketSession();
   const connected = watchlist.data?.connected ? watchlist.data : null;
   const badgeMap = new Map((connected?.items ?? []).map((i) => [i.ticker, i]));
-  const calendar = useMarketCalendar().data;
+  const rawCalendar = useMarketCalendar().data;
+  const queryClient = useQueryClient();
+  const refetchedBoundary = useRef<string | null>(null);
 
   // Dedicated tick for the countdown text — useMarketSession's setState bails
   // out when the session label hasn't changed, so it can't drive re-renders.
   const now = useNow(30_000);
+
+  // A calendar whose next boundary (close when open, else open) has passed is
+  // stale (the poll is 30 min): refetch it once per boundary and meanwhile
+  // fall back to the Intl/local session label.
+  const boundary = rawCalendar ? (rawCalendar.isOpen ? rawCalendar.nextClose : rawCalendar.nextOpen) : null;
+  const calendarStale = boundary !== null && new Date(boundary).getTime() <= now;
+  const calendar = calendarStale ? undefined : rawCalendar;
+  useEffect(() => {
+    if (calendarStale && boundary !== null && refetchedBoundary.current !== boundary) {
+      refetchedBoundary.current = boundary;
+      void queryClient.invalidateQueries({ queryKey: ['stocks-calendar'] });
+    }
+  }, [calendarStale, boundary, queryClient]);
 
   // No pulse: the dot marks the market session, not a live feed — prices
   // refresh on a 5-minute poll (deliberate; keeps Alpaca usage minimal).

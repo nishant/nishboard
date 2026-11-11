@@ -39,6 +39,12 @@ describe('GET /api/stocks', () => {
     expect(res.json<{ error: string }>().error).toContain('Settings → Developer');
   });
 
+  it('400s when no requested symbol is valid, and drops invalid ones otherwise', async () => {
+    withCreds();
+    const bad = await app.inject({ method: 'GET', url: '/api/stocks?symbols=' + encodeURIComponent('AAPL#,A&B') });
+    expect(bad.statusCode).toBe(400);
+  });
+
   it('maps Alpaca snapshots + bars into StocksData with auth headers from env creds', async () => {
     withCreds();
     let sawAuth = false;
@@ -124,10 +130,10 @@ describe('GET /api/stocks/watchlist', () => {
   });
 
   it('proxies trading and caches a connected result', async () => {
-    process.env.TRADING_API_URL = 'http://trading.test:7433';
+    process.env.TRADING_API_URL = 'http://127.0.0.1:7433';
     process.env.TRADING_API_TOKEN = 'otar_test';
     const fn = stubFetch([
-      ['http://trading.test:7433/api/watchlist/summary', () => jsonRes({ symbols: [{ symbol: 'QQQ', topPickScore: null, hasOpenPosition: false }] })],
+      ['http://127.0.0.1:7433/api/watchlist/summary', () => jsonRes({ symbols: [{ symbol: 'QQQ', topPickScore: null, hasOpenPosition: false }] })],
     ]);
     const first = await app.inject({ method: 'GET', url: '/api/stocks/watchlist' });
     expect(first.json()).toMatchObject({ connected: true, items: [{ ticker: 'QQQ' }] });

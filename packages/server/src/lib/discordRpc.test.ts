@@ -6,6 +6,7 @@ import {
   DiscordRpcClient,
   RPC_OP,
   DiscordUnavailableError,
+  MAX_FRAME_BYTES,
   RpcFrameDecoder,
   encodeRpcFrame,
   isAuthRejection,
@@ -81,6 +82,27 @@ describe('RpcFrameDecoder', () => {
     expect(first).toHaveLength(1);
     const second = dec.push(b.subarray(5));
     expect(second).toEqual([{ op: 1, payload: { nonce: 'b' } }]);
+  });
+
+  it('throws on a negative frame length', () => {
+    const head = Buffer.alloc(8);
+    head.writeInt32LE(1, 0);
+    head.writeInt32LE(-1, 4);
+    expect(() => new RpcFrameDecoder().push(head)).toThrow(/out of range/);
+  });
+
+  it('throws on a frame length above the cap instead of buffering', () => {
+    const head = Buffer.alloc(8);
+    head.writeInt32LE(1, 0);
+    head.writeInt32LE(MAX_FRAME_BYTES + 1, 4);
+    expect(() => new RpcFrameDecoder().push(head)).toThrow(/out of range/);
+  });
+
+  it('accepts a frame exactly at the cap header (waits for the body)', () => {
+    const head = Buffer.alloc(8);
+    head.writeInt32LE(1, 0);
+    head.writeInt32LE(MAX_FRAME_BYTES, 4);
+    expect(new RpcFrameDecoder().push(head)).toEqual([]);
   });
 });
 

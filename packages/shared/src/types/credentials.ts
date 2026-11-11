@@ -76,7 +76,7 @@ export const CREDENTIAL_DEFS: CredentialDef[] = [
     key: 'GITHUB_TOKEN',
     label: 'Token',
     service: 'Updates (GitHub)',
-    hint: 'Optional — only needed for the update check while the repo is private. Fine-grained PAT with read-only Contents access.',
+    hint: 'Optional: raises the GitHub API rate limit for update checks; not needed for the public repo.',
   },
   {
     // Deliberately NOT in build.mjs BUILTIN_KEYS — a personal Max-plan token

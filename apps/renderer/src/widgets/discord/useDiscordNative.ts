@@ -59,7 +59,10 @@ export function useDiscordChannelDetail(channelId: string | null) {
     queryKey: ['discord-channel', channelId],
     queryFn: () => apiClient.get<DiscordChannelDetailData>(`/api/discord/channels/${channelId}`),
     enabled: channelId !== null,
-    staleTime: 30_000,
+    // Live frames are folded into component state only, so a cached snapshot
+    // would drop messages received while the channel was off screen.
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 }
 
@@ -70,6 +73,13 @@ export function useDiscordVoiceSettings(enabled: boolean) {
     enabled,
     staleTime: 10_000,
   });
+}
+
+export const VOICE_SETTINGS_KEY = ['discord-voice-settings'] as const;
+
+/** Fresh voice settings (bypasses the cache) so a toggle never flips stale state. */
+export function fetchDiscordVoiceSettings(): Promise<DiscordVoiceSettingsData> {
+  return apiClient.get<DiscordVoiceSettingsData>('/api/discord/voice/settings');
 }
 
 const STATUS_KEY = ['discord-status'] as const;

@@ -26,6 +26,12 @@ import type { LowPowerMode } from '../store/settingsStore';
 import type { SettingsTab } from '../store/overlayStore';
 import type { LauncherStateData } from '@dash/shared';
 
+/** UI scale bounds (zoom factor), shared by the Settings modal and the `scale` command. */
+export const SCALE_MIN = 0.8;
+export const SCALE_MAX = 1.4;
+const SCALE_MIN_PCT = Math.round(SCALE_MIN * 100);
+const SCALE_MAX_PCT = Math.round(SCALE_MAX * 100);
+
 // ── Layouts ───────────────────────────────────────────────────────────────────
 registerActionSource(() => {
   const s = useLayoutStore.getState();
@@ -525,14 +531,14 @@ const PARAM_COMMANDS: FillableCommand[] = [
     id: 'param:scale',
     triggers: ['scale'],
     group: 'Appearance',
-    argHint: '<80–150> — UI scale percent',
+    argHint: `<${SCALE_MIN_PCT}–${SCALE_MAX_PCT}> — UI scale percent`,
     fillTitle: 'Set UI scale…',
     parse: (args) => {
-      const n = parseIntArg(args, 80, 150);
+      const n = parseIntArg(args, SCALE_MIN_PCT, SCALE_MAX_PCT);
       if (n === null) return null;
       // Store holds a zoom FACTOR (1 = 100%), clamped to the Settings modal's
       // 80–140% range.
-      const factor = Math.min(1.4, Math.max(0.8, n / 100));
+      const factor = Math.min(SCALE_MAX, Math.max(SCALE_MIN, n / 100));
       const pct = Math.round(factor * 100);
       return {
         preview: `Set UI scale: ${pct}%`,

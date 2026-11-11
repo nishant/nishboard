@@ -59,6 +59,10 @@ export function encodeRpcFrame(op: number, payload: unknown): Buffer {
   return Buffer.concat([head, body]);
 }
 
+/** Largest frame body accepted from the peer. A squatting or buggy pipe that
+ *  advertises more is a desync/DoS - the decoder throws and onData tears down. */
+export const MAX_FRAME_BYTES = 4 * 1024 * 1024;
+
 /** Incremental frame decoder. Pipes deliver arbitrary chunk boundaries — a
  *  frame can arrive split across chunks or several frames can coalesce into
  *  one chunk; `push` buffers and returns every COMPLETE frame available. */
@@ -71,6 +75,10 @@ export class RpcFrameDecoder {
     while (this.buf.length >= 8) {
       const op = this.buf.readInt32LE(0);
       const len = this.buf.readInt32LE(4);
+      if (len < 0 || len > MAX_FRAME_BYTES) {
+        this.buf = Buffer.alloc(0);
+        throw new Error(`RPC frame length out of range: ${len}`);
+      }
       if (this.buf.length < 8 + len) break; // partial frame — wait for more
       const body = this.buf.subarray(8, 8 + len).toString('utf8');
       this.buf = this.buf.subarray(8 + len);
@@ -440,7 +448,7 @@ export class DiscordRpcClient {
     try {
       frames = this.decoder.push(chunk);
     } catch {
-      // Malformed JSON mid-stream — desync, tear down and reconnect fresh.
+      // Malformed JSON or an out-of-range frame length — desync, tear down and reconnect fresh.
       this.teardown();
       return;
     }

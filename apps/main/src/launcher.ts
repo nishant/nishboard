@@ -1,6 +1,6 @@
 import { app, dialog, net, shell, BrowserWindow } from 'electron';
 import { randomUUID } from 'crypto';
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync, renameSync } from 'fs';
 import path from 'path';
 import type { LauncherGroupData, LauncherItemData, LauncherStateData } from '@dash/shared';
 
@@ -81,7 +81,10 @@ function load(): LauncherFile {
 
 function save(): void {
   // Always writes v2 — a v1 file upgrades one-way on first mutation.
-  writeFileSync(launcherPath(), JSON.stringify(file ?? load(), null, 2), 'utf8');
+  const target = launcherPath();
+  const tmp = `${target}.tmp`;
+  writeFileSync(tmp, JSON.stringify(file ?? load(), null, 2), { encoding: 'utf8', mode: 0o600 });
+  renameSync(tmp, target); // atomic: a torn write must not empty the launcher
 }
 
 /** The single sanitizer between disk state and the renderer: icon (data: URI

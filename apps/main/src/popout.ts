@@ -36,6 +36,8 @@ const DEFAULT_SIZES: Record<string, { width: number; height: number }> = {
   launcher: { width: 360, height: 380 },
   clipboard: { width: 340, height: 400 },
   discord: { width: 480, height: 560 },
+  claude: { width: 420, height: 560 },
+  netmon: { width: 380, height: 360 },
 };
 const FALLBACK_SIZE = { width: 360, height: 320 };
 
@@ -45,10 +47,33 @@ function boundsPath(): string {
   return path.join(app.getPath('userData'), 'popouts.json');
 }
 
+function isFiniteNumber(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v);
+}
+
+/** Validate popouts.json entry by entry; invalid entries are dropped so one bad
+ *  value can never reach `new BrowserWindow`. Exported for tests. */
+export function parseBoundsFile(raw: unknown): PopoutBoundsFile {
+  const out: PopoutBoundsFile = {};
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return out;
+  for (const [id, entry] of Object.entries(raw)) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const b = entry as Record<string, unknown>;
+    if (
+      isFiniteNumber(b.x) && isFiniteNumber(b.y) &&
+      isFiniteNumber(b.width) && isFiniteNumber(b.height) &&
+      b.width > 0 && b.height > 0
+    ) {
+      out[id] = { x: b.x, y: b.y, width: b.width, height: b.height };
+    }
+  }
+  return out;
+}
+
 function readBoundsFile(): PopoutBoundsFile {
   try {
     if (existsSync(boundsPath())) {
-      return JSON.parse(readFileSync(boundsPath(), 'utf8')) as PopoutBoundsFile;
+      return parseBoundsFile(JSON.parse(readFileSync(boundsPath(), 'utf8')) as unknown);
     }
   } catch { /* corrupted → start fresh */ }
   return {};

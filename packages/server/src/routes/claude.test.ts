@@ -158,11 +158,11 @@ describe('POST /api/claude/chat — resume retry and single-flight release', () 
     const resPromise = fetch(`${server.url}/api/claude/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: 'hi', sessionId: 'sess-resume-1' }),
+      body: JSON.stringify({ message: 'hi', sessionId: '0b1f9c2e-3a4d-4e5f-8a6b-7c8d9e0f1a2b' }),
     });
 
     await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalledTimes(1));
-    expect(opts[0].sessionId).toBe('sess-resume-1');
+    expect(opts[0].sessionId).toBe('0b1f9c2e-3a4d-4e5f-8a6b-7c8d9e0f1a2b');
     opts[0].onEvent({ type: 'error', message: 'No conversation found with session ID' });
 
     // The retry spawned synchronously, as a fresh chat.
@@ -327,5 +327,16 @@ describe('POST /api/claude/control + chat body extensions', () => {
       body: JSON.stringify({ message: 'hi', additionalDirs: ['/ok', '/bad%PATH%'] }),
     });
     expect(dirs.status).toBe(400);
+
+    // NISHBOARD-216: only a UUID is a valid session id — a flag-shaped value
+    // would otherwise reach argv next to --resume.
+    for (const sessionId of ['--dangerously-skip-permissions', '-abcdefgh', 'sess-resume-1']) {
+      const res = await fetch(`${server.url}/api/claude/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: 'hi', sessionId }),
+      });
+      expect(res.status).toBe(400);
+    }
   });
 });

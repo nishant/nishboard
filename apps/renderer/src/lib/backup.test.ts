@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildBackupPayload, importSettings } from './backup';
 
 function backupFile(payload: unknown): File {
@@ -7,6 +7,10 @@ function backupFile(payload: unknown): File {
 
 beforeEach(() => {
   localStorage.clear();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe('importSettings', () => {
@@ -40,9 +44,64 @@ describe('importSettings', () => {
     expect(localStorage.getItem('spotify-token')).toBeNull();
   });
 
-  it('writes string values verbatim', async () => {
-    await importSettings(backupFile({ app: 'nishboard', version: 1, data: { 'dashboard-notes': 'raw-string' } }));
-    expect(localStorage.getItem('dashboard-notes')).toBe('raw-string');
+  it('accepts a persist envelope exported as a JSON string, and skips non-envelope strings', async () => {
+    const env = JSON.stringify({ state: { a: 1 }, version: 0 });
+    await importSettings(
+      backupFile({ app: 'nishboard', version: 1, data: { 'dashboard-notes': env, 'dashboard-tasks': 'raw-string' } }),
+    );
+    expect(localStorage.getItem('dashboard-notes')).toBe(env);
+    expect(localStorage.getItem('dashboard-tasks')).toBeNull();
+  });
+
+  it('rejects a file over 5 MB before reading it', async () => {
+    const big = new File([new Uint8Array(5 * 1024 * 1024 + 1)], 'big.json');
+    await expect(importSettings(big)).rejects.toThrow('too large');
+  });
+
+  it('skips keys that are not persist envelopes and keeps the existing value', async () => {
+    localStorage.setItem('dashboard-layout', JSON.stringify({ state: { ok: true }, version: 1 }));
+    await importSettings(
+      backupFile({
+        app: 'nishboard',
+        version: 1,
+        data: {
+          'dashboard-layout': { state: 'a string', version: 1 },
+          'dashboard-theme': { state: {}, version: 'x' },
+          'dashboard-app-settings': [1, 2],
+          'hardware-config': { state: { visible: {} }, version: 0 },
+        },
+      }),
+    );
+    expect(localStorage.getItem('dashboard-layout')).toBe(JSON.stringify({ state: { ok: true }, version: 1 }));
+    expect(localStorage.getItem('dashboard-theme')).toBeNull();
+    expect(localStorage.getItem('dashboard-app-settings')).toBeNull();
+    expect(localStorage.getItem('hardware-config')).not.toBeNull();
+  });
+
+  it('restores the previous values when a write fails partway', async () => {
+    const before = JSON.stringify({ state: { old: true }, version: 1 });
+    localStorage.setItem('dashboard-layout', before);
+    const realSet = Storage.prototype.setItem;
+    let calls = 0;
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, k: string, v: string) {
+      calls++;
+      if (calls === 2) throw new Error('QuotaExceededError');
+      realSet.call(this, k, v);
+    });
+    await expect(
+      importSettings(
+        backupFile({
+          app: 'nishboard',
+          version: 1,
+          data: {
+            'dashboard-layout': { state: { fresh: true }, version: 1 },
+            'dashboard-theme': { state: {}, version: 1 },
+          },
+        }),
+      ),
+    ).rejects.toThrow('QuotaExceededError');
+    expect(localStorage.getItem('dashboard-layout')).toBe(before);
+    expect(localStorage.getItem('dashboard-theme')).toBeNull();
   });
 });
 
@@ -76,8 +135,8 @@ describe('backup coverage', () => {
     localStorage.setItem('crypto-watchlist', JSON.stringify({ state: { ids: ['bitcoin'] }, version: 0 }));
     expect(buildBackupPayload().data['crypto-watchlist']).toEqual({ state: { ids: ['bitcoin'] }, version: 0 });
     localStorage.clear();
-    await importSettings(backupFile({ app: 'nishboard', version: 1, data: { 'crypto-watchlist': { a: 1 } } }));
-    expect(localStorage.getItem('crypto-watchlist')).toBe(JSON.stringify({ a: 1 }));
+    await importSettings(backupFile({ app: 'nishboard', version: 1, data: { 'crypto-watchlist': { state: { a: 1 }, version: 0 } } }));
+    expect(localStorage.getItem('crypto-watchlist')).toBe(JSON.stringify({ state: { a: 1 }, version: 0 }));
   });
 
   it('excludes the Claude transcript and palette recents from export and import', async () => {

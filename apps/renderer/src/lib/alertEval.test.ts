@@ -210,6 +210,24 @@ describe('cpu-sustained rules', () => {
     expect(fired).toHaveBeenCalledTimes(1);
   });
 
+  it('seeds every cpu rule on the first sample (one seeding does not skip the rest)', () => {
+    const rules = [cpuRule({ id: 'cpu-a', thresholdPct: 80 }), cpuRule({ id: 'cpu-b', thresholdPct: 70 })];
+    evaluateCpuRules(rules, hw(95), at(0)); // both seed, timers at 0
+    evaluateCpuRules(rules, hw(95), at(30_000));
+    evaluateCpuRules(rules, hw(95), at(61_000)); // both sustained 61s
+    expect(fired).toHaveBeenCalledTimes(2);
+  });
+
+  it('after a sampling gap every cpu rule restarts its run on the same sample', () => {
+    const rules = [cpuRule({ id: 'cpu-a', thresholdPct: 80 }), cpuRule({ id: 'cpu-b', thresholdPct: 70 })];
+    evaluateCpuRules(rules, hw(95), at(0)); // seed both
+    evaluateCpuRules(rules, hw(95), at(120_000)); // gap: both runs restart at 120s
+    evaluateCpuRules(rules, hw(95), at(150_000)); // 30s into the new run
+    expect(fired).not.toHaveBeenCalled();
+    evaluateCpuRules(rules, hw(95), at(181_000)); // 61s after the gap sample
+    expect(fired).toHaveBeenCalledTimes(2);
+  });
+
   it('ignores payloads without a numeric cpu usage', () => {
     const rule = cpuRule();
     expect(() => evaluateCpuRules([rule], {} as HardwareData, at(0))).not.toThrow();

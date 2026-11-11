@@ -10,6 +10,12 @@ import { Button, EmptyState, ErrorState, IconButton, MediaRow, SkeletonLines, St
 // unconditionally — the selection is fixed per adapter, so hook order is stable.
 const NO_FOLDERS: EmbedFoldersState = { folders: undefined, isFetching: false, isError: false };
 const NO_ITEMS: EmbedSearchState = { items: undefined, isFetching: false, isError: false };
+const BROWSE_ERROR_HINT = "Couldn't load this list. Try again in a moment.";
+/** The server's own message when a browse/folder state carries one (optional
+ *  `error`), else a neutral hint. Never the search-specific "add an API key" text. */
+function browseErrorMessage(state: object): string {
+  return 'error' in state && typeof state.error === 'string' && state.error ? state.error : BROWSE_ERROR_HINT;
+}
 function useNoFolders(_tabId: string, _enabled: boolean): EmbedFoldersState { return NO_FOLDERS; }
 function useNoFolderItems(_folder: EmbedFolder | null, _tabId: string): EmbedSearchState { return NO_ITEMS; }
 function useNoSearchFolders(_query: string): EmbedFoldersState { return NO_FOLDERS; }
@@ -105,7 +111,8 @@ function FolderView({
   const tabs = browse.folderTabs?.(folder);
   const [tabId, setTabId] = useState(tabs?.[0]?.id ?? '');
   const useFolderItems = browse.useFolderItems ?? useNoFolderItems;
-  const { items, isFetching, isError } = useFolderItems(folder, tabId);
+  const folderState = useFolderItems(folder, tabId);
+  const { items, isFetching, isError } = folderState;
   return (
     <div className="h-full flex flex-col">
       <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-th-line shrink-0">
@@ -131,7 +138,7 @@ function FolderView({
       )}
       <div className="flex-1 overflow-y-auto min-h-0">
         {isFetching && !items && <SkeletonLines lines={4} />}
-        {isError && <ErrorState compact message={adapter.errorHint} />}
+        {isError && <ErrorState compact message={browseErrorMessage(folderState)} />}
         {items?.map((item) => (
           <ResultRow
             key={item.id}
@@ -192,6 +199,7 @@ function BrowseHome({
   const folders = isFolderTab ? foldersState.folders : undefined;
   const isFetching = isFolderTab ? foldersState.isFetching : videoState.isFetching;
   const isError = isFolderTab ? foldersState.isError : videoState.isError;
+  const activeState = isFolderTab ? foldersState : videoState;
   const hint = isFolderTab ? foldersState.hint : videoState.hint;
   const empty = isFolderTab ? folders?.length === 0 : items?.length === 0;
 
@@ -214,7 +222,7 @@ function BrowseHome({
       <div className="flex-1 overflow-y-auto min-h-0">
         {!items && !folders && !isFetching && !isError && hint && <EmptyState compact title={hint} />}
         {isFetching && !items && !folders && <SkeletonLines lines={4} />}
-        {isError && <ErrorState compact message={adapter.errorHint} />}
+        {isError && <ErrorState compact message={browseErrorMessage(activeState)} />}
         {folders?.map((f) => (
           <FolderRow key={f.id} folder={f} onOpen={() => onOpenFolder(f)} />
         ))}
@@ -411,6 +419,7 @@ export function EmbedSearchWidget({ adapter }: { adapter: EmbedServiceAdapter })
         <div className="shrink-0 overflow-hidden" style={{ height: showSearch ? 0 : iframeH }}>
           <iframe
             key={selectedItem.id}
+            title={`${adapter.serviceName}: ${selectedItem.title}`}
             src={adapter.embedUrl(selectedItem)}
             className="w-full h-full"
             allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
@@ -463,7 +472,7 @@ export function EmbedSearchWidget({ adapter }: { adapter: EmbedServiceAdapter })
     // Browse feed when available and the tile is tall enough for rows;
     // height === 0 is the pre-measurement first paint — assume browse so a
     // tall tile doesn't flash the hero (and fetch state lives in the query cache).
-    const showBrowse = adapter.browse && (height === 0 || height >= 120);
+    const showBrowse = adapter.browse && (folder !== null || height === 0 || height >= 120);
     return (
       <div ref={setContainerEl} className="h-full overflow-hidden">
         {showBrowse && adapter.browse ? (
