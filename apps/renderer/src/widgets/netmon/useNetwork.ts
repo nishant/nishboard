@@ -8,9 +8,6 @@ import type { NetworkMonitorData } from '@dash/shared';
 const HISTORY_SIZE = 60; // 60 samples — 5 min at 5s
 
 export interface NetworkHistory {
-  /** Per-host latency, keyed by host. Lost samples are SKIPPED — the Loss stat
-   *  carries the truth; a null would just draw a fake dip to zero. */
-  latency: Record<string, number[]>;
   netUp: number[];
   netDown: number[];
 }
@@ -25,7 +22,7 @@ export function useNetwork() {
   // join — the array's identity churns across renders; the string is stable.
   const hostsKey = hosts.join(',');
 
-  const histRef = useRef<NetworkHistory>({ latency: {}, netUp: [], netDown: [] });
+  const histRef = useRef<NetworkHistory>({ netUp: [], netDown: [] });
   const [history, setHistory] = useState<NetworkHistory>(histRef.current);
 
   const interval = useGatedInterval(5000);
@@ -36,11 +33,11 @@ export function useNetwork() {
     staleTime: 4500,
   });
 
-  // Changing the host set restarts the server-side buffers too — a stale local
-  // history would splice two unrelated targets into one spark.
+  // Changing the host set resets the local throughput history (the per-host
+  // latency spark comes straight from the server's recentMs ring).
   useEffect(() => {
-    histRef.current = { latency: {}, netUp: [], netDown: [] };
-    setHistory({ latency: {}, netUp: [], netDown: [] });
+    histRef.current = { netUp: [], netDown: [] };
+    setHistory({ netUp: [], netDown: [] });
   }, [hostsKey]);
 
   useEffect(() => {
@@ -48,11 +45,6 @@ export function useNetwork() {
     const d = query.data;
     const h = histRef.current;
 
-    for (const host of d.hosts) {
-      if (host.latestMs === null) continue; // skip lost samples (see NetworkHistory)
-      const arr = (h.latency[host.host] ??= []);
-      push(arr, host.latestMs);
-    }
     push(h.netUp, d.totals.upMbps);
     push(h.netDown, d.totals.downMbps);
 
@@ -60,7 +52,6 @@ export function useNetwork() {
     // immutable so memoized consumers comparing by reference see each update
     // (the ref's arrays keep mutating in place). Same pattern as useHardware.
     setHistory({
-      latency: Object.fromEntries(Object.entries(h.latency).map(([k, v]) => [k, [...v]])),
       netUp: [...h.netUp],
       netDown: [...h.netDown],
     });

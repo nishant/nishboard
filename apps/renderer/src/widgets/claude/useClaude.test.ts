@@ -7,6 +7,7 @@ vi.mock('../../lib/streamClient', async () => {
 });
 const toast = vi.fn();
 vi.mock('../../lib/alerts', () => ({ toast: (...a: unknown[]) => toast(...a), fireAlert: vi.fn() }));
+vi.mock('@tanstack/react-query', async (orig) => ({  ...(await orig<typeof import('@tanstack/react-query')>()),  useQueryClient: () => ({ invalidateQueries: vi.fn() }),}));
 
 import { StreamHttpError } from '../../lib/streamClient';
 import { postChatWithRetry, useSendClaudeMessage } from './useClaude';

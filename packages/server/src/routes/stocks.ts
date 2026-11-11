@@ -7,6 +7,9 @@ import { fetchTradingWatchlist } from '../lib/trading';
 
 const DEFAULT_SYMBOLS = ['SPY', 'QQQ', 'AAPL', 'MSFT', 'NVDA', 'TSLA', 'GOOGL', 'AMZN'];
 
+/** A ticker: letter first, then letters, digits, dots or dashes (BRK.B, BF-B). */
+const SYMBOL_RE = /^[A-Z][A-Z0-9.-]{0,9}$/;
+
 function baseUrl(): string {
   return process.env['ALPACA_BASE_URL'] ?? 'https://data.alpaca.markets/v2';
 }
@@ -63,7 +66,8 @@ export function isMarketOpen(): boolean {
 }
 
 async function fetchSnapshots(symbols: string[]): Promise<Map<string, AlpacaSnapshot>> {
-  const url = `${baseUrl()}/stocks/snapshots?symbols=${symbols.join(',')}&feed=iex`;
+  const query = new URLSearchParams({ symbols: symbols.join(','), feed: 'iex' });
+  const url = `${baseUrl()}/stocks/snapshots?${query.toString()}`;
   const data = await fetchJson<Record<string, AlpacaSnapshot>>(
     url,
     { headers: authHeaders() },
@@ -73,7 +77,8 @@ async function fetchSnapshots(symbols: string[]): Promise<Map<string, AlpacaSnap
 }
 
 async function fetchBars(symbols: string[]): Promise<Map<string, number[]>> {
-  const url = `${baseUrl()}/stocks/bars?symbols=${symbols.join(',')}&timeframe=5Min&limit=60&feed=iex`;
+  const query = new URLSearchParams({ symbols: symbols.join(','), timeframe: '5Min', limit: '60', feed: 'iex' });
+  const url = `${baseUrl()}/stocks/bars?${query.toString()}`;
   try {
     const data = await fetchJson<{ bars: Record<string, AlpacaBar[]> }>(
       url,
@@ -96,7 +101,9 @@ function buildData(
   snapshots: Map<string, AlpacaSnapshot>,
   bars: Map<string, number[]>,
 ): StocksData {
-  const open = isMarketOpen();
+  // Holiday-aware when the Alpaca calendar is cached; weekday/hours heuristic otherwise.
+  const days = calendarCache.get('days');
+  const open = days ? buildCalendar(days).isOpen : isMarketOpen();
   const equities: StockQuote[] = symbols.map((ticker) => {
     const snap = snapshots.get(ticker);
     const lastPrice = open
@@ -145,7 +152,7 @@ async function fetchBarSeries(
   sort: 'asc' | 'desc',
 ): Promise<StockBar[]> {
   const url =
-    `${baseUrl()}/stocks/bars?symbols=${symbol}&timeframe=${timeframe}` +
+    `${baseUrl()}/stocks/bars?symbols=${encodeURIComponent(symbol)}&timeframe=${timeframe}` +
     `&start=${encodeURIComponent(start)}&limit=${limit}&sort=${sort}&feed=iex`;
   try {
     const data = await fetchJson<{ bars?: Record<string, AlpacaBar[]> }>(
@@ -177,7 +184,7 @@ async function fetchDetailBars(
 
 async function fetchSymbolNews(symbol: string): Promise<StockNewsItem[]> {
   // Alpaca News API (Benzinga) — v1beta1, same auth headers.
-  const url = `https://data.alpaca.markets/v1beta1/news?symbols=${symbol}&limit=10&sort=desc`;
+  const url = `https://data.alpaca.markets/v1beta1/news?symbols=${encodeURIComponent(symbol)}&limit=10&sort=desc`;
   try {
     const data = await fetchJson<{ news?: AlpacaNewsItem[] }>(
       url,
@@ -287,10 +294,10 @@ export const stocksRoutes: FastifyPluginAsync = async (fastify) => {
     const symbols = raw
       .split(',')
       .map((s) => s.trim().toUpperCase())
-      .filter(Boolean)
+      .filter((s) => SYMBOL_RE.test(s))
       .slice(0, 50);
 
-    if (symbols.length === 0) throw new HttpError(400, 'No symbols provided');
+    if (symbols.length === 0) throw new HttpError(400, 'No valid symbols provided');
     if (!cred('ALPACA_API_KEY') || !cred('ALPACA_API_SECRET')) {
       // First-run pointer: without this the widget surfaces a raw Alpaca 403.
       throw new HttpError(503, 'Alpaca keys not configured — add them in Settings → Developer');
@@ -320,7 +327,7 @@ export const stocksRoutes: FastifyPluginAsync = async (fastify) => {
     '/detail',
     async (req, reply) => {
       const symbol = (req.query.symbol ?? '').trim().toUpperCase();
-      if (!/^[A-Z.]{1,10}$/.test(symbol)) throw new HttpError(400, 'Invalid symbol');
+      if (!SYMBOL_RE.test(symbol)) throw new HttpError(400, 'Invalid symbol');
 
       const cached = detailCache.get(symbol);
       if (cached) return reply.send(cached);

@@ -1,7 +1,7 @@
 import { app, BrowserWindow, IpcMain, Notification, safeStorage, shell } from 'electron';
 import { readCredentialStatus, writeCredentials } from '../credentials';
 import { restartServer, logsDir } from '../server/spawn';
-import { checkUpdates, getUpdateStatus, installUpdate } from '../updates';
+import { checkUpdates, clearUpdateMemo, getUpdateStatus, installUpdate } from '../updates';
 import { chooseBackupFolder, writeBackup } from '../backup';
 import {
   getLauncherState, addLauncherApp, addLauncherUrl,
@@ -139,7 +139,11 @@ export function registerIpcHandlers(
 
   ipcMain.handle('prefs:get', () => readPrefs());
   ipcMain.handle('prefs:set', (_event, patch: Partial<AppPrefsData>) => {
-    const next = writePrefs(patch ?? {});
+    // backupDir is written only by chooseBackupFolder (native picker); the
+    // renderer may turn auto-export off (null) but never set a path.
+    const safe: Partial<AppPrefsData> = { ...(patch ?? {}) };
+    if (safe.backupDir !== null) delete safe.backupDir;
+    const next = writePrefs(safe);
     hooks.onPrefsChanged?.(); // e.g. re-sync the global-hotkey registration
     return next;
   });
@@ -175,6 +179,7 @@ export function registerIpcHandlers(
 
   ipcMain.handle('credentials:save-all', async (_event, creds: Partial<Record<CredentialKey, string>>) => {
     await writeCredentials(creds);
+    clearUpdateMemo(); // a new GITHUB_TOKEN must take effect on the next check
     await restartServer();
   });
 

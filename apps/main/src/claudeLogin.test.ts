@@ -8,6 +8,7 @@ import {
   parseKeychainMdat,
   parseSpawnedPid,
   parseTerminalWindowId,
+  shouldReopenLogin,
 } from './claudeLogin';
 
 describe('credentialsPath', () => {
@@ -111,5 +112,17 @@ describe('credsChanged', () => {
   it('macOS: ignores an unchanged keychain mdat or a vanished item', () => {
     expect(credsChanged(snap(null, 'A'), snap(null, 'A'))).toBe(false);
     expect(credsChanged(snap(null, 'A'), snap(null, null))).toBe(false);
+  });
+});
+
+describe('shouldReopenLogin', () => {
+  it('macOS: reopens once the watch is older than 5 seconds', () => {
+    expect(shouldReopenLogin('darwin', 1_000, 5_500)).toBe(false);
+    expect(shouldReopenLogin('darwin', 1_000, 6_001)).toBe(true);
+  });
+
+  it('other platforms never replace an active watch (Windows detects a closed window itself)', () => {
+    expect(shouldReopenLogin('win32', 0, 10 * 60_000)).toBe(false);
+    expect(shouldReopenLogin('linux', 0, 10 * 60_000)).toBe(false);
   });
 });

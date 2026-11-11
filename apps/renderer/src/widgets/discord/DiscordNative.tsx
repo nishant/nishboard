@@ -13,6 +13,7 @@ import type {
 import { toast } from '../../lib/alerts';
 import {
   connectDiscord,
+  fetchDiscordVoiceSettings,
   replyInDiscord,
   selectDiscordVoice,
   setDiscordVoiceSettings,
@@ -22,6 +23,7 @@ import {
   useDiscordStatus,
   useDiscordStream,
   useDiscordVoiceSettings,
+  VOICE_SETTINGS_KEY,
 } from './useDiscordNative';
 import { applyMessageEvent, applySpeaking, formatMessageTime, guildInitials } from './nativeLib';
 import { Button, EmptyState, IconButton, SkeletonLines, cn, Label } from '@nish/ui';
@@ -114,6 +116,7 @@ function DiscordNativeConnected({ user }: { user: DiscordUserData | undefined })
 
   // Voice roster arrives on every stream open and on each change.
   const [voice, setVoice] = useState<DiscordSelectedVoiceData | null>(null);
+  const queryClient = useQueryClient();
 
   useDiscordStream({
     enabled: true,
@@ -122,6 +125,8 @@ function DiscordNativeConnected({ user }: { user: DiscordUserData | undefined })
       switch (event.type) {
         case 'voice-roster':
           setVoice(event.voice);
+          // Mute/deafen may have changed in the Discord app; refresh our copy.
+          void queryClient.invalidateQueries({ queryKey: VOICE_SETTINGS_KEY });
           break;
         case 'speaking':
           setVoice((v) => applySpeaking(v, event.userId, event.speaking));
@@ -176,26 +181,31 @@ function GuildRail({ guilds, activeId, onSelect }: {
   onSelect: (id: string) => void;
 }) {
   return (
-    <div className="w-11 shrink-0 border-r border-th-line overflow-y-auto py-1.5 flex flex-col items-center gap-1.5">
+    <div className="w-11 shrink-0 border-r border-th-line overflow-y-auto py-1.5 flex flex-col items-center gap-0">
       {guilds.map((g) => (
         <button
           key={g.id}
           title={g.name}
+          aria-current={g.id === activeId ? 'true' : undefined}
           onClick={() => onSelect(g.id)}
-          className={cn(
-            'w-8 h-8 shrink-0 rounded-full overflow-hidden flex items-center justify-center transition-all',
-            g.id === activeId
-              ? 'ring-2 ring-th-accent'
-              : 'opacity-70 hover:opacity-100 hover:rounded-xl',
-          )}
+          className="w-11 h-11 shrink-0 flex items-center justify-center"
         >
-          {g.iconUrl ? (
-            <img src={g.iconUrl} alt="" className="w-full h-full object-cover" />
-          ) : (
-            <span className="w-full h-full flex items-center justify-center bg-th-elevated text-th-hi text-3xs font-semibold">
-              {guildInitials(g.name)}
-            </span>
-          )}
+          <span
+            className={cn(
+              'w-8 h-8 rounded-full overflow-hidden flex items-center justify-center transition-all',
+              g.id === activeId
+                ? 'ring-2 ring-th-accent'
+                : 'opacity-70 hover:opacity-100 hover:rounded-xl',
+            )}
+          >
+            {g.iconUrl ? (
+              <img src={g.iconUrl} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <span className="w-full h-full flex items-center justify-center bg-th-elevated text-th-hi text-3xs font-semibold">
+                {guildInitials(g.name)}
+              </span>
+            )}
+          </span>
         </button>
       ))}
     </div>
@@ -219,9 +229,10 @@ function ChannelList({ loading, textChannels, voiceChannels, activeChannelId, vo
       {textChannels.map((c) => (
         <button
           key={c.id}
+          aria-current={c.id === activeChannelId ? 'true' : undefined}
           onClick={() => onSelectText(c.id)}
           className={cn(
-            'w-full flex items-center gap-1 px-1.5 py-1 rounded text-left text-2xs transition-colors',
+            'w-full min-h-11 flex items-center gap-1 px-1.5 py-1 rounded text-left text-2xs transition-colors',
             c.id === activeChannelId ? 'bg-th-elevated text-th-hi' : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated',
           )}
         >
@@ -238,11 +249,12 @@ function ChannelList({ loading, textChannels, voiceChannels, activeChannelId, vo
           <button
             key={c.id}
             title={joined ? 'Connected' : `Join ${c.name}`}
+            aria-pressed={joined}
             onClick={() => {
               if (!joined) void selectDiscordVoice(c.id);
             }}
             className={cn(
-              'w-full flex items-center gap-1 px-1.5 py-1 rounded text-left text-2xs transition-colors group',
+              'w-full min-h-11 flex items-center gap-1 px-1.5 py-1 rounded text-left text-2xs transition-colors group',
               joined ? 'text-th-ok bg-th-elevated' : 'text-th-hi3 hover:text-th-hi hover:bg-th-elevated',
             )}
           >
@@ -265,11 +277,20 @@ function ChatFeed({ channel, loading, messages, selfId }: {
   selfId: string | null;
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  // Pin to the bottom as messages stream in (feed is newest-at-bottom).
+  // Follow new messages only while the reader is at the bottom (<40px away).
+  const pinnedRef = useRef(true);
+  const channelId = channel?.id ?? null;
+  useEffect(() => {
+    pinnedRef.current = true;
+  }, [channelId]);
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [messages]);
+    if (el && pinnedRef.current) el.scrollTop = el.scrollHeight;
+  }, [messages, channelId]);
+  const onScroll = (): void => {
+    const el = scrollRef.current;
+    if (el) pinnedRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  };
 
   if (!channel) {
     return (
@@ -292,7 +313,7 @@ function ChatFeed({ channel, loading, messages, selfId }: {
           Reply in Discord
         </Button>
       </div>
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-1 py-1.5">
+      <div ref={scrollRef} onScroll={onScroll} className="flex-1 min-h-0 overflow-y-auto px-1 py-1.5">
         {loading && <SkeletonLines lines={3} />}
         {!loading && messages.length === 0 && <EmptyState compact title="No recent messages" />}
         {messages.map((m) => (
@@ -366,9 +387,18 @@ function VoiceFooter({ voice }: { voice: DiscordSelectedVoiceData }) {
   const settingsQuery = useDiscordVoiceSettings(true);
   const settings = settingsQuery.data;
 
-  const toggle = async (patch: { mute?: boolean; deaf?: boolean }): Promise<void> => {
-    const next = await setDiscordVoiceSettings(patch);
-    if (next) queryClient.setQueryData(['discord-voice-settings'], next);
+  const toggle = async (key: 'mute' | 'deaf'): Promise<void> => {
+    // Read fresh state so a change made in the Discord app is not inverted twice.
+    let current = settings;
+    try {
+      current = await fetchDiscordVoiceSettings();
+    } catch {
+      // fall back to the cached value
+    }
+    const next = await setDiscordVoiceSettings(
+      key === 'mute' ? { mute: !current?.mute } : { deaf: !current?.deaf },
+    );
+    if (next) queryClient.setQueryData(VOICE_SETTINGS_KEY, next);
   };
 
   return (
@@ -387,7 +417,7 @@ function VoiceFooter({ voice }: { voice: DiscordSelectedVoiceData }) {
         size="xs"
         tone="danger"
         active={settings?.mute === true}
-        onClick={() => void toggle({ mute: !settings?.mute })}
+        onClick={() => void toggle('mute')}
       >
         {settings?.mute ? <MicOff size={11} /> : <Mic size={11} />}
       </IconButton>
@@ -396,7 +426,7 @@ function VoiceFooter({ voice }: { voice: DiscordSelectedVoiceData }) {
         size="xs"
         tone="danger"
         active={settings?.deaf === true}
-        onClick={() => void toggle({ deaf: !settings?.deaf })}
+        onClick={() => void toggle('deaf')}
       >
         {settings?.deaf ? <HeadphoneOff size={11} /> : <Headphones size={11} />}
       </IconButton>

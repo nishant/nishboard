@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import type { DiscordScreenShareRequestData } from '@dash/shared';
 import { HeaderAction } from '../../components/HeaderAction';
 import { useDiscordStore } from '../../store/discordStore';
+import { toast } from '../../lib/alerts';
 import {
   DISCORD_APP_URL,
   DISCORD_COMPACT_CSS,
@@ -52,7 +53,6 @@ export function DiscordHost() {
   const active = useDiscordStore((s) => s.active);
   const hostRect = useDiscordStore((s) => s.hostRect);
   const interacting = useDiscordStore((s) => s.interacting);
-  const unread = useDiscordStore((s) => s.unread);
   const setUnread = useDiscordStore((s) => s.setUnread);
   const registerControls = useDiscordStore((s) => s.registerControls);
   const signOutPrompt = useDiscordStore((s) => s.signOutPrompt);
@@ -70,7 +70,7 @@ export function DiscordHost() {
       // Fires on every top-level load (reload included) — inserted CSS and
       // zoom don't survive navigation. The compact CSS is fail-soft: if its
       // hashed-class prefix stops matching, the stock layout just shows.
-      void wv.insertCSS(DISCORD_COMPACT_CSS);
+      wv.insertCSS(DISCORD_COMPACT_CSS).catch(() => {});
       setDomReadyTick((t) => t + 1); // unlocks + re-triggers the zoom effect
     };
     const onReady = () => setStatus('ready');
@@ -158,7 +158,7 @@ export function DiscordHost() {
         webviewRef.current?.reload();
       },
       goHome: () => {
-        void webviewRef.current?.loadURL(DISCORD_HOME_URL);
+        webviewRef.current?.loadURL(DISCORD_HOME_URL).catch(() => {});
       },
     });
     return () => registerControls(null);
@@ -171,11 +171,16 @@ export function DiscordHost() {
   };
 
   const confirmSignOut = async (): Promise<void> => {
-    await window.electron?.discord.signOut();
-    setSignOutPrompt(false);
-    setUnread(0);
-    setStatus('loading');
-    webviewRef.current?.reload();
+    try {
+      await window.electron?.discord.signOut();
+      setUnread(0);
+      setStatus('loading');
+      webviewRef.current?.reload();
+    } catch (err: unknown) {
+      toast('Discord', err instanceof Error ? err.message : String(err), 'error');
+    } finally {
+      setSignOutPrompt(false);
+    }
   };
 
   if (!inElectron || !active) return null;
@@ -208,12 +213,6 @@ export function DiscordHost() {
           webpreferences="backgroundThrottling=false"
           className="h-full w-full"
         />
-
-        {unread > 0 && (
-          <div className="absolute top-1.5 right-1.5 z-10 pointer-events-none px-1.5 py-0.5 rounded-full bg-th-loss-fill text-th-on-loss text-3xs font-semibold leading-none">
-            {unread}
-          </div>
-        )}
 
         {status === 'loading' && (
           // Discord's own dark chrome color — the splash must not flash the

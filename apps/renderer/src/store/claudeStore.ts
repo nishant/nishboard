@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { StateStorage } from 'zustand/middleware';
+import { CLAUDE_EFFORTS } from '@dash/shared';
 import type { ClaudeChatMode, ClaudeEffort, ClaudePromptRequest } from '@dash/shared';
 
 /** A run of assistant text (streamed from `delta` frames). */
@@ -61,7 +62,7 @@ interface ClaudeState {
   sessionId: string | null;
   model: string | null;
   isStreaming: boolean;
-  /** Permission posture sent with each turn (chat / auto / plan). */
+  /** Permission posture sent with each turn (ask / auto / plan). */
   chatMode: ClaudeChatMode;
   /** `--model` value for new turns; null = CLI default. */
   chatModel: string | null;
@@ -162,6 +163,84 @@ export const claudeStorage: StateStorage = {
     }
   },
 };
+
+/** The slice of state that is written to localStorage (see `partialize`). */
+interface PersistedClaude {
+  messages: ClaudeChatMessage[];
+  sessionId: string | null;
+  model: string | null;
+  chatMode: ClaudeChatMode;
+  chatModel: string | null;
+  chatEffort: ClaudeEffort | null;
+  lastContextTokens: number | null;
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+function isEffort(v: unknown): v is ClaudeEffort {
+  return CLAUDE_EFFORTS.some((e) => e === v);
+}
+
+/** Keep only well-formed parts; anything else from a corrupt store is dropped. */
+function isPart(v: unknown): v is ClaudePart {
+  if (!isRecord(v)) return false;
+  switch (v.kind) {
+    case 'text':
+    case 'thinking':
+      return typeof v.text === 'string';
+    case 'tool':
+      return typeof v.id === 'string' && typeof v.name === 'string' && typeof v.detail === 'string';
+    case 'prompt':
+      return typeof v.requestId === 'string' && isRecord(v.request) && typeof v.status === 'string';
+    default:
+      return false;
+  }
+}
+
+/** Validate one persisted message (v1 flat `{ text }` messages become one text part). */
+function toMessage(v: unknown): ClaudeChatMessage | null {
+  if (!isRecord(v)) return null;
+  if (typeof v.id !== 'string' || (v.role !== 'user' && v.role !== 'assistant')) return null;
+  const at = typeof v.at === 'number' ? v.at : 0;
+  let parts: ClaudePart[];
+  if (Array.isArray(v.parts)) {
+    parts = v.parts.filter(isPart);
+  } else if (typeof v.text === 'string') {
+    parts = v.text ? [{ kind: 'text', text: v.text }] : [];
+  } else {
+    return null;
+  }
+  const msg: ClaudeChatMessage = { id: v.id, role: v.role, parts, at };
+  if (typeof v.durationMs === 'number') msg.durationMs = v.durationMs;
+  if (typeof v.outputTokens === 'number') msg.outputTokens = v.outputTokens;
+  return msg;
+}
+
+/** Type-guarded migration of whatever localStorage held, across every version:
+ *  v1 messages were flat `{ text }`; v2 is `{ parts }`; v3 renamed mode 'chat'
+ *  to 'ask'; v4 stopped persisting Auto. Invalid messages are dropped. */
+export function migratePersisted(persisted: unknown): PersistedClaude {
+  const raw = isRecord(persisted) ? persisted : {};
+  const messages: ClaudeChatMessage[] = [];
+  if (Array.isArray(raw.messages)) {
+    for (const m of raw.messages) {
+      const msg = toMessage(m);
+      if (msg) messages.push(msg);
+    }
+  }
+  // Legacy 'chat' (v<3) and Auto (v<4, never persisted since) both become 'ask'.
+  return {
+    messages,
+    sessionId: typeof raw.sessionId === 'string' ? raw.sessionId : null,
+    model: typeof raw.model === 'string' ? raw.model : null,
+    chatMode: raw.chatMode === 'plan' ? 'plan' : 'ask',
+    chatModel: typeof raw.chatModel === 'string' ? raw.chatModel : null,
+    chatEffort: isEffort(raw.chatEffort) ? raw.chatEffort : null,
+    lastContextTokens: typeof raw.lastContextTokens === 'number' ? raw.lastContextTokens : null,
+  };
+}
 
 export const useClaudeStore = create<ClaudeState>()(
   persist(
@@ -280,7 +359,8 @@ export const useClaudeStore = create<ClaudeState>()(
       setChatMode: (chatMode) => set({ chatMode }),
       setChatModel: (chatModel) => set({ chatModel }),
       setChatEffort: (chatEffort) => set({ chatEffort }),
-      newChat: () => set({ messages: [], sessionId: null, chatMode: 'ask' }),
+      newChat: () =>
+        set({ messages: [], sessionId: null, model: null, lastContextTokens: null, chatMode: 'ask' }),
       dropUnsentTurn: () =>
         set((s) => {
           const msgs = [...s.messages];
@@ -293,11 +373,11 @@ export const useClaudeStore = create<ClaudeState>()(
     }),
     {
       name: 'dashboard-claude',
-      version: 4,
+      version: 5,
       storage: createJSONStorage(() => claudeStorage),
       // NEVER persist isStreaming — a reload mid-stream would resurrect a
       // permanently-disabled input with no stream behind it.
-      partialize: (s) => ({
+      partialize: (s): PersistedClaude => ({
         messages: trimForPersist(s.messages),
         sessionId: s.sessionId,
         model: s.model,
@@ -307,25 +387,7 @@ export const useClaudeStore = create<ClaudeState>()(
         chatEffort: s.chatEffort,
         lastContextTokens: s.lastContextTokens,
       }),
-      // v1 messages were flat `{ text: string }`; v2 is `{ parts: ClaudePart[] }`;
-      // v3 renamed the no-tools mode 'chat' → 'ask' (which now surfaces prompts).
-      migrate: (persisted, version) => {
-        const state = persisted as { messages?: Array<Record<string, unknown>> } & Record<string, unknown>;
-        if (version < 2 && Array.isArray(state.messages)) {
-          state.messages = state.messages.map((m) => {
-            if (Array.isArray((m as { parts?: unknown }).parts)) return m;
-            const text = typeof m.text === 'string' ? m.text : '';
-            return { id: m.id, role: m.role, at: m.at, parts: text ? [{ kind: 'text', text }] : [] };
-          });
-        }
-        if (version < 3 && state.chatMode === 'chat') {
-          state.chatMode = 'ask';
-        }
-        if (version < 4 && state.chatMode === 'auto') {
-          state.chatMode = 'ask';
-        }
-        return state as unknown as ClaudeState;
-      },
+      migrate: (persisted) => migratePersisted(persisted),
     },
   ),
 );

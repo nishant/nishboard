@@ -86,9 +86,18 @@ export function DiscordActions() {
   // Only polled in native mode — gates the Disconnect action's visibility.
   const status = useDiscordStatus(mode === 'native');
   const queryClient = useQueryClient();
+  const unread = useDiscordStore((s) => s.unread);
 
   return (
     <>
+      {unread > 0 && (
+        <span
+          title={`${unread} unread mention${unread === 1 ? '' : 's'}`}
+          className="px-1.5 py-0.5 rounded-full bg-th-loss-fill text-th-on-loss text-3xs font-semibold leading-none"
+        >
+          {unread}
+        </span>
+      )}
       {/* Webview controls are embed-only (the host may not even be live). */}
       {mode === 'embed' && controls && (
         <>

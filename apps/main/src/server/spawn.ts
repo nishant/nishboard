@@ -13,8 +13,14 @@ import { isDev } from '../env';
 // (server.log → server.log.1).
 
 const LOG_MAX_BYTES = 5 * 1024 * 1024;
-let logStream: fs.WriteStream | null = null;
-let logBytes = 0;
+
+/** One child's log sink. Each spawned child gets its own, captured in that
+ *  child's closures, so a late 'exit' of an old child can only end its own
+ *  stream and never the new child's. */
+interface ChildLog {
+  stream: fs.WriteStream | null;
+  bytes: number;
+}
 
 export function logsDir(): string {
   return path.join(app.getPath('userData'), 'logs');
@@ -26,46 +32,49 @@ function logFile(): string {
 
 /** Logging is best-effort: an async open/write failure (log dir removed, disk full)
  *  must drop logging, never surface as an unhandled 'error' that crashes main. */
-function createLogStream(): fs.WriteStream {
+function createLogStream(log: ChildLog): fs.WriteStream {
   const stream = fs.createWriteStream(logFile(), { flags: 'a' });
   stream.on('error', () => {
-    if (logStream === stream) logStream = null;
+    if (log.stream === stream) log.stream = null;
   });
   return stream;
 }
 
-function openLogStream(): void {
-  try {
-    fs.mkdirSync(logsDir(), { recursive: true });
-    logBytes = fs.existsSync(logFile()) ? fs.statSync(logFile()).size : 0;
-    if (logBytes > LOG_MAX_BYTES) rotateLog();
-    logStream = createLogStream();
-  } catch {
-    logStream = null; // logging is best-effort — never block the server on it
-  }
-}
-
-function rotateLog(): void {
+function rotateLog(log: ChildLog): void {
   try {
     fs.renameSync(logFile(), `${logFile()}.1`); // replaces any previous .1
-    logBytes = 0;
   } catch { /* best-effort */ }
+  // Reset even when the rename failed, so a failure does not retrigger on every chunk.
+  log.bytes = 0;
 }
 
-function teeToLog(chunk: Buffer | string): void {
-  if (!logStream) return;
-  if (logBytes > LOG_MAX_BYTES) {
-    logStream.end();
-    rotateLog();
-    logStream = createLogStream();
+function openChildLog(): ChildLog {
+  const log: ChildLog = { stream: null, bytes: 0 };
+  try {
+    fs.mkdirSync(logsDir(), { recursive: true });
+    log.bytes = fs.existsSync(logFile()) ? fs.statSync(logFile()).size : 0;
+    if (log.bytes > LOG_MAX_BYTES) rotateLog(log); // rotate before opening this child's stream
+    log.stream = createLogStream(log);
+  } catch {
+    log.stream = null; // logging is best-effort — never block the server on it
   }
-  logStream.write(chunk);
-  logBytes += typeof chunk === 'string' ? Buffer.byteLength(chunk) : chunk.length;
+  return log;
 }
 
-function closeLogStream(): void {
-  logStream?.end();
-  logStream = null;
+function teeToLog(log: ChildLog, chunk: Buffer | string): void {
+  if (!log.stream) return;
+  if (log.bytes > LOG_MAX_BYTES) {
+    log.stream.end();
+    rotateLog(log);
+    log.stream = createLogStream(log);
+  }
+  log.stream.write(chunk);
+  log.bytes += typeof chunk === 'string' ? Buffer.byteLength(chunk) : chunk.length;
+}
+
+function closeChildLog(log: ChildLog): void {
+  log.stream?.end();
+  log.stream = null;
 }
 
 let serverProcess: ChildProcess | null = null;
@@ -148,21 +157,21 @@ function startChild(tokenKey: string | null): void {
     stdio: 'pipe',
   });
   serverProcess = child;
-  closeLogStream(); // never leak the previous child's stream
-  openLogStream();
-  teeToLog(`\n--- server spawned ${new Date().toISOString()} ---\n`);
+  const log = openChildLog();
+  const tee = (chunk: Buffer | string): void => teeToLog(log, chunk);
+  tee(`\n--- server spawned ${new Date().toISOString()} ---\n`);
   child.stdout?.pipe(process.stdout);
   child.stderr?.pipe(process.stderr);
-  child.stdout?.on('data', teeToLog);
-  child.stderr?.on('data', teeToLog);
+  child.stdout?.on('data', tee);
+  child.stderr?.on('data', tee);
   child.on('error', (err) => console.error('[server] spawn error:', err));
 
   const startedAt = Date.now();
   child.on('exit', (code, signal) => {
+    closeChildLog(log); // this child's own stream, whether or not it is still current
     // A stale child (killed by a restart) must not clobber the new child's state.
     if (serverProcess !== child) return;
     serverProcess = null;
-    closeLogStream();
     if (intentionalStop || stoppedChildren.has(child)) return;
     // A crash after a healthy stretch is a fresh incident, not a crash loop.
     if (Date.now() - startedAt > HEALTHY_RESET_MS) restartAttempts = 0;

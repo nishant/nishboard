@@ -54,7 +54,7 @@ describe('compareSemver', () => {
 });
 
 describe('checkUpdates', () => {
-  // The stub app reports version 0.0.0-test. checkUpdates memoises for 24h, so
+  // The stub app reports version 0.0.0-test. checkUpdates memoises for 15 min, so
   // each case imports a fresh module.
   async function runWith(tag: string): Promise<{ hasUpdate: boolean; latestVersion: string | null; autoUpdate: boolean }> {
     vi.resetModules();
@@ -78,6 +78,39 @@ describe('checkUpdates', () => {
     const r = await runWith('v0.0.1');
     expect(r.hasUpdate).toBe(true);
     expect(r.autoUpdate).toBe(false); // not packaged under the stub
+  });
+});
+
+describe('checkUpdates memo', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function reply(status: number, body: unknown): Promise<unknown> {
+    return Promise.resolve({ status, ok: status >= 200 && status < 300, json: () => Promise.resolve(body) });
+  }
+
+  it('does not memoise a non-2xx response, so the next check retries', async () => {
+    vi.resetModules();
+    const fetchMock = vi.fn()
+      .mockImplementationOnce(() => reply(403, {}))
+      .mockImplementationOnce(() => reply(200, { tag_name: 'v0.0.1', html_url: 'u', assets: [] }));
+    vi.stubGlobal('fetch', fetchMock);
+    const mod = await import('./updates');
+    expect((await mod.checkUpdates()).message).toContain('403');
+    expect((await mod.checkUpdates()).hasUpdate).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('memoises a successful result until clearUpdateMemo()', async () => {
+    vi.resetModules();
+    const fetchMock = vi.fn(() => reply(200, { tag_name: 'v0.0.1', html_url: 'u', assets: 'junk' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const mod = await import('./updates');
+    await mod.checkUpdates();
+    await mod.checkUpdates();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    mod.clearUpdateMemo();
+    await mod.checkUpdates();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
 

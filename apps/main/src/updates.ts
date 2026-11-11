@@ -5,8 +5,8 @@ import { autoUpdater } from 'electron-updater';
 import { readCredentials } from './credentials';
 import type { ElectronAPI, UpdateCheckData } from '@dash/shared';
 
-// Update checks against GitHub releases. Optional GITHUB_TOKEN credential
-// covers the private-repo case. Releases are produced by
+// Update checks against GitHub releases. The repo is public, so no token is
+// needed; the optional GITHUB_TOKEN credential only raises the API rate limit. Releases are produced by
 // .github/workflows/release.yml (draft -> installers attached -> published).
 //
 // Windows packaged builds install updates themselves through electron-updater
@@ -17,9 +17,37 @@ import type { ElectronAPI, UpdateCheckData } from '@dash/shared';
 type UpdateStatusData = Awaited<ReturnType<ElectronAPI['app']['getUpdateStatus']>>;
 
 const REPO = 'nishant/nishboard';
-const MEMO_MS = 24 * 60 * 60 * 1000;
+const MEMO_MS = 15 * 60 * 1000; // successful results only
 
 let memo: { data: UpdateCheckData; at: number } | null = null;
+
+/** Forget the memoised result (called when credentials change). */
+export function clearUpdateMemo(): void {
+  memo = null;
+}
+
+interface ReleaseJson {
+  tag_name?: string;
+  html_url?: string;
+  assets: ReleaseAsset[];
+}
+
+function isReleaseAsset(v: unknown): v is ReleaseAsset {
+  if (typeof v !== 'object' || v === null) return false;
+  const o = v as Record<string, unknown>;
+  return typeof o.name === 'string' && typeof o.browser_download_url === 'string';
+}
+
+/** Parse the releases/latest body defensively; unknown shapes yield no release. */
+function parseRelease(raw: unknown): ReleaseJson {
+  if (typeof raw !== 'object' || raw === null) return { assets: [] };
+  const o = raw as Record<string, unknown>;
+  return {
+    tag_name: typeof o.tag_name === 'string' ? o.tag_name : undefined,
+    html_url: typeof o.html_url === 'string' ? o.html_url : undefined,
+    assets: Array.isArray(o.assets) ? o.assets.filter(isReleaseAsset) : [],
+  };
+}
 
 /** Exported for tests. */
 export function normalize(tag: string): string {
@@ -101,6 +129,7 @@ export async function checkUpdates(): Promise<UpdateCheckData> {
   const token = readCredentials().GITHUB_TOKEN;
   const none = { autoUpdate: autoUpdateSupported(), latestVersion: null, url: null, assetUrl: null, assetName: null, hasUpdate: false };
   let data: UpdateCheckData;
+  let cacheable = false;
   try {
     const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
       headers: {
@@ -125,14 +154,11 @@ export async function checkUpdates(): Promise<UpdateCheckData> {
         message: `GitHub returned ${res.status} — try again later.`,
       };
     } else {
-      const release = (await res.json()) as {
-        tag_name?: string;
-        html_url?: string;
-        assets?: ReleaseAsset[];
-      };
+      const release = parseRelease(await res.json());
+      cacheable = true;
       const latestVersion = release.tag_name ? normalize(release.tag_name) : null;
       const hasUpdate = latestVersion !== null && compareSemver(latestVersion, currentVersion) > 0;
-      const asset = hasUpdate ? pickAsset(release.assets ?? []) : null;
+      const asset = hasUpdate ? pickAsset(release.assets) : null;
       data = {
         currentVersion,
         latestVersion,
@@ -151,7 +177,7 @@ export async function checkUpdates(): Promise<UpdateCheckData> {
     };
   }
 
-  memo = { data, at: Date.now() };
+  if (cacheable) memo = { data, at: Date.now() };
   if (autoUpdateSupported() && data.hasUpdate) {
     // Kick the background updater so the download starts now, not at the next 6h tick.
     void autoUpdater.checkForUpdates().catch(() => undefined);

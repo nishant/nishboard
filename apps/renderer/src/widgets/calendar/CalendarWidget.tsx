@@ -3,6 +3,8 @@ import { LogIn, LogOut, X } from 'lucide-react';
 import type { CalendarEventData } from '@dash/shared';
 import { useElementSize } from '../../hooks/useElementSize';
 import { HeaderAction } from '../../components/HeaderAction';
+import { useAppSettingsStore } from '../../store/settingsStore';
+import { hourFormat } from '../../lib/time';
 import { Button, EmptyState, IconButton, cn, Input } from '@nish/ui';
 import {
   useCalendarAuthStatus, useCalendarConnect, useCalendarLogout,
@@ -135,6 +137,15 @@ function MonthView({
   );
 }
 
+/** Start time for a timed event on day `iso`; a multi-day event viewed on a
+ *  day after its start date shows "continues" instead of the day-1 time. */
+function timeLabel(start: string, iso: string, clock24h: boolean): string {
+  const d = new Date(start);
+  const startIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  if (startIso < iso) return 'continues';
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', ...hourFormat(clock24h) });
+}
+
 function DayPanel({
   iso, events, authed, onClose,
 }: {
@@ -145,6 +156,7 @@ function DayPanel({
 }) {
   const connect = useCalendarConnect();
   const addEvent = useAddCalendarEvent();
+  const clock24h = useAppSettingsStore((s) => s.clock24h);
   const [title, setTitle] = useState('');
   const [time, setTime] = useState('');
 
@@ -194,7 +206,7 @@ function DayPanel({
             {timed.map((e) => (
               <div key={e.id} className="flex items-baseline gap-1.5 px-0.5 text-2xs">
                 <span className="text-th-hi3 tabular-nums shrink-0">
-                  {new Date(e.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {timeLabel(e.start, iso, clock24h)}
                 </span>
                 <span className="text-th-hi2 truncate">{e.title}</span>
                 {e.location && <span className="text-th-hi3 truncate">{e.location}</span>}
@@ -306,7 +318,7 @@ export function CalendarWidget() {
   const last = months[months.length - 1];
   const rangeStart = toIso(first.year, first.month, 1);
   const rangeEnd = toIso(last.year, last.month, new Date(last.year, last.month + 1, 0).getDate());
-  const { data: eventsData } = useCalendarEvents(rangeStart, rangeEnd, authed);
+  const { data: eventsData } = useCalendarEvents(rangeStart, rangeEnd, authed && width > 0 && height > 0);
 
   const eventsByDay = useMemo(
     () => bucketEvents(eventsData?.events ?? []),

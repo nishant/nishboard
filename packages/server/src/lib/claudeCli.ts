@@ -259,8 +259,9 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 const TOOL_INPUT_MAX = 4000;
 
-/** The full, unabridged tool input for the permission card (command, path, URL, pattern), capped with a marker. */
-export function toolFullInput(name: string, input: unknown): string {
+/** The full tool input for the permission card (command, path, URL, pattern),
+ *  capped at TOOL_INPUT_MAX with a marker; `truncated` says whether the cap hit. */
+export function toolInputWithFlag(name: string, input: unknown): { text: string; truncated: boolean } {
   const inp = asRecord(input) ?? {};
   const str = (v: unknown): string => (typeof v === 'string' ? v : '');
   let full = '';
@@ -286,8 +287,16 @@ export function toolFullInput(name: string, input: unknown): string {
     default:
       full = Object.keys(inp).length > 0 ? JSON.stringify(inp, null, 2) : '';
   }
-  return full.length > TOOL_INPUT_MAX ? `${full.slice(0, TOOL_INPUT_MAX)}
-...truncated` : full;
+  if (full.length > TOOL_INPUT_MAX) {
+    return { text: `${full.slice(0, TOOL_INPUT_MAX)}
+...truncated`, truncated: true };
+  }
+  return { text: full, truncated: false };
+}
+
+/** The tool input text alone (see toolInputWithFlag). */
+export function toolFullInput(name: string, input: unknown): string {
+  return toolInputWithFlag(name, input).text;
 }
 
 /**
@@ -659,7 +668,14 @@ export function buildPromptRequest(toolName: string, input: Record<string, unkno
   if (toolName === 'ExitPlanMode' && typeof input.plan === 'string') {
     return { kind: 'plan', plan: input.plan };
   }
-  return { kind: 'tool', toolName, detail: description ?? toolDetail(toolName, input), input: toolFullInput(toolName, input) };
+  const { text, truncated } = toolInputWithFlag(toolName, input);
+  return {
+    kind: 'tool',
+    toolName,
+    detail: description ?? toolDetail(toolName, input),
+    input: text,
+    ...(truncated ? { truncated: true } : {}),
+  };
 }
 
 /** Pure: the stdin line answering a control request. For AskUserQuestion,

@@ -172,3 +172,61 @@ describe('GET /api/youtube/search budget and staleness', () => {
     }
   });
 });
+
+describe('GET /api/youtube/browse', () => {
+  it('400s on prototype keys instead of treating them as categories', async () => {
+    const fetchFn = stubFetch([]);
+    const res = await app.inject({ method: 'GET', url: '/api/youtube/browse?category=toString' });
+    expect(res.statusCode).toBe(400);
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it('decodes entities once, in titles and channel titles', async () => {
+    stubFetch([
+      ['/youtube/v3/videos', (url) => url.includes('chart=mostPopular')
+        ? jsonRes({ items: [{
+          id: 'b1',
+          snippet: {
+            title: 'a &amp;lt; b &#34;x&#34;',
+            channelTitle: 'Tom &amp; Jerry',
+            thumbnails: {},
+            publishedAt: '2026-01-01T00:00:00Z',
+          },
+        }] })
+        : jsonRes({ items: [] })],
+    ]);
+    const res = await app.inject({ method: 'GET', url: '/api/youtube/browse?category=music' });
+    expect(res.statusCode).toBe(200);
+    const [item] = res.json<YoutubeSearchPage>().items;
+    expect(item.title).toBe('a &lt; b "x"');
+    expect(item.channelTitle).toBe('Tom & Jerry');
+  });
+});
+
+describe('GET /api/youtube/callback state handling', () => {
+  it('a wrong state is a 400 and does not cancel the pending flow', async () => {
+    process.env.YOUTUBE_CLIENT_ID = 'cid';
+    process.env.YOUTUBE_CLIENT_SECRET = 'csecret';
+    try {
+      const urlRes = await app.inject({ method: 'GET', url: '/api/youtube/auth-url' });
+      const state = new URL(urlRes.json<{ url: string }>().url).searchParams.get('state') ?? '';
+      expect(state).not.toBe('');
+
+      const bad = await app.inject({ method: 'GET', url: '/api/youtube/callback?code=c&state=wrong' });
+      expect(bad.statusCode).toBe(400);
+
+      // The exchange fails upstream (502) so no tokens are written; what matters
+      // is that it was attempted exactly once, and not a second time on replay.
+      const fetchFn = stubFetch([['oauth2.googleapis.com/token', () => jsonRes({ error: 'x' }, 400)]]);
+      const ok = await app.inject({ method: 'GET', url: `/api/youtube/callback?code=c&state=${state}` });
+      expect(ok.statusCode).toBe(502);
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+      const replay = await app.inject({ method: 'GET', url: `/api/youtube/callback?code=c&state=${state}` });
+      expect(replay.statusCode).toBe(400);
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+    } finally {
+      delete process.env.YOUTUBE_CLIENT_ID;
+      delete process.env.YOUTUBE_CLIENT_SECRET;
+    }
+  });
+});

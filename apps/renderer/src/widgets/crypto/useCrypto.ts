@@ -11,7 +11,7 @@ export function useCrypto(enabled = true, interval?: number | false) {
   const gated = useGatedInterval(5 * 60 * 1000);
   return useQuery<CryptoData>({
     queryKey: ['crypto', watchlist],
-    queryFn: () => apiClient.get<CryptoData>(`/api/crypto?ids=${watchlist.join(',')}`),
+    queryFn: () => apiClient.get<CryptoData>(`/api/crypto?ids=${encodeURIComponent(watchlist.join(','))}`),
     refetchInterval: interval ?? gated,
     // An explicit interval means the alerts evaluator: keep polling while hidden.
     refetchIntervalInBackground: interval !== undefined,

@@ -56,3 +56,21 @@ describe('POST /device (Windows) passes the device name as base64', () => {
     },
   );
 });
+
+describe('POST /device (macOS) rejects option-like ids', () => {
+  const realPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!;
+
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', realPlatform);
+  });
+
+  it('returns 400 for an id starting with a dash', async () => {
+    Object.defineProperty(process, 'platform', { value: 'darwin' });
+    const app = Fastify();
+    await app.register(soundRoutes, { prefix: '/api/sound' });
+    await app.ready();
+    const res = await app.inject({ method: 'POST', url: '/api/sound/device', payload: { deviceId: '-t input' } });
+    expect(res.statusCode).toBe(400);
+    await app.close();
+  });
+});

@@ -1,10 +1,11 @@
 import { EventEmitter } from 'events';
+import { PassThrough } from 'stream';
 import type { spawn } from 'child_process';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PsHost, buildBootstrap } from './psHost';
 
 class FakeChild extends EventEmitter {
-  stdout = new EventEmitter();
+  stdout = new PassThrough();
   stderr = new EventEmitter();
   written: string[] = [];
   killed = false;
@@ -203,6 +204,54 @@ describe('PsHost', () => {
   });
 });
 
+describe('PsHost robustness', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('decodes a multibyte character split across two stdout chunks', async () => {
+    const { host, children } = setup();
+    const p = host.run('A');
+    const id = children[0].requests()[0].id;
+    const bytes = Buffer.from(JSON.stringify({ id, ok: true, out: 'Kopfhörer' }) + '\n', 'utf8');
+    const split = bytes.indexOf(0xc3) + 1; // between the two bytes of the o-umlaut
+    children[0].stdout.write(bytes.subarray(0, split));
+    children[0].stdout.write(bytes.subarray(split));
+    await expect(p).resolves.toBe('Kopfhörer');
+    host.dispose();
+  });
+
+  it('rejects runs with the bootstrap error when the ready line carries one', async () => {
+    const { host, children } = setup({ autoReady: false });
+    const p = host.run('A');
+    const assertion = expect(p).rejects.toThrow('PowerShell bootstrap failed: compile broke');
+    children[0].stdout.emit('data', Buffer.from('{"ready":true,"bootError":"compile broke"}\n'));
+    await assertion;
+    expect(children[0].requests()).toHaveLength(0);
+    host.dispose();
+  });
+
+  it('spawns powershell with a secret-free env that keeps PATH', () => {
+    vi.stubEnv('SPOTIFY_CLIENT_SECRET', 'shh');
+    vi.stubEnv('PATH', '/usr/bin');
+    try {
+      const { host, spawnFn } = setup();
+      void host.run('A').catch(() => undefined);
+      const call = (spawnFn as unknown as ReturnType<typeof vi.fn>).mock.calls[0] as unknown[];
+      const options = call[2] as { env?: Record<string, string | undefined> };
+      expect(options.env).toBeDefined();
+      expect(options.env).not.toHaveProperty('SPOTIFY_CLIENT_SECRET');
+      expect(options.env?.PATH ?? options.env?.Path).toBeTruthy();
+      host.dispose();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+});
+
 describe('buildBootstrap', () => {
   it('embeds the C# as base64 and ends with the request loop on a single line', () => {
     const b = buildBootstrap('public class X {}');
@@ -211,5 +260,7 @@ describe('buildBootstrap', () => {
     const lines = b.trimEnd().split('\n');
     expect(lines[lines.length - 1]).toContain('while ($true)');
     expect(lines[lines.length - 1]).toContain('ready');
+    expect(b).toContain('catch { $BootError = [string]$_ }');
+    expect(lines[lines.length - 1]).toContain('bootError');
   });
 });

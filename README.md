@@ -4,8 +4,8 @@
 
 ### A personal ambient desktop dashboard — weather, music, markets, and machine vitals, all day on your second monitor.
 
-[![Electron](https://img.shields.io/badge/Electron-33-47848F?style=for-the-badge&logo=electron&logoColor=white)](https://www.electronjs.org/)
-[![React](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
+[![Electron](https://img.shields.io/badge/Electron-45-47848F?style=for-the-badge&logo=electron&logoColor=white)](https://www.electronjs.org/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Vite](https://img.shields.io/badge/Vite-build-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![Fastify](https://img.shields.io/badge/Fastify-:7432-000000?style=for-the-badge&logo=fastify&logoColor=white)](https://fastify.dev/)
@@ -46,13 +46,13 @@
 | 🌤️ **Weather** | Current conditions, hourly strip, 5-day forecast, severe-weather alerts | Open-Meteo + NWS alerts (location via IP, or a ZIP override) |
 | 🎧 **Spotify** | Now playing, transport controls, ♥ save/unsave, playlists + Liked Songs + Recently Played, search, devices | Spotify Web API (PKCE OAuth) — *remote control*¹ |
 | 📈 **Stocks** | Watchlist read from **trading** (single source of truth: top-pick score ★ + open-position badges; clear "not connected" state), % change, sparklines, market session; click a ticker for an intraday/daily chart + headlines | trading read-only API (tailnet) + Alpaca Markets IEX (REST snapshots + Benzinga news) |
-| 🧮 **Hardware** | CPU / GPU / RAM / disk / network as bars or live sparklines | `systeminformation` (nvidia-smi / WASAPI under the hood) |
+| 🧮 **Hardware** | CPU / GPU / RAM / disk / network as bars or live sparklines | `systeminformation` (nvidia-smi under the hood) |
 | 🔊 **Sound** | Master volume, mute, output switching, per-app mixer (Windows) | `osascript` (mac) / PowerShell + WASAPI (Windows) |
 | 📅 **Calendar** | Month grid + Google Calendar: event dots, click a day for its events, inline quick-add | Google Calendar API (shares the YouTube OAuth client) |
 | ▶️ **YouTube** | Search, Trending/Music/Gaming, and — signed in — your Subs feed, Playlists, Liked; click any channel name for its uploads; watch inline; a repeated search is free (results are saved in `~/.dash` for 24 h, 2 h for live, and survive restarts); optionally hide Shorts across every tab, or switch the Subs tab to a plain channel list (click a channel for its uploads) — both in Settings → App | YouTube Data API v3 + Google OAuth + localhost embed proxy |
 | 🟣 **Twitch** | Search channels and games; a Games tab of top games, each opening its live streams; click a channel name for its past broadcasts, highlights and clips; signed in: Live + All followed channels, go-live notifications; watch streams, VODs and clips inline | Twitch Helix (app token + user OAuth) + localhost embed proxy |
 | 📰 **News** | Rotating headline ticker, click to open the article | Google News RSS — no key |
-| 📝 **Notes** | Markdown scratchpad, edit ↔ rendered toggle | Local (localStorage) |
+| 📝 **Notes** | Markdown notes in tabs (add, rename, delete), edit ↔ rendered toggle; `note <text>` from the palette | Local (localStorage) |
 | ✅ **Tasks** | Quick checklist — add, check off, clear completed | Local (localStorage) |
 | 🕐 **World Clock** | Multiple timezones, digital or analog faces | Pure JS — no API |
 | ⏱️ **Timer & Alarm** | Countdown timers + wall-clock alarms with a native notification | Local + notification IPC |
@@ -65,7 +65,7 @@
 | 🤖 **Claude** | Chat with Claude — streaming replies, GFM markdown, multi-turn context, thinking blocks, animated status shimmer. **Interactive prompts**: in **Ask** mode writes/commands pop Allow/Deny cards (reads run freely), the model can ask you **multiple-choice questions**, and **Plan** mode ends with an Approve-plan card — with a chime + native notification when Claude blocks on you. Composer: **Ask / Auto / Plan** switch, **model picker + effort slider**, `/` **slash & skill autocomplete**, **usage popover** (5h session + weekly + context meter). Workspace + extra folders configurable in Settings → Claude | Your installed **Claude Code CLI** (bills your claude.ai plan, not API keys) |
 | 💬 **Discord** | The **real Discord**, embedded whole — servers, DMs & group chats, replying, **voice channels**, and **screen sharing** with an in-widget screen/window picker (system audio shared on Windows). Log in once inside the widget and the session persists — switching layouts, collapsing, or unpinning never logs you out or drops a voice call (the embed lives for the whole app session); mention-count badge from the tab title; header actions for Home/Reload/Sign out. **Native mode** (header toggle, persisted): drives your RUNNING Discord **desktop app** over its local RPC — browse servers & channels, a **read-only live chat feed**, **join/leave voice channels**, **mute/deafen**, see who's in voice with **green speaking rings**, and a "Reply in Discord" button that jumps the desktop client to the channel | Embed: Discord web app in an Electron `<webview>` (own `persist:discord` session) — **no keys, no bot, no API setup**. Native: your own Discord application's client id/secret + the desktop app running |
 
-Everything lives on a **draggable, resizable grid** (react-grid-layout) with built-in presets, saveable custom layouts — either kind pinnable to the titlebar for one-click switching — and 15 themes plus a custom theme editor. The **Widgets menu groups every widget into categories** (Media / Feeds / Productivity / System / AI) with hover arrows to reorder rows within a category, and any widget can be **disabled entirely** from Settings → App → Widgets — it vanishes from the menu, the grid, and the command palette until re-enabled. Any widget **collapses accordion-style to just its title bar** (chevron in the header) and the state persists across restarts — collapsing hands its space to the widget directly below and expanding takes it back, so the rest of the grid stays exactly where it was. The **Ctrl/Cmd+K command palette** understands typed commands with arguments — `timer 1h5m3s tea`, `alarm 7:30am`, `task buy milk`, `volume 40`, `zone tokyo` — alongside fuzzy search over every action.
+Everything lives on a **draggable, resizable grid** (react-grid-layout; below 1200px of grid width it switches to a responsive, read-only 1/2/3-column layout) with built-in presets, saveable custom layouts — either kind pinnable to the titlebar for one-click switching — and themes plus a custom theme editor. The **Widgets menu groups every widget into categories** (Media / Feeds / Productivity / System / AI) with hover arrows to reorder rows within a category, and any widget can be **disabled entirely** from Settings → App → Widgets — it vanishes from the menu, the grid, and the command palette until re-enabled. Any widget **collapses accordion-style to just its title bar** (chevron in the header) and the state persists across restarts — collapsing hands its space to the widget directly below and expanding takes it back, so the rest of the grid stays exactly where it was. The **Ctrl/Cmd+K command palette** understands typed commands with arguments — `timer 1h5m3s tea`, `alarm 7:30am`, `task buy milk`, `volume 40`, `zone tokyo` — alongside fuzzy search over every action.
 
 > ¹ Spotify is a **remote control**, not a player — stock Electron has no Widevine CDM, so it can't decode DRM audio. It drives playback on a device you already have open (phone, desktop app, etc.).
 
@@ -132,7 +132,7 @@ Four workspaces, each with a single responsibility:
 2. **Build-time baked values** — `packages/server/build.mjs` bakes `.env` values into the server bundle at package time as a single esbuild-defined JSON blob (`BUILTINS_JSON`). The *values* land in the compiled bundle only — never in source or git. This is what lets a distributed DMG/EXE "just work".
 3. **`.env`** — loaded only in local `pnpm dev`. Gitignored.
 
-**User OAuth tokens** (Spotify, Twitch, YouTube) are stored separately as plain JSON at `~/.dash/<service>_tokens.json` (home dir, survives reinstalls).
+**User OAuth tokens** (Spotify, YouTube, Twitch, Google Calendar, Discord RPC) are AES-256-GCM encrypted JSON under `~/.dash/` (key in `~/.dash/.token-key`, protected by safeStorage); `pnpm dev` without the key stays plaintext.
 
 **Local server lock** — the server on `127.0.0.1:7432` answers only the app itself: every request carries a random token the main process mints per launch, the Host must be `127.0.0.1:7432` or `localhost:7432`, and CORS allows only the renderer's own origin, `app://nishboard` (the packaged renderer's custom scheme; it used to be `file://`, whose `null` origin any web page's sandboxed iframe can send too). The first launch on this version copies the renderer's saved state from the old `file://` origin.
 
@@ -144,7 +144,7 @@ Four workspaces, each with a single responsibility:
 
 **Prerequisites**
 
-- **Node.js ≥ 22.12** (macOS 13 Ventura or newer to run the packaged app)
+- **Node.js ≥ 24** (macOS 13 Ventura or newer to run the packaged app)
 - **pnpm 11.3.0** — `corepack enable && corepack prepare pnpm@11.3.0 --activate`
 
 **Install & run**
@@ -205,6 +205,8 @@ Run from the repo root:
 | `pnpm package` | `build` → `electron-builder` (via `scripts/package-app.mjs`, which stamps the latest tag's version). Produces a distributable DMG/EXE (unsigned, `CSC_IDENTITY_AUTO_DISCOVERY=false`). |
 | `pnpm typecheck` | `turbo typecheck` — `tsc --noEmit` everywhere. |
 | `pnpm lint` | `turbo lint`. |
+| `pnpm test` | `turbo test` — per-package `vitest run`. |
+| `pnpm fold:serve` | Serves the built renderer for the Fold visual check (`scripts/fold-serve.mjs`). |
 
 **Per-workspace** (handy when iterating on one piece):
 
@@ -228,11 +230,11 @@ Artifacts land in `release/`. Both targets are **unsigned** (no code-signing cer
 > **Build archive:** every locally-packaged installer is uploaded to a Google Drive builds folder via an [rclone](https://rclone.org) remote (`nishboard-builds`) → `rclone copy "release/<installer>" nishboard-builds: -P`. One-time `rclone config` (Google OAuth) sets up the remote.
 
 ### 🍎 macOS
-- Output: `release/Nishboard-0.1.0-arm64.dmg` (APFS, arm64).
+- Output: `release/Nishboard-<version>-arm64.dmg` (APFS, arm64).
 - First launch is Gatekeeper-blocked because it's unsigned → **right-click the app → Open** (one-time).
 
 ### 🪟 Windows (Microsoft / NSIS)
-- Output: `release/Nishboard-Setup-0.1.0.exe` (NSIS installer) plus `.exe.blockmap` and `latest.yml` for auto-update.
+- Output: `release/Nishboard-Setup-<version>.exe` (NSIS installer) plus `.exe.blockmap` and `latest.yml` for auto-update.
 - **SmartScreen** will warn on an unsigned installer: **"Windows protected your PC" → More info → Run anyway.**
 - **Non-admin builds are supported.** electron-builder 26 no longer downloads `winCodeSign` for unsigned builds, so the old symlink-extraction workaround is gone.
 - **Auto-update (Windows only):** installed builds check GitHub Releases 30s after launch and every 6h, download in the background and install on quit (or Settings → About → Restart to update). macOS builds are unsigned, so they only check and offer the DMG.
@@ -245,11 +247,12 @@ Artifacts land in `release/`. Both targets are **unsigned** (no code-signing cer
 
 ## 🤖 CI & Releases
 
-Two GitHub Actions workflows (`.github/workflows/`):
+Three GitHub Actions workflows (`.github/workflows/`):
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| **CI** (`ci.yml`) | every PR + push to master | `pnpm typecheck` + `lint` + full `turbo build` |
+| **CI** (`ci.yml`) | every PR + push to master | `pnpm typecheck` + `lint` + full `turbo build` + `pnpm test` |
+| **Fold** (`fold.yml`) | PRs touching `ui/*`, Dependabot and `fold`-labeled PRs | the Fold visual check |
 | **Release** (`release.yml`) | every merge to master | derives the semver bump from the PR title, tags `vX.Y.Z` (tag-only — master is protected; the tag, not package.json, is the version source of truth), builds the macOS DMG + Windows EXE, publishes a GitHub Release |
 
 **Versioning is fully automated — never bump by hand.** The squash-commit subject (= PR title) picks the bump:
@@ -263,7 +266,7 @@ Two GitHub Actions workflows (`.github/workflows/`):
 
 Manual/off-cycle release: **Actions → Release → Run workflow** (choose the bump). Hand-pushed tags no longer trigger anything.
 
-CI-built installers carry **no baked API keys** (there's no `.env` in CI) — enter keys once in Settings → Developer. Locally-built (`pnpm package`) installers bake whatever is in your `.env`. The in-app update check (Settings → About) polls the latest GitHub Release and offers a direct download of the right installer for your platform.
+CI-built installers carry **no baked API keys** (there's no `.env` in CI) — enter keys once in Settings → Developer. Locally-built (`pnpm package`) installers bake whatever is in your `.env`. The in-app update check (Settings → About) checks the latest GitHub Release: on Windows it downloads and installs the update on quit, on macOS it links the DMG.
 
 ---
 
@@ -304,7 +307,7 @@ nishboard/
 │   └── renderer/          # React UI
 │       └── src/
 │           ├── components/       # Titlebar, DashboardGrid, WidgetShell, SettingsModal
-│           ├── widgets/          # weather, spotify, stocks, hardware, sound, calendar, youtube, twitch, news, notes, tasks, worldclock, timer, countdown, crypto, launcher, clipboard, claude, discord, embed (shared search+player frame)
+│           ├── widgets/          # weather, spotify, stocks, hardware, sound, calendar, youtube, twitch, news, notes, tasks, worldclock, timer, countdown, crypto, launcher, clipboard, inbox, netmon, claude, discord, embed (shared search+player frame)
 │           ├── store/            # Zustand stores (layout, theme, …)
 │           ├── lib/              # layouts.ts (grid engine), apiClient, utils
 │           └── index.css         # theme tokens + global styles
@@ -313,7 +316,7 @@ nishboard/
 │   │   ├── src/routes/           # one file per widget
 │   │   └── build.mjs             # esbuild bundle + build-time key baking
 │   └── shared/            # shared TypeScript types
-├── .github/workflows/     # ci.yml (checks) + release.yml (auto semver + installers)
+├── .github/workflows/     # ci.yml (checks) + fold.yml (Fold visual check) + release.yml (auto semver + installers)
 ├── build/                 # app icons
 ├── scripts/               # package-app.mjs, bump-version.mjs
 ├── electron-builder.yml   # packaging config (DMG + NSIS)

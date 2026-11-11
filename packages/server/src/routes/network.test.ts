@@ -3,10 +3,11 @@ import { describe, expect, it, vi } from 'vitest';
 // ping is mocked: the Sampler cases below never spawn a real child process.
 vi.mock('child_process', () => ({
   execFile: (_cmd: string, _args: string[], _opts: unknown, cb: (e: Error | null, r: { stdout: string }) => void) =>
-    cb(null, { stdout: 'time=6ms time=6.0 ms' }),
+    cb(null, { stdout: 'time=6ms TTL=55 time=6.0 ms' }),
 }));
 
-import { computeStats, isValidHost, parseMacPing, parseWinPing, Sampler } from './network';
+import Fastify from 'fastify';
+import { computeStats, networkRoutes, isValidHost, parseMacPing, parseWinPing, Sampler } from './network';
 
 describe('Sampler (per-host buffers)', () => {
   it('accumulates samples when both targets are the same host (deduped)', async () => {
@@ -29,6 +30,29 @@ describe('Sampler (per-host buffers)', () => {
     expect(s.read(['1.1.1.1'])[0].samples).toBe(1);
     expect(s.read(['9.9.9.9'])[0].samples).toBe(0);
     s.stop();
+  });
+});
+
+describe('Sampler recentMs ring', () => {
+  it('returns the raw ring, oldest first, capped at the window', async () => {
+    const s = new Sampler();
+    s.touch(['1.1.1.1']);
+    await vi.waitFor(() => expect(s.read(['1.1.1.1'])[0].samples).toBe(1));
+    for (let i = 0; i < 34; i++) await s.tick();
+    const [r] = s.read(['1.1.1.1']);
+    expect(r.recentMs).toHaveLength(30);
+    expect(r.recentMs.every((v) => v === 6)).toBe(true);
+    s.stop();
+  });
+});
+
+describe('GET /api/network querystring schema', () => {
+  it('rejects a repeated hosts param with 400 instead of 500', async () => {
+    const app = Fastify();
+    await app.register(networkRoutes);
+    const res = await app.inject({ method: 'GET', url: '/?hosts=a&hosts=b' });
+    expect(res.statusCode).toBe(400);
+    await app.close();
   });
 });
 
@@ -155,6 +179,11 @@ describe('parseWinPing (Windows-only, localized output)', () => {
   it('parses the sub-millisecond form as 0.5 — English and German', () => {
     expect(parseWinPing('Reply from 192.168.1.1: bytes=32 time<1ms TTL=64')).toBe(0.5);
     expect(parseWinPing('Antwort von 192.168.1.1: Bytes=32 Zeit<1ms TTL=64')).toBe(0.5);
+  });
+
+  it('parses a Russian reply line (unit and word for time are translated)', () => {
+    expect(parseWinPing('Ответ от 1.1.1.1: число байт=32 время=12мс TTL=57')).toBe(12);
+    expect(parseWinPing('Ответ от 192.168.1.1: число байт=32 время<1мс TTL=64')).toBe(0.5);
   });
 
   it('ignores Bytes=32 / TTL=57 tokens — only the ms token counts', () => {

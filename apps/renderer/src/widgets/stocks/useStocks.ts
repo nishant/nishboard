@@ -49,7 +49,7 @@ export function useStocks(enabled = true, interval?: number | false) {
   const gated = useGatedInterval(5 * 60 * 1000);
   return useQuery<StocksData>({
     queryKey: ['stocks', watchlist],
-    queryFn: () => apiClient.get<StocksData>(`/api/stocks?symbols=${watchlist.join(',')}`),
+    queryFn: () => apiClient.get<StocksData>(`/api/stocks?symbols=${encodeURIComponent(watchlist.join(','))}`),
     refetchInterval: interval ?? gated,
     // An explicit interval means the alerts evaluator: keep polling while hidden.
     refetchIntervalInBackground: interval !== undefined,
@@ -61,7 +61,7 @@ export function useStocks(enabled = true, interval?: number | false) {
 export function useStockDetail(symbol: string | null) {
   return useQuery<StockDetail>({
     queryKey: ['stock-detail', symbol],
-    queryFn: () => apiClient.get<StockDetail>(`/api/stocks/detail?symbol=${symbol}`),
+    queryFn: () => apiClient.get<StockDetail>(`/api/stocks/detail?symbol=${encodeURIComponent(symbol ?? '')}`),
     enabled: !!symbol,
     staleTime: 60_000,
     refetchOnWindowFocus: false,

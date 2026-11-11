@@ -5,6 +5,7 @@ import { promisify } from 'util';
 import { SimpleCache } from '../cache/SimpleCache';
 import { HttpError } from '../lib/http';
 import { PsHost, buildBootstrap } from '../lib/psHost';
+import { buildChildEnv } from '../lib/claudeCli';
 
 const execFileAsync = promisify(execFile);
 const cache = new SimpleCache<SoundData>();
@@ -16,7 +17,13 @@ const TTL_MS = 4_000;
 // macOS-only callers (osascript / SwitchAudioSource): a hung binary must reject
 // so the shared inFlight promise clears and the next poll retries.
 async function run(cmd: string, args: string[]): Promise<string> {
-  const { stdout } = await execFileAsync(cmd, args, { encoding: 'utf8', timeout: 5_000, killSignal: 'SIGKILL' });
+  const { stdout } = await execFileAsync(cmd, args, {
+    encoding: 'utf8',
+    timeout: 5_000,
+    killSignal: 'SIGKILL',
+    // Same secret filter as the Claude CLI child: osascript / SwitchAudioSource need none of our keys.
+    env: buildChildEnv(process.env),
+  });
   return stdout.trim();
 }
 
@@ -27,7 +34,9 @@ async function macGetData(): Promise<SoundData> {
     run('osascript', ['-e', 'output volume of (get volume settings)']),
     run('osascript', ['-e', 'output muted of (get volume settings)']),
   ]);
-  const volumePercent = Number(volStr);
+  // macOS-only: HDMI / DisplayPort outputs have no volume control and report 'missing value'.
+  const v = Number(volStr);
+  const volumePercent = Number.isFinite(v) ? v : 0;
   const muted = mutedStr === 'true';
 
   let activeDeviceName = 'Default Output';
@@ -482,6 +491,10 @@ export const soundRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     async (req, reply) => {
+      // macOS-only: SwitchAudioSource would parse a leading '-' id as another option.
+      if (process.platform === 'darwin' && req.body.deviceId.startsWith('-')) {
+        return reply.code(400).send({ error: 'Invalid deviceId' });
+      }
       await switchDevice(req.body.deviceId);
       cache.clear();
       return reply.send({ ok: true });

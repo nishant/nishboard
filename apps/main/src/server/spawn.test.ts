@@ -10,9 +10,13 @@ const tmpDir = await vi.hoisted(async () => {
   return fsMod.mkdtempSync(pathMod.join(osMod.tmpdir(), 'nishboard-test-'));
 });
 
+class FakePipe extends EventEmitter {
+  pipe = vi.fn();
+}
+
 class FakeChild extends EventEmitter {
-  stdout = null;
-  stderr = null;
+  stdout = new FakePipe();
+  stderr = new FakePipe();
   exitCode: number | null = null;
   signalCode: string | null = null;
   kill = vi.fn((signal?: string) => {
@@ -69,6 +73,42 @@ describe('restartServer', () => {
       const second = children[1];
       await stopServer();
       expect(second.kill).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('per-child server log', () => {
+  afterEach(() => {
+    fs.rmSync(path.join(tmpDir, 'logs'), { recursive: true, force: true });
+  });
+
+  beforeEach(() => {
+    children.length = 0;
+    spawnMock.mockClear();
+    vi.resetModules();
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: true })));
+  });
+
+  it('a late exit of an old child does not end the new child log stream', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { spawnServer, restartServer, stopServer } = await import('./spawn');
+      await spawnServer();
+      await restartServer();
+      expect(children).toHaveLength(2);
+
+      children[1].stdout.emit('data', 'before-late-exit\n');
+      children[0].emit('exit', null, 'SIGTERM'); // late duplicate exit of the old child
+      children[1].stdout.emit('data', 'after-late-exit\n');
+      await stopServer();
+      await vi.advanceTimersByTimeAsync(200);
+
+      const log = fs.readFileSync(path.join(tmpDir, 'logs', 'server.log'), 'utf8');
+      expect(log).toContain('before-late-exit');
+      expect(log).toContain('after-late-exit');
     } finally {
       vi.useRealTimers();
     }

@@ -9,6 +9,12 @@ import { useTasksStore } from '../store/tasksStore';
 import { useTimersStore } from '../store/timersStore';
 import { useCountdownStore } from '../store/countdownStore';
 import { useWorldClockStore } from '../store/worldClockStore';
+import { useAlertsStore } from '../store/alertsStore';
+import { useNetmonStore } from '../store/netmonStore';
+import { useWidgetUiStore } from '../store/widgetUiStore';
+import { useDiscordUiStore } from '../store/discordUiStore';
+import { useInboxUiStore } from '../store/inboxUiStore';
+import { useLauncherUiStore } from '../store/launcherUiStore';
 
 // Auto-export: any change to a persisted store schedules a debounced write of
 // the (secret-free) settings payload through the main process into the
@@ -32,11 +38,14 @@ function schedule(): void {
 export function initAutoExport(): void {
   if (started || !window.electron?.backup) return;
   started = true;
-  // Every zustand store persisted to localStorage (UI-only stores excluded).
+  // Every zustand store persisted to localStorage and included in the backup
+  // (claudeStore is excluded from backups, so it stays out here too).
   const stores = [
     useLayoutStore, useThemeStore, useAppSettingsStore,
     useCryptoStore, useNotesStore, useHardwareStore, useTasksStore,
     useTimersStore, useCountdownStore, useWorldClockStore,
+    useAlertsStore, useNetmonStore, useWidgetUiStore,
+    useDiscordUiStore, useInboxUiStore, useLauncherUiStore,
   ];
   for (const store of stores) store.subscribe(schedule);
 }

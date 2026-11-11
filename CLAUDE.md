@@ -96,7 +96,7 @@ Three places a key can live — checked in this order at runtime:
 
 ## Testing
 - `pnpm test` = turbo → per-package `vitest run`. Tests are colocated `*.test.ts` next to their source (renderer allows `.test.tsx`).
-- **vitest:** the renderer runs vitest 4 (Vite 8); `apps/main` and `packages/server` stay on vitest 3 (no Vite there).
+- **vitest:** all three packages (`apps/renderer`, `apps/main`, `packages/server`) run vitest `^4` (which pulls Vite 8).
 - Renderer tests run in **jsdom** with the same aliases as vite.config.ts; zustand persist stores are tested by seeding localStorage (`{state, version}` envelope) then `vi.resetModules()` + dynamic import.
 - Main-process tests alias `electron` → `apps/main/test/electron-stub.ts` (module-scope `import { app } from 'electron'` would otherwise crash under node). Keep the stub's exports in sync with what main modules destructure. `apps/main/tsconfig.json` excludes tests from the build so they never reach the packaged `dist/`.
 - Server upstreams all go through global `fetch` → stub with `vi.stubGlobal('fetch', …)`. `lib/env.ts` parses `BUILTINS_JSON` at module load — set the env var **before** a fresh `vi.resetModules()` import.
@@ -171,7 +171,9 @@ One section per merged PR, newest first. Canonical structure:
 When Nish gives feedback or states a preference, add it to **both**:
 - `CLAUDE.md` (this file, committed — travels with the repo to all machines)
 - Local auto-memory (per-machine, **not** committed). The dir is derived from the checkout path, so it differs per machine — Nish develops on both:
-  - **macOS:** `~/.claude/projects/-Users-nishant-Code-desktop-dashboard/memory/`
-  - **Windows:** `C:\Users\nish5\.claude\projects\C--Code-desktop-dashboard-desktop-dashboard\memory\`
+  - Path rule: `~/.claude/projects/<checkout path with separators turned into '-'>/memory/`, e.g. `C--Code-nishboard` for `C:\Code\nishboard`.
+
+  Prefer `CLAUDE.md` for anything that should follow the repo; use local auto-memory for machine-specific facts.for `C:Code
+ishboard`.
 
   Prefer `CLAUDE.md` for anything that should follow the repo; use local auto-memory for machine-specific facts.

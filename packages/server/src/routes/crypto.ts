@@ -71,17 +71,25 @@ export const cryptoRoutes: FastifyPluginAsync = async (fastify) => {
         .split(',')
         .map((s) => s.trim().toLowerCase())
         .filter((s) => ID_RE.test(s))
+        .filter((s, i, all) => all.indexOf(s) === i)
         .slice(0, MAX_IDS);
       if (ids.length === 0) throw new HttpError(400, 'No coin ids provided');
 
+      // Cache the rows by id set; the response is re-ordered per request so a
+      // re-added coin never keeps another requester's order.
       const key = [...ids].sort().join(',');
+      const inRequestOrder = (data: CryptoData): CryptoData => {
+        const byId = new Map(data.coins.map((c) => [c.id, c]));
+        const coins = ids.map((id) => byId.get(id)).filter((c): c is CryptoCoinData => c != null);
+        return { ...data, coins };
+      };
       const cached = cache.get(key);
-      if (cached) return reply.send(cached);
+      if (cached) return reply.send(inRequestOrder(cached));
 
       try {
         const data = await fetchMarkets(ids);
         cache.set(key, data);
-        return reply.send(data);
+        return reply.send(inRequestOrder(data));
       } catch (err) {
         if (err instanceof UpstreamError && err.status === 429) {
           throw new HttpError(429, 'CoinGecko rate limit hit — data resumes in a minute. An API key in Settings → Developer raises the limit.');

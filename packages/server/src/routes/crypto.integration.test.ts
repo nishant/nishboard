@@ -57,6 +57,20 @@ describe('GET /api/crypto', () => {
     expect(data.coins[1].priceUsd).toBe(100_000);
   });
 
+  it('dedupes ids and re-orders cache hits by the request order', async () => {
+    stubFetch([
+      ['api.coingecko.com/api/v3/coins/markets', () => jsonRes([gecko('solana', 150), gecko('litecoin', 70)])],
+    ]);
+    const first = await app.inject({ method: 'GET', url: '/api/crypto?ids=solana,litecoin,solana' });
+    expect(first.json<CryptoData>().coins.map((c) => c.id)).toEqual(['solana', 'litecoin']);
+    // Same id set within the TTL, new order: served from cache, in the new order.
+    vi.unstubAllGlobals();
+    stubFetch([['api.coingecko.com', () => { throw new Error('should be cached'); }]]);
+    const second = await app.inject({ method: 'GET', url: '/api/crypto?ids=litecoin,solana' });
+    expect(second.statusCode).toBe(200);
+    expect(second.json<CryptoData>().coins.map((c) => c.id)).toEqual(['litecoin', 'solana']);
+  });
+
   it('nulls from CoinGecko become 0s, and unknown ids are dropped', async () => {
     stubFetch([
       ['api.coingecko.com/api/v3/coins/markets', () => jsonRes([gecko('cardano', null)])],

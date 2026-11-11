@@ -102,6 +102,23 @@ describe('setWidgetCollapsed', () => {
   });
 });
 
+describe('setWidgetCollapsed expand fallback', () => {
+  it('restores to DEFAULT_EXPAND_H (not the minH floor) when savedHeights has no entry', async () => {
+    const { useLayoutStore, collapsedRowsFor } = await loadStore();
+    const lockedH = collapsedRowsFor(30, 8);
+    useLayoutStore.getState().syncLayout([
+      { i: 'weather', x: 0, y: 0, w: 6, h: lockedH, minW: 4, minH: lockedH, maxH: lockedH, isResizable: false },
+    ]);
+    expect(useLayoutStore.getState().savedHeights.weather).toBeUndefined();
+
+    useLayoutStore.getState().setWidgetCollapsed('weather', false, 30, 8);
+    const item = useLayoutStore.getState().layout.find((it) => it.i === 'weather');
+    expect(item?.h).toBeGreaterThan(lockedH);
+    expect(item?.h).toBe(6);
+    expect(item?.isResizable).toBe(true);
+  });
+});
+
 describe('exactNeighborsBelow', () => {
   const item: Layout = { i: 'hardware', x: 0, y: 0, w: 12, h: 8 };
   const visible = ['hardware', 'weather', 'spotify', 'stocks'] as const;

@@ -39,8 +39,9 @@ export function useClaudeStatus() {
   });
 }
 
-/** Slash-command autocomplete data. Refetched when the composer's slash menu
- *  opens (see refetch in the widget) — cheap: the server answers from memory. */
+/** Slash-command autocomplete data. The server captures the commands from the
+ *  first chat's `init` frame, so the send path invalidates this query on `init`
+ *  (see useSendClaudeMessage); otherwise it is only refetched after 5 minutes. */
 export function useClaudeMeta() {
   return useQuery<ClaudeMetaData>({
     queryKey: ['claude-meta'],
@@ -172,6 +173,7 @@ export async function postChatWithRetry(
 }
 
 export function useSendClaudeMessage(): { send: (text: string) => void; stop: () => void } {
+  const queryClient = useQueryClient();
   const send = (text: string): void => {
     const trimmed = text.trim();
     if (!trimmed) return;
@@ -204,6 +206,9 @@ export function useSendClaudeMessage(): { send: (text: string) => void; stop: ()
         switch (event.type) {
           case 'init':
             s.setSession(event.sessionId, event.model);
+            // The server has just captured slash_commands/skills from this
+            // frame — refresh the autocomplete data (and its empty-state hint).
+            void queryClient.invalidateQueries({ queryKey: ['claude-meta'] });
             break;
           case 'delta':
             s.appendDelta(event.text);
@@ -245,18 +250,29 @@ export function useSendClaudeMessage(): { send: (text: string) => void; stop: ()
             break;
         }
       },
-    }).catch((err: unknown) => {
-      const s = useClaudeStore.getState();
-      s.setStreaming(false);
-      // Stop pressed → AbortError, keep whatever partial text streamed in.
-      if (controller.signal.aborted) return;
-      const message = err instanceof Error ? err.message : String(err);
-      toast('Claude', message, 'error');
-      // A 409 that outlasted every retry: the message never reached the CLI,
-      // so don't leave an orphan bubble in the transcript.
-      if (err instanceof StreamHttpError && err.status === 409) s.dropUnsentTurn();
-      else s.appendError(message);
-    });
+    })
+      .then(() => {
+        // The server ended the response without a done/error frame (child
+        // exited early): don't leave the composer stuck in "streaming".
+        const s = useClaudeStore.getState();
+        if (s.isStreaming && activeController === controller) {
+          s.setStreaming(false);
+          s.cancelPendingPrompts();
+          s.appendError('Response ended unexpectedly');
+        }
+      })
+      .catch((err: unknown) => {
+        const s = useClaudeStore.getState();
+        s.setStreaming(false);
+        // Stop pressed → AbortError, keep whatever partial text streamed in.
+        if (controller.signal.aborted) return;
+        const message = err instanceof Error ? err.message : String(err);
+        toast('Claude', message, 'error');
+        // A 409 that outlasted every retry: the message never reached the CLI,
+        // so don't leave an orphan bubble in the transcript.
+        if (err instanceof StreamHttpError && err.status === 409) s.dropUnsentTurn();
+        else s.appendError(message);
+      });
   };
 
   return { send, stop: stopClaudeStream };

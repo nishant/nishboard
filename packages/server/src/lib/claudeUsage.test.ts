@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseUsageResponse } from './claudeUsage';
+import { isCredentialExpired, parseUsageResponse } from './claudeUsage';
 
 // Pure response-mapping tests only — no network, no keychain.
 
@@ -49,14 +49,18 @@ describe('parseUsageResponse', () => {
   });
 });
 
-describe('parseUsageResponse — fraction normalization', () => {
-  it('scales fraction-shaped responses (all windows ≤ 1) to percent', () => {
+describe('parseUsageResponse — percent-shaped only (NISHBOARD-203)', () => {
+  it('does not scale fraction-looking responses: the endpoint reports percent', () => {
     const data = parseUsageResponse({
       five_hour: { utilization: 0.62, resets_at: null },
       seven_day: { utilization: 0.07 },
     });
-    expect(data.windows[0].utilization).toBeCloseTo(62);
-    expect(data.windows[1].utilization).toBeCloseTo(7);
+    expect(data.windows.map((w) => w.utilization)).toEqual([0.62, 0.07]);
+  });
+
+  it('an idle 5h window next to a 0.8% week stays 0.8', () => {
+    const data = parseUsageResponse({ five_hour: { utilization: 0 }, seven_day: { utilization: 0.8 } });
+    expect(data.windows.map((w) => w.utilization)).toEqual([0, 0.8]);
   });
 
   it('leaves percent-shaped responses untouched even with one small window', () => {
@@ -65,5 +69,14 @@ describe('parseUsageResponse — fraction normalization', () => {
       seven_day: { utilization: 45 },
     });
     expect(data.windows.map((w) => w.utilization)).toEqual([0.9, 45]);
+  });
+});
+
+describe('isCredentialExpired (NISHBOARD-202)', () => {
+  it('expired only when expiresAt is known and has passed', () => {
+    expect(isCredentialExpired(null, 1000)).toBe(false);
+    expect(isCredentialExpired(2000, 1000)).toBe(false);
+    expect(isCredentialExpired(1000, 1000)).toBe(true);
+    expect(isCredentialExpired(500, 1000)).toBe(true);
   });
 });
