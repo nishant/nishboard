@@ -236,7 +236,9 @@ export async function launchItem(id: string): Promise<void> {
     if (/^https?:\/\//i.test(it.target)) await shell.openExternal(it.target);
     return;
   }
-  await shell.openPath(it.target);
+  // openPath resolves with an error string (not a rejection) when it fails.
+  const err = await shell.openPath(it.target);
+  if (err) throw new Error(err);
 }
 
 // ── Groups ────────────────────────────────────────────────────────────────────
@@ -282,8 +284,15 @@ export function assignLauncherGroup(itemId: string, groupId: string | null): voi
  *  don't fight over focus all at once. */
 export async function launchGroup(id: string): Promise<void> {
   const members = load().items.filter((it) => it.group === id);
+  const failed: string[] = [];
   for (const it of members) {
-    await launchItem(it.id);
+    // One bad item must not stop the rest of the group from launching.
+    try {
+      await launchItem(it.id);
+    } catch {
+      failed.push(it.label);
+    }
     await new Promise((r) => setTimeout(r, 100));
   }
+  if (failed.length > 0) throw new Error(`Could not launch: ${failed.join(', ')}`);
 }

@@ -126,8 +126,13 @@ interface HostBuf {
   lastSeen: number;
 }
 
+/** One round-trip in ms, or null on loss. Injectable so tests need no child process. */
+export type PingFn = (host: string) => Promise<number | null>;
+
 /** Exported for tests. */
 export class Sampler {
+  constructor(private readonly ping: PingFn = pingOnce) {}
+
   private hosts = new Map<string, HostBuf>();
   private timer: NodeJS.Timeout | null = null;
   private lastRequestAt = 0;
@@ -178,7 +183,7 @@ export class Sampler {
     this.ticking = true;
     try {
       const hosts = [...this.hosts.keys()];
-      const results = await Promise.allSettled(hosts.map((h) => pingOnce(h)));
+      const results = await Promise.allSettled(hosts.map((h) => this.ping(h)));
       hosts.forEach((h, i) => {
         const entry = this.hosts.get(h);
         if (!entry) return; // dropped mid-tick — discard the stale result

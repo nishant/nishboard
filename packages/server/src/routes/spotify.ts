@@ -409,8 +409,15 @@ export const spotifyRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // POST /api/spotify/volume  { volumePercent: number }
-  fastify.post<{ Body: { volumePercent: number } }>('/volume', async (req, reply) => {
-    const vol = Math.min(100, Math.max(0, Math.round(req.body.volumePercent)));
+  fastify.post<{ Body: { volumePercent: number } }>('/volume', {
+    schema: {
+      body: {
+        type: 'object', required: ['volumePercent'],
+        properties: { volumePercent: { type: 'number', minimum: 0, maximum: 100 } },
+      },
+    },
+  }, async (req, reply) => {
+    const vol = Math.round(req.body.volumePercent);
     await spotifyCommand('PUT', `/me/player/volume?volume_percent=${vol}`, 'Spotify volume');
     nowPlayingCache.clear();
     return reply.code(204).send();

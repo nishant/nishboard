@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo } from 'react';
+import { useInfiniteQuery, useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { apiClient } from '../../lib/apiClient';
 import { toast } from '../../lib/alerts';
 import { useGatedInterval } from '../../hooks/useGatedInterval';
@@ -38,26 +38,56 @@ export function mergeInboxPages(pages: InboxFeedData[] | undefined): {
   return { state: first.state, items, first: first.state === 'ok' ? first.list : null };
 }
 
+/** Exported for tests. Swaps in a freshly fetched head page; later pages and all page params are kept. */
+export function replaceHeadPage(
+  data: InfiniteData<InboxFeedData, string | null> | undefined,
+  head: InboxFeedData,
+): InfiniteData<InboxFeedData, string | null> | undefined {
+  if (!data || data.pages.length === 0) return data;
+  return { ...data, pages: [head, ...data.pages.slice(1)] };
+}
+
+function fetchInboxPage(view: string, source: string | null, cursor: string | null): Promise<InboxFeedData> {
+  const qs = new URLSearchParams({
+    view,
+    ...(source ? { source } : {}),
+    ...(cursor ? { cursor } : {}),
+  });
+  return apiClient.get<InboxFeedData>(`/api/inbox/items?${qs.toString()}`);
+}
+
 export function useInboxFeed() {
+  const queryClient = useQueryClient();
   const view = useInboxUiStore((s) => s.view);
   const source = useInboxUiStore((s) => s.source);
   const interval = useGatedInterval(60_000);
 
   const query = useInfiniteQuery({
     queryKey: ['inbox', view, source],
-    queryFn: ({ pageParam }) => {
-      const qs = new URLSearchParams({
-        view,
-        ...(source ? { source } : {}),
-        ...(pageParam ? { cursor: pageParam } : {}),
-      });
-      return apiClient.get<InboxFeedData>(`/api/inbox/items?${qs.toString()}`);
-    },
+    queryFn: ({ pageParam }) => fetchInboxPage(view, source, pageParam),
     initialPageParam: null as string | null,
     getNextPageParam: nextPageParam,
-    refetchInterval: interval,
+    // No built-in polling: it would re-request every loaded page. The effect
+    // below refreshes only the head page (the newest items) and keeps the rest.
+    refetchInterval: false,
     staleTime: 30_000,
   });
+
+  const hasData = query.data !== undefined;
+  useEffect(() => {
+    if (interval === false || !hasData) return;
+    const key = ['inbox', view, source];
+    const id = setInterval(() => {
+      void fetchInboxPage(view, source, null)
+        .then((head) => {
+          queryClient.setQueryData<InfiniteData<InboxFeedData, string | null>>(key, (old) => replaceHeadPage(old, head));
+        })
+        .catch(() => {
+          /* keep showing the last data; the next tick or a manual refetch retries */
+        });
+    }, interval);
+    return () => clearInterval(id);
+  }, [interval, hasData, view, source, queryClient]);
 
   const pages = query.data?.pages;
   const derived = useMemo(() => mergeInboxPages(pages), [pages]);

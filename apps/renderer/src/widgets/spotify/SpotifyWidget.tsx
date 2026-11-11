@@ -611,11 +611,17 @@ function LikeButton({ trackId, type, size }: { trackId: string; type: TrackData[
 function NowPlayingView({
   data,
   size,
+  narrow,
+  tiny,
   onOpenPlaylists,
   onOpenSearch,
 }: {
   data: TrackData;
   size: SizeVariant;
+  /** Tile narrower than 240px: tighter gaps, controls may wrap rather than clip. */
+  narrow: boolean;
+  /** Tile narrower than 200px: the ±15s buttons are hidden. */
+  tiny: boolean;
   onOpenPlaylists: () => void;
   onOpenSearch: () => void;
 }) {
@@ -678,18 +684,18 @@ function NowPlayingView({
 
   // ── Shared controls row ───────────────────────────────────────────────────────
   const controls = (
-    <div className="flex items-center justify-between">
+    <div className={cn('flex items-center', narrow ? 'flex-wrap justify-center gap-x-1.5' : 'justify-between')}>
       <button onClick={() => shuffle.mutate(!data.shuffleState)}
         className={cn(TOUCH_BTN, 'transition-colors', activeClass(data.shuffleState))} title="Shuffle" aria-label="Shuffle" aria-pressed={data.shuffleState}>
         <Shuffle size={srSz} />
       </button>
       <div className="flex items-center">
-        <button onClick={handleRewind}
+        {!tiny && <button onClick={handleRewind}
           className={cn(TOUCH_BTN, 'text-th-hi3 hover:text-th-hi transition-colors relative')} title="Rewind 15s" aria-label="Rewind 15 seconds">
           <RotateCcw size={seekSz} />
           {/* 6px is an intentional micro-label on the seek icon, below the type scale */}
           <span className="absolute inset-0 flex items-center justify-center font-bold text-current mt-1.5 ml-0.5 pointer-events-none" style={{ fontSize: 6 }}>15</span>
-        </button>
+        </button>}
         <button onClick={() => previous.mutate()}
           className={cn(TOUCH_BTN, 'text-th-hi2 hover:text-th-hi transition-colors')} title="Previous" aria-label="Previous">
           <SkipBack size={skipSz} />
@@ -705,12 +711,12 @@ function NowPlayingView({
           className={cn(TOUCH_BTN, 'text-th-hi2 hover:text-th-hi transition-colors')} title="Next" aria-label="Next">
           <SkipForward size={skipSz} />
         </button>
-        <button onClick={handleSkipFwd}
+        {!tiny && <button onClick={handleSkipFwd}
           className={cn(TOUCH_BTN, 'text-th-hi3 hover:text-th-hi transition-colors relative')} title="Skip forward 15s" aria-label="Skip forward 15 seconds">
           <RotateCw size={seekSz} />
           {/* 6px is an intentional micro-label on the seek icon, below the type scale */}
           <span className="absolute inset-0 flex items-center justify-center font-bold text-current mt-1.5 mr-0.5 pointer-events-none" style={{ fontSize: 6 }}>15</span>
-        </button>
+        </button>}
       </div>
       <button onClick={() => repeat.mutate(nextRepeatState(data.repeatState))}
         className={cn(TOUCH_BTN, 'transition-colors', activeClass(data.repeatState !== 'off'))}
@@ -935,15 +941,22 @@ export function SpotifyWidget() {
   // Responsive sizing — useElementSize handles the callback-ref + retry-RAF +
   // ResizeObserver dance (conditional early returns below mean the container
   // doesn't exist on first render; see the hook for the full rationale).
-  const { ref: setContainerEl, height: containerH } = useElementSize<HTMLDivElement>();
+  const { ref: setContainerEl, height: containerH, width: containerW } = useElementSize<HTMLDivElement>();
 
-  const size: SizeVariant =
+  const heightSize: SizeVariant =
     containerH === 0 ? 'sm' // unmeasured — keep the pre-hook default, not 'xs'
     : containerH < 200 ? 'xs'
     : containerH < 300 ? 'sm'
     : containerH < 400 ? 'md'
     : containerH < 480 ? 'lg'
     : 'xl';
+  // Width caps the variant: a tall but narrow tile must not get the large
+  // controls. 0 = not measured yet, so no cap.
+  const narrow = containerW > 0 && containerW < 240;
+  const tiny = containerW > 0 && containerW < 200;
+  const size: SizeVariant = narrow && (heightSize === 'md' || heightSize === 'lg' || heightSize === 'xl')
+    ? 'sm'
+    : heightSize;
 
   const handleConnect = useCallback(() => connect.mutate(), [connect]);
 
@@ -985,6 +998,8 @@ export function SpotifyWidget() {
             <NowPlayingView
               data={track!}
               size={size}
+              narrow={narrow}
+              tiny={tiny}
               onOpenPlaylists={() => setShowPlaylists(true)}
               onOpenSearch={() => setShowSearch(true)}
             />

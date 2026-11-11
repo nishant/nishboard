@@ -24,6 +24,16 @@ import { ALLOWED_ORIGINS, registerAccessGuard } from './lib/access';
 // Anything else from an upstream is our 502.
 const PASSTHROUGH_STATUSES = [401, 403, 404, 429];
 
+/** What the request logger records: method, path (never the query string:
+ *  OAuth codes, state, search text) and Host. Exported for tests. */
+export function requestLogShape(req: { method?: string; url?: string; headers?: { host?: string } }): {
+  method: string | undefined;
+  url: string;
+  host: string | undefined;
+} {
+  return { method: req.method, url: (req.url ?? '').split('?')[0], host: req.headers?.host };
+}
+
 /**
  * Build the fully-wired Fastify app: CORS, central error handler, every route
  * plugin, /health, and the builtin-credentials probe. No listen(), no dotenv,
@@ -44,7 +54,11 @@ export async function buildServer(
   if (!apiToken) throw new Error('DASH_API_TOKEN must be set (the Electron main process passes it)');
   const port = opts.port ?? Number(process.env.SERVER_PORT ?? 7432);
 
-  const server = Fastify({ logger: opts.logger === false ? false : { level: 'info' } });
+  // The req serializer logs the path only: OAuth callbacks carry `code`/`state`
+  // and search routes carry queries, none of which belong in server.log.
+  const server = Fastify({
+    logger: opts.logger === false ? false : { level: 'info', serializers: { req: requestLogShape } },
+  });
 
   // Registered before the guard so a 401 or 403 still carries its CORS headers
   // and the renderer can read the error.

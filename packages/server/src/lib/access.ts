@@ -52,7 +52,8 @@ export function registerAccessGuard(server: FastifyInstance, opts: { token: stri
     if (!hosts.has((req.headers.host ?? '').toLowerCase())) {
       return reply.code(403).send({ error: 'Forbidden host.' });
     }
-    if (req.method === 'OPTIONS') return;
+    // Only a real CORS preflight skips the token; a bare OPTIONS needs it.
+    if (req.method === 'OPTIONS' && req.headers['access-control-request-method'] !== undefined) return;
     const route = req.routeOptions.url;
     if ((req.method === 'GET' || req.method === 'HEAD') && route !== undefined && OPEN_ROUTES.has(route)) return;
     if (tokenMatches(expected, req.headers.authorization)) return;

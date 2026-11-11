@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import net from 'node:net';
-import { buildServer } from '../app';
+import { buildServer, requestLogShape } from '../app';
 import { RENDERER_HEADERS, TEST_API_TOKEN, TEST_PORT, testServer } from '../test/server';
 
 type App = Awaited<ReturnType<typeof testServer>>;
@@ -46,22 +46,36 @@ describe('access guard: bearer token', () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it('leaves /health, the iframe embeds and the OAuth callbacks open', async () => {
-    const open = [
-      '/health',
-      '/api/youtube/embed?videoId=dQw4w9WgXcQ',
-      '/api/twitch/embed?channel=nish',
-      '/api/weather/radar-embed?lat=30&lon=-97',
-      '/api/spotify/callback',
-      '/api/youtube/callback',
-      '/api/twitch/callback',
-      '/api/calendar/callback',
+  it('leaves /health, the iframe embeds and the OAuth callbacks open, each with its own answer', async () => {
+    // Expected status per open route: the embeds serve with valid params, and a
+    // callback with no code/state is refused by the handler (400), not the guard.
+    const open: [string, number][] = [
+      ['/health', 200],
+      ['/api/youtube/embed?videoId=dQw4w9WgXcQ', 200],
+      ['/api/twitch/embed?channel=nish', 200],
+      ['/api/weather/radar-embed?lat=30&lon=-97', 200],
+      ['/api/spotify/callback', 400],
+      ['/api/youtube/callback', 400],
+      ['/api/twitch/callback', 400],
+      ['/api/calendar/callback', 400],
     ];
-    for (const url of open) {
+    for (const [url, status] of open) {
       const res = await app.rawInject({ method: 'GET', url, headers: { host: 'localhost:7432' } });
-      expect(res.statusCode, url).not.toBe(401);
-      expect(res.statusCode, url).not.toBe(403);
+      expect(res.statusCode, url).toBe(status);
     }
+  });
+
+  it('refuses a bare OPTIONS without the token, but answers a real preflight', async () => {
+    const bare = await app.rawInject({ method: 'OPTIONS', url: '/api/credentials/builtin', headers: { host: HOST } });
+    // @fastify/cors 11 rejects a preflight with no Access-Control-Request-Method itself (400);
+    // the guard's 401 covers anything that gets past it. Either way: refused, not 2xx.
+    expect([400, 401]).toContain(bare.statusCode);
+    const preflight = await app.rawInject({
+      method: 'OPTIONS',
+      url: '/api/credentials/builtin',
+      headers: { host: HOST, origin: 'app://nishboard', 'access-control-request-method': 'GET' },
+    });
+    expect(preflight.statusCode).toBe(204);
   });
 
   it('opens those routes to GET only', async () => {
@@ -186,5 +200,12 @@ describe('buildServer without a token', () => {
     const res = await s.inject({ method: 'GET', url: '/api/credentials/builtin', headers: { host: HOST, authorization: 'Bearer from-env' } });
     expect(res.statusCode).toBe(200);
     await s.close();
+  });
+});
+
+describe('request log shape', () => {
+  it('keeps method, path and host but drops the query string (OAuth codes, search text)', () => {
+    expect(requestLogShape({ method: 'GET', url: '/api/spotify/callback?code=SECRET&state=abc', headers: { host: HOST } }))
+      .toEqual({ method: 'GET', url: '/api/spotify/callback', host: HOST });
   });
 });

@@ -5,6 +5,7 @@ import { TtlCache } from '../lib/TtlCache';
 
 // A margin under the renderer poll (useNews.ts: 10 min) so an early poll is not a cache hit.
 const TTL_MS = 9 * 60 * 1000;
+const KEY = 'top';
 const cache = new TtlCache<string, NewsData>(TTL_MS);
 
 // Safe codepoint → string: fromCodePoint handles astral chars (emoji) that
@@ -68,20 +69,14 @@ function parseRss(xml: string): NewsItem[] {
 }
 
 export const newsRoutes: FastifyPluginAsync = async (fastify) => {
-  fastify.get<{ Querystring: { topic?: string }; Reply: NewsData | { error: string } }>(
+  fastify.get<{ Reply: NewsData | { error: string } }>(
     '/',
-    async (req, reply) => {
-      const topic = (req.query.topic ?? '').trim().slice(0, 80);
-      const key = topic || 'top';
-
-      const cached = cache.get(key);
+    async (_req, reply) => {
+      const cached = cache.get(KEY);
       if (cached) return reply.send(cached);
 
-      // Google News RSS — keyless. Top headlines, or a topic search.
-      const base = 'https://news.google.com/rss';
-      const url = topic
-        ? `${base}/search?q=${encodeURIComponent(topic)}&hl=en-US&gl=US&ceid=US:en`
-        : `${base}?hl=en-US&gl=US&ceid=US:en`;
+      // Google News RSS top headlines — keyless. (The widget never sends a topic.)
+      const url = 'https://news.google.com/rss?hl=en-US&gl=US&ceid=US:en';
 
       const xml = await fetchText(
         url,
@@ -89,7 +84,7 @@ export const newsRoutes: FastifyPluginAsync = async (fastify) => {
         { label: 'Google News' },
       );
       const data: NewsData = { items: parseRss(xml), fetchedAt: new Date().toISOString() };
-      cache.set(key, data);
+      cache.set(KEY, data);
       return reply.send(data);
     },
   );

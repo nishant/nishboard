@@ -78,9 +78,16 @@ function escapeHtml(s: string): string {
 // tokens last ~60 days; we refresh a minute early and on any 401.
 let cachedToken: { value: string; expiresAt: number } | null = null;
 
-async function getAppToken(clientId: string, clientSecret: string): Promise<string> {
-  if (cachedToken && Date.now() < cachedToken.expiresAt) return cachedToken.value;
+// Concurrent cold callers share one client-credentials request.
+let appTokenInFlight: Promise<string> | null = null;
 
+function getAppToken(clientId: string, clientSecret: string): Promise<string> {
+  if (cachedToken && Date.now() < cachedToken.expiresAt) return Promise.resolve(cachedToken.value);
+  appTokenInFlight ??= fetchAppToken(clientId, clientSecret).finally(() => { appTokenInFlight = null; });
+  return appTokenInFlight;
+}
+
+async function fetchAppToken(clientId: string, clientSecret: string): Promise<string> {
   const data = await fetchJson<{ access_token: string; expires_in: number }>(
     TOKEN_URL,
     {
@@ -458,8 +465,10 @@ export const twitchRoutes: FastifyPluginAsync = async (fastify) => {
       throw new HttpError(503, 'TWITCH_CLIENT_ID / TWITCH_CLIENT_SECRET not configured');
     }
 
-    const { q, after } = req.query;
-    if (!q?.trim()) throw new HttpError(400, 'q is required');
+    const q = (req.query.q ?? '').trim();
+    if (!q) throw new HttpError(400, 'q is required');
+    if (q.length > 100) throw new HttpError(400, 'q is too long');
+    const after = validCursor(req.query.after);
 
     const data = await helixApp<{
       pagination?: { cursor?: string };
@@ -476,7 +485,7 @@ export const twitchRoutes: FastifyPluginAsync = async (fastify) => {
     }>(
       'search/channels',
       (u) => {
-        u.searchParams.set('query', q.trim());
+        u.searchParams.set('query', q);
         u.searchParams.set('first', '12');
         if (after) u.searchParams.set('after', after);
       },

@@ -531,6 +531,24 @@ export function isSessionNotFoundError(message: string): boolean {
   return /no conversation found|session.{0,40}not found/i.test(message);
 }
 
+/** Side-channel code passed as onEvent's second argument, so the route never
+ *  has to regex the classified (and truncated) error message. */
+export type ClaudeEventMeta = { code: 'session-not-found' };
+
+/** Pure: settle an is_error result frame once the child has closed and stderr
+ *  is fully drained. A "No conversation found" stderr becomes an error event
+ *  tagged session-not-found; anything else passes the done frame through.
+ *  Exported for tests. */
+export function settleErroredResult(
+  done: Extract<ClaudeStreamEvent, { type: 'done' }>,
+  stderr: string,
+): { event: ClaudeStreamEvent; meta?: ClaudeEventMeta } {
+  if (isSessionNotFoundError(stderr)) {
+    return { event: { type: 'error', message: classifyCliError(stderr) }, meta: { code: 'session-not-found' } };
+  }
+  return { event: done };
+}
+
 // ── Chat spawn ───────────────────────────────────────────────────────────────
 
 export interface SpawnClaudeChatOpts {
@@ -549,7 +567,7 @@ export interface SpawnClaudeChatOpts {
   workspaceDir?: string;
   /** `--add-dir` targets (already validated/expanded by the route). */
   additionalDirs?: string[];
-  onEvent: (event: ClaudeStreamEvent) => void;
+  onEvent: (event: ClaudeStreamEvent, meta?: ClaudeEventMeta) => void;
   /** Fires exactly once, after the child is fully finished (or failed to start). */
   onExit: () => void;
 }
@@ -801,9 +819,12 @@ export function spawnClaudeChat(opts: SpawnClaudeChatOpts): ClaudeChatHandle {
     opts.onExit();
   };
 
-  const emit = (event: ClaudeStreamEvent): void => {
-    if (!exited) opts.onEvent(event);
+  const emit = (event: ClaudeStreamEvent, meta?: ClaudeEventMeta): void => {
+    if (!exited) opts.onEvent(event, meta);
   };
+  // An is_error result is held until 'close': stderr ("No conversation
+  // found…") may still be in flight when the result frame arrives.
+  let deferredErrorDone: Extract<ClaudeStreamEvent, { type: 'done' }> | null = null;
 
   void (async () => {
     try {
@@ -893,11 +914,10 @@ export function spawnClaudeChat(opts: SpawnClaudeChatOpts): ClaudeChatHandle {
             graceTimer = setTimeout(killChild, EXIT_GRACE_MS);
             // With stream-json INPUT, `--resume <unknown id>` doesn't emit an
             // error frame — it prints "No conversation found…" on stderr and
-            // ends with an is_error result. Convert that to an error event so
-            // the route's retry-without-resume kicks in (wiped ~/.claude
-            // history, different machine, bogus persisted id).
-            if (event.isError && isSessionNotFoundError(stderr)) {
-              emit({ type: 'error', message: classifyCliError(stderr) });
+            // ends with an is_error result. stderr can land after the result
+            // frame, so hold the frame until 'close' and decide then.
+            if (event.isError) {
+              deferredErrorDone = event;
               continue;
             }
           }
@@ -924,6 +944,11 @@ export function spawnClaudeChat(opts: SpawnClaudeChatOpts): ClaudeChatHandle {
         splitter.flush();
         clearPending();
         if (graceTimer) clearTimeout(graceTimer);
+        if (deferredErrorDone) {
+          const settled = settleErroredResult(deferredErrorDone, stderr);
+          deferredErrorDone = null;
+          emit(settled.event, settled.meta);
+        }
         if (!sawDone && !killed) {
           // Non-zero exit (or clean exit with no result) and no result frame —
           // surface stderr as the error.

@@ -1,8 +1,10 @@
+import fs from 'fs';
 import net from 'net';
 import os from 'os';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  DiscordNotConnectedError,
   DiscordRpcClient,
   RPC_OP,
   DiscordUnavailableError,
@@ -18,6 +20,7 @@ import {
   rpcDisplayName,
 } from './discordRpc';
 import { HttpError } from './http';
+import { UserTokenStore } from './userTokenStore';
 import type { RpcFrame } from './discordRpc';
 
 // ── Framing ───────────────────────────────────────────────────────────────────
@@ -212,6 +215,8 @@ interface FakePipe {
   path: string;
   /** Push a FRAME payload to the (single) connected client. */
   dispatch: (payload: unknown) => void;
+  /** Write raw bytes (malformed / zero-length frames). */
+  writeRaw: (buf: Buffer) => void;
   close: () => Promise<void>;
 }
 
@@ -244,6 +249,7 @@ function startFakePipe(
         server,
         path: pipePath,
         dispatch: (payload) => conn?.write(encodeRpcFrame(RPC_OP.FRAME, payload)),
+        writeRaw: (buf) => conn?.write(buf),
         close: () =>
           new Promise<void>((res) => {
             conn?.destroy();
@@ -383,5 +389,95 @@ describe('DiscordRpcClient over a fake pipe', () => {
     expect(client.isReady).toBe(true);
     expect(errSpy).toHaveBeenCalled();
     errSpy.mockRestore();
+  });
+});
+
+describe('DiscordRpcClient auth and failure paths', () => {
+  let pipe: FakePipe | null = null;
+  let home: string;
+
+  beforeEach(() => {
+    vi.stubEnv('DISCORD_CLIENT_ID', 'test-client-id');
+    // UserTokenStore persists under os.homedir()/.dash — keep it in a temp dir.
+    home = fs.mkdtempSync(path.join(os.tmpdir(), 'dash-discord-home-'));
+    vi.stubEnv('HOME', home);
+    vi.stubEnv('USERPROFILE', home);
+  });
+
+  afterEach(async () => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+    await pipe?.close();
+    pipe = null;
+    fs.rmSync(home, { recursive: true, force: true });
+  });
+
+  function seededStore(): UserTokenStore {
+    const store = new UserTokenStore('discord_rpc_tokens.json', () => Promise.reject(new Error('no refresh')));
+    store.store({ access_token: 'at', refresh_token: 'rt', expires_at: Date.now() + 3_600_000 });
+    return store;
+  }
+
+  it('AUTHENTICATE timeout keeps the stored tokens (transient, not a dead grant)', async () => {
+    pipe = await startFakePipe(() => undefined); // never answers AUTHENTICATE
+    const store = seededStore();
+    const client = new DiscordRpcClient({ paths: [pipe.path], tokenStore: store });
+    await client.connect();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const result = client.authenticate().catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(10_000);
+    const err = await result;
+    expect(err).toBeInstanceOf(HttpError);
+    expect(err).toMatchObject({ statusCode: 504 });
+    expect(store.authenticated).toBe(true);
+  });
+
+  it('AUTHENTICATE ERROR 4009 clears the tokens and reports not-connected', async () => {
+    pipe = await startFakePipe((p) => (
+      p.cmd === 'AUTHENTICATE'
+        ? { cmd: p.cmd, nonce: p.nonce, evt: 'ERROR', data: { code: 4009, message: 'Invalid token' } }
+        : undefined
+    ));
+    const store = seededStore();
+    const client = new DiscordRpcClient({ paths: [pipe.path], tokenStore: store });
+    await expect(client.authenticate()).rejects.toBeInstanceOf(DiscordNotConnectedError);
+    expect(store.authenticated).toBe(false);
+  });
+
+  it('a CLOSE frame during the handshake rejects with its message', async () => {
+    const pipePath = testPipePath();
+    const server = net.createServer((socket) => {
+      const dec = new RpcFrameDecoder();
+      socket.on('data', (chunk) => {
+        for (const frame of dec.push(chunk)) {
+          if (frame.op === RPC_OP.HANDSHAKE) {
+            socket.write(encodeRpcFrame(RPC_OP.CLOSE, { code: 4000, message: 'Invalid Client ID' }));
+          }
+        }
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(pipePath, resolve));
+    try {
+      const client = new DiscordRpcClient({ paths: [pipePath] });
+      await expect(client.connect()).rejects.toThrow(/Invalid Client ID/);
+      expect(client.isReady).toBe(false);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it('a zero-length FRAME does not throw and later frames still dispatch', async () => {
+    pipe = await startFakePipe(() => undefined);
+    const client = new DiscordRpcClient({ paths: [pipe.path] });
+    await client.connect();
+    const seen: string[] = [];
+    client.onDispatch((evt) => seen.push(evt));
+    const empty = Buffer.alloc(8);
+    empty.writeInt32LE(RPC_OP.FRAME, 0);
+    empty.writeInt32LE(0, 4);
+    pipe.writeRaw(empty);
+    pipe.dispatch({ cmd: 'DISPATCH', evt: 'SPEAKING_STOP', data: {}, nonce: null });
+    await vi.waitFor(() => expect(seen).toEqual(['SPEAKING_STOP']));
+    expect(client.isReady).toBe(true);
   });
 });

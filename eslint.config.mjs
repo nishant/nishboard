@@ -33,7 +33,7 @@ export default tseslint.config(
     },
   },
   // @nish/ui preset: core rules everywhere in src; theme-class rules only in the UI.
-  ...nish.configs.node.map((c) => ({ ...c, files: ['apps/main/src/**', 'packages/**/src/**'] })),
+  ...nish.configs.node.map((c) => ({ ...c, files: ['apps/main/src/**', 'packages/**/src/**', 'apps/renderer/vite.config.ts', 'apps/renderer/vitest.config.ts'] })),
   ...nish.configs.react.map((c) => ({ ...c, files: ['apps/renderer/src/**'] })),
   {
     files: ['apps/renderer/src/**/*.{ts,tsx}'],

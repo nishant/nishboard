@@ -10,7 +10,7 @@ import type {
   ClaudeUsageData,
 } from '@dash/shared';
 import type { ClaudeChatHandle } from '../lib/claudeCli';
-import { claudeStatus, getClaudeMeta, isSessionNotFoundError, spawnClaudeChat } from '../lib/claudeCli';
+import { claudeStatus, getClaudeMeta, spawnClaudeChat } from '../lib/claudeCli';
 import { fetchClaudeUsage } from '../lib/claudeUsage';
 import { TtlCache } from '../lib/TtlCache';
 import { HttpError } from '../lib/http';
@@ -209,7 +209,7 @@ export const claudeRoutes: FastifyPluginAsync = async (fastify) => {
           effort,
           workspaceDir,
           additionalDirs,
-          onEvent: (event) => {
+          onEvent: (event, meta) => {
             // --resume pointed at a session this machine's CLI doesn't know
             // (wiped history, different box). Retry ONCE as a fresh chat — the
             // fresh child emits its own init frame, which the client stores as
@@ -218,7 +218,7 @@ export const claudeRoutes: FastifyPluginAsync = async (fastify) => {
               event.type === 'error' &&
               resumeId !== undefined &&
               !retriedWithoutResume &&
-              isSessionNotFoundError(event.message)
+              meta?.code === 'session-not-found'
             ) {
               retriedWithoutResume = true;
               superseded = true;

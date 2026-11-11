@@ -116,7 +116,6 @@ export type IpcChannels =
   | 'app:open-external'
   | 'app:api-token'
   | 'spotify:open-auth'
-  | 'spotify:token-store'
   | 'twitch:open-auth'
   | 'youtube:open-auth'
   | 'google:open-auth'
@@ -199,7 +198,6 @@ export interface ElectronAPI {
     /** Fires with the full open-popout id list on every open/close. */
     onChanged: (cb: (ids: string[]) => void) => () => void;
   };
-  onSpotifyTokenStored: (cb: () => void) => () => void;
   /** Fires after the Fastify child restarted (tray menu / Settings) —
    *  listeners should refetch queries. Returns unsubscribe. */
   onServerRestarted: (cb: () => void) => () => void;

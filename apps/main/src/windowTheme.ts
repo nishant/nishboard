@@ -12,7 +12,7 @@ import type { NativeThemeSource } from '@dash/shared';
 // - every window's backgroundColor becomes the theme's --nish-bg, and the value is
 //   saved (userData/window-theme.json) so the next launch paints the right color
 //   before the renderer loads (no dark flash on a light theme, and resizes fill
-//   with the theme color on the opaque Windows window).
+//   with the theme color; every window, popouts included, is opaque).
 // Packaged-build behavior; `pnpm dev` only shows it partly.
 
 /** @nish/ui dark's --nish-bg: the launch color until a theme has been saved. */
@@ -61,15 +61,14 @@ export function initNativeTheme(): void {
 }
 
 /** Applies a theme reported by a renderer to every window and saves it.
- *  `skip` leaves a window's background alone (the transparent Windows popouts,
- *  which must keep their #00000000 background). */
-export function setWindowTheme(source: unknown, bg: unknown, skip: (win: BrowserWindow) => boolean = () => false): void {
+ */
+export function setWindowTheme(source: unknown, bg: unknown): void {
   const next = parseWindowTheme(source, bg);
   if (!next) return;
   const prev = readWindowTheme();
   if (nativeTheme.themeSource !== next.source) nativeTheme.themeSource = next.source;
   for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed() && !skip(win)) win.setBackgroundColor(next.bg);
+    if (!win.isDestroyed()) win.setBackgroundColor(next.bg);
   }
   if (prev.source === next.source && prev.bg === next.bg) return;
   cached = next;

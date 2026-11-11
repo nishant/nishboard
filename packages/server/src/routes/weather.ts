@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { WeatherData, WeatherAlert, AirQualityData } from '@dash/shared';
-import { fetchJson, HttpError } from '../lib/http';
+import { fetchJson, HttpError, UpstreamError } from '../lib/http';
 import { TtlCache } from '../lib/TtlCache';
 
 // Forecast TTL sits a margin under the renderer poll (useWeather.ts: 15 min), so
@@ -51,11 +51,13 @@ async function getGeoFromZip(zip: string): Promise<Geo> {
   let j: { places?: { 'place name': string; 'state abbreviation': string; latitude: string; longitude: string }[] };
   try {
     j = await fetchJson(`https://api.zippopotam.us/us/${zip}`, undefined, { label: 'zippopotam' });
-  } catch {
-    throw new Error(`Unknown ZIP code "${zip}"`);
+  } catch (err) {
+    // Only a 404 means the ZIP does not exist; anything else is the lookup service failing.
+    if (err instanceof UpstreamError && err.status === 404) throw new HttpError(422, `Unknown ZIP code "${zip}"`);
+    throw new HttpError(502, 'Location service unavailable, try again.');
   }
   const p = j.places?.[0];
-  if (!p) throw new Error(`Unknown ZIP code "${zip}"`);
+  if (!p) throw new HttpError(422, `Unknown ZIP code "${zip}"`);
   const data: Geo = {
     lat: Number(p.latitude),
     lon: Number(p.longitude),
@@ -270,8 +272,9 @@ export const weatherRoutes: FastifyPluginAsync = async (fastify) => {
         geo = zip ? await getGeoFromZip(zip) : await getGeoFromIp();
       } catch (err) {
         if (zip) {
-          // A ZIP was provided but couldn't be geocoded → surface "Unknown ZIP …".
-          throw new HttpError(422, err instanceof Error ? err.message : `Unknown ZIP code "${zip}".`);
+          // getGeoFromZip already chose 422 (unknown ZIP) or 502 (lookup service down).
+          if (err instanceof HttpError) throw err;
+          throw new HttpError(502, 'Location service unavailable, try again.');
         }
         // Auto (IP) geolocation failed and no ZIP is set → guide the user to set one.
         // The ZIP path uses a different provider (zippopotam.us, HTTPS), so it bypasses this.
@@ -301,7 +304,7 @@ export const weatherRoutes: FastifyPluginAsync = async (fastify) => {
   // Radar embed — a minimal page wrapping RainViewer's animated radar iframe.
   // Served from localhost (not iframed directly from file://) per the standing
   // embed pattern, and so the vendor can be swapped without touching the renderer.
-  fastify.get<{ Querystring: { lat?: string; lon?: string } }>(
+  fastify.get<{ Querystring: { lat?: string; lon?: string; scheme?: string } }>(
     '/radar-embed',
     async (req, reply) => {
       const lat = Number(req.query.lat);
@@ -309,11 +312,14 @@ export const weatherRoutes: FastifyPluginAsync = async (fastify) => {
       if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
         throw new HttpError(400, 'lat/lon required');
       }
-      // oCS=1 dark color scheme base map; sm/sn = smooth + snow; loc = lat,lon,zoom
-      const src = `https://www.rainviewer.com/map.html?loc=${lat.toFixed(4)},${lon.toFixed(4)},7&oCS=1&sm=1&sn=1&layer=radar&hu=false`;
+      const scheme = req.query.scheme ?? 'dark';
+      if (scheme !== 'light' && scheme !== 'dark') throw new HttpError(400, 'scheme must be light or dark');
+      const dark = scheme === 'dark';
+      // oCS=1 dark / 0 light color scheme base map; sm/sn = smooth + snow; loc = lat,lon,zoom
+      const src = `https://www.rainviewer.com/map.html?loc=${lat.toFixed(4)},${lon.toFixed(4)},7&oCS=${dark ? 1 : 0}&sm=1&sn=1&layer=radar&hu=false`;
       return reply.type('text/html').send(`<!doctype html>
 <html><head><meta charset="utf-8"><style>
-  html,body{margin:0;height:100%;background:#000;overflow:hidden}
+  html,body{margin:0;height:100%;background:${dark ? '#000' : '#fff'};overflow:hidden}
   iframe{border:0;width:100%;height:100%;display:block}
 </style></head>
 <body><iframe src="${src}" allowfullscreen></iframe></body></html>`);

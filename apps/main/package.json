@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node build.mjs --dev",
     "build": "tsc --noEmit && node build.mjs",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
     "lint": "eslint src",
     "test": "vitest run"
   },

@@ -33,6 +33,53 @@ describe('Sampler (per-host buffers)', () => {
   });
 });
 
+describe('Sampler lifecycle (fake timers, injected ping)', () => {
+  it('starts on touch, ticks every 5s, caps at 30 and stops when idle', async () => {
+    vi.useFakeTimers();
+    try {
+      const ping = vi.fn(async () => 7);
+      const s = new Sampler(ping);
+      s.touch(['a.example']);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(ping).toHaveBeenCalledTimes(1); // primed immediately
+      expect(s.read(['a.example'])[0].samples).toBe(1);
+
+      // Keep the sampler alive and run 34 more ticks.
+      for (let i = 0; i < 34; i++) {
+        s.touch(['a.example']);
+        await vi.advanceTimersByTimeAsync(5_000);
+      }
+      const [r] = s.read(['a.example']);
+      expect(r.samples).toBe(30);
+      expect(r.recentMs).toHaveLength(30);
+
+      // No requests for over a minute: the next tick stops it and clears history.
+      await vi.advanceTimersByTimeAsync(65_000);
+      expect(s.read(['a.example'])[0].samples).toBe(0);
+      const calls = ping.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(ping.mock.calls.length).toBe(calls);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('pings a duplicated host once per tick', async () => {
+    vi.useFakeTimers();
+    try {
+      const ping = vi.fn(async () => null);
+      const s = new Sampler(ping);
+      s.touch([...new Set(['1.1.1.1', '1.1.1.1'])]);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(ping).toHaveBeenCalledTimes(1);
+      expect(s.read(['1.1.1.1'])[0].lossPct).toBe(100);
+      s.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe('Sampler recentMs ring', () => {
   it('returns the raw ring, oldest first, capped at the window', async () => {
     const s = new Sampler();

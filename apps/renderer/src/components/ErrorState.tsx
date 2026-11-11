@@ -21,7 +21,7 @@ export function ErrorState({
     if (!queryKey) return;
     setRetrying(true);
     try {
-      await queryClient.refetchQueries({ queryKey: [...queryKey] });
+      await queryClient.refetchQueries({ queryKey: [...queryKey] }, { throwOnError: true });
     } catch {
       toast('Retry failed', undefined, 'error');
     } finally {

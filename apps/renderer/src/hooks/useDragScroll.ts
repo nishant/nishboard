@@ -17,11 +17,16 @@ export function useDragScroll<T extends HTMLElement = HTMLDivElement>(axis: 'x' 
     let isDragging = false;
     let start = 0;
     let startScroll = 0;
+    let moved = false;
+    const DRAG_THRESHOLD = 4;
 
     const onMouseDown = (e: MouseEvent) => {
+      if (e.button !== 0) return;
+      if (!(e.target instanceof Element)) return;
       // Don't hijack clicks on interactive elements inside the widget
-      if ((e.target as HTMLElement).closest('button, input, label, a')) return;
+      if (e.target.closest('button, input, label, a')) return;
       isDragging = true;
+      moved = false;
       start = axis === 'x' ? e.pageX : e.pageY;
       startScroll = axis === 'x' ? el.scrollLeft : el.scrollTop;
       el.style.cursor = 'grabbing';
@@ -31,11 +36,24 @@ export function useDragScroll<T extends HTMLElement = HTMLDivElement>(axis: 'x' 
     const onMouseMove = (e: MouseEvent) => {
       if (!isDragging) return;
       const delta = (axis === 'x' ? e.pageX : e.pageY) - start;
+      if (Math.abs(delta) > DRAG_THRESHOLD) moved = true;
       if (axis === 'x') el.scrollLeft = startScroll - delta;
       else el.scrollTop = startScroll - delta;
     };
 
+    // A drag that moved more than 4px must not also count as a click: swallow
+    // the click that follows the mouseup (capture phase), once.
+    const swallowClick = (e: MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+    };
+
     const onMouseUp = () => {
+      if (isDragging && moved) {
+        el.addEventListener('click', swallowClick, { capture: true, once: true });
+        // If no click follows (mouseup landed elsewhere), don't leave it armed.
+        setTimeout(() => el.removeEventListener('click', swallowClick, { capture: true }), 0);
+      }
       isDragging = false;
       el.style.cursor = '';
       el.style.userSelect = '';

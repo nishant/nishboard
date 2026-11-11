@@ -61,7 +61,7 @@ function dayLabel(tz: string, now: Date): string {
   return new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' }).format(now);
 }
 
-function AnalogClock({ tz, now, size = 56 }: { tz: string; now: Date; size?: number }) {
+function AnalogClock({ tz, now, clock24h, size = 56 }: { tz: string; now: Date; clock24h: boolean; size?: number }) {
   const { h, m, s } = timeParts(tz, now);
   const c = size / 2;
   const hand = (angle: number, len: number, w: number, color: string, key: string) => {
@@ -72,7 +72,13 @@ function AnalogClock({ tz, now, size = 56 }: { tz: string; now: Date; size?: num
     );
   };
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      role="img"
+      aria-label={`${zoneLabel(tz)}, ${digitalTime(tz, now, clock24h)}`}
+    >
       <circle cx={c} cy={c} r={c - 1} fill={tk('elevated')} stroke={tk('line-strong')} strokeWidth="1.5" />
       {Array.from({ length: 12 }, (_, i) => {
         const a = (i * 30 - 90) * (Math.PI / 180);
@@ -131,7 +137,7 @@ function ClockList({
     <div className="grid grid-cols-2 gap-2 justify-items-center p-1">
       {zones.map((tz) => (
         <div key={tz} className="group relative flex flex-col items-center gap-0.5 w-full">
-          <AnalogClock tz={tz} now={now} />
+          <AnalogClock tz={tz} now={now} clock24h={clock24h} />
           <span className="text-th-hi3 text-3xs truncate max-w-full">{zoneLabel(tz)}</span>
           <IconButton
             label={`Remove ${zoneLabel(tz)}`}

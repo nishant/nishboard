@@ -74,6 +74,17 @@ describe('generateLayout (BSP)', () => {
     });
   }
 
+  for (const preset of PRESETS) {
+    if (!preset.visibleWidgets) continue;
+    it(`"${preset.name}" applied with its own visibleWidgets leaves no gaps`, () => {
+      const layout = generateLayout(preset.name, preset.visibleWidgets ?? [], COLS, ROWS);
+      expect(layout).not.toBeNull();
+      expect(layout?.reduce((sum, l) => sum + l.w * l.h, 0)).toBe(COLS * ROWS);
+      expect(Math.max(...(layout ?? []).map((l) => l.y + l.h))).toBe(ROWS);
+      assertNoOverlaps(layout ?? []);
+    });
+  }
+
   it('hiding a widget re-flows gap-free (sibling absorbs the region)', () => {
     const ids = presetWidgets('Default').filter((id) => id !== 'weather');
     const layout = generateLayout('Default', ids, COLS, ROWS);

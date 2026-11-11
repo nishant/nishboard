@@ -192,6 +192,13 @@ describe('Twitch app token request', () => {
   });
 });
 
+describe('GET /api/twitch/search', () => {
+  it('400s on a bad cursor and on an over-long q', async () => {
+    expect((await app.inject({ method: 'GET', url: '/api/twitch/search?q=bob&after=a%20b' })).statusCode).toBe(400);
+    expect((await app.inject({ method: 'GET', url: `/api/twitch/search?q=${'x'.repeat(101)}` })).statusCode).toBe(400);
+  });
+});
+
 describe('GET /api/twitch/callback state handling', () => {
   it('a wrong state is a 400 and does not cancel the pending flow', async () => {
     const urlRes = await app.inject({ method: 'GET', url: '/api/twitch/auth-url' });

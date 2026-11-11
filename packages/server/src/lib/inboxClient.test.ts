@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { InboxBadPasswordError, inboxRequest, resetInboxSession } from './inboxClient';
+import { InboxBadPasswordError, InboxOfflineError, InboxUpstreamError, inboxRequest, resetInboxSession } from './inboxClient';
 import { jsonRes } from '../test/fetchStub';
 
 function loginRes(token: string): Response {
@@ -71,5 +71,28 @@ describe('inboxRequest re-login', () => {
     process.env.INBOX_PASSWORD = 'pw2';
     await expect(inboxRequest('GET', '/items')).rejects.toBeInstanceOf(InboxBadPasswordError);
     expect(fn).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('inboxRequest body parsing', () => {
+  const okBody = (body: () => Promise<unknown>): Response => {
+    const res = new Response(null, { status: 200 });
+    Object.defineProperty(res, 'json', { value: body });
+    return res;
+  };
+  const stub = (res: () => Response): void => {
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL) => (String(input).endsWith('/login') ? loginRes('t') : res())));
+  };
+
+  it('maps a non-JSON 200 body to a 502 InboxUpstreamError', async () => {
+    stub(() => new Response('<html>nope</html>', { status: 200 }));
+    const err = await inboxRequest('GET', '/items').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(InboxUpstreamError);
+    expect(err).toMatchObject({ status: 502, message: 'Inbox sent a non-JSON response.' });
+  });
+
+  it('maps a timeout while reading the body to InboxOfflineError', async () => {
+    stub(() => okBody(async () => { throw new DOMException('timed out', 'TimeoutError'); }));
+    await expect(inboxRequest('GET', '/items')).rejects.toBeInstanceOf(InboxOfflineError);
   });
 });

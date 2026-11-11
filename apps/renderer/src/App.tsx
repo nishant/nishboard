@@ -101,6 +101,13 @@ function PopoutSync() {
   return null;
 }
 
+const NATIVE_THEME_DEBOUNCE_MS = 250;
+
+/** True in a popout window (loaded with ?widget=<id>). */
+function isPopoutWindow(): boolean {
+  return new URLSearchParams(window.location.search).has('widget');
+}
+
 /** Renders nothing — exists so theme/scale changes re-render THIS component
  *  only, applying everything to <html> via effects. If App itself subscribed,
  *  every theme tweak (live color-picker drags included) would re-render the
@@ -132,7 +139,12 @@ export function ThemeManager() {
         ? buildCustomVars(customColors.primary, customColors.secondary, customColors.tertiary, customColors.text)
         : undefined;
     applyAppTheme(theme, custom);
-    syncNativeTheme(theme);
+    // Popouts skip it: the main window already tells main, and every window repeating
+    // the IPC (plus main's file write) on each color-drag tick is wasted work.
+    // Trailing debounce so a drag sends one update, not one per pointer move.
+    if (isPopoutWindow()) return;
+    const timer = window.setTimeout(() => syncNativeTheme(theme), NATIVE_THEME_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
   }, [theme, customColors]);
 
   // A choice made through @nish/ui directly (the mode switch, another window
@@ -142,7 +154,7 @@ export function ThemeManager() {
     () =>
       onThemeChange((choice) => {
         // Also fires when the OS flips under the system choice: the background changes.
-        syncNativeTheme(choice);
+        if (!isPopoutWindow()) syncNativeTheme(choice);
         const s = useThemeStore.getState();
         if (choice !== s.theme && isThemeId(choice)) s.setTheme(choice);
       }),

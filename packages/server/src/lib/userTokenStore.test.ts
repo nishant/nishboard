@@ -4,7 +4,7 @@ import os from 'os';
 import path from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { UpstreamError } from './http';
-import { RefreshAuthError, rethrowRefreshFailure } from './userTokenStore';
+import { isStoredUserTokens, RefreshAuthError, rethrowRefreshFailure } from './userTokenStore';
 
 // The classification decides whether a stored OAuth session gets wiped — a
 // wrong answer here once destroyed a valid Twitch session on a transient 4xx.
@@ -111,5 +111,47 @@ describe('UserTokenStore files', () => {
     const { file, Store } = await setup(crypto.randomBytes(32));
     new Store('t.json', refresh).store(tokens);
     expect(fs.statSync(file).mode & 0o777).toBe(0o600);
+  });
+
+  it('treats a token file with missing or mistyped fields as not connected', async () => {
+    const { home, file, Store } = await setup(null);
+    fs.mkdirSync(path.join(home, '.dash'), { recursive: true });
+    for (const bad of [{}, { access_token: 'a', refresh_token: 'r' }, { ...tokens, expires_at: 'soon' }, { ...tokens, meta: { a: 1 } }, []]) {
+      fs.writeFileSync(file, JSON.stringify(bad));
+      expect(new Store('t.json', refresh).authenticated, JSON.stringify(bad)).toBe(false);
+    }
+  });
+
+  it('shares one refresh between concurrent callers', async () => {
+    const { Store } = await setup(null);
+    const fresh = { access_token: 'new', refresh_token: 'ref2', expires_at: Date.now() + 3_600_000 };
+    const refreshFn = vi.fn(async () => fresh);
+    const store = new Store('t.json', refreshFn);
+    store.store({ ...tokens, expires_at: Date.now() - 1000 });
+    const out = await Promise.all([store.getValidToken(), store.getValidToken(), store.getValidToken()]);
+    expect(out).toEqual(['new', 'new', 'new']);
+    expect(refreshFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('clear() during a refresh leaves the store disconnected', async () => {
+    const { Store, file } = await setup(null);
+    let release: (t: typeof tokens) => void = () => undefined;
+    const gate = new Promise<typeof tokens>((resolve) => { release = resolve; });
+    const store = new Store('t.json', () => gate);
+    store.store({ ...tokens, expires_at: Date.now() - 1000 });
+    const pending = store.getValidToken();
+    store.clear();
+    release({ ...tokens, access_token: 'stale' });
+    await expect(pending).rejects.toThrow('Not authenticated');
+    expect(store.authenticated).toBe(false);
+    expect(fs.existsSync(file)).toBe(false);
+  });
+});
+
+describe('isStoredUserTokens', () => {
+  it('accepts the stored shape, with or without meta', () => {
+    expect(isStoredUserTokens({ access_token: 'a', refresh_token: 'r', expires_at: 1 })).toBe(true);
+    expect(isStoredUserTokens({ access_token: 'a', refresh_token: 'r', expires_at: 1, meta: { user_id: '9' } })).toBe(true);
+    expect(isStoredUserTokens(null)).toBe(false);
   });
 });

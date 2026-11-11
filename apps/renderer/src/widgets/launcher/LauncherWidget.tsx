@@ -11,6 +11,10 @@ import { Button, Card, EmptyState, IconButton, Modal, Label, Input, Select } fro
 
 const EMPTY_STATE: LauncherStateData = { groups: [], items: [] };
 
+function errMsg(e: unknown): string {
+  return e instanceof Error ? e.message : 'Unknown error';
+}
+
 /** Items/groups live main-side; this hook mirrors them into renderer state. */
 function useLauncherState() {
   const [state, setState] = useState<LauncherStateData>(EMPTY_STATE);
@@ -57,27 +61,50 @@ function EditModal({
 
   const launcher = window.electron?.launcher;
 
+  /** Run an IPC-backed edit; a rejection becomes a toast instead of an unhandled promise. */
+  async function guarded(what: string, fn: () => Promise<void>): Promise<void> {
+    try {
+      await fn();
+    } catch (e) {
+      toast(`${what} failed`, errMsg(e), 'error');
+    }
+  }
+
   async function addApp() {
-    const added = await launcher?.addApp();
-    if (added) await refresh();
+    await guarded('Add app', async () => {
+      const added = await launcher?.addApp();
+      if (added) await refresh();
+    });
   }
 
   async function addUrl() {
-    if (!/^https?:\/\//i.test(url.trim())) {
+    const trimmed = url.trim();
+    let parsed: URL;
+    try {
+      parsed = new URL(trimmed);
+    } catch {
+      toast('Invalid URL', 'Enter a full link such as https://example.com', 'error');
+      return;
+    }
+    if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || !parsed.hostname) {
       toast('Invalid URL', 'Only http(s) links are supported', 'error');
       return;
     }
-    await launcher?.addUrl(urlLabel, url.trim());
-    setUrlLabel('');
-    setUrl('');
-    await refresh();
+    await guarded('Add link', async () => {
+      await launcher?.addUrl(urlLabel, trimmed);
+      setUrlLabel('');
+      setUrl('');
+      await refresh();
+    });
   }
 
   async function addGroup() {
     if (!groupLabel.trim()) return;
-    await launcher?.addGroup(groupLabel.trim());
-    setGroupLabel('');
-    await refresh();
+    await guarded('Add group', async () => {
+      await launcher?.addGroup(groupLabel.trim());
+      setGroupLabel('');
+      await refresh();
+    });
   }
 
   async function move(id: string, dir: -1 | 1) {
@@ -86,16 +113,20 @@ function EditModal({
     if (idx < 0 || to < 0 || to >= items.length) return;
     const ids = items.map((it) => it.id);
     [ids[idx], ids[to]] = [ids[to], ids[idx]];
-    await launcher?.reorder(ids);
-    await refresh();
+    await guarded('Reorder', async () => {
+      await launcher?.reorder(ids);
+      await refresh();
+    });
   }
 
   // Shared by item and group rows: renamingId holds either kind of id.
   async function commitRename(id: string, isGroup: boolean) {
-    if (isGroup) await launcher?.renameGroup(id, renameText);
-    else await launcher?.renameItem(id, renameText);
     setRenamingId(null);
-    await refresh();
+    await guarded('Rename', async () => {
+      if (isGroup) await launcher?.renameGroup(id, renameText);
+      else await launcher?.renameItem(id, renameText);
+      await refresh();
+    });
   }
 
   async function refreshIcons() {
@@ -150,9 +181,12 @@ function EditModal({
               <Select
                 size="xs"
                 value={it.group ?? ''}
-                onChange={async (e) => {
-                  await launcher?.assignGroup(it.id, e.target.value || null);
-                  await refresh();
+                onChange={(e) => {
+                  const next = e.target.value || null;
+                  void guarded('Change group', async () => {
+                    await launcher?.assignGroup(it.id, next);
+                    await refresh();
+                  });
                 }}
                 aria-label={`Group for ${it.label}`}
                 className="shrink-0 w-auto max-w-[6.5rem]"
@@ -162,13 +196,20 @@ function EditModal({
                 {groups.map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}
               </Select>
               <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 flex items-center gap-0.5 transition-opacity shrink-0">
+                <IconButton
+                  label={`Rename ${it.label}`}
+                  size="2xs"
+                  onClick={() => { setRenamingId(it.id); setRenameText(it.label); }}
+                >
+                  <Pencil size={11} />
+                </IconButton>
                 <IconButton label="Move up" size="2xs" onClick={() => void move(it.id, -1)} disabled={i === 0}><ArrowUp size={11} /></IconButton>
                 <IconButton label="Move down" size="2xs" onClick={() => void move(it.id, 1)} disabled={i === items.length - 1}><ArrowDown size={11} /></IconButton>
                 <IconButton
                   label="Remove"
                   size="2xs"
                   tone="danger"
-                  onClick={async () => { await launcher?.removeItem(it.id); await refresh(); }}
+                  onClick={() => void guarded('Remove', async () => { await launcher?.removeItem(it.id); await refresh(); })}
                 >
                   <X size={11} />
                 </IconButton>
@@ -196,10 +237,18 @@ function EditModal({
                     {items.filter((it) => it.group === g.id).length} items
                   </span>
                   <IconButton
+                    label={`Rename ${g.label}`}
+                    size="2xs"
+                    onClick={() => { setRenamingId(g.id); setRenameText(g.label); }}
+                    className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
+                  >
+                    <Pencil size={11} />
+                  </IconButton>
+                  <IconButton
                     label="Delete group (items are kept)"
                     size="2xs"
                     tone="danger"
-                    onClick={async () => { await launcher?.removeGroup(g.id); await refresh(); }}
+                    onClick={() => void guarded('Delete group', async () => { await launcher?.removeGroup(g.id); await refresh(); })}
                     className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
                   >
                     <X size={11} />
@@ -291,7 +340,7 @@ function ItemGrid({ items }: { items: LauncherItemData[] }) {
       {items.map((it) => (
         <button
           key={it.id}
-          onClick={() => void window.electron?.launcher?.launch(it.id)}
+          onClick={() => void window.electron?.launcher?.launch(it.id)?.catch((e: unknown) => toast('Launch failed', `${it.label}: ${errMsg(e)}`, 'error'))}
           className="flex flex-col items-center gap-1.5 px-1 py-2.5 rounded-lg hover:bg-th-elevated text-th-hi2 hover:text-th-hi transition-colors"
           title={it.label}
         >
@@ -343,7 +392,7 @@ export function LauncherWidget() {
                   <IconButton
                     label={`Launch all in ${g.label}`}
                     size="2xs"
-                    onClick={() => void window.electron?.launcher?.launchGroup(g.id)}
+                    onClick={() => void window.electron?.launcher?.launchGroup(g.id)?.catch((e: unknown) => toast('Launch failed', `${g.label}: ${errMsg(e)}`, 'error'))}
                     className="opacity-0 group-hover/hdr:opacity-100 group-focus-within/hdr:opacity-100 focus-visible:opacity-100"
                   >
                     <Play size={11} />

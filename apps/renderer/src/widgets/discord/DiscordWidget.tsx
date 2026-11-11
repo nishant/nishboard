@@ -3,6 +3,8 @@ import { AppWindow, Cable, Home, LogOut, RotateCw, Unplug } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { EmptyState } from '@nish/ui';
 import { HeaderAction } from '../../components/HeaderAction';
+import { useLayoutStore } from '../../store/layoutStore';
+import { useWidgetUiStore } from '../../store/widgetUiStore';
 import { useDiscordStore } from '../../store/discordStore';
 import { useDiscordUiStore } from '../../store/discordUiStore';
 import { DiscordNative } from './DiscordNative';
@@ -13,7 +15,7 @@ import { disconnectDiscord, useDiscordStatus } from './useDiscordNative';
 // 'embed'  — the <webview> does NOT live here. Unmounting a webview destroys
 //   the guest abruptly and loses Discord's in-memory auth token (→ logout; see
 //   discordStore). The tile just activates the app-lifetime DiscordHost and
-//   publishes its body rect every frame; the host overlays it. Unmounting
+//   publishes its body rect (see the effect below); the host overlays it. Unmounting
 //   (layout switch, unpin, pop-out, MODE SWITCH) only hides the host — the
 //   guest keeps running, signed in and in-voice.
 //
@@ -34,24 +36,71 @@ export function DiscordWidget() {
     activate();
     const el = bodyRef.current;
     if (!el) return;
-    // rAF loop instead of ResizeObserver: RGL animates tiles via CSS transforms
-    // (drag/resize/compaction), which observers don't see. One rect read per
-    // frame for one element is negligible. Collapsed (keepMounted h-0 wrapper)
+    // RGL animates tiles via CSS transforms (drag/resize/compaction), which
+    // observers don't see, so a rAF loop republishes the rect — but ONLY while
+    // a grid gesture is in progress (store.interacting) and for SETTLE_MS after
+    // any layout change (the RGL transition). A permanent loop keeps the
+    // compositor awake 24/7 on an ambient dashboard. Otherwise the rect comes
+    // from a ResizeObserver, window 'resize' and a capture-phase 'scroll'
+    // listener (catches the grid scroller). Collapsed (keepMounted h-0 wrapper)
     // the rect's height is 0 → host hides itself but stays alive.
+    const SETTLE_MS = 400;
     let raf = 0;
     let last = '';
-    const tick = () => {
+    let loopUntil = 0;
+    const publish = (): void => {
       const r = el.getBoundingClientRect();
       const key = `${r.x},${r.y},${r.width},${r.height}`;
       if (key !== last) {
         last = key;
         setHostRect({ x: r.x, y: r.y, width: r.width, height: r.height });
       }
-      raf = requestAnimationFrame(tick);
     };
-    raf = requestAnimationFrame(tick);
+    const tick = (): void => {
+      raf = 0;
+      publish();
+      if (useDiscordStore.getState().interacting || performance.now() < loopUntil) {
+        raf = requestAnimationFrame(tick);
+      }
+    };
+    const burst = (): void => {
+      loopUntil = performance.now() + SETTLE_MS;
+      if (raf === 0) raf = requestAnimationFrame(tick);
+    };
+    publish();
+    burst(); // the tile may still be animating into place on mount
+    const ro = new ResizeObserver(() => {
+      publish();
+      burst();
+    });
+    ro.observe(el);
+    window.addEventListener('resize', burst);
+    window.addEventListener('scroll', publish, { capture: true, passive: true });
+    const unsubscribe = useDiscordStore.subscribe((state, prev) => {
+      if (state.interacting !== prev.interacting) burst();
+    });
+    // Programmatic layout changes (presets, saved layouts, a tile above
+    // collapsing, palette toggles) move the tile with a CSS transform that
+    // no observer sees and that is not a drag/resize gesture.
+    const unsubLayout = useLayoutStore.subscribe((state, prev) => {
+      if (state.layout !== prev.layout || state.visibleWidgets !== prev.visibleWidgets) burst();
+    });
+    const unsubUi = useWidgetUiStore.subscribe((state, prev) => {
+      if (state.collapsed !== prev.collapsed) burst();
+    });
+    const gridItem = el.closest('.react-grid-item');
+    gridItem?.addEventListener('transitionrun', burst);
+    gridItem?.addEventListener('transitionend', burst);
     return () => {
+      gridItem?.removeEventListener('transitionrun', burst);
+      gridItem?.removeEventListener('transitionend', burst);
+      unsubLayout();
+      unsubUi();
       cancelAnimationFrame(raf);
+      ro.disconnect();
+      window.removeEventListener('resize', burst);
+      window.removeEventListener('scroll', publish, { capture: true });
+      unsubscribe();
       setHostRect(null); // hide the host — the guest stays alive (and logged in)
     };
   }, [inElectron, mode, activate, setHostRect]);
@@ -70,7 +119,7 @@ export function DiscordWidget() {
     // stacking context, so no z-index can lift them above the host), and
     // without the gutter every handle except n/ne/nw sits under the webview,
     // dead. It also lets the tile's border/background visibly frame the embed.
-    // The rAF loop publishes the INNER div's rect, so the host floats inside
+    // The publisher reads the INNER div's rect, so the host floats inside
     // the gutter.
     <div className="h-full w-full p-2">
       <div ref={bodyRef} className="h-full w-full" />

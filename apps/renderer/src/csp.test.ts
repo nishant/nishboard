@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { buildCsp, scriptHash } from './csp';
+import { buildCsp, inlineScripts, scriptHash } from './csp';
 
 describe('csp', () => {
   it('hashes the exact script text with sha256', () => {
@@ -33,8 +33,15 @@ describe('csp', () => {
     const crlf = 'a();\r\nb();\r\n';
     const lf = 'a();\nb();\n';
     const html = `<head><script>${crlf}</script></head>`;
-    const text = (/<script\b[^>]*>([\s\S]*?)<\/script>/i.exec(html)?.[1] ?? '').replace(/\r\n?/g, '\n');
-    expect(scriptHash(text)).toBe(scriptHash(lf));
+    const [text] = inlineScripts(html);
+    expect(text).toBe(lf);
+    expect(scriptHash(text ?? '')).toBe(scriptHash(lf));
     expect(scriptHash(crlf)).not.toBe(scriptHash(lf));
+  });
+
+  it('inlineScripts skips scripts with a src and keeps the inline ones in order', () => {
+    const html = '<script type="module" src="./a.js"></script><script>one();</script><SCRIPT defer>two();</SCRIPT>';
+    expect(inlineScripts(html)).toEqual(['one();', 'two();']);
+    expect(inlineScripts('<p>none</p>')).toEqual([]);
   });
 });
