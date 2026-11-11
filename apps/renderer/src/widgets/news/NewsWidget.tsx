@@ -14,9 +14,11 @@ export function NewsWidget() {
   const { data, isLoading, isError } = useNews();
   const items = data?.items ?? [];
   const [idx, setIdx] = useState(0);
-  const [paused, setPaused] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const paused = hovered || focused;
 
-  // Auto-rotate every 6s (pause on hover).
+  // Auto-rotate every 6s (pause on hover or keyboard focus).
   useEffect(() => {
     if (paused || items.length <= 1) return;
     const id = setInterval(() => setIdx((i) => (i + 1) % items.length), 6000);
@@ -43,8 +45,13 @@ export function NewsWidget() {
   return (
     <div
       className="h-full flex flex-col p-3"
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={(e) => {
+        // Only resume when focus leaves the wrapper, not when it moves between its buttons.
+        if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false);
+      }}
     >
       <div className="flex items-center gap-1.5 shrink-0 mb-1">
         <Newspaper className="w-3.5 h-3.5 text-th-hi3" />

@@ -13,6 +13,6 @@
   "references": [{ "path": "../../packages/shared" }],
   "include": ["src/**/*"],
   // Tests never reach the shipped dist/ — vitest runs them from source
-  // (vitest.config.ts), and this package's dist is what electron-builder packs.
+  // (vitest.config.mts), and this package's dist is what electron-builder packs.
   "exclude": ["dist", "node_modules", "src/**/*.test.ts", "test"]
 }

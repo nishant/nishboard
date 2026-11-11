@@ -122,7 +122,17 @@ export async function inboxRequest<T>(method: 'GET' | 'POST', path: string, body
     }
   }
   if (res.status === 204) return undefined as T;
-  if (res.ok) return (await res.json()) as T;
+  if (res.ok) {
+    try {
+      return (await res.json()) as T;
+    } catch (err) {
+      // The 2s timeout also covers reading the body.
+      if (err instanceof DOMException && err.name === 'TimeoutError') {
+        throw new InboxOfflineError('Inbox is not reachable.');
+      }
+      throw new InboxUpstreamError(502, 'Inbox sent a non-JSON response.');
+    }
+  }
   let message = `Inbox ${res.status}`;
   try {
     const j = (await res.json()) as { error?: unknown };

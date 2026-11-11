@@ -1,4 +1,4 @@
-import { useState, useRef, type ReactNode, type SyntheticEvent } from 'react';
+import { useState, useRef } from 'react';
 import { Search, X, ArrowLeft, ChevronRight, ListVideo } from 'lucide-react';
 import { useElementSize } from '../../hooks/useElementSize';
 import type {
@@ -284,41 +284,37 @@ function ResultRow({
   item: EmbedItem;
   thumbShape: EmbedThumbShape;
   onPlay: () => void;
-  /** When set and the item carries a channel, the subtitle opens the channel's
-   *  uploads folder instead of playing the row. */
+  /** When set and the item carries a channel, a trailing button opens the channel's
+   *  uploads folder from a trailing button. */
   onOpenChannel?: (folder: EmbedFolder) => void;
 }) {
   const channel = onOpenChannel ? item.channel : undefined;
-  let meta: ReactNode = item.subtitle || undefined;
-  if (channel && onOpenChannel) {
-    const open = (e: SyntheticEvent) => {
-      e.stopPropagation();
-      onOpenChannel({ id: `channel:${channel.id}`, title: channel.title });
-    };
-    meta = (
-      <span
-        role="link"
-        tabIndex={0}
-        onClick={open}
-        onKeyDown={(e) => { if (e.key === 'Enter') open(e); }}
-        className="hover:text-th-hi hover:underline"
-        title={`${channel.title} — videos`}
-      >
-        {item.subtitle}
-      </span>
-    );
-  }
-  return (
+  const row = (
     <MediaRow
       as="div"
       compact
       thumbnailUrl={item.thumbnailUrl}
       thumbShape={item.thumbShape ?? thumbShape}
       title={item.title}
-      meta={meta}
+      meta={item.subtitle || undefined}
       live={item.isLive ? true : undefined}
       onClick={onPlay}
     />
+  );
+  if (!channel || !onOpenChannel) return row;
+  // The channel button is a sibling of the row, never nested inside the row's
+  // button (invalid HTML, and its click would also play the video).
+  return (
+    <div className="flex items-center">
+      <div className="min-w-0 flex-1">{row}</div>
+      <IconButton
+        label={`${channel.title} — videos`}
+        size="xs"
+        onClick={() => onOpenChannel({ id: `channel:${channel.id}`, title: channel.title })}
+      >
+        <ListVideo size={14} />
+      </IconButton>
+    </div>
   );
 }
 

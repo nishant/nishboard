@@ -57,4 +57,17 @@ describe('fetchJson / fetchText', () => {
     await fetchJson('https://x.test');
     expect(spy).toHaveBeenCalledTimes(1);
   });
+
+  it('still aborts on the caller own signal when a timeout is also set', async () => {
+    let seen: AbortSignal | null | undefined;
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: RequestInit) => {
+      seen = init?.signal;
+      return new Response('{}', { status: 200 });
+    }));
+    const ctl = new AbortController();
+    await fetchJson('https://x.test', { signal: ctl.signal });
+    expect(seen?.aborted).toBe(false);
+    ctl.abort();
+    expect(seen?.aborted).toBe(true);
+  });
 });

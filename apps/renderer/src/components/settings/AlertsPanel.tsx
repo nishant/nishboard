@@ -12,6 +12,11 @@ const KIND_LABELS: Record<AlertRuleKind, string> = {
   'crypto-change': 'Crypto 24h move',
   'cpu-sustained': 'CPU sustained',
 };
+const KINDS: AlertRuleKind[] = ['stock-price', 'crypto-price', 'crypto-change', 'cpu-sustained'];
+
+function isAlertRuleKind(v: string): v is AlertRuleKind {
+  return KINDS.some((k) => k === v);
+}
 
 function NumField({
   value, onChange, placeholder, suffix, label, width = 'w-24',
@@ -153,8 +158,8 @@ export function AlertsPanel() {
         <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Add rule</span>
 
         <Field layout="inline" label="Type">
-          <Select size="sm" value={kind} onChange={(e) => setKind(e.target.value as AlertRuleKind)}>
-            {(Object.keys(KIND_LABELS) as AlertRuleKind[]).map((k) => (
+          <Select size="sm" value={kind} onChange={(e) => { if (isAlertRuleKind(e.target.value)) setKind(e.target.value); }}>
+            {KINDS.map((k) => (
               <option key={k} value={k}>{KIND_LABELS[k]}</option>
             ))}
           </Select>

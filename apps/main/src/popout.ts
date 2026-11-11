@@ -87,12 +87,6 @@ function persistBounds(id: string, bounds: StoredBounds): void {
   } catch { /* non-fatal — popout just reopens at the default spot */ }
 }
 
-/** Windows popouts are transparent (D11: unchanged), so theme sync must not give
- *  them an opaque background. */
-export function isTransparentPopout(win: BrowserWindow): boolean {
-  return process.platform === 'win32' && [...popouts.values()].includes(win);
-}
-
 /** Ids of currently open popouts (renderer syncs its store from this). */
 export function openPopoutIds(): string[] {
   return [...popouts.keys()];
@@ -116,10 +110,6 @@ export function openPopout(id: string): void {
   const stored = readBoundsFile()[id];
   const size = DEFAULT_SIZES[id] ?? FALLBACK_SIZE;
   const rect = stored ? clampToScreen(stored) : null;
-  // Windows: transparent frameless window so the renderer rounds its own
-  // corners, matching the main window (see createWindow in index.ts).
-  const isWin = process.platform === 'win32';
-
   const win = new BrowserWindow({
     width: rect?.width ?? size.width,
     height: rect?.height ?? size.height,
@@ -129,9 +119,9 @@ export function openPopout(id: string): void {
     minHeight: 160,
     frame: false,
     resizable: true,
-    ...(isWin
-      ? { transparent: true, backgroundColor: '#00000000' }
-      : { backgroundColor: readWindowTheme().bg }),
+    // Opaque on every platform (like the main window): a transparent frameless
+    // window on Windows loses Aero Snap and the fast resize path.
+    backgroundColor: readWindowTheme().bg,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

@@ -32,11 +32,6 @@ const electronAPI: ElectronAPI = {
       return () => ipcRenderer.removeListener(channel, listener);
     },
   },
-  onSpotifyTokenStored: (cb: () => void) => {
-    const channel: IpcChannels = 'spotify:token-store';
-    ipcRenderer.on(channel, cb);
-    return () => ipcRenderer.removeListener(channel, cb);
-  },
   onServerRestarted: (cb: () => void) => {
     const channel: IpcChannels = 'server:restarted';
     ipcRenderer.on(channel, cb);

@@ -87,6 +87,29 @@ describe('GET /api/stocks', () => {
     expect(sawAuth).toBe(true);
   });
 
+  it('marketOpen follows the holiday-aware calendar, not the weekday/hours clock', async () => {
+    withCreds();
+    // Tuesday 11:00 ET: the clock heuristic says open, but the calendar's next
+    // trading day is tomorrow, so today is a holiday.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-10T16:00:00Z'));
+    try {
+      stubFetch([
+        ['/v2/calendar', () => jsonRes([{ date: '2026-11-11', open: '09:30', close: '16:00' }])],
+        ['/stocks/snapshots', () => jsonRes({ HOLI: { latestTrade: { p: 50 }, dailyBar: { t: 'x', o: 1, h: 1, l: 1, c: 49, v: 1 } } })],
+        ['/stocks/bars', () => jsonRes({ bars: {} })],
+      ]);
+      expect((await app.inject({ method: 'GET', url: '/api/stocks/calendar' })).json<{ isOpen: boolean }>().isOpen).toBe(false);
+      const res = await app.inject({ method: 'GET', url: '/api/stocks?symbols=HOLI' });
+      expect(res.statusCode).toBe(200);
+      const q = res.json<StocksData>().equities[0];
+      expect(q.marketOpen).toBe(false);
+      expect(q.lastPrice).toBe(49); // closed: prefers the daily close over latestTrade
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('passes an Alpaca 403 through (bad key is actionable)', async () => {
     withCreds();
     stubFetch([

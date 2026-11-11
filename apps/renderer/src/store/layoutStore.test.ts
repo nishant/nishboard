@@ -465,3 +465,54 @@ describe('rehydrate validation', () => {
     expect(s.layout.find((it) => it.i === 'stocks')?.isResizable).toBe(true);
   });
 });
+
+describe('layout store invariants', () => {
+  it('rehydrate with savedHeights re-locks minH = maxH = h for a collapsed widget', async () => {
+    localStorage.setItem('dashboard-widget-ui', JSON.stringify({ state: { collapsed: { weather: true } }, version: 0 }));
+    localStorage.setItem(
+      'dashboard-layout',
+      JSON.stringify({
+        state: {
+          layout: [{ i: 'weather', x: 0, y: 0, w: 6, h: 3 }],
+          visibleWidgets: ['weather'],
+          savedHeights: { weather: 8 },
+        },
+        version: 1,
+      }),
+    );
+    const { useLayoutStore } = await loadStore();
+    const item = useLayoutStore.getState().layout.find((it) => it.i === 'weather');
+    expect(item?.minH).toBe(item?.h);
+    expect(item?.maxH).toBe(item?.h);
+    expect(item?.isResizable).toBe(false);
+    expect(useLayoutStore.getState().savedHeights.weather).toBe(8);
+  });
+
+  it('applyPreset leaves disabled widgets out and keeps collapsed ones locked', async () => {
+    const { useLayoutStore } = await loadStore();
+    const { useAppSettingsStore } = await import('./settingsStore');
+    const { useWidgetUiStore } = await import('./widgetUiStore');
+    useAppSettingsStore.setState({ disabledWidgets: ['weather'] });
+    useWidgetUiStore.getState().setCollapsed('stocks', true);
+    useLayoutStore.getState().applyPreset('Default');
+    const s = useLayoutStore.getState();
+    expect(s.visibleWidgets).not.toContain('weather');
+    expect(s.layout.some((it) => it.i === 'weather')).toBe(false);
+    const stocks = s.layout.find((it) => it.i === 'stocks');
+    if (stocks) {
+      expect(stocks.isResizable).toBe(false);
+      expect(s.savedHeights.stocks).toBeGreaterThan(0);
+    }
+    useAppSettingsStore.setState({ disabledWidgets: [] });
+  });
+
+  it('a saved custom layout snapshot is unchanged by later layout mutations', async () => {
+    const { useLayoutStore } = await loadStore();
+    useLayoutStore.getState().syncLayout([{ i: 'weather', x: 0, y: 0, w: 6, h: 8, minW: 4, minH: 2 }]);
+    useLayoutStore.getState().saveCustomLayout('Snap');
+    const before = JSON.stringify(useLayoutStore.getState().savedCustomLayouts[0]);
+    useLayoutStore.getState().syncLayout([{ i: 'weather', x: 3, y: 4, w: 9, h: 5, minW: 4, minH: 2 }]);
+    useLayoutStore.getState().markUserEdited();
+    expect(JSON.stringify(useLayoutStore.getState().savedCustomLayouts[0])).toBe(before);
+  });
+});

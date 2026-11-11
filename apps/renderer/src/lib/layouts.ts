@@ -89,8 +89,9 @@ export const PRESETS: NamedLayout[] = [
     // Cols  6-11: spotify(8)  + youtube(9)   + hardware(5) = 22
     // Cols 12-13: stocks(8)   + youtube(9)   + hardware(5) = 22
     // Cols 14-23: calendar(8) + sound(9)     + hardware(5) = 22
+    // Twitch is not in this preset (hidden); if toggled on it is appended as a bottom row.
     name: 'Default',
-    visibleWidgets: ['weather', 'spotify', 'stocks', 'hardware', 'sound', 'calendar', 'youtube', 'twitch'],
+    visibleWidgets: ['weather', 'spotify', 'stocks', 'hardware', 'sound', 'calendar', 'youtube'],
     layout: [
       { i: 'weather',  x: 0,  y: 0,  w: 6,  h: 8,  minW: 3, minH: 2 },
       { i: 'spotify',  x: 6,  y: 0,  w: 6,  h: 8,  minW: 3, minH: 2 },
@@ -191,7 +192,7 @@ export const PRESETS: NamedLayout[] = [
     // Cols  6-11: stocks(14)   + calendar(8) = 22
     // Cols 12-17: youtube(12)  + spotify(10) = 22
     // Cols 18-23: youtube(12)  + weather(10) = 22
-    // Twitch hidden by default — BSP prune handles it if toggled on.
+    // Twitch is hidden by default and has no leaf in this tree: if toggled on, generateLayout appends it as a bottom row.
     name: 'Home',
     visibleWidgets: ['weather', 'spotify', 'stocks', 'hardware', 'sound', 'calendar', 'youtube'],
     layout: [

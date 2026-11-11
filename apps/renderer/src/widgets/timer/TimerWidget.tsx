@@ -48,10 +48,14 @@ export function TimerWidget() {
 
   // Display refresh only: firing lives in the app-level TimerEvaluator.
   const [, setNow] = useState(Date.now());
+  // Only tick while a timer is running or an alarm is still pending.
+  const needsTick = timers.some((t) => t.running) || alarms.some((a) => !a.done);
   useEffect(() => {
+    if (!needsTick) return;
+    setNow(Date.now());
     const id = setInterval(() => setNow(Date.now()), 500);
     return () => clearInterval(id);
-  }, []);
+  }, [needsTick]);
 
   const now = Date.now();
 

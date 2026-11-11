@@ -26,7 +26,7 @@ import {
   VOICE_SETTINGS_KEY,
 } from './useDiscordNative';
 import { applyMessageEvent, applySpeaking, formatMessageTime, guildInitials } from './nativeLib';
-import { Button, EmptyState, IconButton, SkeletonLines, cn, Label } from '@nish/ui';
+import { Button, EmptyState, IconButton, Select, SkeletonLines, cn, Label } from '@nish/ui';
 
 // Native Discord mode: guild rail → channel list → read-only live chat feed,
 // plus a voice footer (join/leave/mute/deafen + speaking rings). Everything is
@@ -152,7 +152,9 @@ function DiscordNativeConnected({ user }: { user: DiscordUserData | undefined })
   };
 
   return (
-    <div className="h-full flex min-h-0">
+    // @container: the rails are fixed-width, so in a narrow tile or popout they
+    // hide (480px / 360px container width) and NarrowPicker's selects take over.
+    <div className="@container h-full flex min-h-0">
       <GuildRail guilds={guilds} activeId={activeGuildId} onSelect={selectGuild} />
       <ChannelList
         loading={channelsQuery.isLoading}
@@ -163,6 +165,16 @@ function DiscordNativeConnected({ user }: { user: DiscordUserData | undefined })
         onSelectText={setChannelId}
       />
       <div className="flex-1 min-w-0 flex flex-col">
+        <NarrowPicker
+          guilds={guilds}
+          activeGuildId={activeGuildId}
+          onSelectGuild={selectGuild}
+          textChannels={textChannels}
+          voiceChannels={voiceChannels}
+          activeChannelId={activeChannelId}
+          voice={voice}
+          onSelectText={setChannelId}
+        />
         <ChatFeed
           channel={channels.find((c) => c.id === activeChannelId) ?? null}
           loading={detailQuery.isLoading}
@@ -181,7 +193,7 @@ function GuildRail({ guilds, activeId, onSelect }: {
   onSelect: (id: string) => void;
 }) {
   return (
-    <div className="w-11 shrink-0 border-r border-th-line overflow-y-auto py-1.5 flex flex-col items-center gap-0">
+    <div className="w-11 shrink-0 @max-[360px]:hidden border-r border-th-line overflow-y-auto py-1.5 flex flex-col items-center gap-0">
       {guilds.map((g) => (
         <button
           key={g.id}
@@ -221,7 +233,7 @@ function ChannelList({ loading, textChannels, voiceChannels, activeChannelId, vo
   onSelectText: (id: string) => void;
 }) {
   return (
-    <div className="w-36 shrink-0 border-r border-th-line overflow-y-auto py-1.5 px-1">
+    <div className="w-36 shrink-0 @max-[480px]:hidden border-r border-th-line overflow-y-auto py-1.5 px-1">
       {loading && <SkeletonLines lines={3} className="p-1" />}
       {textChannels.length > 0 && (
         <Label className="block px-1.5 pb-1 text-3xs font-semibold tracking-widest">Text</Label>
@@ -266,6 +278,66 @@ function ChannelList({ loading, textChannels, voiceChannels, activeChannelId, vo
           </button>
         );
       })}
+    </div>
+  );
+}
+
+const VOICE_PREFIX = 'voice:';
+
+/** Replaces the hidden rails in a narrow container: a guild select (below
+ *  360px, where the rail is hidden too) and a channel select (below 480px). */
+function NarrowPicker({
+  guilds, activeGuildId, onSelectGuild, textChannels, voiceChannels, activeChannelId, voice, onSelectText,
+}: {
+  guilds: DiscordGuildData[];
+  activeGuildId: string | null;
+  onSelectGuild: (id: string) => void;
+  textChannels: DiscordChannelData[];
+  voiceChannels: DiscordChannelData[];
+  activeChannelId: string | null;
+  voice: DiscordSelectedVoiceData | null;
+  onSelectText: (id: string) => void;
+}) {
+  const onChannelChange = (value: string): void => {
+    if (value.startsWith(VOICE_PREFIX)) {
+      const id = value.slice(VOICE_PREFIX.length);
+      if (voice?.channelId !== id) void selectDiscordVoice(id);
+      return;
+    }
+    onSelectText(value);
+  };
+  return (
+    <div className="hidden @max-[480px]:flex shrink-0 items-center gap-1.5 px-2 py-1.5 border-b border-th-line">
+      {guilds.length > 1 && (
+        <Select
+          size="sm"
+          aria-label="Server"
+          value={activeGuildId ?? ''}
+          onChange={(e) => onSelectGuild(e.target.value)}
+          className="hidden @max-[360px]:block min-h-11 min-w-0 flex-1"
+        >
+          {guilds.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+        </Select>
+      )}
+      <Select
+        size="sm"
+        aria-label="Channel"
+        value={activeChannelId ?? ''}
+        onChange={(e) => onChannelChange(e.target.value)}
+        className="min-h-11 min-w-0 flex-1"
+      >
+        {activeChannelId === null && <option value="">Pick a text channel</option>}
+        <optgroup label="Text">
+          {textChannels.map((c) => <option key={c.id} value={c.id}>{`# ${c.name}`}</option>)}
+        </optgroup>
+        {voiceChannels.length > 0 && (
+          <optgroup label="Voice (join)">
+            {voiceChannels.map((c) => (
+              <option key={c.id} value={`${VOICE_PREFIX}${c.id}`}>{c.name}</option>
+            ))}
+          </optgroup>
+        )}
+      </Select>
     </div>
   );
 }

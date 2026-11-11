@@ -8,6 +8,16 @@ export function scriptHash(text: string): string {
   return `'sha256-${createHash('sha256').update(text, 'utf8').digest('base64')}'`;
 }
 
+/** The text of every inline <script> (one without a src) in `html`, LF-normalised
+ *  because the browser hashes the text after normalising CRLF and CR to LF. */
+export function inlineScripts(html: string): string[] {
+  const out: string[] = [];
+  for (const m of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
+    if (!/\bsrc\s*=/i.test(m[1] ?? '')) out.push((m[2] ?? '').replace(/\r\n?/g, '\n'));
+  }
+  return out;
+}
+
 /** Content-Security-Policy for the packaged renderer. Every inline script is allowed by
  *  hash only; everything else must come from the bundle ('self') or the local server. */
 export function buildCsp(inlineScripts: string[]): string {

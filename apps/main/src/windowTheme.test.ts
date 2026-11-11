@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { nativeTheme } from 'electron';
-import { DEFAULT_WINDOW_BG, parseWindowTheme, readWindowTheme, setWindowTheme } from './windowTheme';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { DEFAULT_WINDOW_BG, parseWindowTheme } from './windowTheme';
 
 describe('parseWindowTheme', () => {
   it('accepts system/light/dark with a #rrggbb background', () => {
@@ -18,6 +20,29 @@ describe('parseWindowTheme', () => {
 });
 
 describe('setWindowTheme', () => {
+  let dir: string;
+  let nativeTheme: typeof import('electron').nativeTheme;
+  let readWindowTheme: typeof import('./windowTheme').readWindowTheme;
+  let setWindowTheme: typeof import('./windowTheme').setWindowTheme;
+
+  // windowTheme.ts caches the theme at module scope and writes to userData, so
+  // every test gets its own temp dir and a freshly imported module.
+  beforeEach(async () => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nishboard-theme-'));
+    vi.resetModules();
+    // Re-import electron too: resetModules gives windowTheme a fresh stub, and
+    // the spy and nativeTheme assertions must target that same instance.
+    const electron = await import('electron');
+    nativeTheme = electron.nativeTheme;
+    vi.spyOn(electron.app, 'getPath').mockReturnValue(dir);
+    ({ readWindowTheme, setWindowTheme } = await import('./windowTheme'));
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
   it('starts from system and the shared dark background', () => {
     expect(readWindowTheme()).toEqual({ source: 'system', bg: DEFAULT_WINDOW_BG });
   });

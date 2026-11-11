@@ -172,6 +172,63 @@ export async function postChatWithRetry(
   }
 }
 
+type ClaudeStoreApi = ReturnType<typeof useClaudeStore.getState>;
+
+/** Pure-ish reducer for one stream frame: applies it to the store (and fires
+ *  the toast/alert side effects). Exported for tests. */
+export function applyClaudeEvent(
+  s: ClaudeStoreApi,
+  event: ClaudeStreamEvent,
+  onInit?: () => void,
+): void {
+  switch (event.type) {
+    case 'init':
+      s.setSession(event.sessionId, event.model);
+      // The server has just captured slash_commands/skills from this
+      // frame — refresh the autocomplete data (and its empty-state hint).
+      onInit?.();
+      break;
+    case 'delta':
+      s.appendDelta(event.text);
+      break;
+    case 'thinking':
+      s.appendThinking(event.text);
+      break;
+    case 'tool-use':
+      s.addToolPart(event.id, event.name, event.detail);
+      break;
+    case 'tool-result':
+      s.resolveToolPart(event.id, event.isError);
+      break;
+    case 'permission-request':
+      s.addPromptPart(event.requestId, event.request);
+      // Chime + toast + native notification — the whole point is pulling
+      // the user back when Claude blocks on them mid-turn.
+      fireAlert('Claude needs your input', promptSummary(event.request));
+      break;
+    case 'permission-resolved':
+      s.resolvePromptPart(
+        event.requestId,
+        event.reason === 'user' ? (event.behavior === 'allow' ? 'allowed' : 'denied') : event.reason,
+      );
+      break;
+    case 'done':
+      s.finishAssistant(event.durationMs, event.outputTokens, event.contextTokens);
+      if (event.isError) {
+        const msg = 'Claude ended the turn with an error';
+        toast('Claude', msg, 'error');
+        s.appendError(msg);
+      }
+      s.setStreaming(false);
+      break;
+    case 'error':
+      toast('Claude', event.message, 'error');
+      s.appendError(event.message);
+      s.setStreaming(false);
+      break;
+  }
+}
+
 export function useSendClaudeMessage(): { send: (text: string) => void; stop: () => void } {
   const queryClient = useQueryClient();
   const send = (text: string): void => {
@@ -202,53 +259,9 @@ export function useSendClaudeMessage(): { send: (text: string) => void; stop: ()
     void postChatWithRetry(body, {
       signal: controller.signal,
       onEvent: (event) => {
-        const s = useClaudeStore.getState();
-        switch (event.type) {
-          case 'init':
-            s.setSession(event.sessionId, event.model);
-            // The server has just captured slash_commands/skills from this
-            // frame — refresh the autocomplete data (and its empty-state hint).
-            void queryClient.invalidateQueries({ queryKey: ['claude-meta'] });
-            break;
-          case 'delta':
-            s.appendDelta(event.text);
-            break;
-          case 'thinking':
-            s.appendThinking(event.text);
-            break;
-          case 'tool-use':
-            s.addToolPart(event.id, event.name, event.detail);
-            break;
-          case 'tool-result':
-            s.resolveToolPart(event.id, event.isError);
-            break;
-          case 'permission-request':
-            s.addPromptPart(event.requestId, event.request);
-            // Chime + toast + native notification — the whole point is pulling
-            // the user back when Claude blocks on them mid-turn.
-            fireAlert('Claude needs your input', promptSummary(event.request));
-            break;
-          case 'permission-resolved':
-            s.resolvePromptPart(
-              event.requestId,
-              event.reason === 'user' ? (event.behavior === 'allow' ? 'allowed' : 'denied') : event.reason,
-            );
-            break;
-          case 'done':
-            s.finishAssistant(event.durationMs, event.outputTokens, event.contextTokens);
-            if (event.isError) {
-              const msg = 'Claude ended the turn with an error';
-              toast('Claude', msg, 'error');
-              s.appendError(msg);
-            }
-            s.setStreaming(false);
-            break;
-          case 'error':
-            toast('Claude', event.message, 'error');
-            s.appendError(event.message);
-            s.setStreaming(false);
-            break;
-        }
+        applyClaudeEvent(useClaudeStore.getState(), event, () => {
+          void queryClient.invalidateQueries({ queryKey: ['claude-meta'] });
+        });
       },
     })
       .then(() => {

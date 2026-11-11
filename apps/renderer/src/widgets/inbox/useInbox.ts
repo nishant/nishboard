@@ -55,6 +55,9 @@ export function useInboxFeed() {
     },
     initialPageParam: null as string | null,
     getNextPageParam: nextPageParam,
+    // Bound memory and the 60s poll (a refetch re-requests every loaded page).
+    getPreviousPageParam: () => undefined,
+    maxPages: 3,
     refetchInterval: interval,
     staleTime: 30_000,
   });

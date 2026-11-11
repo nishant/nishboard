@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Droplets, Wind, Zap, Umbrella,
   Sunrise, Sunset, Radar, ChevronLeft, ChevronRight,
@@ -51,6 +51,21 @@ function aqiMeta(aqi: number) {
   return AQI_LEVELS.find((l) => aqi <= l.max) ?? AQI_LEVELS[AQI_LEVELS.length - 1];
 }
 
+/** The resolved light/dark scheme @nish/ui's theme-init stamps on <html data-scheme>. */
+function readScheme(): 'light' | 'dark' {
+  return document.documentElement.getAttribute('data-scheme') === 'light' ? 'light' : 'dark';
+}
+
+function useResolvedScheme(): 'light' | 'dark' {
+  const [scheme, setScheme] = useState(readScheme);
+  useEffect(() => {
+    const obs = new MutationObserver(() => setScheme(readScheme()));
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-scheme', 'data-theme'] });
+    return () => obs.disconnect();
+  }, []);
+  return scheme;
+}
+
 /** WidgetShell header actions for the weather tile. */
 export function WeatherActions() {
   const radarOpen = useWeatherUiStore((s) => s.radarOpen);
@@ -74,6 +89,7 @@ export function WeatherWidget() {
   const zipIdx = useAppSettingsStore((s) => s.weatherZipIdx);
   const setZipIdx = useAppSettingsStore((s) => s.setWeatherZipIdx);
   const radarOpen = useWeatherUiStore((s) => s.radarOpen);
+  const scheme = useResolvedScheme();
   const tempLabel = tempUnit === 'c' ? 'C' : 'F';
   const windLabel = windUnit === 'kmh' ? 'km/h' : 'mph';
   const multiLoc = zips.length > 1;
@@ -88,6 +104,10 @@ export function WeatherWidget() {
     if (!hourlyEl) return;
     const onWheel = (e: WheelEvent) => {
       if (e.deltaX !== 0) return; // let native horizontal scroll pass through
+      // At either end, let the wheel scroll the tile instead of trapping it.
+      const atStart = hourlyEl.scrollLeft <= 0;
+      const atEnd = hourlyEl.scrollLeft + hourlyEl.clientWidth >= hourlyEl.scrollWidth - 1;
+      if ((e.deltaY < 0 && atStart) || (e.deltaY > 0 && atEnd)) return;
       e.preventDefault();
       // deltaMode 1 = line mode (Windows standard mouse); multiply to get pixels
       const px = e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY;
@@ -128,7 +148,7 @@ export function WeatherWidget() {
       {radarOpen && location.lat != null && (
         <div className="shrink-0 h-52 rounded-lg overflow-hidden border border-th-line">
           <iframe
-            src={apiUrl(`/api/weather/radar-embed?lat=${location.lat}&lon=${location.lon}`)}
+            src={apiUrl(`/api/weather/radar-embed?lat=${location.lat}&lon=${location.lon}&scheme=${scheme}`)}
             className="w-full h-full"
             title="Weather radar"
           />

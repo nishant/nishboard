@@ -143,6 +143,13 @@ describe('GET /api/weather', () => {
     expect(res.json<{ error: string }>().error).toContain('Unknown ZIP code "99999"');
   });
 
+  it('maps a ZIP lookup outage (non-404) to 502, not Unknown ZIP', async () => {
+    stubFetch([['zippopotam.us/us/30301', () => textRes('boom', 500)]]);
+    const res = await app.inject({ method: 'GET', url: '/api/weather?zip=30301' });
+    expect(res.statusCode).toBe(502);
+    expect(res.json<{ error: string }>().error).toContain('Location service unavailable');
+  });
+
   it('maps a dead forecast upstream to 502', async () => {
     stubFetch([
       ['zippopotam.us/us/94105', () => zipFixture('San Francisco')],
@@ -168,5 +175,18 @@ describe('GET /api/weather/radar-embed', () => {
     expect(res.headers['content-type']).toContain('text/html');
     expect(res.body).toContain('rainviewer.com');
     expect(res.body).toContain('42.3700,-71.1100');
+  });
+
+  it('rejects an invalid scheme', async () => {
+    expect((await app.inject({ method: 'GET', url: '/api/weather/radar-embed?lat=42&lon=-71&scheme=neon' })).statusCode).toBe(400);
+  });
+
+  it('picks the radar base map and background from scheme (default dark)', async () => {
+    const light = await app.inject({ method: 'GET', url: '/api/weather/radar-embed?lat=42&lon=-71&scheme=light' });
+    expect(light.body).toContain('oCS=0');
+    expect(light.body).toContain('background:#fff');
+    const dflt = await app.inject({ method: 'GET', url: '/api/weather/radar-embed?lat=42&lon=-71' });
+    expect(dflt.body).toContain('oCS=1');
+    expect(dflt.body).toContain('background:#000');
   });
 });

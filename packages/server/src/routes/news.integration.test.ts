@@ -4,7 +4,8 @@ import type { NewsData } from '@dash/shared';
 import { testServer } from '../test/server';
 import { stubFetch, textRes } from '../test/fetchStub';
 
-// NOTE: module-level TTL cache keyed by topic — distinct topics per test.
+// NOTE: a module-level TTL cache holds the one top-headlines entry, so the
+// failing-upstream test runs before the one that fills it.
 
 const RSS = `<?xml version="1.0"?>
 <rss><channel>
@@ -41,9 +42,15 @@ afterEach(() => {
 });
 
 describe('GET /api/news', () => {
+  it('propagates an upstream failure as 502', async () => {
+    stubFetch([['news.google.com/rss', () => textRes('nope', 500)]]);
+    const res = await app.inject({ method: 'GET', url: '/api/news' });
+    expect(res.statusCode).toBe(502);
+  });
+
   it('parses Google News RSS: CDATA, entities, source suffix, dates', async () => {
     stubFetch([['news.google.com/rss', () => textRes(RSS)]]);
-    const res = await app.inject({ method: 'GET', url: '/api/news?topic=markets-test' });
+    const res = await app.inject({ method: 'GET', url: '/api/news' });
     expect(res.statusCode).toBe(200);
     const data = res.json<NewsData>();
 
@@ -60,11 +67,5 @@ describe('GET /api/news', () => {
     // Double-encoded entities resolve; bad dates become ''.
     expect(data.items[1].title).toBe('Apple\'s new chip "ships" <soon>');
     expect(data.items[1].pubDate).toBe('');
-  });
-
-  it('propagates an upstream failure as 502', async () => {
-    stubFetch([['news.google.com/rss', () => textRes('nope', 500)]]);
-    const res = await app.inject({ method: 'GET', url: '/api/news?topic=dead-upstream-test' });
-    expect(res.statusCode).toBe(502);
   });
 });

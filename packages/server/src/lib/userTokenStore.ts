@@ -42,6 +42,20 @@ export interface StoredUserTokens {
   meta?: Record<string, string>;
 }
 
+/** Runtime check for a token file: a hand-edited or truncated file must read
+ *  as "not connected", not crash a later getValidToken. */
+export function isStoredUserTokens(v: unknown): v is StoredUserTokens {
+  if (typeof v !== 'object' || v === null) return false;
+  const o: Record<string, unknown> = { ...v };
+  if (typeof o.access_token !== 'string' || typeof o.refresh_token !== 'string') return false;
+  if (typeof o.expires_at !== 'number' || !Number.isFinite(o.expires_at)) return false;
+  if (o.meta !== undefined) {
+    if (typeof o.meta !== 'object' || o.meta === null) return false;
+    if (!Object.values(o.meta).every((x) => typeof x === 'string')) return false;
+  }
+  return true;
+}
+
 /**
  * File-backed user-token store with a single-flight refresh.
  *
@@ -86,14 +100,15 @@ export class UserTokenStore {
         return null;
       }
       try {
-        return decryptJson<StoredUserTokens>(parsed, key);
+        const decrypted: unknown = decryptJson<unknown>(parsed, key);
+        return isStoredUserTokens(decrypted) ? decrypted : null;
       } catch {
         console.warn(`[tokens] ${name}: cannot decrypt — reconnect the service`);
         return null;
       }
     }
-    if (typeof parsed !== 'object' || parsed === null) return null;
-    const tokens = parsed as StoredUserTokens;
+    if (!isStoredUserTokens(parsed)) return null;
+    const tokens = parsed;
     // Migration: plaintext tokens + a key → rewrite encrypted right away.
     if (key) {
       try { this.save(tokens); } catch { /* keep serving the in-memory tokens */ }
@@ -127,21 +142,33 @@ export class UserTokenStore {
 
   /** A valid access token, refreshing (single-flight) when within the expiry skew. */
   async getValidToken(): Promise<string> {
-    if (!this.tokens) throw new Error('Not authenticated');
-    if (Date.now() > this.tokens.expires_at - this.expirySkewMs) {
+    const before = this.tokens;
+    if (!before) throw new Error('Not authenticated');
+    if (Date.now() > before.expires_at - this.expirySkewMs) {
+      let fresh: StoredUserTokens;
       try {
-        this.refreshInFlight ??= this.refreshFn(this.tokens.refresh_token).finally(() => {
+        this.refreshInFlight ??= this.refreshFn(before.refresh_token).finally(() => {
           this.refreshInFlight = null;
         });
-        const fresh = await this.refreshInFlight;
-        // Refresh responses don't carry service meta — keep what we had.
-        this.tokens = { ...fresh, meta: fresh.meta ?? this.tokens.meta };
-        this.save(this.tokens);
+        fresh = await this.refreshInFlight;
       } catch (err) {
-        if (err instanceof RefreshAuthError) this.clear();
+        // A dead grant only clears the session it was for: a newer store()
+        // during the refresh must survive.
+        if (err instanceof RefreshAuthError && this.tokens === before) this.clear();
         throw err;
       }
+      // clear() or store() ran while the refresh was in flight: the store owns
+      // the newer state, so never write the stale refresh result over it.
+      if (this.tokens !== before) {
+        if (!this.tokens) throw new Error('Not authenticated');
+        return this.tokens.access_token;
+      }
+      // Refresh responses don't carry service meta — keep what we had.
+      const next = { ...fresh, meta: fresh.meta ?? before.meta };
+      this.tokens = next;
+      this.save(next);
+      return next.access_token;
     }
-    return this.tokens.access_token;
+    return before.access_token;
   }
 }

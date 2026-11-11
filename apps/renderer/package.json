@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.node.json",
     "preview": "vite preview",
     "lint": "eslint src",
     "test": "vitest run",
@@ -21,7 +21,7 @@
     "react-dom": "^19.3.1",
     "react-grid-layout": "^1.5.4",
     "react-markdown": "^10.1.0",
-    "react-resizable": "^4.0.2",
+    "react-resizable": "^3.0.5",
     "remark-gfm": "^4.0.1",
     "zustand": "^5.1.0"
   },

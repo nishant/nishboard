@@ -14,8 +14,12 @@ const STATE: LauncherStateData = {
   ],
 };
 
-const launch = vi.fn(async () => undefined);
-const launchGroup = vi.fn(async () => undefined);
+const launch = vi.fn(async (_id: string): Promise<void> => undefined);
+const launchGroup = vi.fn(async (_id: string): Promise<void> => undefined);
+const addUrl = vi.fn(async (_label: string, _url: string): Promise<void> => undefined);
+const toastMock = vi.hoisted(() => vi.fn());
+
+vi.mock('../../lib/alerts', () => ({ toast: toastMock }));
 
 function mockElectron(state: LauncherStateData): void {
   // Only the surface LauncherWidget touches — everything else is absent, which
@@ -26,6 +30,7 @@ function mockElectron(state: LauncherStateData): void {
       getItems: async () => state,
       launch,
       launchGroup,
+      addUrl,
     },
   };
   Object.defineProperty(window, 'electron', {
@@ -39,6 +44,8 @@ beforeEach(() => {
   localStorage.clear();
   launch.mockClear();
   launchGroup.mockClear();
+  addUrl.mockClear();
+  toastMock.mockClear();
   useLauncherUiStore.setState({ editing: false, collapsed: {} });
   mockElectron(STATE);
 });
@@ -85,6 +92,36 @@ describe('LauncherWidget groups', () => {
 
     await user.click(screen.getByTitle('Launch all in Games'));
     expect(launchGroup).toHaveBeenCalledWith('g1');
+  });
+
+  it('toasts when a launch fails', async () => {
+    launch.mockRejectedValueOnce(new Error('missing exe'));
+    const user = userEvent.setup();
+    render(<LauncherWidget />);
+    await screen.findByText('Browser');
+    await user.click(screen.getByTitle('Browser'));
+    expect(toastMock).toHaveBeenCalledWith('Launch failed', 'Browser: missing exe', 'error');
+  });
+
+  it('edit modal has a rename button per item and group that enters rename mode', async () => {
+    useLauncherUiStore.setState({ editing: true });
+    const user = userEvent.setup();
+    render(<LauncherWidget />);
+    await screen.findByLabelText('Rename Steam');
+    await user.click(screen.getByLabelText('Rename Steam'));
+    expect(screen.getByDisplayValue('Steam')).toBeTruthy();
+    await user.click(screen.getByLabelText('Rename Games'));
+    expect(screen.getAllByDisplayValue('Games').some((el) => el.tagName === 'INPUT')).toBe(true);
+  });
+
+  it('rejects non-http links with a toast and never calls addUrl', async () => {
+    useLauncherUiStore.setState({ editing: true });
+    const user = userEvent.setup();
+    render(<LauncherWidget />);
+    await user.type(await screen.findByLabelText('Link URL'), 'javascript:alert(1)');
+    await user.click(screen.getByLabelText('Add link'));
+    expect(addUrl).not.toHaveBeenCalled();
+    expect(toastMock).toHaveBeenCalledWith('Invalid URL', expect.any(String), 'error');
   });
 
   it('shows the empty state outside Electron', () => {

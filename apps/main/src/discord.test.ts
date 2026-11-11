@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   discordUserAgent,
   isAllowedDiscordUrl,
+  decideWebviewAttach,
   decideDiscordPermission,
   serializeShareSources,
 } from './discord';
@@ -36,6 +37,20 @@ describe('isAllowedDiscordUrl', () => {
     expect(isAllowedDiscordUrl('file:///etc/passwd')).toBe(false);
     expect(isAllowedDiscordUrl('not a url')).toBe(false);
     expect(isAllowedDiscordUrl('')).toBe(false);
+  });
+});
+
+describe('decideWebviewAttach', () => {
+  it('allows discord.com on the discord partition only', () => {
+    expect(decideWebviewAttach('https://discord.com/app', 'persist:discord')).toBe(true);
+    expect(decideWebviewAttach('https://discord.com/app', undefined)).toBe(false);
+    expect(decideWebviewAttach('https://discord.com/app', 'persist:other')).toBe(false);
+    expect(decideWebviewAttach('https://discord.com/app', '')).toBe(false);
+  });
+
+  it('rejects other sources even on the right partition', () => {
+    expect(decideWebviewAttach('https://evil.com', 'persist:discord')).toBe(false);
+    expect(decideWebviewAttach('', 'persist:discord')).toBe(false);
   });
 });
 

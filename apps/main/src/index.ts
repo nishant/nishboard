@@ -15,6 +15,7 @@ import { isAllowedNavigation, isDev } from './env';
 import { installDefaultPermissionHandlers } from './permissions';
 import { migrateFileOriginStorage } from './storageMigration';
 import { registerApiTokenIpc } from './apiToken';
+import { stripFrameAncestors } from './cspStrip';
 
 
 // Before 'ready': the packaged renderer is served from app://nishboard, not
@@ -181,16 +182,18 @@ if (!gotLock) {
     //   • player.twitch.tv and clips.twitch.tv (VOD + clip embeds) → `frame-ancestors http://localhost:*`
     //   • www.rainviewer.com/map.html (weather radar) → `frame-ancestors *`, and `*`
     //     matches only network schemes, not app://.
-    // Strip CSP only from these framed document responses — media/tile CDNs
+    // Strip only frame-ancestors from these framed document responses — media/tile CDNs
     // (*.ttvnw.net, rainviewer tile hosts) are untouched, so playback/tiles/auth are
     // unaffected. Radar works in dev (renderer is http://localhost:5173) regardless.
     session.defaultSession.webRequest.onHeadersReceived(
-      { urls: ['*://player.twitch.tv/*', '*://clips.twitch.tv/*', '*://www.rainviewer.com/*'] },
+      { urls: ['https://player.twitch.tv/*', 'https://clips.twitch.tv/*', 'https://www.rainviewer.com/*'] },
       (details, callback) => {
+        // Drop only frame-ancestors; every other directive (script-src, etc.)
+        // keeps protecting these documents.
         const responseHeaders = { ...details.responseHeaders };
         for (const key of Object.keys(responseHeaders)) {
-          if (key.toLowerCase().startsWith('content-security-policy')) {
-            delete responseHeaders[key];
+          if (key.toLowerCase() === 'content-security-policy') {
+            responseHeaders[key] = (responseHeaders[key] ?? []).map(stripFrameAncestors);
           }
         }
         callback({ responseHeaders });
@@ -254,6 +257,14 @@ if (!gotLock) {
   });
 
   app.on('activate', () => {
-    if (mainWindow === null) createWindow();
+    // Startup still running: the window is about to be created, a second one
+    // would duplicate it.
+    if (startingUp) return;
+    if (mainWindow === null) {
+      createWindow();
+    } else {
+      mainWindow.show();
+      mainWindow.focus();
+    }
   });
 }

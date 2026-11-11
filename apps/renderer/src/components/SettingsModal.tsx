@@ -127,7 +127,7 @@ function CredentialRow({
 
 function BuiltinRow({ label }: { label: string }) {
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       <span className="text-th-hi3 text-2xs w-28 shrink-0">{label}</span>
       <div className="flex items-center gap-1.5 text-th-hi3 text-2xs">
         <Lock size={11} className="shrink-0" />
@@ -242,7 +242,7 @@ function AboutSection() {
                 <Button
                   size="sm"
                   variant="primary"
-                  onClick={() => window.electron?.openExternal(result.assetUrl!)}
+                  onClick={() => { const url = result.assetUrl; if (url) window.electron?.openExternal(url); }}
                   title={result.assetName ?? undefined}
                   className="self-start"
                 >
@@ -674,7 +674,7 @@ function AppSettingsPanel() {
       <div className="flex flex-col gap-3">
         <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Display</span>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="text-th-hi3 text-2xs w-28 shrink-0">UI scale</span>
           <div className="flex items-center gap-2">
             <IconButton label="Smaller" size="xs" variant="subtle" onClick={() => setUiScale(clampScale(uiScale - 0.1))} disabled={uiScale <= SCALE_MIN}>

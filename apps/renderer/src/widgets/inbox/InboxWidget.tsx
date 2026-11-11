@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import type { MouseEvent } from 'react';
 import { ExternalLink, Inbox as InboxIcon, KeyRound } from 'lucide-react';
-import { Button, EmptyState, toast } from '@nish/ui';
+import { Button, EmptyState } from '@nish/ui';
 import { INBOX_SOURCE_LABELS, Inbox } from '@nish/ui/inbox';
 import type { InboxAction, InboxItem } from '@nish/ui/inbox';
 import { useInboxFeed, useInboxMutations } from './useInbox';
@@ -104,13 +104,8 @@ export function InboxWidget() {
       if (item) toggleAck(item);
       return;
     }
-    try {
-      await runAction.mutateAsync({ id: itemId, actionId });
-    } catch (err) {
-      // useInboxMutations already shows the "Action failed" toast for rejections; this only
-      // keeps the ui Inbox from seeing an unhandled rejection.
-      if (!(err instanceof Error)) toast.error('Action failed', 'The action could not be run.');
-    }
+    // useInboxMutations already toasts rejections; swallow so the ui Inbox sees no unhandled rejection.
+    await runAction.mutateAsync({ id: itemId, actionId }).catch(() => undefined);
   }
 
   if (!isLoading && !isError && state === 'offline') {

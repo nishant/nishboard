@@ -42,6 +42,13 @@ export function isAllowedDiscordUrl(raw: string): boolean {
   }
 }
 
+/** Exported for tests. Whether a <webview> may attach: discord.com over https,
+ *  and only on the dedicated Discord partition (a different or missing
+ *  partition would put discord.com in a session shared with other content). */
+export function decideWebviewAttach(src: string, partition: string | undefined): boolean {
+  return partition === DISCORD_PARTITION && isAllowedDiscordUrl(src);
+}
+
 // Everything Discord web legitimately asks for: mic/cam (voice), screen share,
 // desktop notifications, copy-on-click, fullscreen video.
 const ALLOWED_PERMISSIONS = new Set([
@@ -210,13 +217,21 @@ export function initDiscordSession(): void {
 export function registerWebviewGuards(): void {
   app.on('web-contents-created', (_event, contents) => {
     contents.on('will-attach-webview', (event, webPreferences, params) => {
-      if (!isAllowedDiscordUrl(params.src ?? '')) {
+      if (!decideWebviewAttach(params.src ?? '', params.partition)) {
         event.preventDefault();
         return;
       }
       delete webPreferences.preload;
+      // The renderer wrote these attributes, so pin every security-relevant
+      // preference here rather than trusting what it asked for.
       webPreferences.nodeIntegration = false;
+      webPreferences.nodeIntegrationInSubFrames = false;
       webPreferences.contextIsolation = true;
+      webPreferences.sandbox = true;
+      webPreferences.webSecurity = true;
+      webPreferences.allowRunningInsecureContent = false;
+      delete webPreferences.experimentalFeatures;
+      delete webPreferences.enableBlinkFeatures;
     });
 
     if (contents.getType() === 'webview') {
@@ -228,6 +243,13 @@ export function registerWebviewGuards(): void {
       });
       // Rare top-frame navigations off discord.com also go to the browser.
       contents.on('will-navigate', (event, url) => {
+        if (isAllowedDiscordUrl(url)) return;
+        event.preventDefault();
+        if (/^https:\/\//i.test(url)) void shell.openExternal(url);
+      });
+      // A server redirect off discord.com is a navigation will-navigate never
+      // sees; apply the same rule.
+      contents.on('will-redirect', (event, url) => {
         if (isAllowedDiscordUrl(url)) return;
         event.preventDefault();
         if (/^https:\/\//i.test(url)) void shell.openExternal(url);

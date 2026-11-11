@@ -35,9 +35,11 @@ export interface FetchOpts {
 }
 
 async function doFetch(url: string, init: RequestInit | undefined, opts: FetchOpts): Promise<Response> {
+  // A caller's own signal still aborts the request; the timeout applies on top.
+  const timeout = AbortSignal.timeout(opts.timeoutMs ?? DEFAULT_TIMEOUT_MS);
   const res = await fetch(url, {
     ...init,
-    signal: AbortSignal.timeout(opts.timeoutMs ?? DEFAULT_TIMEOUT_MS),
+    signal: init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout,
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
