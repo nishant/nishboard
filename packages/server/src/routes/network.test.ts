@@ -191,6 +191,12 @@ describe('parseWinPing (Windows-only, localized output)', () => {
     expect(parseWinPing('Antwort von 1.1.1.1: Bytes=32 Zeit=14ms TTL=57')).toBe(14);
   });
 
+  it('parses IPv6 reply lines, which print no TTL', () => {
+    expect(parseWinPing('Reply from ::1: time<1ms')).toBe(0.5);
+    expect(parseWinPing('Reply from 2001:db8::1: time=12ms')).toBe(12);
+    expect(parseWinPing('Antwort von 2606:4700::1111: Zeit=9ms')).toBe(9);
+  });
+
   it('returns null (= loss) for timeout and unreachable output', () => {
     expect(parseWinPing('Request timed out.')).toBeNull();
     // German timeout — contains "Zeit" as a word but no ms token.

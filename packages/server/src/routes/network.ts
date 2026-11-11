@@ -37,7 +37,12 @@ export function isValidHost(host: string): boolean {
 export function parseWinPing(stdout: string): number | null {
   // Anchor on the untranslated TTL token: the unit ("ms", "мс") and the word
   // for time are localized, "TTL=" is not.
-  const m = /([=<])\s*(\d+)\s?[^\s\d=<]*\s+TTL=/i.exec(stdout);
+  // IPv6 replies ("Reply from 2001:db8::1: time=12ms") carry NO TTL token, so fall
+  // back to the first `=N<unit>` / `<N<unit>` token (a unit is required, which
+  // excludes bare counters like "Bytes=32").
+  const m =
+    /([=<])\s*(\d+)\s?[^\s\d=<]*\s+TTL=/i.exec(stdout) ??
+    /([=<])\s*(\d+)\s?[^\s\d=<]+/.exec(stdout);
   if (!m) return null;
   // `time<1ms` / `Zeit<1ms` — sub-millisecond reply, report the midpoint.
   if (m[1] === '<') return 0.5;
