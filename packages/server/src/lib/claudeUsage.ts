@@ -20,19 +20,41 @@ const execFileAsync = promisify(execFile);
 
 const USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
 
-function tokenFromCredsJson(text: string): string | null {
+/** The CLI refreshes its access token only when it runs, so an idle token goes
+ *  stale without the login being lost. */
+export const STALE_TOKEN_HINT = 'Usage refreshes after your next Claude chat';
+
+/** A bearer token plus the stored credential's expiry (epoch ms; null when unknown, e.g. env token). */
+interface OauthCredential {
+  token: string;
+  expiresAt: number | null;
+}
+
+/** Pure: has the stored credential's access token expired? Exported for tests. */
+export function isCredentialExpired(expiresAt: number | null, now: number = Date.now()): boolean {
+  return expiresAt !== null && expiresAt <= now;
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+function credentialFromCredsJson(text: string): OauthCredential | null {
   try {
-    const creds = JSON.parse(text) as { claudeAiOauth?: { accessToken?: unknown } };
-    const token = creds?.claudeAiOauth?.accessToken;
-    return typeof token === 'string' && token.length > 0 ? token : null;
+    const creds: unknown = JSON.parse(text);
+    const oauth = isRecord(creds) ? creds.claudeAiOauth : undefined;
+    if (!isRecord(oauth)) return null;
+    const token = oauth.accessToken;
+    if (typeof token !== 'string' || token.length === 0) return null;
+    return { token, expiresAt: typeof oauth.expiresAt === 'number' ? oauth.expiresAt : null };
   } catch {
     return null;
   }
 }
 
-async function readOauthToken(): Promise<string | null> {
+async function readOauthToken(): Promise<OauthCredential | null> {
   const envToken = process.env.CLAUDE_CODE_OAUTH_TOKEN;
-  if (envToken) return envToken;
+  if (envToken) return { token: envToken, expiresAt: null };
 
   if (process.platform === 'darwin') {
     // macOS-only: the CLI stores its login in the user keychain.
@@ -42,15 +64,15 @@ async function readOauthToken(): Promise<string | null> {
         ['find-generic-password', '-s', 'Claude Code-credentials', '-w'],
         { encoding: 'utf8', timeout: 5_000 },
       );
-      const token = tokenFromCredsJson(stdout.trim());
-      if (token) return token;
+      const cred = credentialFromCredsJson(stdout.trim());
+      if (cred) return cred;
     } catch { /* no keychain item — fall through */ }
   }
 
   // Windows/Linux primary location (also a macOS fallback for older CLIs).
   try {
     const text = await readFile(path.join(os.homedir(), '.claude', '.credentials.json'), 'utf8');
-    return tokenFromCredsJson(text);
+    return credentialFromCredsJson(text);
   } catch {
     return null;
   }
@@ -85,14 +107,8 @@ export function parseUsageResponse(raw: unknown): ClaudeUsageData {
       resetsAt: typeof w.resets_at === 'string' ? w.resets_at : null,
     });
   }
-  // Normalize fraction-shaped responses (0–1) to percent. Applied across ALL
-  // windows, not per-window, so a genuine 0% window next to a 45% one isn't
-  // misread as a fraction. Tradeoff: every window genuinely ≤1% would scale
-  // ×100 — accepted, since real subscription windows virtually never all sit
-  // at ≤1% simultaneously.
-  if (windows.length > 0 && windows.every((w) => w.utilization <= 1)) {
-    for (const w of windows) w.utilization = Math.min(100, w.utilization * 100);
-  }
+  // The endpoint reports percent (0–100) — no fraction heuristic: a real
+  // 0.8% week next to an idle 5h window must stay 0.8, not become 80%.
   windows.sort((a, b) => {
     const ai = WINDOW_ORDER.indexOf(a.key);
     const bi = WINDOW_ORDER.indexOf(b.key);
@@ -102,26 +118,30 @@ export function parseUsageResponse(raw: unknown): ClaudeUsageData {
 }
 
 export async function fetchClaudeUsage(): Promise<ClaudeUsageData> {
-  const token = await readOauthToken();
-  if (!token) {
+  const cred = await readOauthToken();
+  if (!cred) {
     throw new HttpError(
       503,
       'No Claude Code login found — run `claude /login` in a terminal (or set CLAUDE_CODE_OAUTH_TOKEN in Settings → Developer).',
     );
   }
+  if (isCredentialExpired(cred.expiresAt)) {
+    // Skip a request that is certain to 401; the next chat refreshes the token.
+    throw new UpstreamError(401, STALE_TOKEN_HINT);
+  }
   const res = await fetch(USAGE_URL, {
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${cred.token}`,
       'anthropic-beta': 'oauth-2025-04-20',
       'Content-Type': 'application/json',
     },
     signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) {
-    // 401 = expired/revoked login. Deliberately no response-body passthrough —
+    // 401 = stale access token (the CLI refreshes it on its next run). Deliberately no response-body passthrough —
     // keep any token-adjacent detail out of client-visible errors.
     const hint = res.status === 401
-      ? 'Claude Code login expired — run `claude /login` again.'
+      ? STALE_TOKEN_HINT
       : `Usage endpoint returned ${res.status}`;
     throw new UpstreamError(res.status, hint);
   }

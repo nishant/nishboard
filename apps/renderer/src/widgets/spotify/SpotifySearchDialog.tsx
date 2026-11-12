@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, memo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { Play, Plus, Music, Mic2, Check } from 'lucide-react';
 import { EmptyState, ErrorState, IconButton, Modal, Spinner, cn, Label, SearchInput } from '@nish/ui';
 import {
@@ -99,23 +99,39 @@ export function SpotifySearchDialog({ open, onClose }: SpotifySearchDialogProps)
     [devices.data],
   );
 
-  // Reset state + focus input on open
+  // Status-clear timers, one per `${trackId}:${action}` so a re-click restarts
+  // its own 1.5s window instead of being cut short by an older timer.
+  const timers = useRef<Map<string, number>>(new Map());
+  const clearTimers = useCallback(() => {
+    timers.current.forEach((id) => window.clearTimeout(id));
+    timers.current.clear();
+  }, []);
+
+  // Reset state + focus input on open; drop pending timers on close/unmount
   useEffect(() => {
     if (open) {
       setQuery('');
       setStatusMap({});
       const id = setTimeout(() => inputRef.current?.focus(), 50);
-      return () => clearTimeout(id);
+      return () => { clearTimeout(id); clearTimers(); };
     }
-  }, [open]);
+    clearTimers();
+  }, [open, clearTimers]);
 
-  const setStatus = (trackId: string, action: RowAction, status: ActionStatus) => {
+  const setStatus = useCallback((trackId: string, action: RowAction, status: ActionStatus) => {
     setStatusMap((prev) => ({
       ...prev,
       [trackId]: { ...prev[trackId], [action]: status },
     }));
+    const key = `${trackId}:${action}`;
+    const prevTimer = timers.current.get(key);
+    if (prevTimer !== undefined) {
+      window.clearTimeout(prevTimer);
+      timers.current.delete(key);
+    }
     if (status === 'done' || status === 'error') {
-      setTimeout(() => {
+      const id = window.setTimeout(() => {
+        timers.current.delete(key);
         setStatusMap((prev) => {
           const row = prev[trackId];
           if (!row) return prev;
@@ -123,27 +139,38 @@ export function SpotifySearchDialog({ open, onClose }: SpotifySearchDialogProps)
           return { ...prev, [trackId]: rest };
         });
       }, 1500);
+      timers.current.set(key, id);
     }
-  };
+  }, []);
 
-  const handleAction = (track: SpotifyTrackItem, action: RowAction) => {
+  // Latest values in refs so handleAction stays referentially stable and the
+  // memoised ResultRow rows do not re-render on every poll.
+  const activeDeviceRef = useRef(activeDeviceId);
+  activeDeviceRef.current = activeDeviceId;
+  const playMutate = useRef(playTrack.mutate);
+  playMutate.current = playTrack.mutate;
+  const queueMutate = useRef(queueTrack.mutate);
+  queueMutate.current = queueTrack.mutate;
+
+  const handleAction = useCallback((track: SpotifyTrackItem, action: RowAction) => {
     if (track.isLocal) return;
     setStatus(track.trackId, action, 'pending');
     const onDone = () => setStatus(track.trackId, action, 'done');
     const onErr = () => setStatus(track.trackId, action, 'error');
+    const deviceId = activeDeviceRef.current;
 
     if (action === 'play') {
-      playTrack.mutate(
-        { trackUri: track.uri, deviceId: activeDeviceId },
+      playMutate.current(
+        { trackUri: track.uri, deviceId },
         { onSuccess: onDone, onError: onErr },
       );
     } else {
-      queueTrack.mutate(
-        { uri: track.uri, deviceId: activeDeviceId },
+      queueMutate.current(
+        { uri: track.uri, deviceId },
         { onSuccess: onDone, onError: onErr },
       );
     }
-  };
+  }, [setStatus]);
 
   if (!open) return null;
 

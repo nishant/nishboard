@@ -7,9 +7,10 @@ vi.mock('../../lib/streamClient', async () => {
 });
 const toast = vi.fn();
 vi.mock('../../lib/alerts', () => ({ toast: (...a: unknown[]) => toast(...a), fireAlert: vi.fn() }));
+vi.mock('@tanstack/react-query', async (orig) => ({  ...(await orig<typeof import('@tanstack/react-query')>()),  useQueryClient: () => ({ invalidateQueries: vi.fn() }),}));
 
 import { StreamHttpError } from '../../lib/streamClient';
-import { postChatWithRetry, useSendClaudeMessage } from './useClaude';
+import { applyClaudeEvent, postChatWithRetry, useSendClaudeMessage } from './useClaude';
 import { useClaudeStore } from '../../store/claudeStore';
 import type { ClaudeChatRequestBody } from '@dash/shared';
 
@@ -78,5 +79,69 @@ describe('useSendClaudeMessage', () => {
     expect(JSON.stringify(last.parts)).toContain('Claude ended the turn with an error');
     expect(toast).toHaveBeenCalledWith('Claude', 'Claude ended the turn with an error', 'error');
     expect(useClaudeStore.getState().isStreaming).toBe(false);
+  });
+});
+
+describe('applyClaudeEvent', () => {
+  const begin = (): void => {
+    useClaudeStore.setState({ messages: [], isStreaming: false });
+    const s = useClaudeStore.getState();
+    s.addUser('hi');
+    s.beginAssistant();
+    s.setStreaming(true);
+  };
+  const apply = (event: Parameters<typeof applyClaudeEvent>[1], onInit?: () => void): void =>
+    applyClaudeEvent(useClaudeStore.getState(), event, onInit);
+  const parts = () => useClaudeStore.getState().messages.at(-1)!.parts;
+  const promptStatus = () => {
+    const p = parts().find((x) => x.kind === 'prompt');
+    return p && p.kind === 'prompt' ? p.status : undefined;
+  };
+  const request = { kind: 'tool', toolName: 'Bash', detail: 'ls' } as const;
+
+  it('init stores the session and fires the meta refresh hook', () => {
+    begin();
+    const onInit = vi.fn();
+    apply({ type: 'init', sessionId: 'sess-9', model: 'opus' }, onInit);
+    expect(useClaudeStore.getState().sessionId).toBe('sess-9');
+    expect(useClaudeStore.getState().model).toBe('opus');
+    expect(onInit).toHaveBeenCalledOnce();
+  });
+
+  it('done without isError finishes the turn quietly', () => {
+    begin();
+    apply({ type: 'done', isError: false, durationMs: 5, outputTokens: 1, contextTokens: 2 });
+    expect(useClaudeStore.getState().isStreaming).toBe(false);
+    expect(JSON.stringify(parts())).not.toContain('ended the turn with an error');
+    expect(toast).not.toHaveBeenCalled();
+  });
+
+  it('done with isError appends an error note, toasts and stops streaming', () => {
+    begin();
+    apply({ type: 'done', isError: true, durationMs: 5, outputTokens: null, contextTokens: null });
+    expect(JSON.stringify(parts())).toContain('Claude ended the turn with an error');
+    expect(toast).toHaveBeenCalledWith('Claude', 'Claude ended the turn with an error', 'error');
+    expect(useClaudeStore.getState().isStreaming).toBe(false);
+  });
+
+  it('error appends the message, toasts and stops streaming', () => {
+    begin();
+    apply({ type: 'error', message: 'boom' });
+    expect(JSON.stringify(parts())).toContain('boom');
+    expect(toast).toHaveBeenCalledWith('Claude', 'boom', 'error');
+    expect(useClaudeStore.getState().isStreaming).toBe(false);
+  });
+
+  it.each([
+    ['user', 'allow', 'allowed'],
+    ['user', 'deny', 'denied'],
+    ['timeout', 'deny', 'timeout'],
+    ['cancelled', 'deny', 'cancelled'],
+  ] as const)('permission-resolved reason %s / %s maps to %s', (reason, behavior, status) => {
+    begin();
+    apply({ type: 'permission-request', requestId: 'r1', request });
+    expect(promptStatus()).toBe('pending');
+    apply({ type: 'permission-resolved', requestId: 'r1', behavior, reason });
+    expect(promptStatus()).toBe(status);
   });
 });

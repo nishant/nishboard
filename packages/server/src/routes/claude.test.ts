@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
+import http from 'node:http';
+import net from 'node:net';
+import { registerAccessGuard } from '../lib/access';
 import type { FastifyInstance } from 'fastify';
 import type { SpawnClaudeChatOpts } from '../lib/claudeCli';
 
@@ -8,12 +11,11 @@ import type { SpawnClaudeChatOpts } from '../lib/claudeCli';
 vi.mock('../lib/claudeCli', () => ({
   spawnClaudeChat: vi.fn(),
   claudeStatus: vi.fn(async () => ({ available: true, version: 'test' })),
-  isSessionNotFoundError: vi.fn(() => false),
   getClaudeMeta: vi.fn(async () => ({ slashCommands: [], model: null })),
 }));
 
 import { claudeRoutes } from './claude';
-import { isSessionNotFoundError, spawnClaudeChat } from '../lib/claudeCli';
+import { spawnClaudeChat } from '../lib/claudeCli';
 
 const mockSpawn = vi.mocked(spawnClaudeChat);
 
@@ -151,19 +153,19 @@ describe('POST /api/claude/chat — resume retry and single-flight release', () 
       opts.push(o);
       return { kill: vi.fn(), respondControl: respond[opts.length - 1] };
     });
-    vi.mocked(isSessionNotFoundError).mockReturnValueOnce(true);
 
     const server = await listen();
     app = server.app;
     const resPromise = fetch(`${server.url}/api/claude/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: 'hi', sessionId: 'sess-resume-1' }),
+      body: JSON.stringify({ message: 'hi', sessionId: '0b1f9c2e-3a4d-4e5f-8a6b-7c8d9e0f1a2b' }),
     });
 
     await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalledTimes(1));
-    expect(opts[0].sessionId).toBe('sess-resume-1');
-    opts[0].onEvent({ type: 'error', message: 'No conversation found with session ID' });
+    expect(opts[0].sessionId).toBe('0b1f9c2e-3a4d-4e5f-8a6b-7c8d9e0f1a2b');
+    // The CLI tags the error with a code; the route never regexes the message.
+    opts[0].onEvent({ type: 'error', message: 'No conversation found with session ID' }, { code: 'session-not-found' });
 
     // The retry spawned synchronously, as a fresh chat.
     expect(mockSpawn).toHaveBeenCalledTimes(2);
@@ -327,5 +329,104 @@ describe('POST /api/claude/control + chat body extensions', () => {
       body: JSON.stringify({ message: 'hi', additionalDirs: ['/ok', '/bad%PATH%'] }),
     });
     expect(dirs.status).toBe(400);
+
+    // NISHBOARD-216: only a UUID is a valid session id — a flag-shaped value
+    // would otherwise reach argv next to --resume.
+    for (const sessionId of ['--dangerously-skip-permissions', '-abcdefgh', 'sess-resume-1']) {
+      const res = await fetch(`${server.url}/api/claude/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: 'hi', sessionId }),
+      });
+      expect(res.status).toBe(400);
+    }
+  });
+});
+
+// ── Hand-rolled CORS on the hijacked SSE route (@fastify/cors never runs) ────
+
+const TOKEN = 'test-token';
+
+async function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer();
+    srv.once('error', reject);
+    srv.listen(0, '127.0.0.1', () => {
+      const addr = srv.address();
+      const port = typeof addr === 'object' && addr ? addr.port : 0;
+      srv.close(() => resolve(port));
+    });
+  });
+}
+
+/** node:http, not fetch: fetch treats Origin as a forbidden header. */
+function rawPost(
+  port: number,
+  headers: Record<string, string>,
+): Promise<{ status: number; headers: http.IncomingHttpHeaders }> {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify({ message: 'hi' });
+    const req = http.request(
+      {
+        host: '127.0.0.1',
+        port,
+        path: '/api/claude/chat',
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body), ...headers },
+      },
+      (res) => {
+        resolve({ status: res.statusCode ?? 0, headers: res.headers });
+        res.resume();
+      },
+    );
+    req.on('error', reject);
+    req.end(body);
+  });
+}
+
+describe('POST /api/claude/chat — Origin handling and auth', () => {
+  let app: FastifyInstance | null = null;
+
+  afterEach(async () => {
+    await app?.close();
+    app = null;
+    vi.clearAllMocks();
+  });
+
+  async function guardedServer(): Promise<number> {
+    const port = await freePort();
+    app = Fastify({ logger: false });
+    registerAccessGuard(app, { token: TOKEN, port });
+    await app.register(claudeRoutes, { prefix: '/api/claude' });
+    await app.listen({ port, host: '127.0.0.1' });
+    mockSpawn.mockImplementation((opts: SpawnClaudeChatOpts) => {
+      setTimeout(() => {
+        opts.onEvent(doneFrame);
+        opts.onExit();
+      }, 10);
+      return { kill: vi.fn(), respondControl: () => false };
+    });
+    return port;
+  }
+
+  it('echoes an allowed origin and withholds ACAO for null and foreign origins', async () => {
+    const port = await guardedServer();
+    const auth = { Authorization: `Bearer ${TOKEN}` };
+
+    const ok = await rawPost(port, { ...auth, Origin: 'app://nishboard' });
+    expect(ok.status).toBe(200);
+    expect(ok.headers['access-control-allow-origin']).toBe('app://nishboard');
+
+    for (const origin of ['null', 'https://evil.example']) {
+      const res = await rawPost(port, { ...auth, Origin: origin });
+      expect(res.headers['access-control-allow-origin']).toBeUndefined();
+    }
+  });
+
+  it('returns 401 without the bearer token, before any spawn', async () => {
+    const port = await guardedServer();
+    const res = await rawPost(port, { Origin: 'app://nishboard' });
+    expect(res.status).toBe(401);
+    expect(mockSpawn).not.toHaveBeenCalled();
   });
 });

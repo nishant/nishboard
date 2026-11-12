@@ -171,3 +171,49 @@ describe('GET /api/twitch/embed', () => {
     }
   });
 });
+
+describe('Twitch app token request', () => {
+  it('POSTs the secret in a form body, never in the URL', async () => {
+    const fetchFn = stubFetch([
+      ['id.twitch.tv/oauth2/token', () => jsonRes({ access_token: 'tok', expires_in: 3600 })],
+      ['helix/search/categories', () => jsonRes({ data: [] })],
+    ]);
+    // The app token is cached module-wide; only assert when this test fetched it.
+    await app.inject({ method: 'GET', url: '/api/twitch/categories?q=tokenformtest' });
+    const tokenCall = fetchFn.mock.calls.find(([u]) => String(u).includes('oauth2/token'));
+    if (tokenCall) {
+      const [url, init] = tokenCall as [string, RequestInit];
+      expect(String(url)).not.toContain('client_secret');
+      expect(init.method).toBe('POST');
+      expect(new Headers(init.headers).get('content-type')).toBe('application/x-www-form-urlencoded');
+      expect(String(init.body)).toContain('client_secret=csecret');
+      expect(String(init.body)).toContain('grant_type=client_credentials');
+    }
+  });
+});
+
+describe('GET /api/twitch/search', () => {
+  it('400s on a bad cursor and on an over-long q', async () => {
+    expect((await app.inject({ method: 'GET', url: '/api/twitch/search?q=bob&after=a%20b' })).statusCode).toBe(400);
+    expect((await app.inject({ method: 'GET', url: `/api/twitch/search?q=${'x'.repeat(101)}` })).statusCode).toBe(400);
+  });
+});
+
+describe('GET /api/twitch/callback state handling', () => {
+  it('a wrong state is a 400 and does not cancel the pending flow', async () => {
+    const urlRes = await app.inject({ method: 'GET', url: '/api/twitch/auth-url' });
+    const state = new URL(urlRes.json<{ url: string }>().url).searchParams.get('state') ?? '';
+    expect(state).not.toBe('');
+
+    const bad = await app.inject({ method: 'GET', url: '/api/twitch/callback?code=c&state=wrong' });
+    expect(bad.statusCode).toBe(400);
+
+    const fetchFn = stubFetch([['id.twitch.tv/oauth2/token', () => jsonRes({ message: 'x' }, 400)]]);
+    const ok = await app.inject({ method: 'GET', url: `/api/twitch/callback?code=c&state=${state}` });
+    expect(ok.statusCode).toBe(502);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    const replay = await app.inject({ method: 'GET', url: `/api/twitch/callback?code=c&state=${state}` });
+    expect(replay.statusCode).toBe(400);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+});

@@ -17,6 +17,7 @@ import {
   buildControlResponseLine,
   buildPromptRequest,
   toolFullInput,
+  toolInputWithFlag,
   buildUserMessageLine,
   classifyCliError,
   extractControlCancel,
@@ -25,6 +26,7 @@ import {
   extractInitMeta,
   isSessionNotFoundError,
   parseStreamJsonLine,
+  settleErroredResult,
   toolDetail,
 } from './claudeCli';
 
@@ -375,6 +377,15 @@ describe('control protocol pure functions (wire shapes captured from CLI 2.1.207
     expect(toolFullInput('Bash', { command: 'a\nb' })).toBe('a\nb');
   });
 
+  it('buildPromptRequest sets truncated only when the input was cut', () => {
+    expect(toolInputWithFlag('Bash', { command: 'x'.repeat(5000) }).truncated).toBe(true);
+    expect(toolInputWithFlag('Bash', { command: 'ls' })).toEqual({ text: 'ls', truncated: false });
+    const big = buildPromptRequest('Bash', { command: 'x'.repeat(5000) }, null);
+    expect(big).toMatchObject({ kind: 'tool', truncated: true });
+    const small = buildPromptRequest('Bash', { command: 'ls' }, null);
+    expect(small).not.toHaveProperty('truncated');
+  });
+
   it('buildPromptRequest: AskUserQuestion → question card; malformed questions degrade to tool card', () => {
     const input = {
       questions: [{
@@ -587,5 +598,28 @@ describe('spawnClaudeChat — spawn failure', () => {
     expect(events).toHaveLength(1);
     expect(events[0].type).toBe('error');
     expect(events[0]).toMatchObject({ message: expect.stringContaining('Failed to start Claude CLI') });
+  });
+});
+
+describe('settleErroredResult (decided at close, once stderr is fully drained)', () => {
+  const done = { type: 'done', isError: true, durationMs: 3, outputTokens: null, contextTokens: null } as const;
+
+  it('tags a session-not-found stderr that arrived after the result frame', () => {
+    const stderr = 'No conversation found with session ID: abc-123\n';
+    expect(settleErroredResult(done, stderr)).toEqual({
+      event: { type: 'error', message: classifyCliError(stderr) },
+      meta: { code: 'session-not-found' },
+    });
+  });
+
+  it('keeps the tag even when the classified message is truncated', () => {
+    const stderr = `${'x'.repeat(600)} No conversation found`;
+    const settled = settleErroredResult(done, stderr);
+    expect(settled.meta?.code).toBe('session-not-found');
+  });
+
+  it('passes the done frame through for any other stderr (including empty)', () => {
+    expect(settleErroredResult(done, 'rate limit exceeded')).toEqual({ event: done });
+    expect(settleErroredResult(done, '')).toEqual({ event: done });
   });
 });

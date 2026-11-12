@@ -7,8 +7,8 @@ import path from 'path';
 export default defineConfig({
   resolve: {
     alias: {
-      electron: path.resolve(__dirname, 'test/electron-stub.ts'),
-      '@dash/shared': path.resolve(__dirname, '../../packages/shared/src/index.ts'),
+      electron: path.resolve(import.meta.dirname, 'test/electron-stub.ts'),
+      '@dash/shared': path.resolve(import.meta.dirname, '../../packages/shared/src/index.ts'),
     },
   },
   test: {

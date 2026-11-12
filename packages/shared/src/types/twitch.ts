@@ -2,9 +2,9 @@ export interface TwitchChannel {
   id: string;
   login: string; // broadcaster login — used as the player embed channel
   displayName: string;
-  thumbnailUrl: string; // profile image
+  thumbnailUrl: string; // stream still when live (followed, category streams), profile image otherwise (search, followed-all)
   isLive: boolean;
-  title: string; // stream title (current or last)
+  title: string; // current stream title; last title from search; empty for offline followed-all rows
   gameName: string;
   startedAt: string | null; // ISO when the current stream went live, null if offline
 }

@@ -125,7 +125,7 @@ export function evaluateCpuRules(rules: AlertRule[], data: HardwareData, now: nu
         lastSampleAt: now,
       };
       triggerStates.set(rule.id, st);
-      return;
+      continue;
     }
 
     // Gap rule: hidden window / sleep / server restart → restart the run.
@@ -133,7 +133,7 @@ export function evaluateCpuRules(rules: AlertRule[], data: HardwareData, now: nu
       st.cpuAboveSince = above ? now : null;
       st.lastSampleAt = now;
       if (st.phase === 'held' && !above) st.phase = 'armed';
-      return;
+      continue;
     }
 
     if (above) {

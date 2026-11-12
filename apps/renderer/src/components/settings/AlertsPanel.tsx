@@ -12,6 +12,11 @@ const KIND_LABELS: Record<AlertRuleKind, string> = {
   'crypto-change': 'Crypto 24h move',
   'cpu-sustained': 'CPU sustained',
 };
+const KINDS: AlertRuleKind[] = ['stock-price', 'crypto-price', 'crypto-change', 'cpu-sustained'];
+
+function isAlertRuleKind(v: string): v is AlertRuleKind {
+  return KINDS.some((k) => k === v);
+}
 
 function NumField({
   value, onChange, placeholder, suffix, label, width = 'w-24',
@@ -69,7 +74,7 @@ function RuleRow({ rule }: { rule: AlertRule }) {
         size="sm"
         tone="danger"
         onClick={() => removeRule(rule.id)}
-        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
+        className="min-h-11 min-w-11 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100 focus-visible:opacity-100"
       >
         <X size={13} />
       </IconButton>
@@ -93,7 +98,11 @@ export function AlertsPanel() {
   const [minutes, setMinutes] = useState('5');
   const [cooldown, setCooldown] = useState(String(DEFAULT_COOLDOWN_MIN));
 
-  const cooldownMin = Math.max(1, Number(cooldown) || DEFAULT_COOLDOWN_MIN);
+  const cooldownNum = Number(cooldown);
+  const cooldownMin = cooldown !== '' && Number.isFinite(cooldownNum) ? Math.max(1, Math.round(cooldownNum)) : DEFAULT_COOLDOWN_MIN;
+  // The select shows the first coin when the chosen one left the watchlist (or
+  // the watchlist was empty at mount), so the rule must use what is shown.
+  const effectiveCoinId = cryptoWatchlist.includes(coinId) ? coinId : cryptoWatchlist[0] ?? '';
 
   function buildRule(): NewAlertRule | null {
     const base = { enabled: true, cooldownMin };
@@ -106,13 +115,13 @@ export function AlertsPanel() {
       }
       case 'crypto-price': {
         const n = Number(threshold);
-        if (!coinId || !(n > 0)) return null;
-        return { ...base, kind, coinId, dir, thresholdUsd: n };
+        if (!effectiveCoinId || !(n > 0)) return null;
+        return { ...base, kind, coinId: effectiveCoinId, dir, thresholdUsd: n };
       }
       case 'crypto-change': {
         const n = Number(magnitude);
-        if (!coinId || !(n > 0)) return null;
-        return { ...base, kind, coinId, magnitudePct: n };
+        if (!effectiveCoinId || !(n > 0)) return null;
+        return { ...base, kind, coinId: effectiveCoinId, magnitudePct: n };
       }
       case 'cpu-sustained': {
         const pct = Number(cpuPct);
@@ -149,16 +158,16 @@ export function AlertsPanel() {
         <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Add rule</span>
 
         <Field layout="inline" label="Type">
-          <Select size="sm" value={kind} onChange={(e) => setKind(e.target.value as AlertRuleKind)}>
-            {(Object.keys(KIND_LABELS) as AlertRuleKind[]).map((k) => (
+          <Select size="sm" value={kind} onChange={(e) => { if (isAlertRuleKind(e.target.value)) setKind(e.target.value); }}>
+            {KINDS.map((k) => (
               <option key={k} value={k}>{KIND_LABELS[k]}</option>
             ))}
           </Select>
         </Field>
 
         {kind === 'stock-price' && (
-          <div className="flex items-center gap-3">
-            <span className="text-th-hi3 text-2xs w-28 shrink-0">Condition</span>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+            <span className="text-th-hi3 text-2xs sm:w-28 shrink-0">Condition</span>
             <div className="flex items-center gap-2 flex-wrap">
               <Input
                 size="sm"
@@ -180,10 +189,10 @@ export function AlertsPanel() {
         )}
 
         {(kind === 'crypto-price' || kind === 'crypto-change') && (
-          <div className="flex items-center gap-3">
-            <span className="text-th-hi3 text-2xs w-28 shrink-0">Condition</span>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+            <span className="text-th-hi3 text-2xs sm:w-28 shrink-0">Condition</span>
             <div className="flex items-center gap-2 flex-wrap">
-              <Select size="sm" value={coinId} onChange={(e) => setCoinId(e.target.value)} aria-label="Coin" className="w-28">
+              <Select size="sm" value={effectiveCoinId} onChange={(e) => setCoinId(e.target.value)} aria-label="Coin" className="w-28">
                 {cryptoWatchlist.length === 0 && <option value="">— no coins —</option>}
                 {cryptoWatchlist.map((c) => <option key={c} value={c}>{c}</option>)}
               </Select>
@@ -200,8 +209,8 @@ export function AlertsPanel() {
         )}
 
         {kind === 'cpu-sustained' && (
-          <div className="flex items-center gap-3">
-            <span className="text-th-hi3 text-2xs w-28 shrink-0">Condition</span>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+            <span className="text-th-hi3 text-2xs sm:w-28 shrink-0">Condition</span>
             <div className="flex items-center gap-2 flex-wrap">
               <NumField value={cpuPct} onChange={setCpuPct} placeholder="90" suffix="%" label="CPU percent" width="w-16" />
               <span className="text-th-hi3 text-3xs">for</span>
@@ -210,13 +219,13 @@ export function AlertsPanel() {
           </div>
         )}
 
-        <div className="flex items-center gap-3">
-          <span className="text-th-hi3 text-2xs w-28 shrink-0">Cooldown</span>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+          <span className="text-th-hi3 text-2xs sm:w-28 shrink-0">Cooldown</span>
           <NumField value={cooldown} onChange={setCooldown} placeholder="30" suffix="min between fires" label="Cooldown in minutes" width="w-16" />
         </div>
 
         <div className="flex items-center gap-3">
-          <span className="w-28 shrink-0" />
+          <span className="hidden sm:block w-28 shrink-0" />
           <Button size="sm" variant="subtle" icon={<Plus size={13} />} onClick={submit} disabled={!draft}>
             Add alert
           </Button>

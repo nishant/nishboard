@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { YoutubeSearchPage, YoutubeAuthStatus, YoutubePlaylist, YoutubeChannel } from '@dash/shared';
 import { apiClient } from '../../lib/apiClient';
+import { toast } from '../../lib/alerts';
 import { useGatedInterval } from '../../hooks/useGatedInterval';
 
 /** Browse tabs (videos.list, 1 quota unit) — server caches 45 min per category;
@@ -8,7 +9,7 @@ import { useGatedInterval } from '../../hooks/useGatedInterval';
 export function useYoutubeBrowse(category: string, enabled: boolean) {
   return useQuery<YoutubeSearchPage>({
     queryKey: ['youtube-browse', category],
-    queryFn: () => apiClient.get<YoutubeSearchPage>(`/api/youtube/browse?category=${encodeURIComponent(category)}`),
+    queryFn: () => apiClient.get<YoutubeSearchPage>(`/api/youtube/browse?${new URLSearchParams({ category }).toString()}`),
     enabled,
     staleTime: 45 * 60 * 1000,
   });
@@ -18,14 +19,11 @@ export function useYoutubeBrowse(category: string, enabled: boolean) {
  *  budget shared with streams.nish.software, so nothing refetches it by itself:
  *  no retry, never stale, no refetch on mount. Fresh results are the explicit
  *  Refresh (`useYoutubeSearchRefresh`). Exported for tests. */
-export function youtubeSearchOptions(query: string, pageToken?: string) {
+export function youtubeSearchOptions(query: string) {
   return {
-    queryKey: ['youtube-search', query, pageToken] as const,
-    queryFn: () => {
-      const params = new URLSearchParams({ q: query });
-      if (pageToken) params.set('pageToken', pageToken);
-      return apiClient.get<YoutubeSearchPage>(`/api/youtube/search?${params.toString()}`);
-    },
+    // Third element kept (always undefined) so saved keys and the refresh write match.
+    queryKey: ['youtube-search', query, undefined] as const,
+    queryFn: () => apiClient.get<YoutubeSearchPage>(`/api/youtube/search?${new URLSearchParams({ q: query }).toString()}`),
     enabled: query.length > 0,
     retry: false,
     staleTime: Infinity,
@@ -33,8 +31,8 @@ export function youtubeSearchOptions(query: string, pageToken?: string) {
   };
 }
 
-export function useYoutubeSearch(query: string, pageToken?: string) {
-  return useQuery<YoutubeSearchPage>(youtubeSearchOptions(query, pageToken));
+export function useYoutubeSearch(query: string) {
+  return useQuery<YoutubeSearchPage>(youtubeSearchOptions(query));
 }
 
 /** Fresh first-page results for a search (spends one search, `refresh=1`),
@@ -51,25 +49,45 @@ export function useYoutubeSearchRefresh() {
 
 // ── Account (Google OAuth) ────────────────────────────────────────────────────
 
+const CONNECT_POLL_MS = 2_000;
+const IDLE_POLL_MS = 60_000;
+const CONNECT_WINDOW_MS = 5 * 60_000;
+/** Set when the auth URL opens; the auth-status poll speeds up until connected. */
+let connectingSince: number | null = null;
+
 /** Poll auth state so the widget flips to the signed-in tabs automatically
  *  after the browser OAuth round-trip completes against the server. */
 export function useYoutubeAuthStatus() {
-  const interval = useGatedInterval(15_000);
+  const fast = useGatedInterval(CONNECT_POLL_MS);
+  const slow = useGatedInterval(IDLE_POLL_MS);
   return useQuery<YoutubeAuthStatus>({
     queryKey: ['youtube-auth'],
     queryFn: () => apiClient.get<YoutubeAuthStatus>('/api/youtube/auth-status'),
-    refetchInterval: interval,
+    // 2s only while a connect is pending (auth URL opened, not yet authenticated,
+    // under 5 min); otherwise 60s.
+    refetchInterval: (query) => {
+      const since = connectingSince;
+      if (since !== null) {
+        if (query.state.data?.authenticated || Date.now() - since > CONNECT_WINDOW_MS) connectingSince = null;
+        else return fast;
+      }
+      return slow;
+    },
     staleTime: 10_000,
   });
 }
 
 export function useYoutubeConnect() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: async () => {
       const { url } = await apiClient.get<{ url: string }>('/api/youtube/auth-url');
       // Guarded in the main process to https://accounts.google.com/ only.
       window.electron?.openYoutubeAuth?.(url);
+      connectingSince = Date.now();
     },
+    onError: (e: Error) => toast('YouTube', e.message, 'error'),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['youtube-auth'] }); },
   });
 }
 

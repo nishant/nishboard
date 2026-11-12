@@ -77,7 +77,7 @@ export type TradingDisconnectReason =
 export type TradingWatchlistData =
   | {
       connected: true;
-      /** Trading's ACTIVE watchlist, sorted by ticker (trading's order). */
+      /** Trading's ACTIVE watchlist, in trading's order, upper-cased and de-duplicated. */
       items: TradingWatchlistItem[];
       /** When trading's newest finished scan ran (source of the scores); null = none yet. */
       scannedAt: string | null;

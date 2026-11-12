@@ -30,7 +30,6 @@ interface WidgetUiState {
    *  editor. Absent key = the category's default order. Merged with defaults
    *  by orderedCategoryWidgets. */
   menuOrder: Partial<Record<string, WidgetId[]>>;
-  toggleCollapsed: (id: WidgetId) => void;
   setCollapsed: (id: WidgetId, collapsed: boolean) => void;
   /** Move a widget one row up (-1) or down (+1) within its category's display
    *  order. No-ops at the boundaries or for unknown category/widget ids. */
@@ -42,8 +41,6 @@ export const useWidgetUiStore = create<WidgetUiState>()(
     (set) => ({
       collapsed: {},
       menuOrder: {},
-      toggleCollapsed: (id) =>
-        set((s) => ({ collapsed: { ...s.collapsed, [id]: !s.collapsed[id] } })),
       setCollapsed: (id, collapsed) =>
         set((s) => ({ collapsed: { ...s.collapsed, [id]: collapsed } })),
       moveWidget: (categoryId, id, direction) =>

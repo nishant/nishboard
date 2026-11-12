@@ -12,6 +12,7 @@ import type {
 } from '@dash/shared';
 import type { DiscordRpcClient, RpcMessage, RpcVoiceState } from '../lib/discordRpc';
 import {
+  DiscordNotConnectedError,
   getDiscordRpc,
   mapChannelKind,
   mapMessage,
@@ -285,13 +286,21 @@ export const discordRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /api/discord/connect — silent authenticate when tokens exist, else
   // interactive AUTHORIZE (pops the consent modal INSIDE the Discord client —
   // the ~60s timeout is the human clicking it).
+  // Single-flighted: a double-click or a second window shares one modal.
+  let authorizeInFlight: Promise<DiscordUserData> | null = null;
   fastify.post<{ Reply: DiscordStatusData }>('/connect', async (_req, reply) => {
     await rpc.connect();
     let user: DiscordUserData;
     try {
       user = await rpc.authenticate();
-    } catch {
-      user = await rpc.authorizeInteractive();
+    } catch (err: unknown) {
+      // Only "no usable session" warrants the consent modal; a timeout or pipe
+      // glitch must surface as an error instead of popping Discord's prompt.
+      if (!(err instanceof DiscordNotConnectedError)) throw err;
+      authorizeInFlight ??= rpc.authorizeInteractive().finally(() => {
+        authorizeInFlight = null;
+      });
+      user = await authorizeInFlight;
     }
     return reply.send({ configured: true, running: true, connected: true, user });
   });
@@ -500,11 +509,11 @@ export const discordRoutes: FastifyPluginAsync = async (fastify) => {
           if (client.ended || raw.destroyed) return;
           await adoptVoiceChannel(rpc, chan?.id ?? null);
           if (client.ended || raw.destroyed) return;
-          // adoptVoiceChannel broadcast to everyone EXCEPT it may have run
-          // before this client could observe a null->null no-op - send the
-          // current state explicitly so the widget always gets one roster.
-          sendTo(client, { type: 'voice-roster', voice: currentVoice() });
+          // adoptVoiceChannel always broadcasts a roster and this client is
+          // already in sseClients, so it has received one; no explicit send.
         } catch {
+          // The lookup failed before any broadcast - send the current state so
+          // the widget still gets one roster.
           sendTo(client, { type: 'voice-roster', voice: currentVoice() });
         }
       }

@@ -1,6 +1,6 @@
 import { app, dialog, net, shell, BrowserWindow } from 'electron';
 import { randomUUID } from 'crypto';
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync, renameSync } from 'fs';
 import path from 'path';
 import type { LauncherGroupData, LauncherItemData, LauncherStateData } from '@dash/shared';
 
@@ -81,7 +81,10 @@ function load(): LauncherFile {
 
 function save(): void {
   // Always writes v2 — a v1 file upgrades one-way on first mutation.
-  writeFileSync(launcherPath(), JSON.stringify(file ?? load(), null, 2), 'utf8');
+  const target = launcherPath();
+  const tmp = `${target}.tmp`;
+  writeFileSync(tmp, JSON.stringify(file ?? load(), null, 2), { encoding: 'utf8', mode: 0o600 });
+  renameSync(tmp, target); // atomic: a torn write must not empty the launcher
 }
 
 /** The single sanitizer between disk state and the renderer: icon (data: URI
@@ -233,7 +236,9 @@ export async function launchItem(id: string): Promise<void> {
     if (/^https?:\/\//i.test(it.target)) await shell.openExternal(it.target);
     return;
   }
-  await shell.openPath(it.target);
+  // openPath resolves with an error string (not a rejection) when it fails.
+  const err = await shell.openPath(it.target);
+  if (err) throw new Error(err);
 }
 
 // ── Groups ────────────────────────────────────────────────────────────────────
@@ -279,8 +284,15 @@ export function assignLauncherGroup(itemId: string, groupId: string | null): voi
  *  don't fight over focus all at once. */
 export async function launchGroup(id: string): Promise<void> {
   const members = load().items.filter((it) => it.group === id);
+  const failed: string[] = [];
   for (const it of members) {
-    await launchItem(it.id);
+    // One bad item must not stop the rest of the group from launching.
+    try {
+      await launchItem(it.id);
+    } catch {
+      failed.push(it.label);
+    }
     await new Promise((r) => setTimeout(r, 100));
   }
+  if (failed.length > 0) throw new Error(`Could not launch: ${failed.join(', ')}`);
 }

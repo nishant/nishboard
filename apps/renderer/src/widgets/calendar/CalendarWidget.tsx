@@ -3,74 +3,16 @@ import { LogIn, LogOut, X } from 'lucide-react';
 import type { CalendarEventData } from '@dash/shared';
 import { useElementSize } from '../../hooks/useElementSize';
 import { HeaderAction } from '../../components/HeaderAction';
+import { useAppSettingsStore } from '../../store/settingsStore';
+import { hourFormat } from '../../lib/time';
 import { Button, EmptyState, IconButton, cn, Input } from '@nish/ui';
+import { buildGrid, bucketEvents, toIso, parseLocalDate } from './calendarGrid';
 import {
   useCalendarAuthStatus, useCalendarConnect, useCalendarLogout,
   useCalendarEvents, useAddCalendarEvent,
 } from './useCalendarEvents';
 
 const DOW = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
-
-// Returns array of 42 cells (6 full weeks): null for padding, number for day-of-month
-function buildGrid(year: number, month: number): (number | null)[] {
-  const firstDow = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const cells: (number | null)[] = Array(firstDow).fill(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-  while (cells.length < 42) cells.push(null); // always 6 rows
-  return cells;
-}
-
-/** Local y/m(0-based)/d → YYYY-MM-DD. */
-function toIso(year: number, month: number, day: number): string {
-  return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-}
-
-/** YYYY-MM-DD → local midnight Date. */
-function parseLocalDate(iso: string): Date {
-  const [y, m, d] = iso.split('-').map(Number);
-  return new Date(y, m - 1, d);
-}
-
-/** Every local calendar day an event touches, as YYYY-MM-DD.
- *  All-day events: start/end are plain dates and end is EXCLUSIVE (Google).
- *  Timed events: end is inclusive, except an end exactly at local midnight
- *  doesn't spill a dot onto the next day. */
-function eventDaySpan(ev: CalendarEventData): string[] {
-  const days: string[] = [];
-  let cur: Date;
-  let lastExclusive: Date;
-  if (ev.allDay) {
-    cur = parseLocalDate(ev.start);
-    lastExclusive = parseLocalDate(ev.end);
-    if (!(cur < lastExclusive)) return [ev.start]; // defensive: degenerate span
-  } else {
-    const start = new Date(ev.start);
-    const end = new Date(ev.end);
-    cur = new Date(start.getFullYear(), start.getMonth(), start.getDate());
-    const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
-    if (end.getTime() === endDay.getTime() && end > start) endDay.setDate(endDay.getDate() - 1);
-    lastExclusive = new Date(endDay.getFullYear(), endDay.getMonth(), endDay.getDate() + 1);
-    if (!(cur < lastExclusive)) return [toIso(cur.getFullYear(), cur.getMonth(), cur.getDate())];
-  }
-  while (cur < lastExclusive && days.length < 370) {
-    days.push(toIso(cur.getFullYear(), cur.getMonth(), cur.getDate()));
-    cur.setDate(cur.getDate() + 1);
-  }
-  return days;
-}
-
-function bucketEvents(events: CalendarEventData[]): Map<string, CalendarEventData[]> {
-  const byDay = new Map<string, CalendarEventData[]>();
-  for (const ev of events) {
-    for (const iso of eventDaySpan(ev)) {
-      const list = byDay.get(iso);
-      if (list) list.push(ev);
-      else byDay.set(iso, [ev]);
-    }
-  }
-  return byDay;
-}
 
 function MonthView({
   year, month, todayYear, todayMonth, todayDate, onDayClick, eventDays,
@@ -135,6 +77,15 @@ function MonthView({
   );
 }
 
+/** Start time for a timed event on day `iso`; a multi-day event viewed on a
+ *  day after its start date shows "continues" instead of the day-1 time. */
+function timeLabel(start: string, iso: string, clock24h: boolean): string {
+  const d = new Date(start);
+  const startIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  if (startIso < iso) return 'continues';
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', ...hourFormat(clock24h) });
+}
+
 function DayPanel({
   iso, events, authed, onClose,
 }: {
@@ -145,6 +96,7 @@ function DayPanel({
 }) {
   const connect = useCalendarConnect();
   const addEvent = useAddCalendarEvent();
+  const clock24h = useAppSettingsStore((s) => s.clock24h);
   const [title, setTitle] = useState('');
   const [time, setTime] = useState('');
 
@@ -194,7 +146,7 @@ function DayPanel({
             {timed.map((e) => (
               <div key={e.id} className="flex items-baseline gap-1.5 px-0.5 text-2xs">
                 <span className="text-th-hi3 tabular-nums shrink-0">
-                  {new Date(e.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {timeLabel(e.start, iso, clock24h)}
                 </span>
                 <span className="text-th-hi2 truncate">{e.title}</span>
                 {e.location && <span className="text-th-hi3 truncate">{e.location}</span>}
@@ -306,7 +258,7 @@ export function CalendarWidget() {
   const last = months[months.length - 1];
   const rangeStart = toIso(first.year, first.month, 1);
   const rangeEnd = toIso(last.year, last.month, new Date(last.year, last.month + 1, 0).getDate());
-  const { data: eventsData } = useCalendarEvents(rangeStart, rangeEnd, authed);
+  const { data: eventsData } = useCalendarEvents(rangeStart, rangeEnd, authed && width > 0 && height > 0);
 
   const eventsByDay = useMemo(
     () => bucketEvents(eventsData?.events ?? []),

@@ -50,6 +50,7 @@ function ColorPicker({
       >
         <input
           type="color"
+          aria-label={`${label} color picker`}
           value={value}
           onChange={(e) => {
             const hex = e.target.value;
@@ -70,7 +71,7 @@ function ColorPicker({
         onChange={(e) => { setText(e.target.value); setError(false); }}
         onBlur={(e) => commit(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') commit((e.target as HTMLInputElement).value);
+          if (e.key === 'Enter') commit(e.currentTarget.value);
         }}
         placeholder="#rrggbb"
         aria-label={`${label} color`}
@@ -316,7 +317,7 @@ export function ThemeMenu({ compact }: { compact: boolean }) {
             onSave={handleSaveTheme}
             editTarget={editTarget ?? undefined}
             onUpdate={() => {
-              updateCustomTheme(editTarget!.id);
+              if (editTarget) updateCustomTheme(editTarget.id);
               setEditTarget(null);
               setPanel('custom-list');
             }}

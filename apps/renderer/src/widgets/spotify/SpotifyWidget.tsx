@@ -6,7 +6,7 @@ import {
   Heart, History, RotateCcw, RotateCw, Mic2, Search, LogIn, LogOut,
 } from 'lucide-react';
 import {
-  useSpotifyStatus, useNowPlaying, useSpotifyAuthUrl,
+  useSpotifyStatus, useNowPlaying, useSpotifyConnect, shownVolume,
   usePlay, usePause, useNext, usePrevious,
   useSeek, useSpotifyVolume, useShuffle, useRepeat,
   usePlaylistsInfinite, usePlaylistTracksInfinite,
@@ -20,6 +20,14 @@ import { useElementSize } from '../../hooks/useElementSize';
 import { HeaderAction } from '../../components/HeaderAction';
 import type { TrackData, SpotifyPlaylist, SpotifyDevice, SpotifyTrackItem } from '@dash/shared';
 import { Button, ConfirmDialog, EmptyState, ErrorState, IconButton, SkeletonLines, StatusDot, cn } from '@nish/ui';
+
+/** 44px hit area + visible keyboard focus for icon-only controls. */
+const TOUCH_BTN =
+  'min-w-11 min-h-11 inline-flex items-center justify-center focus-visible:outline-2 focus-visible:outline-th-accent';
+
+const REPEAT_LABEL: Record<TrackData['repeatState'], string> = {
+  off: 'Repeat off', context: 'Repeat all', track: 'Repeat one',
+};
 
 // ── Size variant ──────────────────────────────────────────────────────────────
 
@@ -190,7 +198,7 @@ function ProgressBar({
   return (
     <div className="flex items-center gap-2">
       <span className="text-th-hi3 text-3xs w-7 text-right tabular-nums">{fmtMs(localMs)}</span>
-      <div className="flex-1 relative h-1 group cursor-pointer">
+      <div className="flex-1 relative h-6 flex items-center group cursor-pointer rounded focus-within:outline-2 focus-within:outline-th-accent">
         <input
           type="range" min={0} max={durationMs} value={localMs}
           aria-label="Seek"
@@ -202,7 +210,7 @@ function ProgressBar({
           onBlur={(e) => { if (dirty.current) commitSeek(Number(e.currentTarget.value)); }}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
         />
-        <div className="w-full h-full rounded-full bg-th-overlay">
+        <div className="w-full h-1 rounded-full bg-th-overlay">
           <div
             className="h-full rounded-full bg-th-hi2 group-hover:bg-th-ok-fill transition-colors"
             style={{ width: `${pct}%` }}
@@ -247,7 +255,7 @@ function VolumeSlider({
     <div className="flex items-center gap-1.5">
       <button
         onClick={handleMuteToggle}
-        className="text-th-hi3 hover:text-th-hi transition-colors"
+        className={cn(TOUCH_BTN, 'text-th-hi3 hover:text-th-hi transition-colors')}
         title={local === 0 ? 'Unmute' : 'Mute'}
         aria-label={local === 0 ? 'Unmute' : 'Mute'}
       >
@@ -255,12 +263,17 @@ function VolumeSlider({
           ? <VolumeX size={iconSize} className="shrink-0" />
           : <Volume2 size={iconSize} className="shrink-0" />}
       </button>
-      <input
-        type="range" min={0} max={100}
-        {...sliderProps}
-        aria-label="Spotify volume"
-        className={cn(sliderW, 'h-1 rounded-full appearance-none cursor-pointer bg-th-overlay accent-th-accent')}
-      />
+      <div className={cn(sliderW, 'relative h-6 flex items-center rounded focus-within:outline-2 focus-within:outline-th-accent')}>
+        <input
+          type="range" min={0} max={100}
+          {...sliderProps}
+          aria-label="Spotify volume"
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+        />
+        <div className="w-full h-1 rounded-full bg-th-overlay">
+          <div className="h-full rounded-full bg-th-hi2" style={{ width: `${Math.min(100, Math.max(0, local))}%` }} />
+        </div>
+      </div>
     </div>
   );
 }
@@ -285,8 +298,9 @@ function DeviceBar({
         <button
           key={dev.id}
           onClick={() => onSelect(dev.id)}
+          aria-pressed={selectedId === dev.id}
           className={cn(
-            'flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs border transition-colors',
+            'flex items-center gap-1 px-3 min-h-11 rounded-full focus-visible:outline-2 focus-visible:outline-th-accent text-3xs border transition-colors',
             selectedId === dev.id
               ? 'bg-th-ok-soft border-th-ok/40 text-th-ok'
               : 'bg-th-elevated border-th-line text-th-hi2 hover:text-th-hi',
@@ -584,7 +598,7 @@ function LikeButton({ trackId, type, size }: { trackId: string; type: TrackData[
     <button
       onClick={() => save.mutate({ trackId, saved: !isSaved })}
       disabled={saved.isPending}
-      className={cn('transition-colors p-0.5', isSaved ? 'text-th-ok' : 'text-th-hi3 hover:text-th-hi')}
+      className={cn(TOUCH_BTN, 'transition-colors', isSaved ? 'text-th-ok' : 'text-th-hi3 hover:text-th-hi')}
       title={isSaved ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
       aria-label={isSaved ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
       aria-pressed={isSaved}
@@ -597,11 +611,17 @@ function LikeButton({ trackId, type, size }: { trackId: string; type: TrackData[
 function NowPlayingView({
   data,
   size,
+  narrow,
+  tiny,
   onOpenPlaylists,
   onOpenSearch,
 }: {
   data: TrackData;
   size: SizeVariant;
+  /** Tile narrower than 240px: tighter gaps, controls may wrap rather than clip. */
+  narrow: boolean;
+  /** Tile narrower than 200px: the ±15s buttons are hidden. */
+  tiny: boolean;
   onOpenPlaylists: () => void;
   onOpenSearch: () => void;
 }) {
@@ -613,6 +633,7 @@ function NowPlayingView({
   const volume = useSpotifyVolume();
   const shuffle = useShuffle();
   const repeat = useRepeat();
+  const volumeShown = shownVolume(data.volumePercent, volume.pendingVolume, Date.now());
 
   // Track local progress for ±15s without causing re-renders
   const localProgressRef = useRef(data.progressMs);
@@ -663,43 +684,44 @@ function NowPlayingView({
 
   // ── Shared controls row ───────────────────────────────────────────────────────
   const controls = (
-    <div className="flex items-center justify-between">
+    <div className={cn('flex items-center', narrow ? 'flex-wrap justify-center gap-x-1.5' : 'justify-between')}>
       <button onClick={() => shuffle.mutate(!data.shuffleState)}
-        className={cn('transition-colors', activeClass(data.shuffleState))} title="Shuffle" aria-label="Shuffle" aria-pressed={data.shuffleState}>
+        className={cn(TOUCH_BTN, 'transition-colors', activeClass(data.shuffleState))} title="Shuffle" aria-label="Shuffle" aria-pressed={data.shuffleState}>
         <Shuffle size={srSz} />
       </button>
-      <div className="flex items-center gap-3">
-        <button onClick={handleRewind}
-          className="text-th-hi3 hover:text-th-hi transition-colors relative" title="Rewind 15s" aria-label="Rewind 15 seconds">
+      <div className="flex items-center">
+        {!tiny && <button onClick={handleRewind}
+          className={cn(TOUCH_BTN, 'text-th-hi3 hover:text-th-hi transition-colors relative')} title="Rewind 15s" aria-label="Rewind 15 seconds">
           <RotateCcw size={seekSz} />
           {/* 6px is an intentional micro-label on the seek icon, below the type scale */}
-          <span className="absolute inset-0 flex items-center justify-center font-bold text-current mt-1.5 ml-0.5" style={{ fontSize: 6 }}>15</span>
-        </button>
+          <span className="absolute inset-0 flex items-center justify-center font-bold text-current mt-1.5 ml-0.5 pointer-events-none" style={{ fontSize: 6 }}>15</span>
+        </button>}
         <button onClick={() => previous.mutate()}
-          className="text-th-hi2 hover:text-th-hi transition-colors" title="Previous" aria-label="Previous">
+          className={cn(TOUCH_BTN, 'text-th-hi2 hover:text-th-hi transition-colors')} title="Previous" aria-label="Previous">
           <SkipBack size={skipSz} />
         </button>
         <button onClick={handlePlayPause}
-          className={cn(playBtnCls, 'rounded-full bg-th-invert-bg hover:bg-th-invert-bg/90 text-th-invert-text flex items-center justify-center')}
+          className={cn(TOUCH_BTN, playBtnCls, 'rounded-full bg-th-invert-bg hover:bg-th-invert-bg/90 text-th-invert-text')}
           title={data.isPlaying ? 'Pause' : 'Play'} aria-label={data.isPlaying ? 'Pause' : 'Play'}>
           {data.isPlaying
             ? <Pause size={playIconSz} fill="currentColor" />
             : <Play size={playIconSz} fill="currentColor" className="ml-0.5" />}
         </button>
         <button onClick={() => next.mutate()}
-          className="text-th-hi2 hover:text-th-hi transition-colors" title="Next" aria-label="Next">
+          className={cn(TOUCH_BTN, 'text-th-hi2 hover:text-th-hi transition-colors')} title="Next" aria-label="Next">
           <SkipForward size={skipSz} />
         </button>
-        <button onClick={handleSkipFwd}
-          className="text-th-hi3 hover:text-th-hi transition-colors relative" title="Skip forward 15s" aria-label="Skip forward 15 seconds">
+        {!tiny && <button onClick={handleSkipFwd}
+          className={cn(TOUCH_BTN, 'text-th-hi3 hover:text-th-hi transition-colors relative')} title="Skip forward 15s" aria-label="Skip forward 15 seconds">
           <RotateCw size={seekSz} />
           {/* 6px is an intentional micro-label on the seek icon, below the type scale */}
-          <span className="absolute inset-0 flex items-center justify-center font-bold text-current mt-1.5 mr-0.5" style={{ fontSize: 6 }}>15</span>
-        </button>
+          <span className="absolute inset-0 flex items-center justify-center font-bold text-current mt-1.5 mr-0.5 pointer-events-none" style={{ fontSize: 6 }}>15</span>
+        </button>}
       </div>
       <button onClick={() => repeat.mutate(nextRepeatState(data.repeatState))}
-        className={cn('transition-colors', activeClass(data.repeatState !== 'off'))}
-        title={`Repeat: ${data.repeatState}`} aria-label={`Repeat: ${data.repeatState}`}>
+        className={cn(TOUCH_BTN, 'transition-colors', activeClass(data.repeatState !== 'off'))}
+        title={REPEAT_LABEL[data.repeatState]} aria-label={REPEAT_LABEL[data.repeatState]}
+        aria-pressed={data.repeatState !== 'off'}>
         <RepeatIcon state={data.repeatState} />
       </button>
     </div>
@@ -762,7 +784,7 @@ function NowPlayingView({
         <div className="shrink-0">{progressBar}</div>
         <div className="shrink-0">{controls}</div>
         <div className="flex justify-end shrink-0">
-          <VolumeSlider size={size} value={data.volumePercent} onChange={(v) => volume.mutate(v)} />
+          <VolumeSlider size={size} value={volumeShown} onChange={(v) => volume.mutate(v)} />
         </div>
       </div>
     );
@@ -809,7 +831,7 @@ function NowPlayingView({
         {progressBar}
         {controls}
         <div className="flex justify-end">
-          <VolumeSlider size={size} value={data.volumePercent} onChange={(v) => volume.mutate(v)} />
+          <VolumeSlider size={size} value={volumeShown} onChange={(v) => volume.mutate(v)} />
         </div>
       </div>
     </div>
@@ -849,7 +871,7 @@ function NotPlayingView({
 
 export function SpotifyActions() {
   const { data: status } = useSpotifyStatus();
-  const authUrlQuery = useSpotifyAuthUrl();
+  const connect = useSpotifyConnect();
   const logout = useSpotifyLogout();
   const [confirming, setConfirming] = useState(false);
 
@@ -857,11 +879,7 @@ export function SpotifyActions() {
     return (
       <HeaderAction
         title="Connect Spotify"
-        onClick={() => {
-          void authUrlQuery.refetch().then((result) => {
-            if (result.data?.url) window.electron?.openSpotifyAuth(result.data.url);
-          });
-        }}
+        onClick={() => connect.mutate()}
       >
         <LogIn size={12} />
       </HeaderAction>
@@ -916,27 +934,31 @@ export function SpotifyWidget() {
   // Only poll now-playing once authenticated — avoids a 401/502 every 3s on the
   // login screen before the user has connected.
   const nowPlaying = useNowPlaying(status.data?.authenticated === true);
-  const authUrlQuery = useSpotifyAuthUrl();
+  const connect = useSpotifyConnect();
   const [showPlaylists, setShowPlaylists] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
 
   // Responsive sizing — useElementSize handles the callback-ref + retry-RAF +
   // ResizeObserver dance (conditional early returns below mean the container
   // doesn't exist on first render; see the hook for the full rationale).
-  const { ref: setContainerEl, height: containerH } = useElementSize<HTMLDivElement>();
+  const { ref: setContainerEl, height: containerH, width: containerW } = useElementSize<HTMLDivElement>();
 
-  const size: SizeVariant =
+  const heightSize: SizeVariant =
     containerH === 0 ? 'sm' // unmeasured — keep the pre-hook default, not 'xs'
     : containerH < 200 ? 'xs'
     : containerH < 300 ? 'sm'
     : containerH < 400 ? 'md'
     : containerH < 480 ? 'lg'
     : 'xl';
+  // Width caps the variant: a tall but narrow tile must not get the large
+  // controls. 0 = not measured yet, so no cap.
+  const narrow = containerW > 0 && containerW < 240;
+  const tiny = containerW > 0 && containerW < 200;
+  const size: SizeVariant = narrow && (heightSize === 'md' || heightSize === 'lg' || heightSize === 'xl')
+    ? 'sm'
+    : heightSize;
 
-  const handleConnect = useCallback(async () => {
-    const result = await authUrlQuery.refetch();
-    if (result.data?.url) window.electron?.openSpotifyAuth(result.data.url);
-  }, [authUrlQuery]);
+  const handleConnect = useCallback(() => connect.mutate(), [connect]);
 
   if (status.isLoading) {
     return <SkeletonLines lines={3} className="h-full overflow-hidden" />;
@@ -976,6 +998,8 @@ export function SpotifyWidget() {
             <NowPlayingView
               data={track!}
               size={size}
+              narrow={narrow}
+              tiny={tiny}
               onOpenPlaylists={() => setShowPlaylists(true)}
               onOpenSearch={() => setShowSearch(true)}
             />

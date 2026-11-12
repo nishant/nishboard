@@ -1,5 +1,21 @@
-import { describe, it, expect } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, it, expect, vi } from 'vitest';
+import type { FastifyInstance } from 'fastify';
 import { parseLocalDate, toIsoDate, mapEvent, type GoogleEventItem } from './calendar';
+import { testServer } from '../test/server';
+import { jsonRes, stubFetch } from '../test/fetchStub';
+
+// In-memory token store: the real one reads/writes ~/.dash/google_calendar_tokens.json.
+const fakeTokens = vi.hoisted(() => ({ tokens: null as null | { access_token: string } }));
+vi.mock('../lib/userTokenStore', async (importOriginal) => {
+  const orig = await importOriginal<typeof import('../lib/userTokenStore')>();
+  class FakeStore {
+    get authenticated(): boolean { return fakeTokens.tokens !== null; }
+    store(t: { access_token: string }): void { fakeTokens.tokens = t; }
+    clear(): void { fakeTokens.tokens = null; }
+    async getValidToken(): Promise<string> { return 'tok'; }
+  }
+  return { ...orig, UserTokenStore: FakeStore };
+});
 
 describe('parseLocalDate', () => {
   it('parses YYYY-MM-DD to local midnight', () => {
@@ -113,5 +129,74 @@ describe('mapEvent', () => {
       end: { date: '2026-07-07' },
     });
     expect(ev.allDay).toBe(false);
+  });
+});
+
+describe('calendar routes', () => {
+  let app: FastifyInstance;
+  beforeAll(async () => { app = await testServer(); });
+  afterAll(async () => { await app.close(); });
+  beforeEach(() => {
+    process.env.YOUTUBE_CLIENT_ID = 'cid';
+    process.env.YOUTUBE_CLIENT_SECRET = 'secret';
+    fakeTokens.tokens = { access_token: 'tok' };
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.YOUTUBE_CLIENT_ID;
+    delete process.env.YOUTUBE_CLIENT_SECRET;
+    fakeTokens.tokens = null;
+  });
+
+  const post = (payload: Record<string, unknown>) =>
+    app.inject({ method: 'POST', url: '/api/calendar/events', payload });
+
+  it('rejects impossible times and dates with 400', async () => {
+    expect((await post({ summary: 'x', date: '2026-07-06', time: '25:90' })).statusCode).toBe(400);
+    expect((await post({ summary: 'x', date: '2026-07-06', time: '24:00' })).statusCode).toBe(400);
+    expect((await post({ summary: 'x', date: '2026-02-31' })).statusCode).toBe(400);
+    expect((await post({ summary: 'x', date: '2026-13-01' })).statusCode).toBe(400);
+  });
+
+  it('rejects start after end and impossible dates on GET /events', async () => {
+    const a = await app.inject({ method: 'GET', url: '/api/calendar/events?start=2026-08-01&end=2026-07-01' });
+    expect(a.statusCode).toBe(400);
+    const b = await app.inject({ method: 'GET', url: '/api/calendar/events?start=2026-02-31&end=2026-03-05' });
+    expect(b.statusCode).toBe(400);
+  });
+
+  it('concatenates a two-page events response', async () => {
+    const fn = stubFetch([
+      ['pageToken=p2', () => jsonRes({ items: [{ id: 'b', summary: 'B', start: { date: '2031-01-02' }, end: { date: '2031-01-03' } }] })],
+      ['/calendars/primary/events', () => jsonRes({
+        items: [{ id: 'a', summary: 'A', start: { date: '2031-01-01' }, end: { date: '2031-01-02' } }],
+        nextPageToken: 'p2',
+      })],
+    ]);
+    const res = await app.inject({ method: 'GET', url: '/api/calendar/events?start=2031-01-01&end=2031-01-31' });
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as { events: Array<{ id: string }> }).events.map((e) => e.id)).toEqual(['a', 'b']);
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  it('a wrong-state callback is 400 and does not cancel the pending flow', async () => {
+    fakeTokens.tokens = null;
+    const auth = await app.inject({ method: 'GET', url: '/api/calendar/auth-url' });
+    const state = new URL((auth.json() as { url: string }).url).searchParams.get('state') ?? '';
+    expect(state).not.toBe('');
+
+    const bad = await app.inject({ method: 'GET', url: '/api/calendar/callback?code=c&state=wrong' });
+    expect(bad.statusCode).toBe(400);
+    const short = await app.inject({ method: 'GET', url: '/api/calendar/callback?code=c' });
+    expect(short.statusCode).toBe(400);
+
+    stubFetch([['oauth2.googleapis.com/token', () => jsonRes({ access_token: 'a', refresh_token: 'r', expires_in: 3600 })]]);
+    const ok = await app.inject({ method: 'GET', url: `/api/calendar/callback?code=c&state=${state}` });
+    expect(ok.statusCode).toBe(200);
+    expect(fakeTokens.tokens).not.toBeNull();
+
+    // State is single-use.
+    const replay = await app.inject({ method: 'GET', url: `/api/calendar/callback?code=c&state=${state}` });
+    expect(replay.statusCode).toBe(400);
   });
 });

@@ -6,13 +6,13 @@ import path from 'path';
 import { APP_PRESETS } from './src/lib/appPresets.ts';
 import { LEGACY_THEME_IDS } from './src/lib/legacyThemes.ts';
 import { nishThemeInit } from '@nish/ui/vite';
-import { buildCsp } from './src/csp.ts';
+import { buildCsp, inlineScripts } from './src/csp.ts';
 
 /** Nishboard's prelude (src/theme-init-app.js: app-local theme ids on
  *  window.__nishExtraThemes, the saved choice, Custom colors), which @nish/ui's
  *  nishThemeInit() inlines ahead of theme-init.js at the top of <head>, so the saved
  *  theme is on <html> before the first paint. Inline, not a file: the packaged app loads
- *  from file://, and a render-blocking inline script is the one thing that cannot arrive late. */
+ *  from app://, and a render-blocking inline script is the one thing that cannot arrive late. */
 const themePrelude = readFileSync(path.resolve(import.meta.dirname, 'src/theme-init-app.js'), 'utf8')
   .replace('__APP__', JSON.stringify(Object.fromEntries(APP_PRESETS.map((p) => [p.id, p.base.scheme]))))
   .replace('__LEGACY__', JSON.stringify(LEGACY_THEME_IDS))
@@ -29,14 +29,10 @@ function csp(): Plugin {
     transformIndexHtml: {
       order: 'post',
       handler(html) {
-        const inline: string[] = [];
-        for (const m of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
-          if (!/\bsrc\s*=/i.test(m[1] ?? '')) inline.push((m[2] ?? '').replace(/\r\n?/g, '\n'));
-        }
         return [
           {
             tag: 'meta',
-            attrs: { 'http-equiv': 'Content-Security-Policy', content: buildCsp(inline) },
+            attrs: { 'http-equiv': 'Content-Security-Policy', content: buildCsp(inlineScripts(html)) },
             injectTo: 'head-prepend',
           },
         ];
@@ -84,7 +80,7 @@ export default defineConfig({
       },
     },
   },
-  // Relative asset paths so file:// protocol works in the packaged Electron app.
+  // Relative asset paths so the app:// protocol works in the packaged Electron app.
   // Without this Vite emits src="/assets/..." which resolves to filesystem root, not the bundle.
   base: './',
 });

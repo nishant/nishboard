@@ -25,18 +25,22 @@ export function useElementSize<T extends HTMLElement = HTMLDivElement>(): {
     if (!el) return;
 
     let rafId: number;
+    let frames = 0;
+    const MAX_FRAMES = 10;
+    const apply = (width: number, height: number) =>
+      setSize((prev) => (prev.width === width && prev.height === height ? prev : { width, height }));
     const tryMeasure = () => {
       const { width, height } = el.getBoundingClientRect();
       if (width > 0 || height > 0) {
-        setSize({ width, height });
-      } else {
+        apply(width, height);
+      } else if (++frames < MAX_FRAMES) {
         rafId = requestAnimationFrame(tryMeasure);
       }
     };
     rafId = requestAnimationFrame(tryMeasure);
 
     const ro = new ResizeObserver(([entry]) => {
-      setSize({ width: entry.contentRect.width, height: entry.contentRect.height });
+      apply(entry.contentRect.width, entry.contentRect.height);
     });
     ro.observe(el);
 

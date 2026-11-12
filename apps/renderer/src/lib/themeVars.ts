@@ -67,7 +67,8 @@ export function rgbToHex([r, g, b]: Rgb): string {
 export function mixHex(a: string, b: string, t: number): string {
   const x = hexToRgb(a);
   const y = hexToRgb(b);
-  return rgbToHex([0, 1, 2].map((i) => x[i] * t + y[i] * (1 - t)) as Rgb);
+  const mix = (i: 0 | 1 | 2) => x[i] * t + y[i] * (1 - t);
+  return rgbToHex([mix(0), mix(1), mix(2)]);
 }
 
 export function luminance(hex: string): number {
@@ -107,15 +108,17 @@ export function ensureContrastOnSoft(fg: string, bgs: string[], min: number, tow
   return toward;
 }
 
-/** Light when the page background is light, else dark. */
+/** Light when black text reads better on the page background than white, else dark
+ *  (a mid-tone such as #808080 gets black, which passes AA; white would not). */
 export function schemeFor(bg: string): Scheme {
-  return luminance(bg) > 0.4 ? 'light' : 'dark';
+  return contrast('#000000', bg) > contrast('#ffffff', bg) ? 'light' : 'dark';
 }
 
 export function deriveThemeColors(base: ThemeBase): ThemeColors {
   const { scheme } = base;
-  const extreme = scheme === 'dark' ? '#ffffff' : '#000000';
   const panels = [base.surface, base.elevated];
+  // The text extreme: whichever of white/black contrasts more with the panels.
+  const extreme = contrast('#ffffff', base.elevated) + contrast('#ffffff', base.surface) >= contrast('#000000', base.elevated) + contrast('#000000', base.surface) ? '#ffffff' : '#000000';
   const line = base.line && base.line.toLowerCase() !== base.elevated.toLowerCase() ? base.line : mixHex(base.overlay, base.elevated, 0.6);
   const hi = ensureContrast(base.hi, panels, 7, extreme);
   const accent = ensureContrastOnSoft(base.accent, panels, 4.5, hi);

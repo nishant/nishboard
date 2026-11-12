@@ -5,6 +5,7 @@ import { promisify } from 'util';
 import { SimpleCache } from '../cache/SimpleCache';
 import { HttpError } from '../lib/http';
 import { PsHost, buildBootstrap } from '../lib/psHost';
+import { buildChildEnv } from '../lib/claudeCli';
 
 const execFileAsync = promisify(execFile);
 const cache = new SimpleCache<SoundData>();
@@ -16,7 +17,13 @@ const TTL_MS = 4_000;
 // macOS-only callers (osascript / SwitchAudioSource): a hung binary must reject
 // so the shared inFlight promise clears and the next poll retries.
 async function run(cmd: string, args: string[]): Promise<string> {
-  const { stdout } = await execFileAsync(cmd, args, { encoding: 'utf8', timeout: 5_000, killSignal: 'SIGKILL' });
+  const { stdout } = await execFileAsync(cmd, args, {
+    encoding: 'utf8',
+    timeout: 5_000,
+    killSignal: 'SIGKILL',
+    // Same secret filter as the Claude CLI child: osascript / SwitchAudioSource need none of our keys.
+    env: buildChildEnv(process.env),
+  });
   return stdout.trim();
 }
 
@@ -27,7 +34,9 @@ async function macGetData(): Promise<SoundData> {
     run('osascript', ['-e', 'output volume of (get volume settings)']),
     run('osascript', ['-e', 'output muted of (get volume settings)']),
   ]);
-  const volumePercent = Number(volStr);
+  // macOS-only: HDMI / DisplayPort outputs have no volume control and report 'missing value'.
+  const v = Number(volStr);
+  const volumePercent = Number.isFinite(v) ? v : 0;
   const muted = mutedStr === 'true';
 
   let activeDeviceName = 'Default Output';
@@ -200,6 +209,7 @@ const WASAPI_CS = [
   '        AEV().SetMute(muted, ref g);',
   '    }',
   '',
+  '    // Flat list, four entries per session: pid, name, volume, muted. PowerShell builds the objects.',
   '    public static string[] GetSessions() {',
   '        var procs = new Dictionary<int, string>();',
   '        foreach (var p in Process.GetProcesses()) {',
@@ -234,7 +244,7 @@ const WASAPI_CS = [
   '                }',
   '                float l = 1f; bool m = false;',
   '                if (sav != null) { sav.GetMasterVolume(out l); sav.GetMute(out m); }',
-  '                lines.Add(pid + "|" + name + "|" + ((int)Math.Round(l * 100)) + "|" + (m ? "True" : "False"));',
+  '                lines.Add(pid.ToString()); lines.Add(name); lines.Add(((int)Math.Round(l * 100)).ToString()); lines.Add(m ? "True" : "False");',
   '            } catch {}',
   '        }',
   '        return lines.ToArray();',
@@ -275,74 +285,111 @@ function psRun(script: string): Promise<string> {
 
 type WinDeviceData = Omit<SoundData, 'sessions'>;
 
-const SESSIONS_MARK = '---SESSIONS---';
-
-// Device data and sessions in ONE round-trip. Device line is `C|vol|mute|def|list`
-// (AudioDeviceCmdlets; Get-AudioDevice -PlaybackVolume returns "42%") or
-// `W|vol|mute` (WASAPI fallback: volume + mute only, no device list).
+// Device data and sessions in ONE round-trip, as ONE JSON object so no device or
+// app name can break the framing (names may contain ',', '|' or newlines).
+// `kind` is 'C' (AudioDeviceCmdlets: Get-AudioDevice -PlaybackVolume returns "42%")
+// or 'W' (WASAPI fallback: volume + mute only, no device list).
 const WIN_GET_DATA = `
-$d = $null
+$o = @{ kind = 'W'; vol = $null; mute = $null; def = $null; devices = @(); sessions = @() }
 if ($HasCmdlets) {
   try {
     $vol  = Get-AudioDevice -PlaybackVolume
     $mute = Get-AudioDevice -PlaybackMute
     $def  = (Get-AudioDevice -Playback).Name
-    $list = (Get-AudioDevice -List | Where-Object { $_.Type -eq 'Playback' } | ForEach-Object { $_.Name }) -join ','
-    $d = "C|$vol|$mute|$def|$list"
+    $devs = @(Get-AudioDevice -List | Where-Object { $_.Type -eq 'Playback' } | ForEach-Object { @{ id = [string]$_.ID; name = [string]$_.Name; def = [bool]$_.Default } })
+    if ((([string]$vol) -replace '%','').Trim() -match '^\\d+(\\.\\d+)?$') {
+      $o.kind = 'C'; $o.vol = [string]$vol; $o.mute = [string]$mute; $o.def = [string]$def; $o.devices = $devs
+    }
   } catch { }
 }
-if ($d -and (($vol -replace '%','').Trim() -notmatch '^\d+(\.\d+)?$')) { $d = $null }
-if (-not $d) { $d = 'W|' + [W]::GetMaster() }
-$d
-'${SESSIONS_MARK}'
-try { [W]::GetSessions() -join [string][char]10 } catch { }
+if ($o.kind -eq 'W') {
+  $w = ([W]::GetMaster()).Split('|')
+  $o.vol = $w[0]; $o.mute = $w[1]
+}
+try {
+  $flat = @([W]::GetSessions())
+  $ss = @()
+  for ($i = 0; $i + 3 -lt $flat.Count; $i += 4) {
+    $ss += @{ pid = [string]$flat[$i]; name = [string]$flat[$i + 1]; vol = [string]$flat[$i + 2]; mute = [string]$flat[$i + 3] }
+  }
+  $o.sessions = $ss
+} catch { }
+ConvertTo-Json -InputObject $o -Compress -Depth 4
 `;
 
-function parseWinDevice(text: string): WinDeviceData {
-  const parts = text.trim().split('|');
-  if (parts[0] === 'C' && parts.length >= 5) {
-    const volumePercent = Math.round(Number(parts[1].replace('%', '').trim()));
-    if (Number.isFinite(volumePercent)) {
-      const muted = parts[2].trim() === 'True';
-      const activeDeviceName = parts[3].trim();
-      const names = parts[4] ? parts[4].split(',').map((s) => s.trim()).filter(Boolean) : [activeDeviceName];
-      const devices: AudioDevice[] = names.map((name) => ({ id: name, name, isDefault: name === activeDeviceName }));
-      return { volumePercent, muted, activeDeviceName, devices };
-    }
-  }
-  // WASAPI fallback shape: W|vol|mute
-  const volStr = parts[1] ?? '';
-  const muteStr = parts[2] ?? '';
-  return {
-    volumePercent: Math.min(100, Math.max(0, Math.round(Number(volStr.trim())) || 0)),
-    muted: muteStr.trim() === 'True',
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+function asArray(v: unknown): unknown[] {
+  if (Array.isArray(v)) return v;
+  return v === null || v === undefined ? [] : [v];
+}
+
+function truthy(v: unknown): boolean {
+  return v === true || (typeof v === 'string' && v.trim().toLowerCase() === 'true');
+}
+
+/** Exported for tests. Parses the device half of the WIN_GET_DATA JSON object. */
+export function parseWinDevice(value: unknown): WinDeviceData {
+  const fallback: WinDeviceData = {
+    volumePercent: 0,
+    muted: false,
     activeDeviceName: 'Default Device',
     devices: [{ id: 'default', name: 'Default Device', isDefault: true }],
   };
+  if (!isRecord(value)) return fallback;
+  const volumePercent = Math.min(100, Math.max(0, Math.round(Number(String(value.vol ?? '').replace('%', '').trim())) || 0));
+  const muted = truthy(value.mute);
+  if (value.kind === 'C') {
+    const activeDeviceName = typeof value.def === 'string' ? value.def.trim() : '';
+    const devices: AudioDevice[] = [];
+    for (const d of asArray(value.devices)) {
+      if (!isRecord(d) || typeof d.name !== 'string' || d.name.trim() === '') continue;
+      const name = d.name.trim();
+      const id = typeof d.id === 'string' && d.id !== '' ? d.id : name;
+      devices.push({ id, name, isDefault: d.def === true || (d.def === undefined && name === activeDeviceName) });
+    }
+    if (devices.length === 0 && activeDeviceName) {
+      devices.push({ id: activeDeviceName, name: activeDeviceName, isDefault: true });
+    }
+    return { volumePercent, muted, activeDeviceName: activeDeviceName || fallback.activeDeviceName, devices: devices.length ? devices : fallback.devices };
+  }
+  return { ...fallback, volumePercent, muted };
 }
 
-function parseWinSessions(text: string): AudioSession[] {
-  return text
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [pidStr, name, volStr, mutedStr] = line.split('|');
-      return {
-        pid: Number(pidStr),
-        name: (name ?? '').trim(),
-        volumePercent: Number(volStr),
-        muted: (mutedStr ?? '').trim() === 'True',
-      };
+/** Exported for tests. Parses the sessions half of the WIN_GET_DATA JSON object. */
+export function parseWinSessions(value: unknown): AudioSession[] {
+  const out: AudioSession[] = [];
+  for (const s of asArray(value)) {
+    if (!isRecord(s)) continue;
+    const pid = Number(s.pid);
+    if (!Number.isInteger(pid) || pid < 0) continue;
+    const vol = Number(s.vol);
+    out.push({
+      pid,
+      name: typeof s.name === 'string' ? s.name.trim() : '',
+      volumePercent: Number.isFinite(vol) ? Math.min(100, Math.max(0, Math.round(vol))) : 0,
+      muted: truthy(s.mute),
     });
+  }
+  return out;
+}
+
+/** Exported for tests. Parses the whole JSON object the WIN_GET_DATA snippet prints. */
+export function parseWinData(text: string): SoundData {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text.trim());
+  } catch {
+    throw new Error('Unreadable sound data from PowerShell');
+  }
+  if (!isRecord(parsed)) throw new Error('Unreadable sound data from PowerShell');
+  return { ...parseWinDevice(parsed), sessions: parseWinSessions(parsed.sessions) };
 }
 
 async function winGetData(): Promise<SoundData> {
-  const out = await psRun(WIN_GET_DATA);
-  const at = out.indexOf(SESSIONS_MARK);
-  const deviceText = at === -1 ? out : out.slice(0, at);
-  const sessionText = at === -1 ? '' : out.slice(at + SESSIONS_MARK.length);
-  return { ...parseWinDevice(deviceText), sessions: parseWinSessions(sessionText) };
+  return parseWinData(await psRun(WIN_GET_DATA));
 }
 
 async function winSetSessionVolume(pid: number, vol: number): Promise<void> {
@@ -373,7 +420,7 @@ async function winSwitchDevice(id: string): Promise<void> {
   // it can end the quoted string (PowerShell also treats curly quotes as quotes).
   const b64 = Buffer.from(id, 'utf8').toString('base64');
   await psRun(
-    `$n = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${b64}')); Get-AudioDevice -List | Where-Object { $_.Name -eq $n -and $_.Type -eq 'Playback' } | Set-AudioDevice | Out-Null`,
+    `$n = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${b64}')); $dev = Get-AudioDevice -List | Where-Object { $_.Type -eq 'Playback' -and ($_.ID -eq $n -or $_.Name -eq $n) } | Select-Object -First 1; if (-not $dev) { throw 'device not found' }; $dev | Set-AudioDevice | Out-Null`,
   );
 }
 
@@ -482,6 +529,10 @@ export const soundRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     async (req, reply) => {
+      // macOS-only: SwitchAudioSource would parse a leading '-' id as another option.
+      if (process.platform === 'darwin' && req.body.deviceId.startsWith('-')) {
+        return reply.code(400).send({ error: 'Invalid deviceId' });
+      }
       await switchDevice(req.body.deviceId);
       cache.clear();
       return reply.send({ ok: true });

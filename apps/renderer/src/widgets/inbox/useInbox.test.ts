@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { InboxFeedData, InboxItemData } from '@dash/shared';
-import { mergeInboxPages, nextPageParam } from './useInbox';
+import { mergeInboxPages, nextPageParam, replaceHeadPage } from './useInbox';
 
 function item(id: number, title = `t${id}`): InboxItemData {
   return {
@@ -46,5 +46,21 @@ describe('mergeInboxPages', () => {
   it('gives an empty list and the state for a non-ok first page', () => {
     const m = mergeInboxPages([{ state: 'bad-password' }]);
     expect(m).toEqual({ state: 'bad-password', items: [], first: null });
+  });
+});
+
+describe('replaceHeadPage', () => {
+  it('keeps the head items, later pages and every page param with 4 pages loaded', () => {
+    const data = {
+      pages: [page([item(1), item(2)], 'c1'), page([item(3)], 'c2'), page([item(4)], 'c3'), page([item(5)], null)],
+      pageParams: [null, 'c1', 'c2', 'c3'],
+    };
+    const out = replaceHeadPage(data, page([item(9), item(1), item(2)], 'c1'));
+    expect(out?.pageParams).toEqual([null, 'c1', 'c2', 'c3']);
+    expect(out?.pages).toHaveLength(4);
+    expect(mergeInboxPages(out?.pages).items.map((i) => i.id)).toEqual([9, 1, 2, 3, 4, 5]);
+  });
+  it('is a no-op without data', () => {
+    expect(replaceHeadPage(undefined, page([], null))).toBeUndefined();
   });
 });

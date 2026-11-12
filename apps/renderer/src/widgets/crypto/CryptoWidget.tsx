@@ -52,15 +52,20 @@ function CoinCard({ coin }: { coin: CryptoCoinData }) {
 function WatchlistModal({ onClose }: { onClose: () => void }) {
   const { watchlist, addCoin, removeCoin } = useCryptoStore();
   const [input, setInput] = useState('');
+  const [error, setError] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   function submit() {
     const id = input.trim().toLowerCase().replace(/\s+/g, '-');
-    if (id) {
-      addCoin(id);
-      setInput('');
-      inputRef.current?.focus();
+    if (!id) return;
+    if (!/^[a-z0-9-]+$/.test(id)) {
+      setError('Use the CoinGecko id: lowercase letters, numbers and dashes only (e.g. bitcoin).');
+      return;
     }
+    setError('');
+    addCoin(id);
+    setInput('');
+    inputRef.current?.focus();
   }
   function onKey(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter') submit();
@@ -74,7 +79,7 @@ function WatchlistModal({ onClose }: { onClose: () => void }) {
             ref={inputRef}
             size="sm"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => { setInput(e.target.value); setError(''); }}
             onKeyDown={onKey}
             placeholder="Add coin id… e.g. bitcoin"
             aria-label="Coin id"
@@ -85,6 +90,8 @@ function WatchlistModal({ onClose }: { onClose: () => void }) {
             <Plus size={14} />
           </IconButton>
         </div>
+
+        {error && <p role="alert" className="text-2xs text-th-loss">{error}</p>}
 
         <div className="flex flex-col gap-1">
           {watchlist.map((id) => (

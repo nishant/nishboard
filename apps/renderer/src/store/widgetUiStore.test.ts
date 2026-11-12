@@ -14,15 +14,6 @@ beforeEach(() => {
 });
 
 describe('collapsed state', () => {
-  it('toggleCollapsed flips a widget on and off', async () => {
-    const store = await loadStore();
-    expect(store.getState().collapsed.weather).toBeUndefined();
-    store.getState().toggleCollapsed('weather');
-    expect(store.getState().collapsed.weather).toBe(true);
-    store.getState().toggleCollapsed('weather');
-    expect(store.getState().collapsed.weather).toBe(false);
-  });
-
   it('setCollapsed sets an explicit value without touching siblings', async () => {
     const store = await loadStore();
     store.getState().setCollapsed('spotify', true);

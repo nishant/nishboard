@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import type { ChildProcessWithoutNullStreams } from 'child_process';
+import { buildChildEnv } from './claudeCli';
 
 // Windows only. One long-lived PowerShell process that runs snippets on request,
 // so the sound widget's 5s poll does not spawn (and JIT-compile WASAPI C# in) a
@@ -16,7 +17,7 @@ const DEFAULT_READY_TIMEOUT_MS = 30_000;
 
 /** The request loop. A single line on purpose: `-Command -` feeds stdin line by line. */
 const LOOP_LINE =
-  "[Console]::Out.WriteLine('{\"ready\":true}'); [Console]::Out.Flush(); " +
+  '[Console]::Out.WriteLine((ConvertTo-Json -InputObject @{ ready = $true; bootError = $BootError } -Compress)); [Console]::Out.Flush(); ' +
   'while ($true) { $line = [Console]::In.ReadLine(); if ($null -eq $line) { break }; ' +
   '$sp = $line.IndexOf(" "); $id = [int]$line.Substring(0, $sp); ' +
   'try { $s = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($line.Substring($sp + 1))); ' +
@@ -33,11 +34,12 @@ export function buildBootstrap(csharp?: string): string {
   const lines = [
     '[Console]::OutputEncoding = [Text.Encoding]::UTF8',
     "$ErrorActionPreference = 'Stop'",
+    '$BootError = $null',
   ];
   if (csharp) {
     const b64 = Buffer.from(csharp, 'utf8').toString('base64');
     lines.push(
-      `try { Add-Type -TypeDefinition ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${b64}'))) } catch { }`,
+      `try { Add-Type -TypeDefinition ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${b64}'))) } catch { $BootError = [string]$_ }`,
     );
   }
   lines.push(
@@ -93,6 +95,8 @@ export class PsHost {
   private buf = '';
   /** True once the bootstrap has printed its ready line; requests wait for it. */
   private ready = false;
+  /** Windows-only: the Add-Type compile failure the bootstrap reported in its ready line. */
+  private bootError: string | null = null;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private disposed = false;
 
@@ -155,6 +159,13 @@ export class PsHost {
     const cur = this.current;
     const child = this.child;
     if (!cur || !child || !this.ready || cur.sent) return;
+    if (this.bootError) {
+      // Windows-only: the WASAPI C# failed to compile, so every snippet would die with an unclear type error.
+      this.current = null;
+      cur.reject(new Error(`PowerShell bootstrap failed: ${this.bootError}`));
+      this.pump();
+      return;
+    }
     cur.sent = true;
     // The request timer only covers the request itself, not process startup.
     cur.timer = setTimeout(() => {
@@ -177,11 +188,12 @@ export class PsHost {
     const child = this.spawnFn(
       'powershell.exe',
       ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', '-'],
-      { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] },
+      { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'], env: buildChildEnv(process.env) },
     ) as ChildProcessWithoutNullStreams;
     this.child = child;
     this.buf = '';
     this.ready = false;
+    this.bootError = null;
     this.clearReadyTimer();
     this.readyTimer = setTimeout(() => {
       this.readyTimer = null;
@@ -190,6 +202,8 @@ export class PsHost {
       this.failAll(new Error(`PowerShell host did not become ready in ${this.readyTimeoutMs}ms`));
     }, this.readyTimeoutMs);
 
+    // Decode across chunk boundaries so a split multibyte character stays intact.
+    child.stdout.setEncoding('utf8');
     child.stdout.on('data', (chunk: Buffer | string) => {
       if (this.child !== child) return;
       this.onData(chunk.toString());
@@ -228,6 +242,8 @@ export class PsHost {
     }
     if (typeof parsed === 'object' && parsed !== null && 'ready' in parsed) {
       this.ready = true;
+      const be = (parsed as Record<string, unknown>).bootError;
+      this.bootError = typeof be === 'string' && be.length > 0 ? be : null;
       this.clearReadyTimer();
       this.flush();
       return;

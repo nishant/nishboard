@@ -1,7 +1,7 @@
 import { app, BrowserWindow, IpcMain, Notification, safeStorage, shell } from 'electron';
 import { readCredentialStatus, writeCredentials } from '../credentials';
 import { restartServer, logsDir } from '../server/spawn';
-import { checkUpdates, getUpdateStatus, installUpdate } from '../updates';
+import { checkUpdates, clearUpdateMemo, getUpdateStatus, installUpdate } from '../updates';
 import { chooseBackupFolder, writeBackup } from '../backup';
 import {
   getLauncherState, addLauncherApp, addLauncherUrl,
@@ -17,7 +17,7 @@ import {
 } from '../discord';
 import { openClaudeLogin } from '../claudeLogin';
 import { readPrefs, writePrefs } from '../prefs';
-import { openPopout, closePopout, openPopoutIds, isTransparentPopout } from '../popout';
+import { openPopout, closePopout, openPopoutIds } from '../popout';
 import { setWindowTheme } from '../windowTheme';
 import { isAllowedExternalUrl, isAuthUrl, isValidPopoutId } from './guards';
 import type { CredentialKey, AppPrefsData } from '@dash/shared';
@@ -26,13 +26,15 @@ export function registerIpcHandlers(
   ipcMain: IpcMain,
   hooks: { onPrefsChanged?: () => void } = {},
 ): void {
-  ipcMain.on('app:minimize', () => {
-    BrowserWindow.getFocusedWindow()?.minimize();
+  ipcMain.on('app:minimize', (event) => {
+    // The sender's window, not the focused one: a popout's button must not
+    // minimize whichever window happens to have focus.
+    BrowserWindow.fromWebContents(event.sender)?.minimize();
   });
 
   // Theme sync: nativeTheme.themeSource + every window's background (windowTheme.ts).
   ipcMain.on('app:set-theme', (_event, source: unknown, bg: unknown) => {
-    setWindowTheme(source, bg, isTransparentPopout);
+    setWindowTheme(source, bg);
   });
 
   ipcMain.on('app:toggle-maximize', (event) => {
@@ -48,9 +50,11 @@ export function registerIpcHandlers(
     BrowserWindow.fromWebContents(event.sender)?.close();
   });
 
-  ipcMain.on('app:notify', (_event, title: string, body: string) => {
+  ipcMain.on('app:notify', (_event, title: unknown, body: unknown) => {
+    // A non-string would throw inside the listener, an uncaught main-process error.
+    if (typeof title !== 'string' || typeof body !== 'string') return;
     if (Notification.isSupported()) {
-      const n = new Notification({ title, body }); // silent defaults to false → OS sound
+      const n = new Notification({ title: title.slice(0, 200), body: body.slice(0, 1000) }); // silent defaults to false → OS sound
       n.on('failed', (_e, err) => console.warn('[notify] failed:', err));
       n.show();
     }
@@ -139,7 +143,11 @@ export function registerIpcHandlers(
 
   ipcMain.handle('prefs:get', () => readPrefs());
   ipcMain.handle('prefs:set', (_event, patch: Partial<AppPrefsData>) => {
-    const next = writePrefs(patch ?? {});
+    // backupDir is written only by chooseBackupFolder (native picker); the
+    // renderer may turn auto-export off (null) but never set a path.
+    const safe: Partial<AppPrefsData> = { ...(patch ?? {}) };
+    if (safe.backupDir !== null) delete safe.backupDir;
+    const next = writePrefs(safe);
     hooks.onPrefsChanged?.(); // e.g. re-sync the global-hotkey registration
     return next;
   });
@@ -175,6 +183,7 @@ export function registerIpcHandlers(
 
   ipcMain.handle('credentials:save-all', async (_event, creds: Partial<Record<CredentialKey, string>>) => {
     await writeCredentials(creds);
+    clearUpdateMemo(); // a new GITHUB_TOKEN must take effect on the next check
     await restartServer();
   });
 

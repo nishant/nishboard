@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { Cpu, Thermometer, HardDrive, Wifi, Battery, BatteryCharging, BarChart2, Activity, Settings, ListTree } from 'lucide-react';
-import { useHardware, useProcesses, type HardwareHistory } from './useHardware';
-import { useHardwareStore, type HardwareSection } from '../../store/hardwareStore';
+import { useHardware, useProcesses } from './useHardware';
+import { useHardwareStore, HARDWARE_SECTIONS, type HardwareSection } from '../../store/hardwareStore';
 import { useHardwareUiStore } from '../../store/hardwareUiStore';
 import type { HardwareViewMode, ProcessSort } from '../../store/hardwareUiStore';
 import { ErrorState } from '../../components/ErrorState';
@@ -26,6 +26,10 @@ function tempColor(c: number | null): string {
 }
 
 type ViewMode = HardwareViewMode;
+
+// Stable empty series for cards outside the sparks view, so memo'd cards are not
+// re-rendered by history they do not draw.
+const EMPTY: number[] = [];
 
 // ── Sparkline ────────────────────────────────────────────────────────────
 
@@ -77,7 +81,7 @@ function CoreGrid({ coreUsage }: { coreUsage: number[] }) {
 
 // ── CPU card ─────────────────────────────────────────────────────────────
 
-const CpuCard = memo(function CpuCard({ cpu, history, view }: { cpu: HardwareData['cpu']; history: HardwareHistory; view: ViewMode }) {
+const CpuCard = memo(function CpuCard({ cpu, series, view }: { cpu: HardwareData['cpu']; series: number[]; view: ViewMode }) {
   return (
     <Card variant="inset" padding="sm">
       <div className="flex items-center justify-between mb-1.5">
@@ -94,7 +98,7 @@ const CpuCard = memo(function CpuCard({ cpu, history, view }: { cpu: HardwareDat
       </div>
 
       {view === 'sparks' ? (
-        <Spark data={history.cpuUsage} tone="chart-1" label="CPU usage history" max={100} />
+        <Spark data={series} tone="chart-1" label="CPU usage history" max={100} />
       ) : (
         <UsageBar pct={cpu.usagePercent} tone="chart-1" label="CPU usage" />
       )}
@@ -112,7 +116,7 @@ const CpuCard = memo(function CpuCard({ cpu, history, view }: { cpu: HardwareDat
 
 // ── GPU card ─────────────────────────────────────────────────────────────
 
-const GpuCard = memo(function GpuCard({ gpu, history, view }: { gpu: HardwareData['gpu']; history: HardwareHistory; view: ViewMode }) {
+const GpuCard = memo(function GpuCard({ gpu, series, view }: { gpu: HardwareData['gpu']; series: number[]; view: ViewMode }) {
   if (!gpu) {
     return (
       <Card variant="inset" padding="sm">
@@ -138,7 +142,7 @@ const GpuCard = memo(function GpuCard({ gpu, history, view }: { gpu: HardwareDat
       </div>
 
       {view === 'sparks' ? (
-        <Spark data={history.gpuUsage} tone="chart-6" label="GPU usage history" max={100} />
+        <Spark data={series} tone="chart-6" label="GPU usage history" max={100} />
       ) : (
         <UsageBar pct={gpu.usagePercent} tone="chart-6" label="GPU usage" />
       )}
@@ -164,7 +168,7 @@ const GpuCard = memo(function GpuCard({ gpu, history, view }: { gpu: HardwareDat
 
 // ── RAM card ──────────────────────────────────────────────────────────────
 
-const RamCard = memo(function RamCard({ ram, history, view }: { ram: HardwareData['ram']; history: HardwareHistory; view: ViewMode }) {
+const RamCard = memo(function RamCard({ ram, series, view }: { ram: HardwareData['ram']; series: number[]; view: ViewMode }) {
   const usedGb = ram.usedMb / 1024;
   const totalGb = ram.totalMb / 1024;
 
@@ -179,7 +183,7 @@ const RamCard = memo(function RamCard({ ram, history, view }: { ram: HardwareDat
       </div>
 
       {view === 'sparks' ? (
-        <Spark data={history.ramUsage} tone="chart-3" label="RAM usage history" max={100} />
+        <Spark data={series} tone="chart-3" label="RAM usage history" max={100} />
       ) : (
         <UsageBar pct={ram.usagePercent} tone="chart-3" label="RAM usage" />
       )}
@@ -199,14 +203,15 @@ const RamCard = memo(function RamCard({ ram, history, view }: { ram: HardwareDat
 
 // ── Disk card ─────────────────────────────────────────────────────────────
 
-const DiskCard = memo(function DiskCard({ disks, diskUsage, history, view }: {
+const DiskCard = memo(function DiskCard({ disks, diskUsage, readSeries, writeSeries, view }: {
   disks: HardwareData['disks'];
   diskUsage: HardwareData['diskUsage'];
-  history: HardwareHistory;
+  readSeries: number[];
+  writeSeries: number[];
   view: ViewMode;
 }) {
-  // Windows has no fsStats counters, so the server sends disks: [] there; hide
-  // the I/O row rather than show a fake 0 MB/s.
+  // Windows reads the PhysicalDisk perf counters server-side; if that fails the
+  // server sends disks: [] and the I/O row is hidden rather than a fake 0 MB/s.
   const d = disks[0] ?? null;
 
   return (
@@ -226,8 +231,8 @@ const DiskCard = memo(function DiskCard({ disks, diskUsage, history, view }: {
 
       {d && view === 'sparks' && (
         <div className="space-y-1">
-          <Spark data={history.diskRead} tone="chart-2" label="Disk read history" />
-          <Spark data={history.diskWrite} tone="chart-7" label="Disk write history" />
+          <Spark data={readSeries} tone="chart-2" label="Disk read history" />
+          <Spark data={writeSeries} tone="chart-7" label="Disk write history" />
         </div>
       )}
 
@@ -250,13 +255,14 @@ const DiskCard = memo(function DiskCard({ disks, diskUsage, history, view }: {
 
 // ── Network card ──────────────────────────────────────────────────────────
 
-const NetworkCard = memo(function NetworkCard({ network, history, view }: {
+const NetworkCard = memo(function NetworkCard({ network, netUp, netDown, view }: {
   network: HardwareData['network'];
-  history: HardwareHistory;
+  netUp: number[];
+  netDown: number[];
   view: ViewMode;
 }) {
-  const totalUp = history.netUp[history.netUp.length - 1] ?? 0;
-  const totalDown = history.netDown[history.netDown.length - 1] ?? 0;
+  const totalUp = netUp[netUp.length - 1] ?? 0;
+  const totalDown = netDown[netDown.length - 1] ?? 0;
 
   return (
     <Card variant="inset" padding="sm">
@@ -273,8 +279,8 @@ const NetworkCard = memo(function NetworkCard({ network, history, view }: {
 
       {view === 'sparks' && (
         <div className="space-y-1">
-          <Spark data={history.netUp} tone="chart-5" label="Upload history" />
-          <Spark data={history.netDown} tone="chart-2" label="Download history" />
+          <Spark data={netUp} tone="chart-5" label="Upload history" />
+          <Spark data={netDown} tone="chart-2" label="Download history" />
         </div>
       )}
 
@@ -343,7 +349,7 @@ function ConfigPanel({
   visible: Record<HardwareSection, boolean>;
   setVisible: (s: HardwareSection, v: boolean) => void;
 }) {
-  const sections = Object.keys(SECTION_LABELS) as HardwareSection[];
+  const sections = HARDWARE_SECTIONS;
   return (
     <Card variant="inset" padding="sm" className="border-th-line">
       <Label className="block text-3xs mb-2 tracking-wide">Visible sections</Label>
@@ -473,6 +479,7 @@ export function HardwareWidget() {
   }
 
   const d = query.data;
+  const sparks = view === 'sparks';
 
   return (
     <div ref={setScrollEl} className="p-3 flex flex-col gap-2 h-full overflow-y-auto scrollbar-none">
@@ -483,11 +490,11 @@ export function HardwareWidget() {
       {processesOpen && <ProcessPanel />}
 
       {/* Cards — always rendered when their section is visible */}
-      {visible.cpu && <CpuCard cpu={d.cpu} history={history} view={view} />}
-      {visible.gpu && <GpuCard gpu={d.gpu} history={history} view={view} />}
-      {visible.ram && <RamCard ram={d.ram} history={history} view={view} />}
-      {visible.disk && <DiskCard disks={d.disks} diskUsage={d.diskUsage} history={history} view={view} />}
-      {visible.network && <NetworkCard network={d.network} history={history} view={view} />}
+      {visible.cpu && <CpuCard cpu={d.cpu} series={sparks ? history.cpuUsage : EMPTY} view={view} />}
+      {visible.gpu && <GpuCard gpu={d.gpu} series={sparks ? history.gpuUsage : EMPTY} view={view} />}
+      {visible.ram && <RamCard ram={d.ram} series={sparks ? history.ramUsage : EMPTY} view={view} />}
+      {visible.disk && <DiskCard disks={d.disks} diskUsage={d.diskUsage} readSeries={sparks ? history.diskRead : EMPTY} writeSeries={sparks ? history.diskWrite : EMPTY} view={view} />}
+      {visible.network && <NetworkCard network={d.network} netUp={history.netUp} netDown={history.netDown} view={view} />}
       {visible.battery && (d.battery ? <BatteryCard battery={d.battery} /> : <NoBatteryCard />)}
 
       {/* Footer */}

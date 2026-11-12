@@ -48,18 +48,12 @@ function checkId(id: string): string {
   return id;
 }
 
-const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
-
-function hostName(host: string): string {
-  return host.startsWith('[') ? host.slice(0, host.indexOf(']') + 1) : host.split(':')[0];
-}
-
 export const inboxRoutes: FastifyPluginAsync = async (app) => {
-  // CSRF + DNS-rebinding guard. The proxy attaches the real inbox session
-  // cookie, so the inbox's own Origin/Host defenses must be re-applied here.
+  // CSRF guard. The proxy attaches the real inbox session cookie, so the
+  // inbox's own Origin and content-type defenses are re-applied here. The Host
+  // allowlist and the bearer token are enforced for every route by
+  // lib/access.ts (registerAccessGuard), so they are not repeated.
   app.addHook('onRequest', async (req) => {
-    const host = (req.headers.host ?? '').toLowerCase();
-    if (!LOOPBACK_HOSTS.has(hostName(host))) throw new HttpError(403, 'Forbidden host.');
     const origin = req.headers.origin;
     if (origin !== undefined && !ALLOWED_ORIGINS.has(origin)) throw new HttpError(403, 'Forbidden origin.');
     // Non-JSON POSTs are "simple" cross-site requests (no preflight) — refuse.

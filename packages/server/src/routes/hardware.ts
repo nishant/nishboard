@@ -6,6 +6,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { SimpleCache } from '../cache/SimpleCache';
 import { getNetThroughput } from '../lib/netThroughput';
+import { readWinDiskIo } from '../lib/winDiskIo';
 
 const execFileAsync = promisify(execFile);
 
@@ -240,6 +241,7 @@ async function buildHardwareData(): Promise<HardwareData> {
     fsSize,
     network,
     batteryInfo,
+    winDisk,
   ] = await Promise.all([
     getStaticCpu(),
     si.currentLoad(),
@@ -250,6 +252,8 @@ async function buildHardwareData(): Promise<HardwareData> {
     getFsSize(),
     getNetThroughput(),
     getBattery(),
+    // Windows-only: si.fsStats() is null there, read the PhysicalDisk counters instead.
+    process.platform === 'win32' ? readWinDiskIo() : Promise.resolve(null),
   ]);
 
   // ── CPU ────────────────────────────────────────────────────────────────
@@ -278,8 +282,10 @@ async function buildHardwareData(): Promise<HardwareData> {
   };
 
   // ── Disk I/O (aggregate via fsStats — bytes/sec) ─────────────────────
-  // Windows-only: si.fsStats() always resolves null there, so send no entry
-  // (the widget hides the I/O row) instead of a fake 0 MB/s.
+  // Windows: si.fsStats() always resolves null, so the totals come from the
+  // PhysicalDisk perf counters (lib/winDiskIo; the first sample may read 0).
+  // If those fail too, send no entry (the widget hides the I/O row) instead of
+  // a fake 0 MB/s.
   const disks: DiskIo[] = fsStats
     ? [
         {
@@ -288,10 +294,12 @@ async function buildHardwareData(): Promise<HardwareData> {
           writeMBs: parseFloat(((fsStats.wx_sec ?? 0) / 1024 / 1024).toFixed(2)),
         },
       ]
-    : [];
+    : winDisk
+      ? [{ name: 'Total', readMBs: winDisk.readMBs, writeMBs: winDisk.writeMBs }]
+      : [];
 
   // ── Disk usage (per mount) ────────────────────────────────────────────
-  const diskUsage: DiskUsage[] = (fsSize as si.Systeminformation.FsSizeData[])
+  const diskUsage: DiskUsage[] = fsSize
     .filter(isUsefulFs)
     .map((f) => ({
       mount: f.mount,
@@ -372,6 +380,9 @@ async function buildProcessList(): Promise<ProcessListData> {
   return { processes: union, fetchedAt: new Date().toISOString() };
 }
 
+let hardwareInFlight: Promise<HardwareData> | null = null;
+let processInFlight: Promise<ProcessListData> | null = null;
+
 export const hardwareRoutes: FastifyPluginAsync = async (fastify) => {
   // Windows-only: keep ONE persistent PowerShell for systeminformation's
   // remaining Windows calls instead of a fresh powershell.exe per call.
@@ -393,16 +404,29 @@ export const hardwareRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Reply: HardwareData | { error: string } }>('/', async (_req, reply) => {
     const cached = cache.get();
     if (cached) return reply.send(cached);
-    const data = await buildHardwareData();
-    cache.set(data, TTL_MS);
-    return reply.send(data);
+    // Single-flight: concurrent requests share one build.
+    hardwareInFlight ??= buildHardwareData()
+      .then((d) => {
+        cache.set(d, TTL_MS);
+        return d;
+      })
+      .finally(() => {
+        hardwareInFlight = null;
+      });
+    return reply.send(await hardwareInFlight);
   });
 
   fastify.get<{ Reply: ProcessListData | { error: string } }>('/processes', async (_req, reply) => {
     const cached = processCache.get();
     if (cached) return reply.send(cached);
-    const data = await buildProcessList();
-    processCache.set(data, PROCESS_TTL);
-    return reply.send(data);
+    processInFlight ??= buildProcessList()
+      .then((d) => {
+        processCache.set(d, PROCESS_TTL);
+        return d;
+      })
+      .finally(() => {
+        processInFlight = null;
+      });
+    return reply.send(await processInFlight);
   });
 };

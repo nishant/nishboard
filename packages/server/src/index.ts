@@ -7,7 +7,12 @@ import si from 'systeminformation';
 import { buildServer } from './app';
 
 // CWD is packages/server when run via Turborepo — walk up to monorepo root
-config({ path: resolve(__dirname, '../../../.env') });
+// Electron main spawns the packaged server with NODE_ENV=production
+// (apps/main/src/server/spawn.ts); a production run takes its credentials from
+// the app, never from a repo .env.
+if (process.env.NODE_ENV !== 'production') {
+  config({ path: resolve(__dirname, '../../../.env') });
+}
 
 const port = Number(process.env.SERVER_PORT ?? 7432);
 

@@ -32,10 +32,17 @@ export function isValidHost(host: string): boolean {
 // ── Output parsing ────────────────────────────────────────────────────────
 
 /** Exported for tests. Windows-only: `ping -n 1 -w 1000` output is LOCALIZED
- *  ("time=6ms" / "Zeit=14ms" / "temps=6 ms"…), so match the `=Nms` / `<Nms`
- *  token shape — never the word "time". The `<1ms` form → 0.5. */
+ *  ("time=6ms" / "Zeit=14ms" / "temps=6 ms"…), so match the `=N<unit>` / `<N<unit>`
+ *  token that precedes TTL= — never the word "time" or the unit. The `<1ms` form → 0.5. */
 export function parseWinPing(stdout: string): number | null {
-  const m = /([=<])\s*(\d+)\s*ms/.exec(stdout);
+  // Anchor on the untranslated TTL token: the unit ("ms", "мс") and the word
+  // for time are localized, "TTL=" is not.
+  // IPv6 replies ("Reply from 2001:db8::1: time=12ms") carry NO TTL token, so fall
+  // back to the first `=N<unit>` / `<N<unit>` token (a unit is required, which
+  // excludes bare counters like "Bytes=32").
+  const m =
+    /([=<])\s*(\d+)\s?[^\s\d=<]*\s+TTL=/i.exec(stdout) ??
+    /([=<])\s*(\d+)\s?[^\s\d=<]+/.exec(stdout);
   if (!m) return null;
   // `time<1ms` / `Zeit<1ms` — sub-millisecond reply, report the midpoint.
   if (m[1] === '<') return 0.5;
@@ -81,7 +88,7 @@ function round1(v: number): number {
 }
 
 /** Pure stats over one host's ring buffer. Exported for tests. */
-export function computeStats(buffer: ReadonlyArray<number | null>): Omit<PingHostStats, 'host'> {
+export function computeStats(buffer: ReadonlyArray<number | null>): Omit<PingHostStats, 'host' | 'recentMs'> {
   const samples = buffer.length;
   const ok = buffer.filter((v): v is number => v !== null);
 
@@ -119,8 +126,13 @@ interface HostBuf {
   lastSeen: number;
 }
 
+/** One round-trip in ms, or null on loss. Injectable so tests need no child process. */
+export type PingFn = (host: string) => Promise<number | null>;
+
 /** Exported for tests. */
 export class Sampler {
+  constructor(private readonly ping: PingFn = pingOnce) {}
+
   private hosts = new Map<string, HostBuf>();
   private timer: NodeJS.Timeout | null = null;
   private lastRequestAt = 0;
@@ -143,7 +155,10 @@ export class Sampler {
   }
 
   read(hosts: string[]): PingHostStats[] {
-    return hosts.map((h) => ({ host: h, ...computeStats(this.hosts.get(h)?.buf ?? []) }));
+    return hosts.map((h) => {
+      const buf = this.hosts.get(h)?.buf ?? [];
+      return { host: h, ...computeStats(buf), recentMs: buf.map((v) => (v === null ? null : round1(v))) };
+    });
   }
 
   /** Stop the timer and clear all history. */
@@ -168,7 +183,7 @@ export class Sampler {
     this.ticking = true;
     try {
       const hosts = [...this.hosts.keys()];
-      const results = await Promise.allSettled(hosts.map((h) => pingOnce(h)));
+      const results = await Promise.allSettled(hosts.map((h) => this.ping(h)));
       hosts.forEach((h, i) => {
         const entry = this.hosts.get(h);
         if (!entry) return; // dropped mid-tick — discard the stale result
@@ -189,6 +204,10 @@ const sampler = new Sampler();
 export const networkRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Querystring: { hosts?: string }; Reply: NetworkMonitorData | { error: string } }>(
     '/',
+    {
+      // A repeated ?hosts=a&hosts=b is an array; the schema turns it into a 400.
+      schema: { querystring: { type: 'object', properties: { hosts: { type: 'string', maxLength: 1100 } } } },
+    },
     async (req, reply) => {
       const parsed = (req.query.hosts ?? DEFAULT_HOSTS.join(','))
         .split(',')
@@ -215,6 +234,8 @@ export const networkRoutes: FastifyPluginAsync = async (fastify) => {
         hosts: sampler.read(hosts),
         totals,
         ifaces,
+        tickMs: TICK_MS,
+        windowSeconds: (WINDOW * TICK_MS) / 1000,
         fetchedAt: new Date().toISOString(),
       });
     },

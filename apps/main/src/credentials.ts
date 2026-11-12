@@ -1,5 +1,5 @@
 import { safeStorage, app } from 'electron';
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, renameSync } from 'fs';
 import path from 'path';
 import { CREDENTIAL_KEYS } from '@dash/shared';
 import type { CredentialKey } from '@dash/shared';
@@ -25,16 +25,21 @@ let cache: Credentials = {};
 function readStored(): Record<string, string> {
   const file = credentialsPath();
   if (!existsSync(file)) return {};
+  let raw: unknown;
   try {
-    const raw = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
-    const stored: Record<string, string> = {};
-    for (const [key, val] of Object.entries(raw)) {
-      if (isCredentialKey(key) && typeof val === 'string') stored[key] = val;
-    }
-    return stored;
+    raw = JSON.parse(readFileSync(file, 'utf8'));
   } catch {
+    // Unparseable: keep the bad file for recovery instead of letting the next
+    // save silently overwrite every stored key.
+    try { renameSync(file, `${file}.corrupt`); } catch { /* best-effort */ }
     return {};
   }
+  const stored: Record<string, string> = {};
+  if (typeof raw !== 'object' || raw === null) return stored;
+  for (const [key, val] of Object.entries(raw)) {
+    if (isCredentialKey(key) && typeof val === 'string') stored[key] = val;
+  }
+  return stored;
 }
 
 /** Electron types decryptStringAsync as `{ result, shouldReEncrypt }`; accept a bare string too. */
@@ -103,6 +108,11 @@ export async function writeCredentials(creds: Credentials): Promise<void> {
         : val;
     }
   }
-  writeFileSync(credentialsPath(), JSON.stringify(stored, null, 2), 'utf8');
+  // tmp + rename so a crash mid-write cannot leave torn JSON; 0600 because the
+  // no-safeStorage fallback stores plaintext.
+  const target = credentialsPath();
+  const tmp = `${target}.tmp`;
+  writeFileSync(tmp, JSON.stringify(stored, null, 2), { encoding: 'utf8', mode: 0o600 });
+  renameSync(tmp, target);
   await loadCredentials();
 }

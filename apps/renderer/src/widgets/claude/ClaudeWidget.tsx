@@ -4,8 +4,8 @@ import {
   ShieldQuestion, SlidersHorizontal, Square, Terminal, X,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import type { ExtraProps } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { ClaudeEffort } from '@dash/shared';
 import { CLAUDE_CONTEXT_WINDOW, CLAUDE_EFFORTS } from '@dash/shared';
 import { messageText, useClaudeStore } from '../../store/claudeStore';
 import type { ClaudeChatMessage, ClaudePromptPart, ClaudeToolPart } from '../../store/claudeStore';
@@ -81,7 +81,21 @@ function Shimmer({ startedAt, waiting = false }: { startedAt: number; waiting?: 
 // ── Markdown pipeline ─────────────────────────────────────────────────────────
 
 /** Links open in the system browser (Electron) — never navigate the app. */
-function MdLink({ href, children, ...rest }: React.AnchorHTMLAttributes<HTMLAnchorElement>) {
+function MdLink({
+  href,
+  children,
+  node: _node,
+  ...rest
+}: React.AnchorHTMLAttributes<HTMLAnchorElement> & ExtraProps) {
+  // Only http(s) can be opened (main drops anything else): show file paths and
+  // other relative links as plain code instead of a click that does nothing.
+  if (!href || !/^https?:\/\//i.test(href)) {
+    return (
+      <code title="Not a web link" className="text-th-hi2">
+        {children}
+      </code>
+    );
+  }
   return (
     <a
       {...rest}
@@ -166,7 +180,6 @@ function ModelEffortPanel({ anchor, onClose }: { anchor: React.RefObject<HTMLEle
   const sessionModel = useClaudeStore((s) => s.model);
   const setChatModel = useClaudeStore((s) => s.setChatModel);
   const setChatEffort = useClaudeStore((s) => s.setChatEffort);
-  const effortIdx = chatEffort ? CLAUDE_EFFORTS.indexOf(chatEffort) : 2;
 
   return (
     <ComposerPopover anchor={anchor} onClose={onClose} label="Model and effort">
@@ -197,18 +210,22 @@ function ModelEffortPanel({ anchor, onClose }: { anchor: React.RefObject<HTMLEle
           — {chatEffort ?? 'default'}
         </span>
       </Label>
-      <input
-        type="range"
-        min={0}
-        max={CLAUDE_EFFORTS.length - 1}
-        step={1}
-        value={effortIdx}
-        onChange={(e) => setChatEffort(CLAUDE_EFFORTS[Number(e.target.value)] as ClaudeEffort)}
-        className={cn('w-full accent-th-accent', !chatEffort && 'opacity-50')}
-        aria-label="Effort level"
-      />
-      <div className="flex justify-between text-3xs text-th-hi3 px-0.5">
-        <span>low</span><span>med</span><span>high</span><span>xhigh</span><span>max</span>
+      <div role="radiogroup" aria-label="Effort level" className="flex flex-wrap gap-1">
+        {[null, ...CLAUDE_EFFORTS].map((opt) => (
+          <button
+            key={opt ?? 'default'}
+            type="button"
+            role="radio"
+            aria-checked={opt === chatEffort}
+            onClick={() => setChatEffort(opt)}
+            className={cn(
+              'min-h-11 min-w-11 px-2 rounded text-2xs transition-colors',
+              opt === chatEffort ? 'bg-th-overlay text-th-hi' : 'text-th-hi2 hover:bg-th-overlay',
+            )}
+          >
+            {opt ?? 'Default'}
+          </button>
+        ))}
       </div>
       {chatEffort && (
         <Button variant="link" size="xs" onClick={() => setChatEffort(null)} className="mt-1.5">
@@ -519,8 +536,8 @@ function PromptCard({ part, live }: { part: ClaudePromptPart; live: boolean }) {
     );
   }
 
-  // The server caps the input at 4000 chars with a marker; never let that be approved unseen.
-  const inputTruncated = part.request.input?.endsWith('...truncated') ?? false;
+  // The server caps the input and flags it; never let that be approved unseen.
+  const inputTruncated = part.request.truncated === true;
   // With no CLI description, detail is a whitespace-collapsed copy of the input: hide it.
   const collapse = (v: string) => v.replace(/\s+/g, ' ').trim();
   const detailIsInputCopy =
@@ -780,19 +797,53 @@ export function ClaudeWidget() {
   };
 
   if (status.data?.available === false) {
+    const reason = status.data.reason;
+    if (reason === 'not-found') {
+      return (
+        <EmptyState
+          compact
+          className="h-full"
+          icon={<Terminal size={16} />}
+          title="Claude Code not found"
+          detail="Install it, then reopen this widget."
+          action={
+            <a
+              href="https://claude.com/claude-code"
+              className="inline-flex min-h-11 items-center text-2xs text-th-accent underline"
+              onClick={(e) => {
+                e.preventDefault();
+                const url = 'https://claude.com/claude-code';
+                if (window.electron?.openExternal) window.electron.openExternal(url);
+                else window.open(url, '_blank', 'noopener');
+              }}
+            >
+              Install Claude Code
+            </a>
+          }
+        />
+      );
+    }
+    const isError = reason === 'error';
     return (
       <EmptyState
         compact
         className="h-full"
         icon={<Terminal size={16} />}
-        title="Claude Code not found"
-        detail="Install it from claude.com/claude-code, then log in."
+        title={isError ? "Claude Code isn't responding" : 'Claude Code not found'}
+        detail={isError ? 'The CLI is installed but did not answer. Log in again or retry.' : 'Install it from claude.com/claude-code, then log in.'}
         action={
-          window.electron ? (
-            <Button size="sm" icon={<Terminal size={12} />} onClick={() => void openClaudeCliLogin()}>
-              Log in to Claude CLI
-            </Button>
-          ) : undefined
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {window.electron && (
+              <Button size="sm" icon={<Terminal size={12} />} onClick={() => void openClaudeCliLogin()}>
+                Log in to Claude CLI
+              </Button>
+            )}
+            {isError && (
+              <Button size="sm" variant="ghost" onClick={() => void status.refetch()}>
+                Retry
+              </Button>
+            )}
+          </div>
         }
       />
     );

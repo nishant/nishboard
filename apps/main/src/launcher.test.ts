@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import { migrateLauncherFile } from './launcher';
 
 const item = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
@@ -62,5 +65,64 @@ describe('migrateLauncherFile', () => {
   it('tolerates v2 files with missing arrays', () => {
     expect(migrateLauncherFile({ version: 2 })).toEqual({ version: 2, groups: [], items: [] });
     expect(migrateLauncherFile({ version: 2, groups: 'x', items: 5 })).toEqual({ version: 2, groups: [], items: [] });
+  });
+});
+
+describe('launching', () => {
+  const openPath = vi.fn<(target: string) => Promise<string>>();
+  const openExternal = vi.fn<(url: string) => Promise<void>>();
+  let dir: string;
+
+  // launcher.ts caches the parsed file at module scope, so each test seeds a
+  // fresh userData dir and re-imports the module.
+  async function loadWith(items: Record<string, unknown>[]): Promise<typeof import('./launcher')> {
+    fs.writeFileSync(path.join(dir, 'launcher.json'), JSON.stringify({ version: 2, groups: [{ id: 'g1', label: 'G' }], items }));
+    vi.resetModules();
+    // Same electron stub instance as launcher.ts gets after the reset.
+    const electron = await import('electron');
+    vi.spyOn(electron.app, 'getPath').mockReturnValue(dir);
+    Object.assign(electron.shell, { openPath, openExternal });
+    return import('./launcher');
+  }
+
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nishboard-launcher-'));
+    openPath.mockReset();
+    openExternal.mockReset();
+    openExternal.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('rejects when shell.openPath reports an error string', async () => {
+    openPath.mockResolvedValue('not found');
+    const m = await loadWith([item()]);
+    await expect(m.launchItem('i1')).rejects.toThrow('not found');
+  });
+
+  it('launchGroup runs every member and names the failed labels', async () => {
+    openPath.mockImplementation((t) => Promise.resolve(t === 'C:/bad.exe' ? 'not found' : ''));
+    const m = await loadWith([
+      item({ id: 'a', label: 'Bad', target: 'C:/bad.exe', group: 'g1' }),
+      item({ id: 'b', label: 'Good', target: 'C:/good.exe', group: 'g1' }),
+    ]);
+    await expect(m.launchGroup('g1')).rejects.toThrow('Bad');
+    expect(openPath).toHaveBeenCalledTimes(2);
+  });
+
+  it('never passes non-http(s) link targets to shell.openExternal', async () => {
+    const m = await loadWith([
+      item({ id: 'js', kind: 'url', target: 'javascript:alert(1)' }),
+      item({ id: 'file', kind: 'url', target: 'file:///C:/x.exe' }),
+      item({ id: 'ok', kind: 'url', target: 'https://example.com' }),
+    ]);
+    await m.launchItem('js');
+    await m.launchItem('file');
+    expect(openExternal).not.toHaveBeenCalled();
+    await m.launchItem('ok');
+    expect(openExternal).toHaveBeenCalledWith('https://example.com');
   });
 });

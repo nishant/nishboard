@@ -4,6 +4,19 @@ All changes organized by pull request, newest first. Format is documented under 
 
 ---
 
+## [PR #202] audit-p3: fix 28 audit findings (secrets, stale widget state, loop and validation bugs)
+**Branch:** audit-burn1 → master
+**Date:** 2026-11-11
+
+### Fixed
+- Main: per-child server log streams, a secret-free PowerShell environment, a trading URL allowlist, validated backup/import, bounded updater and popout handling, safer Claude login watching.
+- Renderer: alert and CPU evaluator loop fix, validated Claude store state, Spotify/YouTube/Twitch/Discord/calendar/hardware/sound widget state and error handling, settings and alerts panel fixes.
+- Server: input validation and error paths for the calendar, spotify, youtube, twitch, discord, crypto, stocks, sound and network routes; Claude usage and CLI hardening.
+- Findings NISHBOARD-083, 091, 092, 101, 114, 131, 133, 141, 149, 161, 174, 184, 185, 193, 202, 203, 208, 216, 222, 238, 245, 246, 247, 248, 249, 261, 282, 283.
+- ROADMAP: removed the finished audit follow-ups; the command palette and disk I/O entries remain.
+
+---
+
 ## [PR #200] fix: lower the YouTube search budget to 55 a day and drop fold.yml's serve override
 **Branch:** audit-xr → master
 **Date:** 2026-11-10

@@ -10,6 +10,8 @@ import type { WidgetId } from '../lib/layouts';
 import { useQueryClient } from '@tanstack/react-query';
 import { exportSettings, importSettings } from '../lib/backup';
 import { apiClient } from '../lib/apiClient';
+import { toast } from '../lib/alerts';
+import { SCALE_MIN, SCALE_MAX } from '../lib/paletteActions';
 import { SegmentedRow } from './settings/controls';
 import { openClaudeCliLogin } from '../widgets/claude/useClaude';
 import { AlertsPanel } from './settings/AlertsPanel';
@@ -17,6 +19,10 @@ import { useOverlayStore } from '../store/overlayStore';
 import { useThemeStore } from '../store/themeStore';
 import { CUSTOM_THEME, THEMES, THEME_PRESETS } from '../themes';
 import { Badge, Button, Callout, Field, IconButton, Modal, SkeletonLines, Switch, TabPanel, Tabs, ThemeToggle, Tooltip, cn, Label, Input, Select } from '@nish/ui';
+
+function errMsg(err: unknown): string {
+  return err instanceof Error ? err.message : 'unexpected error';
+}
 
 // Group defs by service
 const SERVICES = Array.from(new Set(CREDENTIAL_DEFS.map((d) => d.service)));
@@ -29,6 +35,7 @@ const SERVICES = Array.from(new Set(CREDENTIAL_DEFS.map((d) => d.service)));
 type CredentialEdit = { mode: 'set'; value: string } | { mode: 'clear' };
 
 function CredentialRow({
+  service,
   label,
   hint,
   isSet,
@@ -36,6 +43,7 @@ function CredentialRow({
   onEdit,
   disabled = false,
 }: {
+  service: string;
   label: string;
   hint?: string;
   /** A value is stored in the main process. */
@@ -53,15 +61,15 @@ function CredentialRow({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
         {showInput ? (
-          <label htmlFor={inputId} className="text-th-hi3 text-2xs w-28 shrink-0">{label}</label>
+          <label htmlFor={inputId} className="text-th-hi3 text-2xs sm:w-28 shrink-0">{label}</label>
         ) : (
-          <span className="text-th-hi3 text-2xs w-28 shrink-0">{label}</span>
+          <span className="text-th-hi3 text-2xs sm:w-28 shrink-0">{label}</span>
         )}
 
         {showInput ? (
-          <div className="flex-1 flex items-center gap-1.5">
+          <div className="flex-1 min-w-0 flex items-center gap-1.5">
             <Input
               id={inputId}
               size="sm"
@@ -79,31 +87,31 @@ function CredentialRow({
               aria-describedby={hint ? `${inputId}-hint` : undefined}
               className="flex-1 font-mono"
             />
-            <IconButton label={visible ? 'Hide value' : 'Show value'} size="sm" active={visible} disabled={disabled} onClick={() => setVisible((v) => !v)}>
+            <IconButton label={`${visible ? 'Hide' : 'Show'} ${service} ${label} value`} size="sm" active={visible} disabled={disabled} onClick={() => setVisible((v) => !v)}>
               {visible ? <EyeOff size={13} /> : <Eye size={13} />}
             </IconButton>
             {isSet && (
-              <IconButton label="Keep the saved value" size="sm" disabled={disabled} onClick={() => onEdit(undefined)}>
+              <IconButton label={`Keep the saved ${service} ${label}`} size="sm" disabled={disabled} onClick={() => onEdit(undefined)}>
                 <X size={13} />
               </IconButton>
             )}
           </div>
         ) : pendingClear ? (
-          <div className="flex-1 flex items-center gap-2">
+          <div className="flex-1 min-w-0 flex flex-wrap items-center gap-2">
             <Badge tone="warn">Will be removed on save</Badge>
-            <Button variant="link" size="xs" disabled={disabled} onClick={() => onEdit(undefined)}>
+            <Button variant="link" size="xs" disabled={disabled} onClick={() => onEdit(undefined)} aria-label={`Undo clear ${service} ${label}`}>
               Undo
             </Button>
           </div>
         ) : (
-          <div className="flex-1 flex items-center gap-2">
+          <div className="flex-1 min-w-0 flex flex-wrap items-center gap-2">
             <span className="text-th-hi text-2xs font-mono tracking-widest">••••••••</span>
             <span className="text-th-hi3 text-3xs">saved</span>
             <div className="ml-auto flex items-center gap-1">
-              <Button size="xs" variant="subtle" disabled={disabled} onClick={() => onEdit({ mode: 'set', value: '' })}>
+              <Button size="xs" variant="subtle" disabled={disabled} onClick={() => onEdit({ mode: 'set', value: '' })} aria-label={`Replace ${service} ${label}`}>
                 Replace
               </Button>
-              <Button size="xs" variant="ghost" disabled={disabled} onClick={() => onEdit({ mode: 'clear' })} className="hover:text-th-loss hover:bg-th-loss-soft">
+              <Button size="xs" variant="ghost" disabled={disabled} onClick={() => onEdit({ mode: 'clear' })} aria-label={`Clear ${service} ${label}`} className="hover:text-th-loss hover:bg-th-loss-soft">
                 Clear
               </Button>
             </div>
@@ -111,7 +119,7 @@ function CredentialRow({
         )}
       </div>
       {hint && (
-        <p id={`${inputId}-hint`} className="text-th-hi3 text-3xs leading-relaxed pl-[calc(7rem+0.75rem)]">{hint}</p>
+        <p id={`${inputId}-hint`} className="text-th-hi3 text-3xs leading-relaxed sm:pl-[calc(7rem+0.75rem)]">{hint}</p>
       )}
     </div>
   );
@@ -119,7 +127,7 @@ function CredentialRow({
 
 function BuiltinRow({ label }: { label: string }) {
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       <span className="text-th-hi3 text-2xs w-28 shrink-0">{label}</span>
       <div className="flex items-center gap-1.5 text-th-hi3 text-2xs">
         <Lock size={11} className="shrink-0" />
@@ -148,7 +156,11 @@ function AutoUpdateStatus({ status, result }: { status: UpdateStatusData; result
           <Button
             size="sm"
             variant="primary"
-            onClick={() => void window.electron?.app.installUpdate()}
+            onClick={() => {
+              void Promise.resolve(window.electron?.app.installUpdate()).catch((err: unknown) => {
+                toast('Settings', `Could not start the update: ${errMsg(err)}`, 'error');
+              });
+            }}
             className="self-start"
           >
             Restart to update
@@ -193,6 +205,8 @@ function AboutSection() {
     setChecking(true);
     try {
       setResult(await window.electron!.app.checkUpdates());
+    } catch (err) {
+      toast('Settings', `Update check failed: ${errMsg(err)}`, 'error');
     } finally {
       setChecking(false);
     }
@@ -201,19 +215,19 @@ function AboutSection() {
   return (
     <div className="flex flex-col gap-3">
       <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">About</span>
-      <div className="flex items-center gap-3">
-        <span className="text-th-hi3 text-2xs w-28 shrink-0">Version</span>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span className="text-th-hi3 text-2xs sm:w-28 shrink-0">Version</span>
         <span className="text-th-hi text-2xs font-mono">{version ?? '…'}</span>
         <Button size="sm" variant="subtle" loading={checking} onClick={() => void check()} className="ml-auto">
           Check for updates
         </Button>
       </div>
       {(result?.autoUpdate || updateStatus.state !== 'idle') ? (
-        <div className="text-3xs leading-relaxed pl-[calc(7rem+0.75rem)] flex flex-col gap-1">
+        <div className="text-3xs leading-relaxed sm:pl-[calc(7rem+0.75rem)] flex flex-col gap-1">
           <AutoUpdateStatus status={updateStatus} result={result} />
         </div>
       ) : result && (
-        <div className="text-3xs leading-relaxed pl-[calc(7rem+0.75rem)] flex flex-col gap-1">
+        <div className="text-3xs leading-relaxed sm:pl-[calc(7rem+0.75rem)] flex flex-col gap-1">
           {result.hasUpdate && result.latestVersion ? (
             <>
               <Button
@@ -228,7 +242,7 @@ function AboutSection() {
                 <Button
                   size="sm"
                   variant="primary"
-                  onClick={() => window.electron?.openExternal(result.assetUrl!)}
+                  onClick={() => { const url = result.assetUrl; if (url) window.electron?.openExternal(url); }}
                   title={result.assetName ?? undefined}
                   className="self-start"
                 >
@@ -262,12 +276,20 @@ function AutoExportRow() {
   if (!window.electron?.backup || !loaded) return null;
 
   async function choose() {
-    const chosen = await window.electron!.backup.chooseFolder();
-    if (chosen) setDir(chosen);
+    try {
+      const chosen = await window.electron!.backup.chooseFolder();
+      if (chosen) setDir(chosen);
+    } catch (err) {
+      toast('Settings', `Could not choose a folder: ${errMsg(err)}`, 'error');
+    }
   }
   async function disable() {
-    await window.electron!.prefs.set({ backupDir: null });
-    setDir(null);
+    try {
+      await window.electron!.prefs.set({ backupDir: null });
+      setDir(null);
+    } catch (err) {
+      toast('Settings', `Could not disable auto-export: ${errMsg(err)}`, 'error');
+    }
   }
 
   return (
@@ -310,8 +332,12 @@ function SystemPrefsSection() {
   if (!window.electron?.prefs || !prefs) return null;
 
   async function update(patch: Partial<AppPrefsData>) {
-    const next = await window.electron!.prefs.set(patch);
-    setPrefs(next);
+    try {
+      const next = await window.electron!.prefs.set(patch);
+      setPrefs(next);
+    } catch (err) {
+      toast('Settings', `Could not save the setting: ${errMsg(err)}`, 'error');
+    }
   }
 
   return (
@@ -425,8 +451,6 @@ function AppearanceSection() {
 
 // ── App settings tab ──────────────────────────────────────────────────────────
 
-const SCALE_MIN = 0.8;
-const SCALE_MAX = 1.4;
 const clampScale = (n: number) => Math.round(Math.min(SCALE_MAX, Math.max(SCALE_MIN, n)) * 10) / 10;
 
 function AppSettingsPanel() {
@@ -650,7 +674,7 @@ function AppSettingsPanel() {
       <div className="flex flex-col gap-3">
         <span className="text-th-hi2 text-xs font-semibold uppercase tracking-wider">Display</span>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="text-th-hi3 text-2xs w-28 shrink-0">UI scale</span>
           <div className="flex items-center gap-2">
             <IconButton label="Smaller" size="xs" variant="subtle" onClick={() => setUiScale(clampScale(uiScale - 0.1))} disabled={uiScale <= SCALE_MIN}>
@@ -743,6 +767,8 @@ function DevToolsRow() {
       // Resolves when the child is healthy again; the server:restarted push
       // makes App invalidate all queries.
       await window.electron!.restartServer();
+    } catch (err) {
+      toast('Settings', `Server restart failed: ${errMsg(err)}`, 'error');
     } finally {
       setRestarting(false);
     }
@@ -764,6 +790,10 @@ function DevToolsRow() {
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 type Tab = 'app' | 'alerts' | 'dev';
+
+function isTab(v: string): v is Tab {
+  return TABS.some((t) => t.value === v);
+}
 
 const TABS: { value: Tab; label: string }[] = [
   { value: 'app', label: 'App' },
@@ -834,8 +864,9 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
       // Reflect the merge locally: set keys become "saved", cleared ones unset.
       setStatus((prev) => {
         const next = { ...prev };
-        for (const [key, val] of Object.entries(payload)) {
-          next[key as CredentialKey] = val !== '';
+        for (const key of CREDENTIAL_KEYS) {
+          const val = payload[key];
+          if (val !== undefined) next[key] = val !== '';
         }
         return next;
       });
@@ -843,7 +874,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
       // this is every edit today, but never discard one that was not sent.
       setEdits((prev) => {
         const next = { ...prev };
-        for (const key of Object.keys(payload) as CredentialKey[]) delete next[key];
+        for (const key of CREDENTIAL_KEYS) if (key in payload) delete next[key];
         return next;
       });
       // Widgets were getting connection-refused during the restart — refetch
@@ -899,7 +930,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           label="Settings sections"
           size="sm"
           value={tab}
-          onChange={(v) => setTab(v as Tab)}
+          onChange={(v) => { if (isTab(v)) setTab(v); }}
           items={TABS}
           className="sticky top-0 z-10 -mx-5 mb-4 bg-th-surface px-5"
         >
@@ -932,6 +963,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                       ) : (
                         <CredentialRow
                           key={def.key}
+                          service={service}
                           label={def.label}
                           hint={def.hint}
                           isSet={status[def.key] === true}
@@ -957,7 +989,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                 'text-th-hi3 text-3xs leading-relaxed',
                 encryptionAvailable && 'border-t border-th-line pt-4',
               )}>
-                Spotify uses sign-in — no key needed. Weather, Hardware, and Sound require no API keys.
+                Spotify needs only a Client ID (you sign in from the widget). Weather, Hardware, and Sound require no API keys.
                 <br />
                 {encryptionAvailable
                   ? 'Keys are encrypted with your OS keychain and are write-only: they can be replaced or cleared here, never viewed.'

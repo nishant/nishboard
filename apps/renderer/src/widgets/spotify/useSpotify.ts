@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { QueryClient } from '@tanstack/react-query';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '../../lib/alerts';
@@ -19,12 +19,43 @@ export function useDebouncedValue<T>(value: T, delayMs: number): T {
   return debounced;
 }
 
+// ── Connect-pending flag ──────────────────────────────────────────────────────
+// Set when the auth URL is opened in the browser; the status poll runs fast
+// (2s) only until the account shows as connected or 5 minutes pass.
+
+const CONNECT_WINDOW_MS = 5 * 60_000;
+let connectPendingUntil = 0;
+const connectListeners = new Set<() => void>();
+
+function setConnectPending(on: boolean): void {
+  connectPendingUntil = on ? Date.now() + CONNECT_WINDOW_MS : 0;
+  connectListeners.forEach((l) => l());
+}
+
+function subscribeConnect(l: () => void): () => void {
+  connectListeners.add(l);
+  return () => { connectListeners.delete(l); };
+}
+
+/** Exported for tests. Next status poll delay: fast while a connect is pending. */
+export function statusPollMs(pendingUntil: number, authenticated: boolean, now: number): 'fast' | 'slow' {
+  return !authenticated && pendingUntil > now ? 'fast' : 'slow';
+}
+
 export function useSpotifyStatus() {
-  const interval = useGatedInterval(5000);
+  const fast = useGatedInterval(2000);
+  const slow = useGatedInterval(60_000);
+  // Subscribing re-renders when the flag flips so the new interval is picked up.
+  useSyncExternalStore(subscribeConnect, () => connectPendingUntil);
   return useQuery<SpotifyAuthStatus>({
     queryKey: ['spotify-status'],
-    queryFn: () => apiClient.get<SpotifyAuthStatus>('/api/spotify/auth-status'),
-    refetchInterval: interval,
+    queryFn: async () => {
+      const st = await apiClient.get<SpotifyAuthStatus>('/api/spotify/auth-status');
+      if (st.authenticated && connectPendingUntil !== 0) setConnectPending(false);
+      return st;
+    },
+    refetchInterval: (q) =>
+      statusPollMs(connectPendingUntil, q.state.data?.authenticated === true, Date.now()) === 'fast' ? fast : slow,
     staleTime: 4000,
   });
 }
@@ -35,17 +66,31 @@ export function useNowPlaying(enabled = true) {
     queryKey: ['spotify-now-playing'],
     queryFn: () => apiClient.get<TrackData>('/api/spotify/now-playing'),
     enabled,
-    refetchInterval: interval,
+    // Full rate while playing; a paused or empty player changes rarely.
+    refetchInterval: (q) => (interval === false ? false : q.state.data?.isPlaying ? interval : interval * 4),
     staleTime: 2500,
   });
 }
 
-export function useSpotifyAuthUrl() {
-  return useQuery<{ url: string }>({
-    queryKey: ['spotify-auth-url'],
-    queryFn: () => apiClient.get<{ url: string }>('/api/spotify/auth-url'),
-    enabled: false,
-    staleTime: 0,
+/** Fetch the auth URL, open it in the browser and start the fast status poll.
+ *  Failures reach the user as a toast instead of a silent no-op. */
+export function useSpotifyConnect() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { url } = await qc.fetchQuery({
+        queryKey: ['spotify-auth-url'],
+        queryFn: () => apiClient.get<{ url: string }>('/api/spotify/auth-url'),
+        staleTime: 0,
+      });
+      return url;
+    },
+    onSuccess: (url) => {
+      if (!url) return;
+      window.electron?.openSpotifyAuth(url);
+      setConnectPending(true);
+    },
+    onError: (e: Error) => toast('Spotify', e.message, 'error'),
   });
 }
 
@@ -186,24 +231,53 @@ export function useSeek() {
   const onError = useTransportError();
   return useMutation({
     onError,
-    mutationFn: (positionMs: number) => apiClient.post('/api/spotify/seek', { positionMs }),
+    mutationFn: (positionMs: number) => apiClient.post('/api/spotify/seek', { positionMs: Math.max(0, Math.round(positionMs)) }),
     onMutate: async (positionMs) => optimisticNowPlaying(qc, { progressMs: positionMs }),
     onSettled: () => { settleNowPlaying(qc); },
   });
 }
 
+export const PENDING_VOLUME_MS = 5000;
+
+export interface PendingVolume { value: number; at: number }
+
+/** Volume the widget should show: the user's pending value until the server
+ *  reports it (or PENDING_VOLUME_MS pass), else what the server says. */
+export function shownVolume(serverVolume: number, pending: PendingVolume | null, now: number): number {
+  if (!pending || now - pending.at >= PENDING_VOLUME_MS) return serverVolume;
+  return serverVolume === pending.value ? serverVolume : pending.value;
+}
+
 export function useSpotifyVolume() {
   const qc = useQueryClient();
   const onError = useTransportError();
-  return useMutation({
-    onError,
+  const [pendingVolume, setPendingVolume] = useState<PendingVolume | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const clearPending = useCallback(() => {
+    clearTimeout(timer.current);
+    setPendingVolume(null);
+  }, []);
+  const m = useMutation({
+    onError: (err: unknown, vars: number, ctx?: OptimisticContext) => {
+      clearPending();
+      onError(err, vars, ctx);
+    },
     mutationFn: (volumePercent: number) =>
       apiClient.post('/api/spotify/volume', { volumePercent }),
-    onMutate: async (volumePercent) => optimisticNowPlaying(qc, { volumePercent }),
-    // No onSettled invalidation — Spotify API takes a moment to reflect volume changes,
-    // so immediately refetching would overwrite the optimistic update with a stale value.
-    // The 3-second polling via useNowPlaying handles eventual sync.
+    onMutate: async (volumePercent) => {
+      clearTimeout(timer.current);
+      setPendingVolume({ value: volumePercent, at: Date.now() });
+      timer.current = setTimeout(() => setPendingVolume(null), PENDING_VOLUME_MS);
+      // cancelQueries (inside) stops an in-flight poll landing after the write.
+      return optimisticNowPlaying(qc, { volumePercent });
+    },
+    // No onSettled invalidation: Spotify reports the old volume for a moment, so
+    // an immediate refetch would snap the slider back. The widget shows
+    // `pendingVolume` instead of the polled value until the server reports it
+    // or 5s pass; the regular poll then takes over.
   });
+  return { mutate: m.mutate, pendingVolume };
 }
 
 export function useShuffle() {
@@ -309,8 +383,15 @@ export function useSpotifyLogout() {
   return useMutation({
     mutationFn: () => apiClient.post('/api/spotify/logout'),
     onSuccess: () => {
+      // Drop the previous account's data (tracks, playlists, search, devices).
+      qc.removeQueries({
+        predicate: (q) =>
+          typeof q.queryKey[0] === 'string'
+          && q.queryKey[0].startsWith('spotify-')
+          && q.queryKey[0] !== 'spotify-status',
+      });
+      setConnectPending(false);
       qc.setQueryData(['spotify-status'], { authenticated: false });
-      void qc.invalidateQueries({ queryKey: ['spotify-now-playing'] });
     },
   });
 }

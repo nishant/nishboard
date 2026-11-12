@@ -19,8 +19,10 @@ export function WidgetShell({ title, children, actions, className, collapsed = f
   const actionRow = (onToggleCollapse || actions) && (
     <div
       // Hover-revealed action row — stays visible while any action has focus, and
-      // always on a touch screen (no hover there). min-h-5.5 (22px) keeps the header
-      // at TITLEBAR_PX with 20px (2xs) actions; on coarse pointers each action gets a
+      // always on a touch screen (no hover there). min-h-5.5 (22px) is the header's
+      // content height (20px (2xs) actions): with py-2 and the border-b the header is
+      // 8 + 22 + 8 + 1 = 39px, which TITLEBAR_PX (layoutStore) accounts for beside the
+      // tile's own 1px top and bottom borders. On coarse pointers each action gets a
       // 44px hit area (HeaderAction) so the gap widens to a 44px pitch.
       className="ml-auto flex min-h-5.5 items-center gap-0.5 opacity-0 group-hover/wsh:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100 pointer-coarse:gap-6 transition-opacity"
       style={{ cursor: 'default' }}

@@ -15,8 +15,12 @@ import { Button, Card, Meter, SkeletonLines, Sparkline, Spinner, cn, type MeterT
 const LAT_SCALE_MS = 200;
 /** Minimum window samples before latency numbers mean anything. */
 const MIN_SAMPLES = 3;
-/** Window the server aggregates over: 30 samples × 2s tick. */
-const WINDOW_LABEL = '60s';
+
+/** Footer text from the server's own tick and window (never hard-coded here). */
+function footerLabel(tickMs: number, windowSeconds: number): string {
+  const win = windowSeconds >= 120 ? `${windowSeconds / 60} min` : `${windowSeconds}s`;
+  return `Ping every ${tickMs / 1000}s · last ${win}`;
+}
 
 function latClass(ms: number): string {
   if (ms < 30) return 'text-th-ok';
@@ -175,7 +179,9 @@ function ConfigPanel() {
   const setHosts = useNetmonStore((s) => s.setHosts);
   const [drafts, setDrafts] = useState<[string, string]>([hosts[0] ?? '', hosts[1] ?? '']);
 
-  const valid = drafts.every(isValidHost);
+  // Two identical targets are one host: reject a case-insensitive duplicate.
+  const duplicate = drafts[0].toLowerCase() === drafts[1].toLowerCase();
+  const valid = drafts.every(isValidHost) && !duplicate;
   const dirty = drafts[0] !== (hosts[0] ?? '') || drafts[1] !== (hosts[1] ?? '');
 
   return (
@@ -187,7 +193,7 @@ function ConfigPanel() {
             key={i}
             size="xs"
             aria-label={`Ping target ${i + 1}`}
-            invalid={!isValidHost(drafts[i])}
+            invalid={!isValidHost(drafts[i]) || (i === 1 && duplicate)}
             value={drafts[i]}
             onChange={(e) => {
               const next: [string, string] = [...drafts];
@@ -258,7 +264,7 @@ export function NetworkMonitorWidget() {
       {configOpen && <ConfigPanel />}
 
       {d.hosts.map((h) => (
-        <LatencyCard key={h.host} stats={h} spark={history.latency[h.host] ?? []} view={view} />
+        <LatencyCard key={h.host} stats={h} spark={h.recentMs.filter((v): v is number => v !== null)} view={view} />
       ))}
 
       <QualityCard hosts={d.hosts} />
@@ -267,7 +273,7 @@ export function NetworkMonitorWidget() {
 
       {/* Footer */}
       <div className="flex items-center justify-between px-0.5 shrink-0 mt-auto pt-1">
-        <span className="text-3xs text-th-hi3">Ping every 2s · last {WINDOW_LABEL}</span>
+        <span className="text-3xs text-th-hi3">{footerLabel(d.tickMs, d.windowSeconds)}</span>
         {query.isFetching && <Spinner size="xs" label="Refreshing" className="text-th-hi3" />}
       </div>
     </div>

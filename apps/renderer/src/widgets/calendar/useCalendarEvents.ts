@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { CalendarAuthStatus, CalendarEventData, CalendarEventsData } from '@dash/shared';
 import { apiClient } from '../../lib/apiClient';
 import { useGatedInterval } from '../../hooks/useGatedInterval';
+import { toast } from '../../lib/alerts';
 
 // ── Account (Google OAuth, calendar.events scope) ────────────────────────────
 // Separate consent + token file from YouTube's — connecting/disconnecting one
@@ -26,6 +27,7 @@ export function useCalendarConnect() {
       // Guarded in the main process to https://accounts.google.com/ only.
       window.electron?.openGoogleAuth?.(url);
     },
+    onError: (err: Error) => toast('Calendar', err.message, 'error'),
   });
 }
 
@@ -33,6 +35,7 @@ export function useCalendarLogout() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => apiClient.post('/api/calendar/logout'),
+    onError: (err: Error) => toast('Calendar', err.message, 'error'),
     onSuccess: () => {
       qc.setQueryData<CalendarAuthStatus>(['calendar-auth'], { authenticated: false });
       void qc.invalidateQueries({ queryKey: ['calendar-events'] });
@@ -76,6 +79,7 @@ export function useAddCalendarEvent() {
   return useMutation({
     mutationFn: (input: AddCalendarEventInput) =>
       apiClient.post<CalendarEventData>('/api/calendar/events', input),
+    onError: (err: Error) => toast('Calendar', err.message, 'error'),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['calendar-events'] });
     },

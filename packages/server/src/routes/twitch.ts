@@ -61,6 +61,12 @@ const userTokens = new UserTokenStore('twitch_tokens.json', refreshUserToken);
 interface PendingAuth { state: string; expiresAt: number; }
 let pendingAuth: PendingAuth | null = null;
 
+function stateMatches(expected: string, given: string): boolean {
+  const a = Buffer.from(expected);
+  const b = Buffer.from(given);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -72,17 +78,27 @@ function escapeHtml(s: string): string {
 // tokens last ~60 days; we refresh a minute early and on any 401.
 let cachedToken: { value: string; expiresAt: number } | null = null;
 
-async function getAppToken(clientId: string, clientSecret: string): Promise<string> {
-  if (cachedToken && Date.now() < cachedToken.expiresAt) return cachedToken.value;
+// Concurrent cold callers share one client-credentials request.
+let appTokenInFlight: Promise<string> | null = null;
 
-  const url = new URL(TOKEN_URL);
-  url.searchParams.set('client_id', clientId);
-  url.searchParams.set('client_secret', clientSecret);
-  url.searchParams.set('grant_type', 'client_credentials');
+function getAppToken(clientId: string, clientSecret: string): Promise<string> {
+  if (cachedToken && Date.now() < cachedToken.expiresAt) return Promise.resolve(cachedToken.value);
+  appTokenInFlight ??= fetchAppToken(clientId, clientSecret).finally(() => { appTokenInFlight = null; });
+  return appTokenInFlight;
+}
 
+async function fetchAppToken(clientId: string, clientSecret: string): Promise<string> {
   const data = await fetchJson<{ access_token: string; expires_in: number }>(
-    url.toString(),
-    { method: 'POST' },
+    TOKEN_URL,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: 'client_credentials',
+      }),
+    },
     { label: 'Twitch token' },
   );
   cachedToken = {
@@ -282,11 +298,12 @@ export const twitchRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.type('text/html')
           .send(`<html><body><h2>Twitch auth denied: ${escapeHtml(error)}</h2><p>You can close this tab.</p></body></html>`);
       }
-      if (!code || !state || !pendingAuth || pendingAuth.state !== state || Date.now() > pendingAuth.expiresAt) {
-        pendingAuth = null;
+      if (pendingAuth && Date.now() > pendingAuth.expiresAt) pendingAuth = null;
+      if (!code || !state || !pendingAuth || !stateMatches(pendingAuth.state, state)) {
         return reply.code(400).type('text/html')
           .send('<html><body><h2>Invalid or expired auth request.</h2><p>Try connecting again.</p></body></html>');
       }
+      pendingAuth = null; // consume before the exchange so a replay cannot reuse it
       try {
         const data = await fetchJson<{ access_token: string; refresh_token: string; expires_in: number }>(
           TOKEN_URL,
@@ -317,7 +334,6 @@ export const twitchRoutes: FastifyPluginAsync = async (fastify) => {
           expires_at: Date.now() + data.expires_in * 1000,
           meta: { userId },
         });
-        pendingAuth = null;
         followedCache.clear();
         followsCache.clear();
         followedAllCache.clear();
@@ -449,8 +465,10 @@ export const twitchRoutes: FastifyPluginAsync = async (fastify) => {
       throw new HttpError(503, 'TWITCH_CLIENT_ID / TWITCH_CLIENT_SECRET not configured');
     }
 
-    const { q, after } = req.query;
-    if (!q?.trim()) throw new HttpError(400, 'q is required');
+    const q = (req.query.q ?? '').trim();
+    if (!q) throw new HttpError(400, 'q is required');
+    if (q.length > 100) throw new HttpError(400, 'q is too long');
+    const after = validCursor(req.query.after);
 
     const data = await helixApp<{
       pagination?: { cursor?: string };
@@ -467,7 +485,7 @@ export const twitchRoutes: FastifyPluginAsync = async (fastify) => {
     }>(
       'search/channels',
       (u) => {
-        u.searchParams.set('query', q.trim());
+        u.searchParams.set('query', q);
         u.searchParams.set('first', '12');
         if (after) u.searchParams.set('after', after);
       },

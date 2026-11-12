@@ -65,7 +65,20 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+/** Constant-time state comparison; a length mismatch is simply no match. */
+function statesMatch(expected: string, given: string): boolean {
+  const a = Buffer.from(expected);
+  const b = Buffer.from(given);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** True when `iso` is a real calendar date (rejects 2026-02-31, 2026-13-01,
+ *  which Date would silently roll over). */
+function isRealDate(iso: string): boolean {
+  return DATE_RE.test(iso) && toIsoDate(parseLocalDate(iso)) === iso;
+}
 
 /** YYYY-MM-DD → local midnight Date (RFC3339 timeMin/timeMax come from
  *  .toISOString() on these — the Calendar API rejects bare dates there).
@@ -109,6 +122,7 @@ export function mapEvent(item: GoogleEventItem): CalendarEventData {
 
 // One entry per visible widget range; cleared on insert/logout so a quick-add
 // shows up immediately instead of after the TTL.
+const MAX_EVENT_PAGES = 10;
 const EVENTS_CACHE = new TtlCache<string, CalendarEventsData>(5 * 60 * 1000);
 
 export const calendarRoutes: FastifyPluginAsync = async (fastify) => {
@@ -144,11 +158,15 @@ export const calendarRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.type('text/html')
           .send(`<html><body><h2>Google auth denied: ${escapeHtml(error)}</h2><p>You can close this tab.</p></body></html>`);
       }
-      if (!code || !state || !pendingAuth || pendingAuth.state !== state || Date.now() > pendingAuth.expiresAt) {
-        pendingAuth = null;
+      // A mismatched or missing state must not cancel an in-progress flow (any
+      // web page can hit this URL); only an expired request is cleared.
+      if (pendingAuth && Date.now() > pendingAuth.expiresAt) pendingAuth = null;
+      if (!code || !state || !pendingAuth || !statesMatch(pendingAuth.state, state)) {
         return reply.code(400).type('text/html')
           .send('<html><body><h2>Invalid or expired auth request.</h2><p>Try connecting again.</p></body></html>');
       }
+      // Consume the state before the (awaited) code exchange so it is single-use.
+      pendingAuth = null;
       try {
         const data = await fetchJson<{ access_token: string; refresh_token?: string; expires_in: number }>(
           GOOGLE_TOKEN,
@@ -173,7 +191,6 @@ export const calendarRoutes: FastifyPluginAsync = async (fastify) => {
           refresh_token: data.refresh_token,
           expires_at: Date.now() + data.expires_in * 1000,
         });
-        pendingAuth = null;
         EVENTS_CACHE.clear();
         return reply.type('text/html')
           .send('<html><body><h2>Connected to Google Calendar!</h2><p>You can close this tab.</p></body></html>');
@@ -213,6 +230,10 @@ export const calendarRoutes: FastifyPluginAsync = async (fastify) => {
     if (!DATE_RE.test(start) || !DATE_RE.test(end)) {
       throw new HttpError(400, 'start and end (YYYY-MM-DD) are required');
     }
+    if (!isRealDate(start) || !isRealDate(end)) {
+      throw new HttpError(400, 'start and end must be real calendar dates');
+    }
+    if (start > end) throw new HttpError(400, 'start must not be after end');
     if (!userTokens.authenticated) return reply.code(401).send({ error: 'Not connected to Google Calendar' });
 
     const cacheKey = `${start}|${end}`;
@@ -225,20 +246,28 @@ export const calendarRoutes: FastifyPluginAsync = async (fastify) => {
     const timeMax = endExclusive.toISOString();
 
     const token = await userTokens.getValidToken();
-    const params = new URLSearchParams({
-      singleEvents: 'true',
-      orderBy: 'startTime',
-      maxResults: '250',
-      timeMin,
-      timeMax,
-    });
-    const d = await fetchJson<{ items?: GoogleEventItem[] }>(
-      `${BASE}/calendars/primary/events?${params.toString()}`,
-      { headers: { Authorization: `Bearer ${token}` } },
-      { label: 'Google Calendar events' },
-    );
+    const items: GoogleEventItem[] = [];
+    let pageToken: string | undefined;
+    for (let page = 0; page < MAX_EVENT_PAGES; page++) {
+      const params = new URLSearchParams({
+        singleEvents: 'true',
+        orderBy: 'startTime',
+        maxResults: '2500',
+        timeMin,
+        timeMax,
+      });
+      if (pageToken) params.set('pageToken', pageToken);
+      const d = await fetchJson<{ items?: GoogleEventItem[]; nextPageToken?: string }>(
+        `${BASE}/calendars/primary/events?${params.toString()}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+        { label: 'Google Calendar events' },
+      );
+      items.push(...(d.items ?? []));
+      pageToken = d.nextPageToken;
+      if (!pageToken) break;
+    }
 
-    const data: CalendarEventsData = { events: (d.items ?? []).map(mapEvent) };
+    const data: CalendarEventsData = { events: items.map(mapEvent) };
     EVENTS_CACHE.set(cacheKey, data);
     return reply.send(data);
   });
@@ -253,7 +282,7 @@ export const calendarRoutes: FastifyPluginAsync = async (fastify) => {
     properties: {
       summary: { type: 'string', minLength: 1, maxLength: 200 },
       date: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
-      time: { type: 'string', pattern: '^\\d{2}:\\d{2}$' },
+      time: { type: 'string', pattern: '^([01]\\d|2[0-3]):[0-5]\\d$' },
       durationMinutes: { type: 'integer', minimum: 1, maximum: 1440 },
     },
   } as const;
@@ -265,8 +294,9 @@ export const calendarRoutes: FastifyPluginAsync = async (fastify) => {
     '/events',
     { schema: { body: addEventBody } },
     async (req, reply) => {
-      if (!userTokens.authenticated) return reply.code(401).send({ error: 'Not connected to Google Calendar' });
       const { summary, date, time, durationMinutes } = req.body;
+      if (!isRealDate(date)) throw new HttpError(400, 'date must be a real calendar date');
+      if (!userTokens.authenticated) return reply.code(401).send({ error: 'Not connected to Google Calendar' });
 
       let body: {
         summary: string;

@@ -39,6 +39,12 @@ describe('GET /api/stocks', () => {
     expect(res.json<{ error: string }>().error).toContain('Settings → Developer');
   });
 
+  it('400s when no requested symbol is valid, and drops invalid ones otherwise', async () => {
+    withCreds();
+    const bad = await app.inject({ method: 'GET', url: '/api/stocks?symbols=' + encodeURIComponent('AAPL#,A&B') });
+    expect(bad.statusCode).toBe(400);
+  });
+
   it('maps Alpaca snapshots + bars into StocksData with auth headers from env creds', async () => {
     withCreds();
     let sawAuth = false;
@@ -79,6 +85,29 @@ describe('GET /api/stocks', () => {
     expect(q.sparkline).toEqual([100.5, 101]);
     expect(typeof q.marketOpen).toBe('boolean');
     expect(sawAuth).toBe(true);
+  });
+
+  it('marketOpen follows the holiday-aware calendar, not the weekday/hours clock', async () => {
+    withCreds();
+    // Tuesday 11:00 ET: the clock heuristic says open, but the calendar's next
+    // trading day is tomorrow, so today is a holiday.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-10T16:00:00Z'));
+    try {
+      stubFetch([
+        ['/v2/calendar', () => jsonRes([{ date: '2026-11-11', open: '09:30', close: '16:00' }])],
+        ['/stocks/snapshots', () => jsonRes({ HOLI: { latestTrade: { p: 50 }, dailyBar: { t: 'x', o: 1, h: 1, l: 1, c: 49, v: 1 } } })],
+        ['/stocks/bars', () => jsonRes({ bars: {} })],
+      ]);
+      expect((await app.inject({ method: 'GET', url: '/api/stocks/calendar' })).json<{ isOpen: boolean }>().isOpen).toBe(false);
+      const res = await app.inject({ method: 'GET', url: '/api/stocks?symbols=HOLI' });
+      expect(res.statusCode).toBe(200);
+      const q = res.json<StocksData>().equities[0];
+      expect(q.marketOpen).toBe(false);
+      expect(q.lastPrice).toBe(49); // closed: prefers the daily close over latestTrade
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('passes an Alpaca 403 through (bad key is actionable)', async () => {
@@ -124,10 +153,10 @@ describe('GET /api/stocks/watchlist', () => {
   });
 
   it('proxies trading and caches a connected result', async () => {
-    process.env.TRADING_API_URL = 'http://trading.test:7433';
+    process.env.TRADING_API_URL = 'http://127.0.0.1:7433';
     process.env.TRADING_API_TOKEN = 'otar_test';
     const fn = stubFetch([
-      ['http://trading.test:7433/api/watchlist/summary', () => jsonRes({ symbols: [{ symbol: 'QQQ', topPickScore: null, hasOpenPosition: false }] })],
+      ['http://127.0.0.1:7433/api/watchlist/summary', () => jsonRes({ symbols: [{ symbol: 'QQQ', topPickScore: null, hasOpenPosition: false }] })],
     ]);
     const first = await app.inject({ method: 'GET', url: '/api/stocks/watchlist' });
     expect(first.json()).toMatchObject({ connected: true, items: [{ ticker: 'QQQ' }] });

@@ -13,8 +13,8 @@ export interface EmbedItem {
   thumbShape?: EmbedThumbShape;
   /** Renders the pulsing live dot in rows and the control bar when true. */
   isLive?: boolean;
-  /** When set (and the adapter has useFolderItems), the row subtitle becomes a
-   *  click target that opens this channel's uploads as a folder view. */
+  /** When set (and the adapter has useFolderItems), the row gets a trailing
+   *  button that opens this channel's uploads as a folder view. */
   channel?: { id: string; title: string };
 }
 

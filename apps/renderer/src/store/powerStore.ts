@@ -5,9 +5,10 @@ import { create } from 'zustand';
  * Not persisted — both values are observations, not preferences.
  *
  * - `hidden` tracks document visibility (window minimized / hidden to tray).
- * - `onBattery` is fed by the hardware poll (useHardware); if the hardware
- *   widget is disabled the value stays false, so lowPower 'auto' only engages
- *   while battery telemetry is actually flowing.
+ * - `onBattery` is fed by the hardware poll (useHardware) and reset to false
+ *   when that hook unmounts, so lowPower 'auto' only engages while battery
+ *   telemetry is actually flowing (a removed Hardware widget never leaves it
+ *   stuck at true).
  */
 interface PowerState {
   onBattery: boolean;

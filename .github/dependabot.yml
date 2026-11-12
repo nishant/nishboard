@@ -19,6 +19,11 @@ updates:
           - "*"
     ignore:
       - dependency-name: electron
+      # react-resizable is pinned to ^3 only for its CSS: react-grid-layout 1.5
+      # bundles v3. Hold its majors while RGL stays on 1.5.
+      - dependency-name: react-resizable
+        update-types:
+          - version-update:semver-major
       - dependency-name: "*"
         update-types:
           - version-update:semver-major
@@ -45,6 +50,4 @@ updates:
     groups:
       actions:
         patterns: ['*']
-    ignore:
-      - dependency-name: '*'
-        update-types: ['version-update:semver-major']
+    # Action majors are taken (SHA-pinned), so no semver-major ignore here.

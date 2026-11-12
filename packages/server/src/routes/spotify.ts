@@ -48,6 +48,14 @@ function generatePkce(): { verifier: string; challenge: string; state: string } 
 
 // ── Spotify API helpers ───────────────────────────────────────────────────────
 
+/** Parse a query-string number; NaN / junk falls back to `def`, then clamps. */
+function intOr(raw: string | undefined, def: number, min: number, max: number): number {
+  const n = parseInt(raw ?? '', 10);
+  return Math.min(max, Math.max(min, Number.isFinite(n) ? n : def));
+}
+
+const PLAYLIST_ID_RE = /^[A-Za-z0-9]{10,40}$/;
+
 const SPOTIFY_ACCOUNTS = 'https://accounts.spotify.com';
 const SPOTIFY_API = 'https://api.spotify.com/v1';
 
@@ -91,6 +99,7 @@ async function exchangeCode(code: string, verifier: string): Promise<StoredUserT
       client_id: clientId(),
       code_verifier: verifier,
     }),
+    signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) throw new Error(`Token exchange failed ${res.status}: ${await res.text()}`);
   const d = await res.json() as { access_token: string; refresh_token: string; expires_in: number };
@@ -133,6 +142,8 @@ async function spotifyRequest(
   endpoint: string,
   body?: Record<string, unknown>,
 ): Promise<Response> {
+  // Not connected is an expected state: 401 for every route, not a 502.
+  if (!tokenStore.authenticated) throw new HttpError(401, 'Not connected to Spotify');
   const token = await tokenStore.getValidToken();
   return fetch(`${SPOTIFY_API}${endpoint}`, {
     method,
@@ -187,6 +198,7 @@ async function startPlayback(body: Record<string, unknown>, deviceId?: string): 
   const qs = deviceId ? `?device_id=${encodeURIComponent(deviceId)}` : '';
   let res = await spotifyRequest('PUT', `/me/player/play${qs}`, body);
   if (res.status === 404) {
+    await res.body?.cancel();
     devicesCache.clear();
     const fallback = await firstAvailableDeviceId();
     if (fallback) {
@@ -201,7 +213,8 @@ async function startPlayback(body: Record<string, unknown>, deviceId?: string): 
 const nowPlayingCache = new SimpleCache<TrackData>();
 const devicesCache = new SimpleCache<SpotifyDevice[]>();
 
-// Paginated caches keyed by "playlistId|offset"
+// Paginated caches: playlistPageCache is keyed "offset|limit"; trackPageCache
+// is keyed "playlistId|offset|limit".
 const playlistPageCache = new TtlCache<string, SpotifyPlaylistsPage>(30_000);
 const trackPageCache = new TtlCache<string, SpotifyTracksPage>(60_000);
 
@@ -381,29 +394,55 @@ export const spotifyRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // POST /api/spotify/seek  { positionMs: number }
-  fastify.post<{ Body: { positionMs: number } }>('/seek', async (req, reply) => {
-    await spotifyCommand('PUT', `/me/player/seek?position_ms=${Math.round(req.body.positionMs)}`, 'Spotify seek');
+  fastify.post<{ Body: { positionMs: number } }>('/seek', {
+    schema: {
+      body: {
+        type: 'object', required: ['positionMs'],
+        properties: { positionMs: { type: 'integer', minimum: 0 } },
+      },
+    },
+  }, async (req, reply) => {
+    const qs = new URLSearchParams({ position_ms: String(req.body.positionMs) });
+    await spotifyCommand('PUT', `/me/player/seek?${qs.toString()}`, 'Spotify seek');
     nowPlayingCache.clear();
     return reply.code(204).send();
   });
 
   // POST /api/spotify/volume  { volumePercent: number }
-  fastify.post<{ Body: { volumePercent: number } }>('/volume', async (req, reply) => {
-    const vol = Math.min(100, Math.max(0, Math.round(req.body.volumePercent)));
+  fastify.post<{ Body: { volumePercent: number } }>('/volume', {
+    schema: {
+      body: {
+        type: 'object', required: ['volumePercent'],
+        properties: { volumePercent: { type: 'number', minimum: 0, maximum: 100 } },
+      },
+    },
+  }, async (req, reply) => {
+    const vol = Math.round(req.body.volumePercent);
     await spotifyCommand('PUT', `/me/player/volume?volume_percent=${vol}`, 'Spotify volume');
     nowPlayingCache.clear();
     return reply.code(204).send();
   });
 
   // POST /api/spotify/shuffle  { state: boolean }
-  fastify.post<{ Body: { state: boolean } }>('/shuffle', async (req, reply) => {
+  fastify.post<{ Body: { state: boolean } }>('/shuffle', {
+    schema: {
+      body: { type: 'object', required: ['state'], properties: { state: { type: 'boolean' } } },
+    },
+  }, async (req, reply) => {
     await spotifyCommand('PUT', `/me/player/shuffle?state=${req.body.state}`, 'Spotify shuffle');
     nowPlayingCache.clear();
     return reply.code(204).send();
   });
 
   // POST /api/spotify/repeat  { state: 'off' | 'track' | 'context' }
-  fastify.post<{ Body: { state: 'off' | 'track' | 'context' } }>('/repeat', async (req, reply) => {
+  fastify.post<{ Body: { state: 'off' | 'track' | 'context' } }>('/repeat', {
+    schema: {
+      body: {
+        type: 'object', required: ['state'],
+        properties: { state: { type: 'string', enum: ['off', 'track', 'context'] } },
+      },
+    },
+  }, async (req, reply) => {
     await spotifyCommand('PUT', `/me/player/repeat?state=${req.body.state}`, 'Spotify repeat');
     nowPlayingCache.clear();
     return reply.code(204).send();
@@ -438,7 +477,7 @@ export const spotifyRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
     // Liked Songs list + its count badge changed — drop the caches so the next
-    // fetch reflects it (page cache keys are "playlistId|offset").
+    // fetch reflects it (track page keys are "playlistId|offset|limit").
     trackPageCache.clear();
     playlistPageCache.clear();
     return reply.code(204).send();
@@ -450,8 +489,8 @@ export const spotifyRoutes: FastifyPluginAsync = async (fastify) => {
     Querystring: { offset?: string; limit?: string };
     Reply: SpotifyPlaylistsPage | { error: string };
   }>('/playlists', async (req, reply) => {
-    const offset = Math.max(0, parseInt(req.query.offset ?? '0', 10));
-    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit ?? '20', 10)));
+    const offset = intOr(req.query.offset, 0, 0, Number.MAX_SAFE_INTEGER);
+    const limit = intOr(req.query.limit, 20, 1, 50);
     const cacheKey = `${offset}|${limit}`;
 
     const cached = playlistPageCache.get(cacheKey);
@@ -526,15 +565,18 @@ export const spotifyRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/spotify/playlist-tracks?playlistId=...&offset=0&limit=100
   // playlistId === 'liked-songs' uses GET /me/tracks
   fastify.get<{
-    Querystring: { playlistId: string; offset?: string; limit?: string };
+    Querystring: { playlistId?: string; offset?: string; limit?: string };
     Reply: SpotifyTracksPage | { error: string };
   }>('/playlist-tracks', async (req, reply) => {
-    const { playlistId } = req.query;
-    const offset = Math.max(0, parseInt(req.query.offset ?? '0', 10));
+    const playlistId = (req.query.playlistId ?? '').trim();
+    if (playlistId !== 'liked-songs' && playlistId !== 'recently-played' && !PLAYLIST_ID_RE.test(playlistId)) {
+      throw new HttpError(400, 'playlistId required');
+    }
+    const offset = intOr(req.query.offset, 0, 0, Number.MAX_SAFE_INTEGER);
     // Spotify /me/tracks max is 50; regular playlist items max is 100
-    const isLiked = req.query.playlistId === 'liked-songs';
-    const limit = Math.min(isLiked ? 50 : 100, Math.max(1, parseInt(req.query.limit ?? '100', 10)));
-    const cacheKey = `${playlistId}|${offset}`;
+    const isLiked = playlistId === 'liked-songs';
+    const limit = intOr(req.query.limit, isLiked ? 50 : 100, 1, isLiked ? 50 : 100);
+    const cacheKey = `${playlistId}|${offset}|${limit}`;
 
     const cached = trackPageCache.get(cacheKey);
     if (cached) return reply.send(cached);
@@ -620,7 +662,7 @@ export const spotifyRoutes: FastifyPluginAsync = async (fastify) => {
         } | null }[];
       }>(
         'GET',
-        `/playlists/${playlistId}/items?limit=${limit}&offset=${offset}&fields=${encodeURIComponent(fields)}`,
+        `/playlists/${encodeURIComponent(playlistId)}/items?limit=${limit}&offset=${offset}&fields=${encodeURIComponent(fields)}`,
         'Spotify playlist tracks API',
       );
       const items: SpotifyTrackItem[] = (d.items ?? [])
@@ -673,11 +715,23 @@ export const spotifyRoutes: FastifyPluginAsync = async (fastify) => {
 
   // POST /api/spotify/play-context  { contextUri, deviceId?, shuffle? }
   fastify.post<{ Body: { contextUri: string; deviceId?: string; shuffle?: boolean } }>(
-    '/play-context', async (req, reply) => {
+    '/play-context', {
+      schema: {
+        body: {
+          type: 'object', required: ['contextUri'],
+          properties: {
+            contextUri: { type: 'string', minLength: 1, maxLength: 200 },
+            deviceId: { type: 'string', maxLength: 100 },
+            shuffle: { type: 'boolean' },
+          },
+        },
+      },
+    }, async (req, reply) => {
       const { contextUri, deviceId, shuffle } = req.body;
       // Set shuffle state before starting (fire-and-forget; failure is non-fatal)
       if (shuffle !== undefined) {
-        await spotifyRequest('PUT', `/me/player/shuffle?state=${shuffle}`).catch(() => null);
+        const sres = await spotifyRequest('PUT', `/me/player/shuffle?state=${shuffle}`).catch(() => null);
+        await sres?.body?.cancel();
       }
       const res = await startPlayback(
         { context_uri: contextUri, offset: { position: 0 }, position_ms: 0 },
@@ -686,7 +740,7 @@ export const spotifyRoutes: FastifyPluginAsync = async (fastify) => {
       if (res.status === 404) {
         throw new HttpError(404, 'No Spotify device found — open Spotify on your phone or desktop, then try again.');
       }
-      if (!res.ok && res.status !== 202) {
+      if (!res.ok) {
         throw new UpstreamError(res.status, `Spotify ${res.status}: ${await res.text()}`);
       }
       nowPlayingCache.clear();
@@ -697,7 +751,18 @@ export const spotifyRoutes: FastifyPluginAsync = async (fastify) => {
 
   // POST /api/spotify/play-track  { trackUri, contextUri?, deviceId? }
   fastify.post<{ Body: { trackUri: string; contextUri?: string; deviceId?: string } }>(
-    '/play-track', async (req, reply) => {
+    '/play-track', {
+      schema: {
+        body: {
+          type: 'object', required: ['trackUri'],
+          properties: {
+            trackUri: { type: 'string', minLength: 1, maxLength: 200 },
+            contextUri: { type: 'string', maxLength: 200 },
+            deviceId: { type: 'string', maxLength: 100 },
+          },
+        },
+      },
+    }, async (req, reply) => {
       const { trackUri, contextUri, deviceId } = req.body;
       const playBody: Record<string, unknown> = contextUri
         ? { context_uri: contextUri, offset: { uri: trackUri }, position_ms: 0 }
@@ -707,7 +772,7 @@ export const spotifyRoutes: FastifyPluginAsync = async (fastify) => {
       if (res.status === 404) {
         throw new HttpError(404, 'No Spotify device found — open Spotify on your phone or desktop, then try again.');
       }
-      if (!res.ok && res.status !== 202 && res.status !== 204) {
+      if (!res.ok) {
         throw new UpstreamError(res.status, `Spotify ${res.status}: ${await res.text()}`);
       }
       nowPlayingCache.clear();
@@ -725,7 +790,7 @@ export const spotifyRoutes: FastifyPluginAsync = async (fastify) => {
     const q = (req.query.q ?? '').trim();
     if (q.length < 2) return reply.send({ tracks: [], episodes: [] });
 
-    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit ?? '20', 10)));
+    const limit = intOr(req.query.limit, 20, 1, 50);
     const cacheKey = `${limit}|${q.toLowerCase()}`;
     const cached = searchCache.get(cacheKey);
     if (cached) return reply.send(cached);

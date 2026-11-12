@@ -14,9 +14,11 @@ describe('credentials whitelist', () => {
     vi.resetModules();
     dir = (await import('electron')).app.getPath('userData');
     fs.rmSync(file(), { force: true });
+    fs.rmSync(`${file()}.corrupt`, { force: true });
   });
   afterEach(() => {
     fs.rmSync(file(), { force: true });
+    fs.rmSync(`${file()}.corrupt`, { force: true });
   });
 
   it('persists only whitelisted keys, so a renderer cannot inject NODE_OPTIONS', async () => {
@@ -41,10 +43,19 @@ describe('credentials whitelist', () => {
     expect(readCredentialStatus()).toEqual({ SPOTIFY_CLIENT_ID: true });
   });
 
-  it('treats a corrupt file as empty', async () => {
+  it('treats a corrupt file as empty but keeps it as credentials.json.corrupt', async () => {
     fs.writeFileSync(file(), '{not json');
     const { loadCredentials, readCredentials } = await import('./credentials');
     await loadCredentials();
     expect(readCredentials()).toEqual({});
+    expect(fs.existsSync(file())).toBe(false);
+    expect(fs.readFileSync(`${file()}.corrupt`, 'utf8')).toBe('{not json');
+  });
+
+  it('writes via tmp + rename: the target is complete and no .tmp is left behind', async () => {
+    const { writeCredentials } = await import('./credentials');
+    await writeCredentials({ SPOTIFY_CLIENT_ID: 'a' });
+    expect(fs.existsSync(`${file()}.tmp`)).toBe(false);
+    expect(stored()).toEqual({ SPOTIFY_CLIENT_ID: 'a' });
   });
 });

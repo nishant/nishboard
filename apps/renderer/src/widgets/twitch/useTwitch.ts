@@ -3,27 +3,48 @@ import type {
   TwitchSearchPage, TwitchAuthStatus, TwitchCategory, TwitchVideosPage, TwitchVideoType,
 } from '@dash/shared';
 import { apiClient } from '../../lib/apiClient';
+import { toast } from '../../lib/alerts';
 import { useGatedInterval } from '../../hooks/useGatedInterval';
+
+const CONNECT_POLL_MS = 2_000;
+const IDLE_POLL_MS = 60_000;
+const CONNECT_WINDOW_MS = 5 * 60_000;
+/** Set when the auth URL opens; the auth-status poll speeds up until connected. */
+let connectingSince: number | null = null;
 
 /** Poll auth state so the widget flips to Following automatically after the
  *  browser OAuth round-trip completes against the server. */
 export function useTwitchAuthStatus() {
-  const interval = useGatedInterval(15_000);
+  const fast = useGatedInterval(CONNECT_POLL_MS);
+  const slow = useGatedInterval(IDLE_POLL_MS);
   return useQuery<TwitchAuthStatus>({
     queryKey: ['twitch-auth'],
     queryFn: () => apiClient.get<TwitchAuthStatus>('/api/twitch/auth-status'),
-    refetchInterval: interval,
+    // 2s only while a connect is pending (auth URL opened, not yet authenticated,
+    // under 5 min); otherwise 60s.
+    refetchInterval: (query) => {
+      const since = connectingSince;
+      if (since !== null) {
+        if (query.state.data?.authenticated || Date.now() - since > CONNECT_WINDOW_MS) connectingSince = null;
+        else return fast;
+      }
+      return slow;
+    },
     staleTime: 10_000,
   });
 }
 
 export function useTwitchConnect() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: async () => {
       const { url } = await apiClient.get<{ url: string }>('/api/twitch/auth-url');
       // Guarded in the main process to https://id.twitch.tv/ only.
       window.electron?.openTwitchAuth?.(url);
+      connectingSince = Date.now();
     },
+    onError: (e: Error) => toast('Twitch', e.message, 'error'),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['twitch-auth'] }); },
   });
 }
 
@@ -72,14 +93,10 @@ export function useTwitchFollowedAll(enabled: boolean) {
   });
 }
 
-export function useTwitchSearch(query: string, after?: string) {
+export function useTwitchSearch(query: string) {
   return useQuery<TwitchSearchPage>({
-    queryKey: ['twitch-search', query, after],
-    queryFn: () => {
-      const params = new URLSearchParams({ q: query });
-      if (after) params.set('after', after);
-      return apiClient.get<TwitchSearchPage>(`/api/twitch/search?${params.toString()}`);
-    },
+    queryKey: ['twitch-search', query],
+    queryFn: () => apiClient.get<TwitchSearchPage>(`/api/twitch/search?${new URLSearchParams({ q: query }).toString()}`),
     enabled: query.length > 0,
     staleTime: 60 * 1000, // streams go on/offline — shorter cache than YouTube
   });
