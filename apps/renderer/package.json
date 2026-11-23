@@ -15,8 +15,8 @@
   "dependencies": {
     "@dash/shared": "workspace:*",
     "@nish/ui": "npm:nish-ui@3.2.0",
-    "@tanstack/react-query": "^5.107.1",
-    "lucide-react": "^1.72.0",
+    "@tanstack/react-query": "^5.108.1",
+    "lucide-react": "^1.77.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-grid-layout": "^1.5.4",
@@ -28,7 +28,7 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.5",
     "@testing-library/react": "^16.3.3",
-    "@testing-library/user-event": "^14.6.10",
+    "@testing-library/user-event": "^14.6.13",
     "@types/node": "^22.20.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
